@@ -6,6 +6,7 @@ from pathlib import Path
 
 import time
 
+import httpx
 from pydantic_ai import Agent, Tool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import (
@@ -153,6 +154,42 @@ class ApiOrchestrator(OrchestratorBase):
             else None
         )
         self._summarizer = Summarizer()
+
+    def for_parallel(self) -> "ApiOrchestrator":
+        """Create a copy safe for use in a parallel thread.
+
+        pydantic-ai caches a process-global ``httpx.AsyncClient`` per provider.
+        That client's transport holds asyncio primitives bound to whatever
+        event loop first used it, so reusing it from a thread with a different
+        loop crashes.  This method creates a new orchestrator whose model is an
+        explicit ``Model`` instance with its own HTTP client, bypassing the
+        cache entirely.
+        """
+        from pydantic_ai.models import infer_model
+
+        copy = ApiOrchestrator(
+            model=self.model,
+            max_context_tokens=self.max_context_tokens,
+            system_prompt=self._system_prompt,
+            fallback_model=self._fallback_model,
+        )
+        # Replace the model string with an explicit Model instance that owns
+        # its own httpx.AsyncClient (no shared cache).
+        base_model = infer_model(self._pydantic_model)
+        if hasattr(base_model, "client"):
+            # Google/Gemini models — recreate with a fresh HTTP client
+            from pydantic_ai.providers.google import GoogleProvider
+
+            provider = GoogleProvider(http_client=httpx.AsyncClient())
+            type_of_model = type(base_model)
+            copy._pydantic_model = type_of_model(
+                base_model._model_name, provider=provider
+            )
+        else:
+            # Anthropic/other models — infer_model already creates a new
+            # instance; the cache issue is specific to Google providers.
+            copy._pydantic_model = base_model
+        return copy
 
     def cycle(
         self,

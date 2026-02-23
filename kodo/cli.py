@@ -1,6 +1,7 @@
 """kodo interactive CLI — guided project setup and launch."""
 
 import argparse
+import enum
 import json
 import os
 import re
@@ -65,7 +66,93 @@ calling them for real.
 skip heavy initialization."""
 
 
-def _build_improve_plan(report_path: str) -> GoalPlan:
+class ProjectType(enum.Enum):
+    APP = "app"
+    LIBRARY = "library"
+
+
+def _detect_project_type(project_dir: Path) -> ProjectType:
+    """Heuristic detection of project type from project metadata files.
+
+    Returns LIBRARY when the project looks like a reusable package/SDK,
+    APP otherwise (safe fallback — preserves existing behavior).
+    """
+    # Python: pyproject.toml with [project] but no [project.scripts]
+    pyproject = project_dir / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            has_project = bool(re.search(r"^\[project\]", content, re.MULTILINE))
+            has_scripts = bool(
+                re.search(r"^\[project\.scripts\]", content, re.MULTILINE)
+            )
+            if has_project and not has_scripts:
+                return ProjectType.LIBRARY
+        except OSError:
+            pass
+
+    # JavaScript: package.json with main/exports but no bin
+    package_json = project_dir / "package.json"
+    if package_json.exists():
+        try:
+            pkg = json.loads(package_json.read_text(encoding="utf-8"))
+            has_entry = "main" in pkg or "exports" in pkg
+            has_bin = "bin" in pkg
+            if has_entry and not has_bin:
+                return ProjectType.LIBRARY
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # Rust: Cargo.toml with [lib] but no [[bin]]
+    cargo_toml = project_dir / "Cargo.toml"
+    if cargo_toml.exists():
+        try:
+            content = cargo_toml.read_text(encoding="utf-8")
+            has_lib = bool(re.search(r"^\[lib\]", content, re.MULTILINE))
+            has_bin = bool(re.search(r"^\[\[bin\]\]", content, re.MULTILINE))
+            if has_lib and not has_bin:
+                return ProjectType.LIBRARY
+        except OSError:
+            pass
+
+    # Go: go.mod exists but no main.go or cmd/
+    go_mod = project_dir / "go.mod"
+    if go_mod.exists():
+        has_main = (project_dir / "main.go").exists()
+        has_cmd = (project_dir / "cmd").is_dir()
+        if not has_main and not has_cmd:
+            return ProjectType.LIBRARY
+
+    # Python (no metadata): __init__.py + examples/ or docs/ but no CLI entry
+    # Only applies when no pyproject.toml/setup.py already handled detection
+    init_files = list(project_dir.glob("*/__init__.py"))
+    if init_files and not pyproject.exists():
+        has_examples_or_docs = (project_dir / "examples").is_dir() or (
+            project_dir / "docs"
+        ).is_dir()
+        # Check for CLI entry points in setup.py or obvious cli modules
+        has_cli = (project_dir / "setup.py").exists() and any(
+            "console_scripts" in (project_dir / "setup.py").read_text(encoding="utf-8")
+            for _ in [1]
+            if (project_dir / "setup.py").exists()
+        )
+        if has_examples_or_docs and not has_cli:
+            return ProjectType.LIBRARY
+
+    return ProjectType.APP
+
+
+def _build_improve_plan(
+    report_path: str, project_type: ProjectType = ProjectType.APP,
+    project_dir: Path | None = None,
+) -> GoalPlan:
+    """Build a staged plan for --improve mode, dispatching by project type."""
+    if project_type == ProjectType.LIBRARY:
+        return _build_improve_plan_library(report_path, project_dir)
+    return _build_improve_plan_app(report_path)
+
+
+def _build_improve_plan_app(report_path: str) -> GoalPlan:
     """Build a hardcoded staged plan for --improve mode.
 
     Stages 2 and 3 run in parallel (``parallel_group=1``) and write findings
@@ -197,6 +284,143 @@ def _build_improve_plan(report_path: str) -> GoalPlan:
                     f"Report written to {report_path} with Auto-fixed and Needs "
                     "decision sections. All auto-fixes committed. Report covers "
                     "findings from all prior stages."
+                ),
+            ),
+        ],
+    )
+
+
+def _build_improve_plan_library(
+    report_path: str, project_dir: Path | None = None,
+) -> GoalPlan:
+    """Build a staged plan for --improve mode targeting library/SDK projects.
+
+    Focuses on API surface quality, developer experience, and consumer-side
+    testing rather than app-centric happy-path/adversarial testing.
+    """
+    run_dir = str(Path(report_path).parent)
+    api_findings = f"{run_dir}/findings-api-audit.md"
+    consumer_findings = f"{run_dir}/findings-consumer-project.md"
+    misuse_findings = f"{run_dir}/findings-api-misuse.md"
+    install_path = str(project_dir) if project_dir else "."
+
+    return GoalPlan(
+        context=(
+            "You are improving a **library/SDK** codebase. Your job is to evaluate "
+            "it from the perspective of a developer who wants to USE this library. "
+            "Focus on API ergonomics, documentation accuracy, error message quality, "
+            "and developer experience — not just correctness.\n\n"
+            f"{_IMPROVE_TIME_GUIDANCE}"
+        ),
+        stages=[
+            GoalStage(
+                index=1,
+                name="Baseline & API Surface Audit",
+                description=(
+                    "Run the existing test suite and linters. Then perform a public "
+                    "API inventory:\n\n"
+                    "1. Identify all public modules, classes, and functions.\n"
+                    "2. Check naming consistency (conventions, prefixes, casing).\n"
+                    "3. Verify type annotations are present on public APIs.\n"
+                    "4. Check docstrings exist and match actual signatures.\n"
+                    "5. If docs/ exist, spot-check that documented examples match "
+                    "the actual API signatures and behavior.\n"
+                    "6. Review error/exception types for consistency and clarity.\n\n"
+                    f"Write all findings to `{api_findings}`."
+                ),
+                acceptance_criteria=(
+                    "Test results documented. Lint/type-check results documented. "
+                    "Public API inventory with naming, typing, docstring, and docs "
+                    f"accuracy assessment written to {api_findings}."
+                ),
+            ),
+            GoalStage(
+                index=2,
+                name="Consumer Project Testing",
+                parallel_group=1,
+                description=(
+                    "Create a **fresh consumer project** in a temporary directory "
+                    "that uses this library as a dependency. This tests real-world "
+                    "developer experience.\n\n"
+                    "**Steps:**\n"
+                    "1. Create a temp directory (use mktemp -d or equivalent).\n"
+                    f"2. Install the library: `pip install -e {install_path}` "
+                    "(or the equivalent for the project's language).\n"
+                    "3. Write a small but realistic project that exercises the main "
+                    "API paths — imports, initialization, core operations.\n"
+                    "4. Run it and note: import friction, missing re-exports, "
+                    "confusing defaults, poor error messages on wrong usage.\n"
+                    "5. Assess: could a developer get started from the README alone?\n\n"
+                    f"{_IMPROVE_TIME_GUIDANCE}\n\n"
+                    "**IMPORTANT:** Do NOT modify the library source code. Write all "
+                    f"findings to `{consumer_findings}`."
+                ),
+                acceptance_criteria=(
+                    "Consumer project created and executed. DX friction points "
+                    "documented. Import and initialization experience assessed. "
+                    f"Detailed findings written to {consumer_findings}."
+                ),
+            ),
+            GoalStage(
+                index=3,
+                name="API Misuse & Error Quality",
+                parallel_group=1,
+                description=(
+                    "Systematically misuse the library's public API and grade the "
+                    "error messages for helpfulness.\n\n"
+                    "**Test categories:**\n"
+                    "- Wrong argument types (str instead of int, None where not "
+                    "expected, wrong container type)\n"
+                    "- Missing required arguments\n"
+                    "- Wrong call order (use before init, double-close, etc.)\n"
+                    "- Edge values (empty collections, zero, negative numbers, "
+                    "extremely long strings, unicode)\n\n"
+                    "For each error, grade on:\n"
+                    "- Does the error message say WHAT went wrong?\n"
+                    "- Does it say HOW to fix it?\n"
+                    "- Does it point to the right location (not deep internals)?\n"
+                    "- Is the exception type appropriate (not bare Exception)?\n\n"
+                    f"{_IMPROVE_TIME_GUIDANCE}\n\n"
+                    "**IMPORTANT:** Do NOT modify the library source code. Write all "
+                    f"findings to `{misuse_findings}`."
+                ),
+                acceptance_criteria=(
+                    "API misuse scenarios tested. Error messages graded for "
+                    "helpfulness. Exception types reviewed. "
+                    f"Detailed findings written to {misuse_findings}."
+                ),
+            ),
+            GoalStage(
+                index=4,
+                name="Fix & Report",
+                description=(
+                    "Consolidate everything found across all stages. Read the detailed "
+                    f"findings files:\n"
+                    f"- `{api_findings}`\n"
+                    f"- `{consumer_findings}`\n"
+                    f"- `{misuse_findings}`\n\n"
+                    "For every issue:\n"
+                    "a. **Auto-fix** it if the fix is safe and unambiguous, or\n"
+                    "b. **Flag it** with a one-line description and suggested fix.\n\n"
+                    f"Write the final report to `{report_path}` using this format:\n\n"
+                    "```markdown\n"
+                    "# Improve Report\n\n"
+                    "## Auto-fixed\n"
+                    "- <file>:<line> — <description of what was fixed>\n\n"
+                    "## Needs decision\n"
+                    "- <file>:<line> — <description + suggested fix>\n\n"
+                    "## Developer Experience Notes\n"
+                    "- <observation about DX, import ergonomics, error clarity, etc.>\n"
+                    "```\n\n"
+                    "Commit all auto-fixes in a single commit with message "
+                    '"chore: auto-fix issues found by kodo improve".\n\n'
+                    "Include issues from ALL stages — API audit, consumer project, "
+                    "and API misuse findings."
+                ),
+                acceptance_criteria=(
+                    f"Report written to {report_path} with Auto-fixed, Needs "
+                    "decision, and Developer Experience Notes sections. All auto-fixes "
+                    "committed. Report covers findings from all prior stages."
                 ),
             ),
         ],
@@ -1046,8 +1270,38 @@ def main() -> None:
         raise
 
 
+def _first_backend() -> str | None:
+    """Return the first available backend key, or None."""
+    if has_claude():
+        return "claude"
+    if has_cursor():
+        return "cursor"
+    if has_gemini_cli():
+        return "gemini-cli"
+    return None
+
+
 def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
-    """Offer intake interview, letting user pick backend. Returns result or None."""
+    """Offer goal refinement before launch. Returns refined goal/plan or None."""
+    backend = _first_backend()
+    if not backend:
+        print("\nSkipping refinement (no backends available).")
+        return None
+
+    options = [
+        "Quick refine — surfaces implicit constraints, no conversation",
+        "Interview — interactive Q&A, optionally break into stages",
+        "Skip",
+    ]
+    choice = _select_one("\nRefine goal before launch?", options)
+    if choice.startswith("Skip"):
+        return None
+
+    if choice.startswith("Quick"):
+        refined = run_intake_auto(backend, run_dir, goal_text)
+        return refined
+
+    # Interview — let user pick backend if multiple are available
     backends: list[str] = []
     if has_claude():
         backends.append("Claude")
@@ -1056,17 +1310,9 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
     if has_gemini_cli():
         backends.append("Gemini CLI")
 
-    if not backends:
-        print("\nSkipping intake (no backends available).")
-        return None
-
-    options = backends + ["Skip"]
-    choice = _select_one("\nRefine goal with:", options)
-    if choice == "Skip":
-        return None
-
-    _backend_map = {"Claude": "claude", "Cursor": "cursor", "Gemini CLI": "gemini-cli"}
-    backend = _backend_map[choice]
+    if len(backends) > 1:
+        _backend_map = {"Claude": "claude", "Cursor": "cursor", "Gemini CLI": "gemini-cli"}
+        backend = _backend_map[_select_one("Interview backend:", backends)]
 
     staged = False
     if _looks_staged(goal_text):
@@ -1243,6 +1489,14 @@ def _main_inner() -> None:
         action="store_true",
         default=False,
         help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
+    )
+
+    parser.add_argument(
+        "--improve-type",
+        type=str,
+        default="auto",
+        choices=["auto", "app", "library"],
+        help="Project type for --improve (default: auto-detect).",
     )
 
     # Non-interactive config flags
@@ -1430,7 +1684,16 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         goal_text = _IMPROVE_GOAL.format(report_path=report_path)
-        plan = _build_improve_plan(str(report_path))
+        improve_type = getattr(args, "improve_type", "auto")
+        if improve_type == "auto":
+            project_type = _detect_project_type(project_dir)
+        else:
+            project_type = ProjectType(improve_type)
+        if not args.json:
+            print(f"  Improve type: {project_type.value}")
+        plan = _build_improve_plan(
+            str(report_path), project_type=project_type, project_dir=project_dir,
+        )
     elif non_interactive:
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:

@@ -12,8 +12,10 @@ import pytest
 
 from tests.conftest import make_scripted_session
 from kodo.cli import (
+    ProjectType,
     _build_improve_plan,
     _build_params_from_flags,
+    _detect_project_type,
     _extract_section,
     run_intake_noninteractive,
     _main_inner,
@@ -660,3 +662,180 @@ class TestExtractSection:
     def test_returns_empty_for_missing_section(self):
         report = "# Improve Report\n\n## Auto-fixed\n- x\n"
         assert _extract_section(report, "Needs decision") == ""
+
+
+# ---------------------------------------------------------------------------
+# TestDetectProjectType
+# ---------------------------------------------------------------------------
+
+
+class TestDetectProjectType:
+    def test_pyproject_library(self, tmp_path):
+        """pyproject.toml with [project] but no [project.scripts] → LIBRARY."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = 'mylib'\nversion = '1.0'\n"
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+    def test_pyproject_app_with_scripts(self, tmp_path):
+        """pyproject.toml with [project.scripts] → APP."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = 'myapp'\n\n[project.scripts]\nmyapp = 'myapp:main'\n"
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_package_json_library(self, tmp_path):
+        """package.json with main but no bin → LIBRARY."""
+        (tmp_path / "package.json").write_text(
+            json.dumps({"name": "mylib", "main": "index.js"})
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+    def test_package_json_cli(self, tmp_path):
+        """package.json with main and bin → APP."""
+        (tmp_path / "package.json").write_text(
+            json.dumps({"name": "mycli", "main": "index.js", "bin": {"mycli": "cli.js"}})
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_cargo_toml_lib(self, tmp_path):
+        """Cargo.toml with [lib] but no [[bin]] → LIBRARY."""
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nname = "mylib"\n\n[lib]\nname = "mylib"\n'
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+    def test_cargo_toml_bin(self, tmp_path):
+        """Cargo.toml with [lib] and [[bin]] → APP."""
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nname = "myapp"\n\n[lib]\nname = "myapp"\n\n[[bin]]\nname = "myapp"\n'
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_go_library(self, tmp_path):
+        """go.mod without main.go or cmd/ → LIBRARY."""
+        (tmp_path / "go.mod").write_text("module example.com/mylib\n")
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+    def test_go_app(self, tmp_path):
+        """go.mod with main.go → APP."""
+        (tmp_path / "go.mod").write_text("module example.com/myapp\n")
+        (tmp_path / "main.go").write_text("package main\n")
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_empty_dir_defaults_to_app(self, tmp_path):
+        """Empty directory → APP (safe fallback)."""
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_python_package_with_examples(self, tmp_path):
+        """Python package with __init__.py + examples/ but no metadata → LIBRARY."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (tmp_path / "examples").mkdir()
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+    def test_python_package_without_examples(self, tmp_path):
+        """Python package with __init__.py but no examples/ or docs/ → APP."""
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        assert _detect_project_type(tmp_path) == ProjectType.APP
+
+    def test_package_json_exports(self, tmp_path):
+        """package.json with exports but no bin → LIBRARY."""
+        (tmp_path / "package.json").write_text(
+            json.dumps({"name": "mylib", "exports": {".": "./src/index.js"}})
+        )
+        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+
+
+# ---------------------------------------------------------------------------
+# TestLibraryImprovePlan
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryImprovePlan:
+    """Tests for _build_improve_plan() with library project type."""
+
+    def test_has_four_stages(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        assert len(plan.stages) == 4
+
+    def test_stages_have_sequential_indices(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4]
+
+    def test_has_consumer_project_stage(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        names = [s.name for s in plan.stages]
+        assert "Consumer Project Testing" in names
+
+    def test_has_api_misuse_stage(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        names = [s.name for s in plan.stages]
+        assert "API Misuse & Error Quality" in names
+
+    def test_stages_2_and_3_parallel(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        assert plan.stages[1].parallel_group == 1
+        assert plan.stages[2].parallel_group == 1
+
+    def test_stages_1_and_4_sequential(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        assert plan.stages[0].parallel_group is None
+        assert plan.stages[3].parallel_group is None
+
+    def test_consumer_stage_references_project_dir(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        consumer = plan.stages[1]
+        assert "/tmp/mylib" in consumer.description
+
+    def test_fix_stage_references_all_findings(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        fix_stage = plan.stages[3]
+        assert "findings-api-audit.md" in fix_stage.description
+        assert "findings-consumer-project.md" in fix_stage.description
+        assert "findings-api-misuse.md" in fix_stage.description
+
+    def test_fix_stage_has_dx_notes_section(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        fix_stage = plan.stages[3]
+        assert "Developer Experience Notes" in fix_stage.description
+
+    def test_context_mentions_library(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        assert "library" in plan.context.lower()
+
+    def test_all_stages_have_acceptance_criteria(self):
+        plan = _build_improve_plan(
+            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
+        )
+        for stage in plan.stages:
+            assert stage.acceptance_criteria, f"Stage {stage.index} missing criteria"
+
+    def test_app_type_still_returns_app_plan(self):
+        """Passing APP type returns the original app plan."""
+        plan = _build_improve_plan("/tmp/report.md", ProjectType.APP)
+        names = [s.name for s in plan.stages]
+        assert "Happy Path Integration Testing" in names

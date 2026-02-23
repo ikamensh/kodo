@@ -711,6 +711,15 @@ class OrchestratorBase:
     ) -> CycleResult:
         raise NotImplementedError
 
+    def for_parallel(self) -> "OrchestratorBase":
+        """Return a copy safe for use in a parallel thread.
+
+        The default implementation returns ``self``.  Subclasses that hold
+        state tied to a specific asyncio event loop (e.g. cached HTTP clients)
+        should override this to return an independent copy.
+        """
+        return self
+
     def run(
         self,
         goal: str,
@@ -1152,7 +1161,7 @@ class OrchestratorBase:
                             )
                             future = pool.submit(
                                 _run_in_own_loop,
-                                self,
+                                self.for_parallel(),
                                 stage,
                                 plan,
                                 stage_dir,
