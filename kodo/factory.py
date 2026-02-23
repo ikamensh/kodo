@@ -52,6 +52,11 @@ def has_gemini_cli() -> bool:
     return available_backends()["gemini-cli"]
 
 
+def _gemini_only() -> bool:
+    """True when gemini-cli is the only available backend."""
+    return has_gemini_cli() and not has_claude() and not has_cursor() and not has_codex()
+
+
 def check_api_key(orchestrator: str, model: str) -> str | None:
     """Return an error message if the required API key is missing, else None."""
     import os
@@ -146,6 +151,36 @@ def _build_team_saga(
 
     team: TeamConfig = {}
 
+    # Gemini-only: build a full team using gemini-cli with model tiers
+    if _gemini_only():
+        team["worker_fast"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-flash"),
+            _WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        team["worker_smart"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-pro"),
+            _WORKER_SMART_DESC + _WORKER_SMART_SAGA_EXTRA,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        team["architect"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT),
+            "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
+            "Does not implement features.",
+            max_turns=10,
+            timeout_s=architect_timeout_s,
+        )
+        team["tester"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-flash", system_prompt=TESTER_PROMPT),
+            "Verifies features end-to-end. Give it a user-experience description to check.\n"
+            "Reports what works and what's broken. Does not fix anything.",
+            max_turns=20,
+            timeout_s=tester_timeout_s,
+        )
+        return team
+
     if _has_cursor:
         worker_fast_session = make_session("cursor", "composer-1.5")
         team["worker_fast"] = Agent(
@@ -238,6 +273,22 @@ def _build_team_mission() -> TeamConfig:
 
     team: TeamConfig = {}
 
+    # Gemini-only: build both workers using gemini-cli with model tiers
+    if _gemini_only():
+        team["worker_fast"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-flash"),
+            _WORKER_FAST_DESC,
+            max_turns=30,
+            timeout_s=1800,
+        )
+        team["worker_smart"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-pro"),
+            _WORKER_SMART_DESC,
+            max_turns=30,
+            timeout_s=1800,
+        )
+        return team
+
     if _has_cursor:
         worker_fast_session = make_session("cursor", "composer-1.5")
         team["worker_fast"] = Agent(
@@ -289,14 +340,14 @@ def _build_team_mission() -> TeamConfig:
 def _mission_system_prompt() -> str:
     """Build the mission system prompt based on available backends."""
     _has_fast = has_cursor() or has_codex() or has_gemini_cli()
-    _has_claude = has_claude()
+    _has_smart = has_claude() or _gemini_only()
 
-    if _has_fast and _has_claude:
+    if _has_fast and _has_smart:
         workers_desc = (
             "You have a fast worker and a smart worker. "
             "Use fast for straightforward tasks, smart for complex reasoning."
         )
-    elif _has_fast:
+    elif _has_fast and not _has_smart:
         workers_desc = "You have a fast worker."
     else:
         workers_desc = "You have a smart worker."
@@ -332,12 +383,13 @@ def _saga_description() -> str:
     agents = []
     if has_cursor() or has_codex() or has_gemini_cli():
         agents.append("fast worker")
-    if has_claude():
+    if has_claude() or _gemini_only():
         agents.append("smart worker")
-    if has_cursor():
+    if has_cursor() or _gemini_only():
         agents.append("tester")
+    if has_cursor():
         agents.append("browser tester")
-    if has_claude():
+    if has_claude() or _gemini_only():
         agents.append("architect")
     return f"Full team ({_describe_backends()}): {', '.join(agents)}"
 
@@ -346,7 +398,7 @@ def _mission_description() -> str:
     workers = []
     if has_cursor() or has_codex() or has_gemini_cli():
         workers.append("fast")
-    if has_claude():
+    if has_claude() or _gemini_only():
         workers.append("smart")
     label = " + ".join(workers) if workers else "no"
     return f"{label.title()} worker(s) ({_describe_backends()}) solving one issue, orchestrator as quality gate"

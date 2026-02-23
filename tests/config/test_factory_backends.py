@@ -71,10 +71,20 @@ class TestSagaTeamComposition:
         assert "worker_fast" in team
         assert "worker_smart" in team
 
-    def test_gemini_becomes_fast_worker_as_last_resort(self):
+    def test_gemini_only_saga_has_full_team(self):
+        """Gemini-only should get worker_fast, worker_smart, architect, tester."""
         with _backends(gemini=True):
             team = _build_team_saga()
         assert "worker_fast" in team
+        assert "worker_smart" in team
+        assert "architect" in team
+        assert "tester" in team
+
+    def test_gemini_only_saga_has_no_browser_tester(self):
+        """Gemini-only team should not include tester_browser (no chrome support)."""
+        with _backends(gemini=True):
+            team = _build_team_saga()
+        assert "tester_browser" not in team
 
     def test_cursor_preferred_over_codex_for_fast_worker(self):
         """When both cursor and codex exist, cursor should win worker_fast."""
@@ -106,6 +116,13 @@ class TestMissionTeamComposition:
         assert "worker_fast" in team
         assert "worker_smart" not in team
 
+    def test_gemini_only_mission_has_both_workers(self):
+        """Gemini-only mission should get both fast and smart workers."""
+        with _backends(gemini=True):
+            team = _build_team_mission()
+        assert "worker_fast" in team
+        assert "worker_smart" in team
+
     def test_no_backends_raises(self):
         with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
             _build_team_mission()
@@ -135,6 +152,13 @@ class TestMissionPrompt:
         assert "smart worker" in prompt
         # Should not mention fast worker
         assert "fast worker" not in prompt.split("smart worker")[0]
+
+    def test_gemini_only_mission_prompt_has_both_workers(self):
+        """Gemini-only should describe both fast and smart workers."""
+        with _backends(gemini=True):
+            prompt = _mission_system_prompt()
+        assert "fast worker" in prompt
+        assert "smart worker" in prompt
 
 
 # ---------------------------------------------------------------------------

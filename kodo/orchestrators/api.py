@@ -226,11 +226,11 @@ class ApiOrchestrator(OrchestratorBase):
                 log.tprint(f"[orchestrator] request limit reached ({max_exchanges})")
                 break
             except ModelHTTPError as exc:
-                if exc.status_code != 529:
-                    raise
-                if self._fallback_pydantic and attempt == 0:
+                status = exc.status_code
+                if status == 529 and self._fallback_pydantic and attempt == 0:
                     log.tprint(
-                        f"[orchestrator] 529 on {self.model}, falling back to {self._fallback_model}"
+                        f"[orchestrator] 529 on {self.model}, "
+                        f"falling back to {self._fallback_model}"
                     )
                     log.emit(
                         "orchestrator_fallback",
@@ -243,12 +243,16 @@ class ApiOrchestrator(OrchestratorBase):
                         tools=tools,
                         history_processors=history_processors or None,
                     )
-                elif attempt < max_retries - 1:
+                elif status in (429, 500, 502, 503, 529) and attempt < max_retries - 1:
                     wait = 30 * (attempt + 1)
-                    log.tprint(f"[orchestrator] 529 overloaded, retrying in {wait}s...")
+                    log.tprint(
+                        f"[orchestrator] {status} from model API, "
+                        f"retrying in {wait}s "
+                        f"(attempt {attempt + 1}/{max_retries})..."
+                    )
                     log.emit(
                         "orchestrator_retry",
-                        status_code=529,
+                        status_code=status,
                         attempt=attempt + 1,
                         wait_s=wait,
                     )

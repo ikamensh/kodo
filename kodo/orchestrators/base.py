@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -75,6 +76,11 @@ class RunResult:
 
     @property
     def finished(self) -> bool:
+        # In staged runs, a crashed stage may have 0 cycles — check
+        # stage_results to avoid reporting "finished" when the last
+        # stage failed.
+        if self.stage_results:
+            return self.stage_results[-1].finished
         return bool(self.cycles) and self.cycles[-1].finished
 
     @property
@@ -1032,18 +1038,34 @@ class OrchestratorBase:
                 ):
                     initial_prior = resume.prior_summary
 
-                stage_res = self._run_one_stage(
-                    stage,
-                    plan,
-                    project_dir,
-                    team,
-                    stage_summaries,
-                    max_exchanges=max_exchanges,
-                    max_cycles_for_stage=remaining_cycles,
-                    initial_prior_summary=initial_prior,
-                    verifiers=verifiers,
-                    auto_commit=auto_commit,
-                )
+                try:
+                    stage_res = self._run_one_stage(
+                        stage,
+                        plan,
+                        project_dir,
+                        team,
+                        stage_summaries,
+                        max_exchanges=max_exchanges,
+                        max_cycles_for_stage=remaining_cycles,
+                        initial_prior_summary=initial_prior,
+                        verifiers=verifiers,
+                        auto_commit=auto_commit,
+                    )
+                except Exception as exc:
+                    log.tprint(
+                        f"[orchestrator] Stage {stage.index} "
+                        f"({stage.name}) crashed: {exc}"
+                    )
+                    log.emit(
+                        "stage_error",
+                        stage_index=stage.index,
+                        error=str(exc),
+                    )
+                    stage_res = StageResult(
+                        stage_index=stage.index,
+                        stage_name=stage.name,
+                        summary=f"Stage crashed: {exc}",
+                    )
 
                 remaining_cycles -= len(stage_res.cycles)
                 result.cycles.extend(stage_res.cycles)
@@ -1104,65 +1126,84 @@ class OrchestratorBase:
                             f"stage {stage.index}, using project dir: {exc}"
                         )
 
-                with ThreadPoolExecutor(max_workers=len(group)) as pool:
-                    for stage in group:
-                        stage_dir = (
-                            worktrees[stage.index][0]
-                            if stage.index in worktrees
-                            else project_dir
+                def _run_in_own_loop(
+                    orchestrator, stage, plan, stage_dir, stage_team,
+                    summaries_snapshot, **kwargs
+                ):
+                    """Wrapper that gives each thread a fresh asyncio event
+                    loop so pydantic-ai's run_sync() doesn't collide."""
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return orchestrator._run_one_stage(
+                            stage, plan, stage_dir, stage_team,
+                            summaries_snapshot, **kwargs,
                         )
-                        future = pool.submit(
-                            self._run_one_stage,
-                            stage,
-                            plan,
-                            stage_dir,
-                            stage_teams[stage.index],
-                            summaries_snapshot,
-                            max_exchanges=max_exchanges,
-                            max_cycles_for_stage=per_stage_cycles,
-                            initial_prior_summary=initial_prior,
-                            verifiers=verifiers,
-                            auto_commit=False,
-                        )
-                        futures_map[future] = stage
+                    finally:
+                        loop.close()
 
-                    # Collect results as they finish
-                    parallel_results: list[StageResult] = []
-                    for future in as_completed(futures_map):
-                        stage = futures_map[future]
+                try:
+                    with ThreadPoolExecutor(max_workers=len(group)) as pool:
+                        for stage in group:
+                            stage_dir = (
+                                worktrees[stage.index][0]
+                                if stage.index in worktrees
+                                else project_dir
+                            )
+                            future = pool.submit(
+                                _run_in_own_loop,
+                                self,
+                                stage,
+                                plan,
+                                stage_dir,
+                                stage_teams[stage.index],
+                                summaries_snapshot,
+                                max_exchanges=max_exchanges,
+                                max_cycles_for_stage=per_stage_cycles,
+                                initial_prior_summary=initial_prior,
+                                verifiers=verifiers,
+                                auto_commit=False,
+                            )
+                            futures_map[future] = stage
+
+                        # Collect results as they finish
+                        parallel_results: list[StageResult] = []
+                        for future in as_completed(futures_map):
+                            stage = futures_map[future]
+                            try:
+                                stage_res = future.result()
+                            except Exception as exc:
+                                log.tprint(
+                                    f"[orchestrator] Stage {stage.index} "
+                                    f"({stage.name}) crashed: {exc}"
+                                )
+                                log.emit(
+                                    "stage_error",
+                                    stage_index=stage.index,
+                                    error=str(exc),
+                                )
+                                stage_res = StageResult(
+                                    stage_index=stage.index,
+                                    stage_name=stage.name,
+                                    summary=f"Stage crashed: {exc}",
+                                )
+                            parallel_results.append(stage_res)
+                            result.cycles.extend(stage_res.cycles)
+                            result.stage_results.append(stage_res)
+                finally:
+                    # Clean up cloned sessions and worktrees even on
+                    # KeyboardInterrupt to avoid leaking temp directories.
+                    for st in stage_teams.values():
+                        for agent in st.values():
+                            agent.close()
+                    for stage_idx, (wt_dir, branch) in worktrees.items():
                         try:
-                            stage_res = future.result()
+                            remove_worktree(project_dir, wt_dir, branch)
                         except Exception as exc:
                             log.tprint(
-                                f"[orchestrator] Stage {stage.index} "
-                                f"({stage.name}) crashed: {exc}"
+                                f"[orchestrator] Worktree cleanup failed for "
+                                f"stage {stage_idx}: {exc}"
                             )
-                            log.emit(
-                                "stage_error",
-                                stage_index=stage.index,
-                                error=str(exc),
-                            )
-                            stage_res = StageResult(
-                                stage_index=stage.index,
-                                stage_name=stage.name,
-                                summary=f"Stage crashed: {exc}",
-                            )
-                        parallel_results.append(stage_res)
-                        result.cycles.extend(stage_res.cycles)
-                        result.stage_results.append(stage_res)
-
-                # Clean up cloned sessions and worktrees
-                for st in stage_teams.values():
-                    for agent in st.values():
-                        agent.close()
-                for stage_idx, (wt_dir, branch) in worktrees.items():
-                    try:
-                        remove_worktree(project_dir, wt_dir, branch)
-                    except Exception as exc:
-                        log.tprint(
-                            f"[orchestrator] Worktree cleanup failed for "
-                            f"stage {stage_idx}: {exc}"
-                        )
 
                 # Sort summaries by stage index for deterministic ordering
                 parallel_results.sort(key=lambda r: r.stage_index)
@@ -1179,3 +1220,4 @@ class OrchestratorBase:
                     total_cycles=sum(len(r.cycles) for r in parallel_results),
                     all_finished=all(r.finished for r in parallel_results),
                 )
+

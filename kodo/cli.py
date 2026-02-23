@@ -22,6 +22,7 @@ from kodo.factory import (
     build_orchestrator,
     has_claude,
     has_cursor,
+    has_gemini_cli,
     check_api_key,
 )
 from kodo.log import RunDir
@@ -372,7 +373,8 @@ def run_intake_chat(
 
     output_file = run_dir.goal_plan_file if staged else run_dir.goal_refined_file
     prompt = _build_intake_prompt(str(output_file), staged)
-    model = "opus" if backend == "claude" else "composer-1.5"
+    _intake_models = {"claude": "opus", "cursor": "composer-1.5", "gemini-cli": "gemini-2.5-flash"}
+    model = _intake_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
     print(
@@ -499,7 +501,8 @@ def run_intake_auto(
 
     output_file = run_dir.goal_refined_file
     prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
-    model = "opus" if backend == "claude" else "composer-1.5"
+    _refine_models = {"claude": "opus", "cursor": "composer-1.5", "gemini-cli": "gemini-2.5-flash"}
+    model = _refine_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
     project_dir = run_dir.project_dir
@@ -636,15 +639,18 @@ def select_params() -> dict:
     # Show available backends
     _claude = has_claude()
     _cursor = has_cursor()
-    if not _claude and not _cursor:
-        print("Error: no worker backends found.")
-        print("  Install at least one of:")
-        print("    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code")
-        print("    Cursor CLI       — https://docs.cursor.com/agent")
+    _gemini = has_gemini_cli()
+    if not _claude and not _cursor and not _gemini:
+        print("Error: no worker backends found.", file=sys.stderr)
+        print("  Install at least one of:", file=sys.stderr)
+        print("    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code", file=sys.stderr)
+        print("    Cursor CLI       — https://docs.cursor.com/agent", file=sys.stderr)
+        print("    Gemini CLI       — https://github.com/google-gemini/gemini-cli", file=sys.stderr)
         sys.exit(1)
     parts = []
     parts.append(f"Claude Code: {'yes' if _claude else 'not found'}")
     parts.append(f"Cursor: {'yes' if _cursor else 'not found'}")
+    parts.append(f"Gemini CLI: {'yes' if _gemini else 'not found'}")
     print(f"  Backends: {' | '.join(parts)}\n")
 
     # Mode selection
@@ -781,7 +787,10 @@ def launch_run(
     verifiers = None
 
     # Try loading a team JSON config; fall back to hardcoded mode
-    team_config = load_team_config(params["mode"], project_dir)
+    try:
+        team_config = load_team_config(params["mode"], project_dir)
+    except (ValueError, KeyError) as exc:
+        _fail(f"Invalid team config: {exc}")
     if team_config:
         team = build_team_from_json(team_config)
         system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
@@ -957,7 +966,7 @@ def _fail(msg: str, code: int = 1) -> None:
         sys.stdout = _original_stdout
         print(json.dumps(_format_json_output(error=msg)))
         sys.exit(EXIT_ERROR)
-    print(f"Error: {msg}")
+    print(f"Error: {msg}", file=sys.stderr)
     sys.exit(code)
 
 
@@ -1044,6 +1053,8 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
         backends.append("Claude")
     if has_cursor():
         backends.append("Cursor")
+    if has_gemini_cli():
+        backends.append("Gemini CLI")
 
     if not backends:
         print("\nSkipping intake (no backends available).")
@@ -1054,7 +1065,8 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
     if choice == "Skip":
         return None
 
-    backend = "claude" if choice == "Claude" else "cursor"
+    _backend_map = {"Claude": "claude", "Cursor": "cursor", "Gemini CLI": "gemini-cli"}
+    backend = _backend_map[choice]
 
     staged = False
     if _looks_staged(goal_text):
@@ -1086,15 +1098,15 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
 
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:
-        print(f"Error: {key_err}")
+        print(f"Error: {key_err}", file=sys.stderr)
         sys.exit(1)
 
     params = {
         "mode": mode_name,
         "orchestrator": orchestrator,
         "orchestrator_model": orch_model,
-        "max_exchanges": args.exchanges or mode.default_max_exchanges,
-        "max_cycles": args.cycles or mode.default_max_cycles,
+        "max_exchanges": args.exchanges if args.exchanges and args.exchanges > 0 else mode.default_max_exchanges,
+        "max_cycles": args.cycles if args.cycles and args.cycles > 0 else mode.default_max_cycles,
     }
 
     # Auto-commit: on by default, disabled with --no-auto-commit or user config
@@ -1121,6 +1133,8 @@ def run_intake_noninteractive(
         backend, model = "claude", "opus"
     elif has_cursor():
         backend, model = "cursor", "composer-1.5"
+    elif has_gemini_cli():
+        backend, model = "gemini-cli", "gemini-2.5-flash"
     else:
         print("Skipping intake (no backends available).")
         return None
@@ -1320,7 +1334,10 @@ def _main_inner() -> None:
         _fail("--resume cannot be used with --goal/--goal-file/--improve")
 
     project_dir = Path(args.project_dir)
-    project_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        project_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        _fail(f"Cannot create project directory (permission denied): {project_dir}")
     project_dir = project_dir.resolve()
     if not args.json:
         print(f"  Project: {project_dir}")
@@ -1359,9 +1376,11 @@ def _main_inner() -> None:
     if non_interactive:
         if args.improve:
             goal_text = None  # constructed after run_dir is created
-        elif args.goal:
-            goal_text = args.goal
-        else:
+        elif args.goal is not None:
+            goal_text = args.goal.strip()
+            if not goal_text:
+                _fail("Goal text is empty.")
+        elif args.goal_file is not None:
             goal_path = Path(args.goal_file).resolve()
             if not goal_path.is_file():
                 _fail(
@@ -1369,9 +1388,14 @@ def _main_inner() -> None:
                     if goal_path.exists()
                     else f"Goal file not found: {goal_path}"
                 )
-            goal_text = goal_path.read_text(encoding="utf-8").strip()
+            try:
+                goal_text = goal_path.read_text(encoding="utf-8").strip()
+            except PermissionError:
+                _fail(f"Cannot read goal file (permission denied): {goal_path}")
             if not goal_text:
                 _fail("Goal file is empty.")
+        else:
+            _fail("No goal provided. Use --goal, --goal-file, or --improve.")
     else:
         goal_file = next(
             (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None
@@ -1413,7 +1437,7 @@ def _main_inner() -> None:
             plan = existing_plan
             print(f"Using existing goal plan ({len(plan.stages)} stages)")
         elif args.auto_refine:
-            backend = "claude" if has_claude() else "cursor"
+            backend = "claude" if has_claude() else ("cursor" if has_cursor() else "gemini-cli")
             refined = run_intake_auto(backend, run_dir, goal_text)
             if refined:
                 goal_text = refined
@@ -1436,7 +1460,7 @@ def _main_inner() -> None:
 
         if plan is None and not args.skip_intake:
             if args.auto_refine:
-                backend = "claude" if has_claude() else "cursor"
+                backend = "claude" if has_claude() else ("cursor" if has_cursor() else "gemini-cli")
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined

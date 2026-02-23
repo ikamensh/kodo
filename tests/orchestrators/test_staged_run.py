@@ -1087,3 +1087,78 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
     # Should still complete — all stages fall back to project_dir
     assert len(result.stage_results) == 4
     assert all(d == str(tmp_path) for d in project_dirs_seen)
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_sequential_stage_crash_after_parallel_is_caught(mock_viewer, tmp_project):
+    """If a sequential stage after a parallel group crashes, it should be
+    caught and logged rather than silently aborting with 'finished: true'."""
+    plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
+    call_count = 0
+
+    class CrashOnStage4(FakeOrchestrator):
+        def cycle(self, goal, project_dir, team, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Crash on the 4th cycle call (stage 4)
+            if call_count == 4:
+                raise RuntimeError("simulated stage 4 crash")
+            return super().cycle(
+                goal, project_dir, team, **kwargs
+            )
+
+    orch = CrashOnStage4(
+        cycle_results=[
+            CycleResult(summary="s1 done", finished=True),
+            CycleResult(summary="s2 findings", finished=True),
+            CycleResult(summary="s3 findings", finished=True),
+            # S4 will crash before consuming a result
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
+
+    # Stage 4 should appear as a failed stage result, not crash the run
+    assert len(result.stage_results) == 4
+    s4 = [sr for sr in result.stage_results if sr.stage_index == 4][0]
+    assert not s4.finished
+    assert "simulated stage 4 crash" in s4.summary
+    # The run should NOT report as finished (stage 4 didn't complete)
+    assert not result.finished
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_project):
+    """If a sequential stage crashes, it should be caught and stop the run."""
+    plan = _make_plan(3)
+    call_count = 0
+
+    class CrashOnStage2(FakeOrchestrator):
+        def cycle(self, goal, project_dir, team, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise RuntimeError("simulated stage 2 crash")
+            return super().cycle(
+                goal, project_dir, team, **kwargs
+            )
+
+    orch = CrashOnStage2(
+        cycle_results=[
+            CycleResult(summary="s1 done", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
+
+    # Stage 2 crashed — should be recorded and run should stop
+    assert len(result.stage_results) == 2
+    s2 = result.stage_results[1]
+    assert not s2.finished
+    assert "simulated stage 2 crash" in s2.summary
+    # Stage 3 should not have been attempted
+    assert not any(sr.stage_index == 3 for sr in result.stage_results)
