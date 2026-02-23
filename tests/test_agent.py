@@ -67,6 +67,24 @@ def test_agent_timeout_returns_error(tmp_project: Path) -> None:
     assert "timed out" in result.text.lower()
 
 
+def test_agent_timeout_calls_terminate(tmp_project: Path) -> None:
+    """On timeout, Agent.run() should call terminate() before reset()."""
+    call_order: list[str] = []
+
+    class _TrackedSlowSession(_SlowSession):
+        def terminate(self) -> None:
+            call_order.append("terminate")
+
+        def reset(self) -> None:
+            call_order.append("reset")
+            super().reset()
+
+    session = _TrackedSlowSession(delay=0.15, response_text="too slow")
+    agent = Agent(session, "slow agent", max_turns=5, timeout_s=0.01)
+    agent.run("do something", tmp_project, agent_name="test")
+    assert call_order == ["terminate", "reset"]
+
+
 def test_agent_no_timeout_when_fast(tmp_project: Path) -> None:
     session = _SlowSession(delay=0.0, response_text="fast")
     agent = Agent(session, "fast agent", max_turns=5, timeout_s=5.0)

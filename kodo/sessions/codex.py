@@ -26,8 +26,9 @@ class CodexSession(SubprocessSession):
 
     def clone(self) -> "CodexSession":
         """Create a fresh session with the same config but no state."""
-        return CodexSession(model=self.model, system_prompt=self.system_prompt,
-                            sandbox=self._sandbox)
+        return CodexSession(
+            model=self.model, system_prompt=self.system_prompt, sandbox=self._sandbox
+        )
 
     @property
     def cost_bucket(self) -> str:

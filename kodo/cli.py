@@ -367,7 +367,7 @@ def run_intake_chat(
     log.init(run_dir)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text)
+    goal_path.write_text(goal_text, encoding="utf-8")
     print(f"\nGoal saved to {goal_path}")
 
     output_file = run_dir.goal_plan_file if staged else run_dir.goal_refined_file
@@ -441,7 +441,7 @@ def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | Non
     """Read the intake output file and return the appropriate type."""
     if staged:
         try:
-            raw = json.loads(output_file.read_text())
+            raw = json.loads(output_file.read_text(encoding="utf-8"))
             plan = _parse_goal_plan(raw)
             if plan.stages:
                 print(f"\nGoal plan read from {output_file}")
@@ -453,7 +453,7 @@ def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | Non
             print(f"\nWarning: invalid JSON in {output_file}: {exc}")
         return None
     else:
-        refined = output_file.read_text().strip()
+        refined = output_file.read_text(encoding="utf-8").strip()
         if refined:
             print(f"\nRefined goal read from {output_file}")
             return refined
@@ -495,7 +495,7 @@ def run_intake_auto(
     run_dir.root.mkdir(parents=True, exist_ok=True)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text)
+    goal_path.write_text(goal_text, encoding="utf-8")
 
     output_file = run_dir.goal_refined_file
     prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
@@ -515,7 +515,7 @@ def run_intake_auto(
     print(f"\n{result.text}\n")
 
     if output_file.exists():
-        refined = output_file.read_text().strip()
+        refined = output_file.read_text(encoding="utf-8").strip()
         if refined:
             print(f"Refined goal written to {output_file}")
             return refined
@@ -524,7 +524,7 @@ def run_intake_auto(
     analysis = (result.text or "").strip()
     if analysis:
         refined = f"{goal_text}\n\n# Pre-implementation analysis\n\n{analysis}"
-        output_file.write_text(refined)
+        output_file.write_text(refined, encoding="utf-8")
         print(f"Refined goal written to {output_file}")
         return refined
 
@@ -574,7 +574,7 @@ def _load_goal_plan(run_dir: RunDir) -> GoalPlan | None:
     if not plan_path.exists():
         return None
     try:
-        raw = json.loads(plan_path.read_text())
+        raw = json.loads(plan_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
     if not isinstance(raw, dict):
@@ -717,7 +717,7 @@ def _config_path(project_dir: Path) -> Path:
 def _save_config(project_dir: Path, params: dict) -> None:
     path = _config_path(project_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(params, indent=2))
+    path.write_text(json.dumps(params, indent=2), encoding="utf-8")
 
 
 def _load_or_select_params(project_dir: Path) -> dict:
@@ -737,7 +737,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
     }
     if cfg_path.exists():
         try:
-            prev = json.loads(cfg_path.read_text())
+            prev = json.loads(cfg_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             prev = None
         if isinstance(prev, dict) and required_keys <= prev.keys():
@@ -768,9 +768,9 @@ def launch_run(
 ):
     """Build team + orchestrator and run. Returns the RunResult."""
     # Snapshot config and goal into the run directory
-    run_dir.config_file.write_text(json.dumps(params, indent=2))
+    run_dir.config_file.write_text(json.dumps(params, indent=2), encoding="utf-8")
     if not run_dir.goal_file.exists():
-        run_dir.goal_file.write_text(goal_text)
+        run_dir.goal_file.write_text(goal_text, encoding="utf-8")
 
     log_path = log.init(run_dir)
     log.emit("cli_args", **params, goal_text=goal_text, has_plan=plan is not None)
@@ -1115,7 +1115,7 @@ def run_intake_noninteractive(
     run_dir.root.mkdir(parents=True, exist_ok=True)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text)
+    goal_path.write_text(goal_text, encoding="utf-8")
 
     if has_claude():
         backend, model = "claude", "opus"
@@ -1362,10 +1362,14 @@ def _main_inner() -> None:
         elif args.goal:
             goal_text = args.goal
         else:
-            goal_path = Path(args.goal_file)
-            if not goal_path.exists():
-                _fail(f"Goal file not found: {goal_path}")
-            goal_text = goal_path.read_text().strip()
+            goal_path = Path(args.goal_file).resolve()
+            if not goal_path.is_file():
+                _fail(
+                    f"Goal file not found or not a file: {goal_path}"
+                    if goal_path.exists()
+                    else f"Goal file not found: {goal_path}"
+                )
+            goal_text = goal_path.read_text(encoding="utf-8").strip()
             if not goal_text:
                 _fail("Goal file is empty.")
     else:
@@ -1373,7 +1377,7 @@ def _main_inner() -> None:
             (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None
         )
         if goal_file is not None:
-            goal_text = goal_file.read_text().strip()
+            goal_text = goal_file.read_text(encoding="utf-8").strip()
             print(f"\nFound existing goal in {goal_file}:")
             print("-" * 40)
             print(goal_text[:500])
@@ -1483,7 +1487,7 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         if report_path.exists():
-            report_content = report_path.read_text()
+            report_content = report_path.read_text(encoding="utf-8")
             auto_fixed = len(
                 re.findall(
                     r"^- .+$",

@@ -599,10 +599,20 @@ class TestExecutionGroups:
             context="test",
             stages=[
                 GoalStage(index=1, name="S1", description="d", acceptance_criteria="c"),
-                GoalStage(index=2, name="S2", description="d", acceptance_criteria="c",
-                          parallel_group=1),
-                GoalStage(index=3, name="S3", description="d", acceptance_criteria="c",
-                          parallel_group=1),
+                GoalStage(
+                    index=2,
+                    name="S2",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
+                GoalStage(
+                    index=3,
+                    name="S3",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
                 GoalStage(index=4, name="S4", description="d", acceptance_criteria="c"),
             ],
         )
@@ -618,10 +628,20 @@ class TestExecutionGroups:
             context="test",
             stages=[
                 GoalStage(index=1, name="A", description="d", acceptance_criteria="c"),
-                GoalStage(index=2, name="B", description="d", acceptance_criteria="c",
-                          parallel_group=1),
-                GoalStage(index=3, name="C", description="d", acceptance_criteria="c",
-                          parallel_group=1),
+                GoalStage(
+                    index=2,
+                    name="B",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
+                GoalStage(
+                    index=3,
+                    name="C",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
                 GoalStage(index=4, name="D", description="d", acceptance_criteria="c"),
             ],
         )
@@ -635,15 +655,35 @@ class TestExecutionGroups:
         plan = GoalPlan(
             context="test",
             stages=[
-                GoalStage(index=1, name="S1", description="d", acceptance_criteria="c",
-                          parallel_group=1),
-                GoalStage(index=2, name="S2", description="d", acceptance_criteria="c",
-                          parallel_group=1),
+                GoalStage(
+                    index=1,
+                    name="S1",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
+                GoalStage(
+                    index=2,
+                    name="S2",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=1,
+                ),
                 GoalStage(index=3, name="S3", description="d", acceptance_criteria="c"),
-                GoalStage(index=4, name="S4", description="d", acceptance_criteria="c",
-                          parallel_group=2),
-                GoalStage(index=5, name="S5", description="d", acceptance_criteria="c",
-                          parallel_group=2),
+                GoalStage(
+                    index=4,
+                    name="S4",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=2,
+                ),
+                GoalStage(
+                    index=5,
+                    name="S5",
+                    description="d",
+                    acceptance_criteria="c",
+                    parallel_group=2,
+                ),
             ],
         )
         groups = execution_groups(plan)
@@ -665,11 +705,23 @@ def _make_parallel_plan() -> GoalPlan:
     return GoalPlan(
         context="test parallel",
         stages=[
-            GoalStage(index=1, name="Setup", description="d1", acceptance_criteria="c1"),
-            GoalStage(index=2, name="TestA", description="d2", acceptance_criteria="c2",
-                      parallel_group=1),
-            GoalStage(index=3, name="TestB", description="d3", acceptance_criteria="c3",
-                      parallel_group=1),
+            GoalStage(
+                index=1, name="Setup", description="d1", acceptance_criteria="c1"
+            ),
+            GoalStage(
+                index=2,
+                name="TestA",
+                description="d2",
+                acceptance_criteria="c2",
+                parallel_group=1,
+            ),
+            GoalStage(
+                index=3,
+                name="TestB",
+                description="d3",
+                acceptance_criteria="c3",
+                parallel_group=1,
+            ),
             GoalStage(index=4, name="Fix", description="d4", acceptance_criteria="c4"),
         ],
     )
@@ -753,14 +805,28 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project):
     auto_commit_per_call = []
 
     class TrackingOrchestrator(FakeOrchestrator):
-        def cycle(self, goal, project_dir, team, *, max_exchanges=30,
-                  prior_summary="", browser_testing=False, verifiers=None,
-                  auto_commit=False):
+        def cycle(
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            browser_testing=False,
+            verifiers=None,
+            auto_commit=False,
+        ):
             auto_commit_per_call.append(auto_commit)
             return super().cycle(
-                goal, project_dir, team, max_exchanges=max_exchanges,
-                prior_summary=prior_summary, browser_testing=browser_testing,
-                verifiers=verifiers, auto_commit=auto_commit,
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                browser_testing=browser_testing,
+                verifiers=verifiers,
+                auto_commit=auto_commit,
             )
 
     orch = TrackingOrchestrator(
@@ -774,15 +840,14 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project):
     team = {"worker": make_agent()}
 
     with patch("kodo.viewer.open_viewer", create=True):
-        orch.run("goal", tmp_project, team, max_cycles=10, plan=plan,
-                 auto_commit=True)
+        orch.run("goal", tmp_project, team, max_cycles=10, plan=plan, auto_commit=True)
 
     # Stage 1: auto_commit=True, stages 2+3: False (parallel/worktree), stage 4: True
-    assert auto_commit_per_call[0] is True   # stage 1
+    assert auto_commit_per_call[0] is True  # stage 1
     # Parallel stages (order may vary due to threading)
     parallel_commits = sorted(auto_commit_per_call[1:3])
     assert parallel_commits == [False, False]
-    assert auto_commit_per_call[3] is True   # stage 4
+    assert auto_commit_per_call[3] is True  # stage 4
 
 
 # ── Worktree helper tests ───────────────────────────────────────────────
@@ -801,9 +866,13 @@ def git_project(tmp_path: Path) -> Path:
         cwd=project,
         capture_output=True,
         check=True,
-        env={**__import__("os").environ, "GIT_AUTHOR_NAME": "test",
-             "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "test",
-             "GIT_COMMITTER_EMAIL": "t@t"},
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_NAME": "test",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "test",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        },
     )
     return project
 
@@ -815,6 +884,7 @@ class TestWorktreeHelpers:
         assert (wt / ".git").exists()  # worktree has a .git file (not dir)
         # Branch was created with unique suffix
         import subprocess
+
         branches = subprocess.run(
             ["git", "branch"], cwd=git_project, capture_output=True, text=True
         ).stdout
@@ -846,6 +916,7 @@ class TestWorktreeHelpers:
         assert not wt.exists()
         # Branch should be deleted too
         import subprocess
+
         branches = subprocess.run(
             ["git", "branch"], cwd=git_project, capture_output=True, text=True
         ).stdout
@@ -856,14 +927,19 @@ class TestWorktreeHelpers:
         # Add a file to main repo first
         (git_project / "src.py").write_text("original")
         import subprocess
+
         subprocess.run(["git", "add", "."], cwd=git_project, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "add src"],
             cwd=git_project,
             capture_output=True,
-            env={**__import__("os").environ, "GIT_AUTHOR_NAME": "test",
-                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "test",
-                 "GIT_COMMITTER_EMAIL": "t@t"},
+            env={
+                **__import__("os").environ,
+                "GIT_AUTHOR_NAME": "test",
+                "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "test",
+                "GIT_COMMITTER_EMAIL": "t@t",
+            },
         )
 
         wt, branch = create_worktree(git_project, "modify-test")
@@ -889,10 +965,16 @@ def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
     subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project, capture_output=True, check=True,
-        env={**__import__("os").environ, "GIT_AUTHOR_NAME": "test",
-             "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "test",
-             "GIT_COMMITTER_EMAIL": "t@t"},
+        cwd=project,
+        capture_output=True,
+        check=True,
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_NAME": "test",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "test",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        },
     )
 
     log.init(RunDir.create(tmp_path))
@@ -901,14 +983,28 @@ def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
     project_dirs_seen: list[str] = []
 
     class DirTrackingOrchestrator(FakeOrchestrator):
-        def cycle(self, goal, project_dir, team, *, max_exchanges=30,
-                  prior_summary="", browser_testing=False, verifiers=None,
-                  auto_commit=False):
+        def cycle(
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            browser_testing=False,
+            verifiers=None,
+            auto_commit=False,
+        ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
-                goal, project_dir, team, max_exchanges=max_exchanges,
-                prior_summary=prior_summary, browser_testing=browser_testing,
-                verifiers=verifiers, auto_commit=auto_commit,
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                browser_testing=browser_testing,
+                verifiers=verifiers,
+                auto_commit=auto_commit,
             )
 
     orch = DirTrackingOrchestrator(
@@ -951,14 +1047,28 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
     project_dirs_seen: list[str] = []
 
     class DirTrackingOrchestrator(FakeOrchestrator):
-        def cycle(self, goal, project_dir, team, *, max_exchanges=30,
-                  prior_summary="", browser_testing=False, verifiers=None,
-                  auto_commit=False):
+        def cycle(
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            browser_testing=False,
+            verifiers=None,
+            auto_commit=False,
+        ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
-                goal, project_dir, team, max_exchanges=max_exchanges,
-                prior_summary=prior_summary, browser_testing=browser_testing,
-                verifiers=verifiers, auto_commit=auto_commit,
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                browser_testing=browser_testing,
+                verifiers=verifiers,
+                auto_commit=auto_commit,
             )
 
     orch = DirTrackingOrchestrator(

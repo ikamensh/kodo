@@ -91,7 +91,10 @@ class ClaudeSession:
         return PermissionResultAllow()
 
     def _run(self, coro):
-        """Submit a coroutine to our background loop and block until it completes."""
+        """Submit a coroutine to our background loop and block until it completes.
+        If coro is None (sync client, e.g. mock), return immediately."""
+        if coro is None:
+            return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result()
 
@@ -180,6 +183,14 @@ class ClaudeSession:
         self._thread.join(timeout=5)
         self._loop.close()
 
+    def terminate(self) -> None:
+        """Forcefully disconnect the SDK client.
+
+        Called on timeout to stop a running query.  Safe to call when no
+        query is in flight (delegates to ``_disconnect``).
+        """
+        self._disconnect()
+
     def reset(self) -> None:
         log.emit(
             "session_reset",
@@ -195,6 +206,8 @@ class ClaudeSession:
         from claude_agent_sdk import AssistantMessage, ResultMessage
         from claude_agent_sdk.types import TextBlock
 
+        if self._loop.is_closed():
+            raise RuntimeError("Session is closed")
         self._ensure_client(project_dir)
 
         # If a plan was captured in the previous query, check whether the

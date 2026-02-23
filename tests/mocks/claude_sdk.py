@@ -78,13 +78,17 @@ class MockClaudeSDKClient:
         self.connected = False
         self.disconnected = False
 
-    async def connect(self) -> None:
+    def connect(self) -> None:
+        """Sync — just sets a flag. Real SDK is async; mock avoids unawaited coroutine
+        when session is closed and loop is stopped."""
         self.connected = True
 
-    async def disconnect(self) -> None:
+    def disconnect(self) -> None:
+        """Sync — just sets a flag. See connect()."""
         self.disconnected = True
 
-    async def query(self, prompt: str) -> None:
+    def query(self, prompt: str) -> None:
+        """Sync — just records the prompt. See connect()."""
         self.queries.append(prompt)
 
     async def receive_response(self):

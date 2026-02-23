@@ -106,7 +106,11 @@ class Agent:
                     query_result = future.result(timeout=self.timeout_s)
                 except FuturesTimeoutError:
                     log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
-                    # Kill the underlying session to stop burning tokens.
+                    # Kill the underlying process/connection first, then reset
+                    # session state.  terminate() stops the running subprocess
+                    # (or SDK client) so it stops burning tokens immediately;
+                    # reset() clears session state for a clean next run.
+                    self.session.terminate()
                     self.session.reset()
                     query_result = QueryResult(
                         text=f"Agent timed out after {self.timeout_s}s",

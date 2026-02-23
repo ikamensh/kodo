@@ -58,6 +58,14 @@ class Session(Protocol):
 
     def reset(self) -> None: ...
 
+    def terminate(self) -> None:
+        """Kill the underlying process/connection.
+
+        Called on timeout to forcefully stop a running query before ``reset()``.
+        Implementations should be safe to call even when no query is in flight.
+        """
+        ...
+
 
 class SubprocessSession:
     """Base for subprocess-backed sessions (Cursor, Codex, Gemini CLI).
@@ -74,6 +82,7 @@ class SubprocessSession:
         self.system_prompt = system_prompt
         self._stats = SessionStats()
         self._system_prompt_sent = False
+        self._process: subprocess.Popen | None = None
 
     @property
     def stats(self) -> SessionStats:
@@ -100,11 +109,16 @@ class SubprocessSession:
             text=True,
             cwd=cwd,
         )
+        self._process = proc
         stderr_chunks: list[str] = []
+        _STDERR_MAX_LINES = 10_000  # cap to avoid unbounded memory
 
         def _drain() -> None:
-            for line in proc.stderr:
-                stderr_chunks.append(line)
+            for i, line in enumerate(proc.stderr):
+                if i < _STDERR_MAX_LINES:
+                    stderr_chunks.append(line)
+                elif i == _STDERR_MAX_LINES:
+                    stderr_chunks.append("\n[... stderr truncated ...]\n")
 
         thread = threading.Thread(target=_drain, daemon=True)
         thread.start()
@@ -118,8 +132,32 @@ class SubprocessSession:
     ) -> str:
         """Wait for process and join drain thread.  Returns stderr text."""
         proc.wait()
-        thread.join(timeout=5)
+        # Allow up to 30s for drain to finish; process has exited so stderr
+        # should close soon. Increase from 5s to avoid truncating long output.
+        thread.join(timeout=30)
         return "".join(stderr_chunks)
+
+    def terminate(self) -> None:
+        """Kill the running subprocess.
+
+        Safe to call when no process is active (no-op).  Sends SIGTERM
+        first; escalates to SIGKILL if the process doesn't exit within 5 s.
+        """
+        proc = self._process
+        if proc is None or proc.poll() is not None:
+            return  # nothing running
+        try:
+            proc.terminate()
+        except OSError:
+            pass  # already exited
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        self._process = None
 
     def reset(self) -> None:
         """Reset shared state.  Subclasses should log, clear their own state,

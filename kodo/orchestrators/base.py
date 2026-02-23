@@ -579,20 +579,33 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
 
 
 def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> None:
-    """Remove a git worktree and its branch."""
-    subprocess.run(
+    """Remove a git worktree and its branch. Robust against partial failures."""
+    from kodo import log
+
+    # 1. Remove worktree from git's index (--force allows dirty state)
+    result = subprocess.run(
         ["git", "worktree", "remove", str(worktree_dir), "--force"],
         cwd=project_dir,
         capture_output=True,
+        text=True,
     )
+    if result.returncode != 0 and worktree_dir.exists():
+        log.tprint(
+            f"[worktree] git worktree remove failed ({result.stderr or result.stdout}), "
+            "removing directory directly"
+        )
+        shutil.rmtree(worktree_dir, ignore_errors=True)
+
+    # 2. Delete the branch (may already be gone if worktree remove succeeded)
     subprocess.run(
         ["git", "branch", "-D", branch_name],
         cwd=project_dir,
         capture_output=True,
     )
+
+    # 3. Ensure directory is gone
     if worktree_dir.exists():
         shutil.rmtree(worktree_dir, ignore_errors=True)
-
 
 
 def execution_groups(plan: GoalPlan) -> list[list[GoalStage]]:
@@ -1039,19 +1052,13 @@ class OrchestratorBase:
                 if stage_res.finished:
                     stage_summaries.append(stage_res.summary)
                 else:
-                    log.tprint(
-                        "[orchestrator] Stopping run — stage did not complete"
-                    )
+                    log.tprint("[orchestrator] Stopping run — stage did not complete")
                     break
             else:
                 # Parallel group: split budget evenly, run concurrently
                 per_stage_cycles = max(1, remaining_cycles // len(group))
-                stage_labels = ", ".join(
-                    f"{s.index}:{s.name}" for s in group
-                )
-                log.tprint(
-                    f"\n[orchestrator] === PARALLEL GROUP: {stage_labels} ==="
-                )
+                stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
+                log.tprint(f"\n[orchestrator] === PARALLEL GROUP: {stage_labels} ===")
                 log.emit(
                     "parallel_group_start",
                     stages=[s.index for s in group],
@@ -1061,6 +1068,15 @@ class OrchestratorBase:
                 # Snapshot stage_summaries so all parallel stages see the same
                 # prior context (they shouldn't see each other's results).
                 summaries_snapshot = list(stage_summaries)
+                # When resuming mid-cycle, all stages in the first remaining
+                # group need prior_summary from the interrupted cycle.
+                initial_prior = ""
+                if (
+                    resume
+                    and resume.current_stage_cycles > 0
+                    and group is remaining_groups[0]
+                ):
+                    initial_prior = resume.prior_summary
                 futures_map: dict = {}
 
                 # Each parallel stage gets its own cloned team (fresh
@@ -1080,8 +1096,7 @@ class OrchestratorBase:
                         )
                         worktrees[stage.index] = (wt_dir, branch)
                         log.tprint(
-                            f"[orchestrator] Worktree for stage "
-                            f"{stage.index}: {wt_dir}"
+                            f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}"
                         )
                     except (subprocess.CalledProcessError, OSError) as exc:
                         log.tprint(
@@ -1089,9 +1104,7 @@ class OrchestratorBase:
                             f"stage {stage.index}, using project dir: {exc}"
                         )
 
-                with ThreadPoolExecutor(
-                    max_workers=len(group)
-                ) as pool:
+                with ThreadPoolExecutor(max_workers=len(group)) as pool:
                     for stage in group:
                         stage_dir = (
                             worktrees[stage.index][0]
@@ -1107,6 +1120,7 @@ class OrchestratorBase:
                             summaries_snapshot,
                             max_exchanges=max_exchanges,
                             max_cycles_for_stage=per_stage_cycles,
+                            initial_prior_summary=initial_prior,
                             verifiers=verifiers,
                             auto_commit=False,
                         )
@@ -1153,9 +1167,7 @@ class OrchestratorBase:
                 # Sort summaries by stage index for deterministic ordering
                 parallel_results.sort(key=lambda r: r.stage_index)
                 # For parallel work, count the max branch (wall-clock)
-                remaining_cycles -= max(
-                    len(r.cycles) for r in parallel_results
-                )
+                remaining_cycles -= max(len(r.cycles) for r in parallel_results)
 
                 # Add all parallel summaries to context for subsequent stages
                 for pr in parallel_results:
@@ -1164,10 +1176,6 @@ class OrchestratorBase:
                 log.emit(
                     "parallel_group_end",
                     stages=[r.stage_index for r in parallel_results],
-                    total_cycles=sum(
-                        len(r.cycles) for r in parallel_results
-                    ),
-                    all_finished=all(
-                        r.finished for r in parallel_results
-                    ),
+                    total_cycles=sum(len(r.cycles) for r in parallel_results),
+                    all_finished=all(r.finished for r in parallel_results),
                 )

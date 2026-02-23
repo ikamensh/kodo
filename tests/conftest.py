@@ -57,6 +57,9 @@ class FakeSession:
     def reset(self) -> None:
         self._stats = SessionStats()
 
+    def terminate(self) -> None:
+        pass  # no subprocess to kill in tests
+
     def clone(self) -> "FakeSession":
         return FakeSession(response_text=self._response_text, is_error=self._is_error)
 
