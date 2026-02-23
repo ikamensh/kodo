@@ -54,7 +54,9 @@ def has_gemini_cli() -> bool:
 
 def _gemini_only() -> bool:
     """True when gemini-cli is the only available backend."""
-    return has_gemini_cli() and not has_claude() and not has_cursor() and not has_codex()
+    return (
+        has_gemini_cli() and not has_claude() and not has_cursor() and not has_codex()
+    )
 
 
 def check_api_key(orchestrator: str, model: str) -> str | None:
@@ -166,7 +168,9 @@ def _build_team_saga(
             timeout_s=worker_timeout_s,
         )
         team["architect"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT),
+            make_session(
+                "gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT
+            ),
             "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
             "Does not implement features.",
             max_turns=10,

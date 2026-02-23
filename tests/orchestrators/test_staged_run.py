@@ -1103,9 +1103,7 @@ def test_sequential_stage_crash_after_parallel_is_caught(mock_viewer, tmp_projec
             # Crash on the 4th cycle call (stage 4)
             if call_count == 4:
                 raise RuntimeError("simulated stage 4 crash")
-            return super().cycle(
-                goal, project_dir, team, **kwargs
-            )
+            return super().cycle(goal, project_dir, team, **kwargs)
 
     orch = CrashOnStage4(
         cycle_results=[
@@ -1141,9 +1139,7 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
             call_count += 1
             if call_count == 2:
                 raise RuntimeError("simulated stage 2 crash")
-            return super().cycle(
-                goal, project_dir, team, **kwargs
-            )
+            return super().cycle(goal, project_dir, team, **kwargs)
 
     orch = CrashOnStage2(
         cycle_results=[

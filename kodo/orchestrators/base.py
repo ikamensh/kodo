@@ -1136,8 +1136,13 @@ class OrchestratorBase:
                         )
 
                 def _run_in_own_loop(
-                    orchestrator, stage, plan, stage_dir, stage_team,
-                    summaries_snapshot, **kwargs
+                    orchestrator,
+                    stage,
+                    plan,
+                    stage_dir,
+                    stage_team,
+                    summaries_snapshot,
+                    **kwargs,
                 ):
                     """Wrapper that gives each thread a fresh asyncio event
                     loop so pydantic-ai's run_sync() doesn't collide."""
@@ -1145,8 +1150,12 @@ class OrchestratorBase:
                     asyncio.set_event_loop(loop)
                     try:
                         return orchestrator._run_one_stage(
-                            stage, plan, stage_dir, stage_team,
-                            summaries_snapshot, **kwargs,
+                            stage,
+                            plan,
+                            stage_dir,
+                            stage_team,
+                            summaries_snapshot,
+                            **kwargs,
                         )
                     finally:
                         loop.close()
@@ -1229,4 +1238,3 @@ class OrchestratorBase:
                     total_cycles=sum(len(r.cycles) for r in parallel_results),
                     all_finished=all(r.finished for r in parallel_results),
                 )
-

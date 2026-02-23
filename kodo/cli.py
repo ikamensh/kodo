@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -30,6 +31,24 @@ from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage, ResumeState
 from kodo.team_config import load_team_config, build_team_from_json
 from kodo.user_config import get_user_default
+
+
+def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write content to path atomically (temp + rename) to avoid corruption on crash."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
+    tmp_path = Path(tmp)
+    try:
+        os.write(fd, content.encode(encoding))
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, path)
+        tmp_path = None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink()
 
 
 _IMPROVE_GOAL = """\
@@ -131,11 +150,13 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
             project_dir / "docs"
         ).is_dir()
         # Check for CLI entry points in setup.py or obvious cli modules
-        has_cli = (project_dir / "setup.py").exists() and any(
-            "console_scripts" in (project_dir / "setup.py").read_text(encoding="utf-8")
-            for _ in [1]
-            if (project_dir / "setup.py").exists()
-        )
+        setup_py = project_dir / "setup.py"
+        has_cli = False
+        if setup_py.exists():
+            try:
+                has_cli = "console_scripts" in setup_py.read_text(encoding="utf-8")
+            except OSError:
+                pass
         if has_examples_or_docs and not has_cli:
             return ProjectType.LIBRARY
 
@@ -143,7 +164,8 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
 
 
 def _build_improve_plan(
-    report_path: str, project_type: ProjectType = ProjectType.APP,
+    report_path: str,
+    project_type: ProjectType = ProjectType.APP,
     project_dir: Path | None = None,
 ) -> GoalPlan:
     """Build a staged plan for --improve mode, dispatching by project type."""
@@ -291,7 +313,8 @@ def _build_improve_plan_app(report_path: str) -> GoalPlan:
 
 
 def _build_improve_plan_library(
-    report_path: str, project_dir: Path | None = None,
+    report_path: str,
+    project_dir: Path | None = None,
 ) -> GoalPlan:
     """Build a staged plan for --improve mode targeting library/SDK projects.
 
@@ -592,12 +615,16 @@ def run_intake_chat(
     log.init(run_dir)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text, encoding="utf-8")
+    _atomic_write(goal_path, goal_text)
     print(f"\nGoal saved to {goal_path}")
 
     output_file = run_dir.goal_plan_file if staged else run_dir.goal_refined_file
     prompt = _build_intake_prompt(str(output_file), staged)
-    _intake_models = {"claude": "opus", "cursor": "composer-1.5", "gemini-cli": "gemini-2.5-flash"}
+    _intake_models = {
+        "claude": "opus",
+        "cursor": "composer-1.5",
+        "gemini-cli": "gemini-2.5-flash",
+    }
     model = _intake_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
@@ -619,8 +646,13 @@ def run_intake_chat(
     )
     _print_agent(result.text)
 
-    # Conversation loop — always wait for user input, even if the agent
-    # eagerly wrote the output file (it may still be asking questions)
+    # If the agent already wrote the output file on the first turn,
+    # skip the conversation loop — no need to make the user type /done.
+    if output_file.exists():
+        _print_separator()
+        return _read_intake_output(output_file, staged)
+
+    # Conversation loop
     while True:
         try:
             user_input = input(f"  {_GREEN}{_BOLD}>{_RESET} ").strip()
@@ -675,11 +707,14 @@ def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | Non
                 for s in plan.stages:
                     print(f"    {s.index}. {s.name}")
                 return plan
-        except json.JSONDecodeError as exc:
-            print(f"\nWarning: invalid JSON in {output_file}: {exc}")
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"\nWarning: could not read {output_file}: {exc}")
         return None
     else:
-        refined = output_file.read_text(encoding="utf-8").strip()
+        try:
+            refined = output_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
         if refined:
             print(f"\nRefined goal read from {output_file}")
             return refined
@@ -721,11 +756,15 @@ def run_intake_auto(
     run_dir.root.mkdir(parents=True, exist_ok=True)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text, encoding="utf-8")
+    _atomic_write(goal_path, goal_text)
 
     output_file = run_dir.goal_refined_file
     prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
-    _refine_models = {"claude": "opus", "cursor": "composer-1.5", "gemini-cli": "gemini-2.5-flash"}
+    _refine_models = {
+        "claude": "opus",
+        "cursor": "composer-1.5",
+        "gemini-cli": "gemini-2.5-flash",
+    }
     model = _refine_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
@@ -742,7 +781,10 @@ def run_intake_auto(
     print(f"\n{result.text}\n")
 
     if output_file.exists():
-        refined = output_file.read_text(encoding="utf-8").strip()
+        try:
+            refined = output_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            refined = ""
         if refined:
             print(f"Refined goal written to {output_file}")
             return refined
@@ -751,7 +793,7 @@ def run_intake_auto(
     analysis = (result.text or "").strip()
     if analysis:
         refined = f"{goal_text}\n\n# Pre-implementation analysis\n\n{analysis}"
-        output_file.write_text(refined, encoding="utf-8")
+        _atomic_write(output_file, refined)
         print(f"Refined goal written to {output_file}")
         return refined
 
@@ -802,7 +844,7 @@ def _load_goal_plan(run_dir: RunDir) -> GoalPlan | None:
         return None
     try:
         raw = json.loads(plan_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(raw, dict):
         return None
@@ -867,9 +909,15 @@ def select_params() -> dict:
     if not _claude and not _cursor and not _gemini:
         print("Error: no worker backends found.", file=sys.stderr)
         print("  Install at least one of:", file=sys.stderr)
-        print("    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code", file=sys.stderr)
+        print(
+            "    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code",
+            file=sys.stderr,
+        )
         print("    Cursor CLI       — https://docs.cursor.com/agent", file=sys.stderr)
-        print("    Gemini CLI       — https://github.com/google-gemini/gemini-cli", file=sys.stderr)
+        print(
+            "    Gemini CLI       — https://github.com/google-gemini/gemini-cli",
+            file=sys.stderr,
+        )
         sys.exit(1)
     parts = []
     parts.append(f"Claude Code: {'yes' if _claude else 'not found'}")
@@ -946,8 +994,7 @@ def _config_path(project_dir: Path) -> Path:
 
 def _save_config(project_dir: Path, params: dict) -> None:
     path = _config_path(project_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(params, indent=2), encoding="utf-8")
+    _atomic_write(path, json.dumps(params, indent=2))
 
 
 def _load_or_select_params(project_dir: Path) -> dict:
@@ -968,7 +1015,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
     if cfg_path.exists():
         try:
             prev = json.loads(cfg_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except (OSError, json.JSONDecodeError):
             prev = None
         if isinstance(prev, dict) and required_keys <= prev.keys():
             mode = get_mode(prev["mode"])
@@ -998,9 +1045,9 @@ def launch_run(
 ):
     """Build team + orchestrator and run. Returns the RunResult."""
     # Snapshot config and goal into the run directory
-    run_dir.config_file.write_text(json.dumps(params, indent=2), encoding="utf-8")
+    _atomic_write(run_dir.config_file, json.dumps(params, indent=2))
     if not run_dir.goal_file.exists():
-        run_dir.goal_file.write_text(goal_text, encoding="utf-8")
+        _atomic_write(run_dir.goal_file, goal_text)
 
     log_path = log.init(run_dir)
     log.emit("cli_args", **params, goal_text=goal_text, has_plan=plan is not None)
@@ -1311,7 +1358,11 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
         backends.append("Gemini CLI")
 
     if len(backends) > 1:
-        _backend_map = {"Claude": "claude", "Cursor": "cursor", "Gemini CLI": "gemini-cli"}
+        _backend_map = {
+            "Claude": "claude",
+            "Cursor": "cursor",
+            "Gemini CLI": "gemini-cli",
+        }
         backend = _backend_map[_select_one("Interview backend:", backends)]
 
     staged = False
@@ -1351,8 +1402,12 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         "mode": mode_name,
         "orchestrator": orchestrator,
         "orchestrator_model": orch_model,
-        "max_exchanges": args.exchanges if args.exchanges and args.exchanges > 0 else mode.default_max_exchanges,
-        "max_cycles": args.cycles if args.cycles and args.cycles > 0 else mode.default_max_cycles,
+        "max_exchanges": args.exchanges
+        if args.exchanges and args.exchanges > 0
+        else mode.default_max_exchanges,
+        "max_cycles": args.cycles
+        if args.cycles and args.cycles > 0
+        else mode.default_max_cycles,
     }
 
     # Auto-commit: on by default, disabled with --no-auto-commit or user config
@@ -1373,7 +1428,7 @@ def run_intake_noninteractive(
     run_dir.root.mkdir(parents=True, exist_ok=True)
 
     goal_path = run_dir.goal_file
-    goal_path.write_text(goal_text, encoding="utf-8")
+    _atomic_write(goal_path, goal_text)
 
     if has_claude():
         backend, model = "claude", "opus"
@@ -1644,8 +1699,8 @@ def _main_inner() -> None:
                 )
             try:
                 goal_text = goal_path.read_text(encoding="utf-8").strip()
-            except PermissionError:
-                _fail(f"Cannot read goal file (permission denied): {goal_path}")
+            except OSError as exc:
+                _fail(f"Cannot read goal file: {goal_path} — {exc}")
             if not goal_text:
                 _fail("Goal file is empty.")
         else:
@@ -1655,16 +1710,20 @@ def _main_inner() -> None:
             (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None
         )
         if goal_file is not None:
-            goal_text = goal_file.read_text(encoding="utf-8").strip()
-            print(f"\nFound existing goal in {goal_file}:")
-            print("-" * 40)
-            print(goal_text[:500])
-            if len(goal_text) > 500:
-                print("...")
-            print("-" * 40)
-            use_existing = input("Use this goal? [Y/n] ").strip().lower()
-            if use_existing in ("n", "no"):
+            try:
+                goal_text = goal_file.read_text(encoding="utf-8").strip()
+            except OSError:
                 goal_text = get_goal()
+            else:
+                print(f"\nFound existing goal in {goal_file}:")
+                print("-" * 40)
+                print(goal_text[:500])
+                if len(goal_text) > 500:
+                    print("...")
+                print("-" * 40)
+                use_existing = input("Use this goal? [Y/n] ").strip().lower()
+                if use_existing in ("n", "no"):
+                    goal_text = get_goal()
         else:
             goal_text = get_goal()
 
@@ -1692,7 +1751,9 @@ def _main_inner() -> None:
         if not args.json:
             print(f"  Improve type: {project_type.value}")
         plan = _build_improve_plan(
-            str(report_path), project_type=project_type, project_dir=project_dir,
+            str(report_path),
+            project_type=project_type,
+            project_dir=project_dir,
         )
     elif non_interactive:
         existing_plan = _load_goal_plan(run_dir)
@@ -1700,7 +1761,11 @@ def _main_inner() -> None:
             plan = existing_plan
             print(f"Using existing goal plan ({len(plan.stages)} stages)")
         elif args.auto_refine:
-            backend = "claude" if has_claude() else ("cursor" if has_cursor() else "gemini-cli")
+            backend = (
+                "claude"
+                if has_claude()
+                else ("cursor" if has_cursor() else "gemini-cli")
+            )
             refined = run_intake_auto(backend, run_dir, goal_text)
             if refined:
                 goal_text = refined
@@ -1723,7 +1788,11 @@ def _main_inner() -> None:
 
         if plan is None and not args.skip_intake:
             if args.auto_refine:
-                backend = "claude" if has_claude() else ("cursor" if has_cursor() else "gemini-cli")
+                backend = (
+                    "claude"
+                    if has_claude()
+                    else ("cursor" if has_cursor() else "gemini-cli")
+                )
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined
@@ -1774,7 +1843,10 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         if report_path.exists():
-            report_content = report_path.read_text(encoding="utf-8")
+            try:
+                report_content = report_path.read_text(encoding="utf-8")
+            except OSError:
+                report_content = ""
             auto_fixed = len(
                 re.findall(
                     r"^- .+$",

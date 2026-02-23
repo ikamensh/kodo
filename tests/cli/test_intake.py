@@ -80,17 +80,15 @@ class TestIntakeInterviewLoop:
         # initial + 3 answers + finalize
         assert session.stats.queries == 5
 
-    def test_does_not_exit_when_file_written_on_first_turn(self, project):
-        """Regression: agent writes output file on first turn while also asking
-        clarifying questions. Interview must still wait for user input."""
+    def test_auto_exits_when_file_written_on_first_turn(self, project):
+        """When the agent writes the output file on the first turn, the
+        interview should auto-exit without waiting for user input."""
         run_dir = RunDir.create(project, "test")
         session = make_scripted_session(
             responses=[
-                "Nice project! A few questions:\n1. Full screen — windowed or borderless?\n2. Lore style?",
-                "Got it, writing plan now.",
+                "Looks clear! I've written the plan.",
             ],
             project_dir=project,
-            # Agent eagerly writes the plan on the very first query
             write_file={
                 "on_query": 0,
                 "path": str(run_dir.goal_plan_file),
@@ -111,18 +109,16 @@ class TestIntakeInterviewLoop:
             },
         )
 
-        # User answers the questions, THEN types /done
-        inputs = iter(["borderless fullscreen, short flavor text", "/done"])
-
         with (
             patch("kodo.cli.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch(
+                "builtins.input", side_effect=AssertionError("should not prompt user")
+            ),
         ):
             result = run_intake_chat("claude", run_dir, "Build a game", staged=True)
 
-        # Must have waited for user input, not returned after first turn
-        # initial + user answer = 2 queries (file already existed, no finalize needed)
-        assert session.stats.queries == 2
+        # Only the initial query — no user input waited for
+        assert session.stats.queries == 1
         assert result is not None
 
 

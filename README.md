@@ -274,6 +274,7 @@ The progress table labels subscription-covered costs as **Virtual** to make this
 ```bash
 # Open the interactive HTML viewer
 python -m kodo.viewer .kodo/logs/20260218_205503.jsonl
+# Or serve on port 8080: python -m kodo.viewer --serve --port 8080 <logfile.jsonl>
 
 # Or get a text summary
 python analyze_run.py .kodo/logs/*.jsonl

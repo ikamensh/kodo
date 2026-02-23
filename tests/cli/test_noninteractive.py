@@ -17,6 +17,7 @@ from kodo.cli import (
     _build_params_from_flags,
     _detect_project_type,
     _extract_section,
+    _load_or_select_params,
     run_intake_noninteractive,
     _main_inner,
 )
@@ -116,6 +117,43 @@ class TestBuildParamsFromFlags:
         with patch("kodo.cli.check_api_key", return_value="ANTHROPIC_API_KEY not set"):
             with pytest.raises(SystemExit):
                 _build_params_from_flags(args, project)
+
+
+def test_unreadable_config_falls_back_to_selection(project):
+    """When config file exists but read raises OSError, kodo does not crash."""
+    cfg = project / ".kodo" / "config.json"
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(
+        json.dumps(
+            {
+                "mode": "saga",
+                "orchestrator": "api",
+                "orchestrator_model": "opus",
+                "max_exchanges": 30,
+                "max_cycles": 5,
+            }
+        )
+    )
+
+    original_read_text = Path.read_text
+
+    def patched_read_text(self, *args, **kwargs):
+        if self.resolve() == cfg.resolve():
+            raise OSError(13, "Permission denied")
+        return original_read_text(self, *args, **kwargs)
+
+    with patch.object(Path, "read_text", patched_read_text):
+        with patch("kodo.cli.select_params") as mock_select:
+            mock_select.return_value = {
+                "mode": "saga",
+                "orchestrator": "api",
+                "orchestrator_model": "opus",
+                "max_exchanges": 30,
+                "max_cycles": 5,
+            }
+            result = _load_or_select_params(project)
+    assert result == mock_select.return_value
+    mock_select.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +315,7 @@ class TestRunIntakeNoninteractive:
         with (
             patch("kodo.cli.has_claude", return_value=False),
             patch("kodo.cli.has_cursor", return_value=False),
+            patch("kodo.cli.has_gemini_cli", return_value=False),
         ):
             result = run_intake_noninteractive(run_dir, "Build something")
 
@@ -549,6 +588,41 @@ class TestImproveFlag:
                 "Fix & Report",
             ]
 
+    def test_improve_with_buggy_project_detects_app_and_starts_cycle(self):
+        """--improve on buggy_project: detects app type, uses saga mode, launches with 4-stage plan."""
+        buggy_project = (
+            Path(__file__).resolve().parent.parent / "fixtures" / "buggy_project"
+        )
+        if not buggy_project.exists():
+            pytest.skip("fixtures/buggy_project not found")
+
+        assert _detect_project_type(buggy_project) == ProjectType.APP
+
+        with (
+            patch("kodo.cli.launch_run") as mock_launch,
+            patch("kodo.cli.has_claude", return_value=True),
+            patch("kodo.cli.check_api_key", return_value=None),
+        ):
+            sys.argv = ["kodo", "--improve", str(buggy_project)]
+            _main_inner()
+
+        mock_launch.assert_called_once()
+        call_args = mock_launch.call_args
+        goal_text = call_args[0][1]
+        params = call_args[0][2]
+        plan = call_args.kwargs.get("plan") or (
+            call_args[0][3] if len(call_args[0]) > 3 else None
+        )
+
+        assert (
+            "improve" in goal_text.lower() or "improvement report" in goal_text.lower()
+        )
+        assert params["mode"] == "saga"
+        assert params["orchestrator"] == "api"
+        assert plan is not None
+        assert len(plan.stages) == 4
+        assert plan.stages[0].name == "Baseline & Static Analysis"
+
 
 # ---------------------------------------------------------------------------
 # TestBuildImprovePlan
@@ -694,7 +768,9 @@ class TestDetectProjectType:
     def test_package_json_cli(self, tmp_path):
         """package.json with main and bin → APP."""
         (tmp_path / "package.json").write_text(
-            json.dumps({"name": "mycli", "main": "index.js", "bin": {"mycli": "cli.js"}})
+            json.dumps(
+                {"name": "mycli", "main": "index.js", "bin": {"mycli": "cli.js"}}
+            )
         )
         assert _detect_project_type(tmp_path) == ProjectType.APP
 

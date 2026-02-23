@@ -237,6 +237,22 @@ function renderTimeline(events) {
       continue;
     }
 
+    // Cycle end (summary, finished or not)
+    if (e.event === 'cycle_end') {
+      const runStart = events.find(x => x.event === 'run_start');
+      const cycleNum = e.cycle ?? (tl.querySelectorAll('.cycle-end-card').length + 1);
+      const maxCycles = e.max_cycles ?? runStart?.max_cycles ?? '?';
+      const div = document.createElement('div');
+      div.className = 'cycle-end-card header-card';
+      div.innerHTML = `<h3>Cycle ${cycleNum} / ${maxCycles} ${e.finished ? '✓' : '(incomplete)'}</h3>`;
+      const pre = document.createElement('pre');
+      pre.textContent = e.summary || '(no summary)';
+      div.appendChild(pre);
+      tl.appendChild(div);
+      prevTime = e.t;
+      continue;
+    }
+
     // Orchestrator tool call (left bubble)
     if (e.event === 'orchestrator_tool_call') {
       const wrap = document.createElement('div');

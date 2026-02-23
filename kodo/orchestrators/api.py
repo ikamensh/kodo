@@ -348,16 +348,28 @@ class ApiOrchestrator(OrchestratorBase):
         """Compress conversation into a summary using a simple agent."""
         log.emit("summarize_start", message_count=len(messages))
 
-        summarizer_agent = Agent(
-            self._pydantic_model,
-            system_prompt=(
-                "Summarize this orchestration conversation concisely. "
-                "Include: what was accomplished, what's pending, any known issues."
-            ),
-        )
-        summary_result = summarizer_agent.run_sync(
-            f"Conversation:\n\n{_messages_to_text(messages)}",
-        )
-        summary = summary_result.output
+        try:
+            summarizer_agent = Agent(
+                self._pydantic_model,
+                system_prompt=(
+                    "Summarize this orchestration conversation concisely. "
+                    "Include: what was accomplished, what's pending, any known issues."
+                ),
+            )
+            summary_result = summarizer_agent.run_sync(
+                f"Conversation:\n\n{_messages_to_text(messages)}",
+            )
+            summary = summary_result.output
+        except Exception as exc:
+            log.tprint(f"[orchestrator] summarization failed: {exc}")
+            log.emit("summarize_error", error=str(exc))
+            # Fall back to accumulated agent summaries so the cycle remains resumable.
+            accumulated = self._summarizer.get_accumulated_summary()
+            summary = (
+                f"[Summarization failed: {exc}. Work so far:]\n{accumulated}"
+                if accumulated
+                else f"[Summarization failed: {exc}. No detailed summary available.]"
+            )
+
         log.emit("summarize_end", summary=summary)
         return summary
