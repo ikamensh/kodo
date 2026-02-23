@@ -1208,10 +1208,10 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
         raise KeyboardInterrupt("simulated interrupt during worktree creation")
 
     with (
-        patch("kodo.orchestrators.base.create_worktree", side_effect=create_then_interrupt),
         patch(
-            "kodo.orchestrators.base.remove_worktree"
-        ) as mock_remove,
+            "kodo.orchestrators.base.create_worktree", side_effect=create_then_interrupt
+        ),
+        patch("kodo.orchestrators.base.remove_worktree") as mock_remove,
         patch("kodo.viewer.open_viewer", create=True),
     ):
         # The KeyboardInterrupt should propagate but cleanup should happen first

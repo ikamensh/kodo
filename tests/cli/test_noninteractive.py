@@ -950,7 +950,12 @@ class TestInputValidation:
         """--exchanges -5 should fail with a clear error."""
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--exchanges", "-5", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--exchanges",
+                "-5",
+                str(project),
             ]
             _main_inner()
 
@@ -958,7 +963,12 @@ class TestInputValidation:
         """--exchanges 0 should fail with a clear error."""
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--exchanges", "0", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--exchanges",
+                "0",
+                str(project),
             ]
             _main_inner()
 
@@ -966,7 +976,12 @@ class TestInputValidation:
         """--cycles -1 should fail with a clear error."""
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--cycles", "-1", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--cycles",
+                "-1",
+                str(project),
             ]
             _main_inner()
 
@@ -974,7 +989,12 @@ class TestInputValidation:
         """--cycles 0 should fail with a clear error."""
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--cycles", "0", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--cycles",
+                "0",
+                str(project),
             ]
             _main_inner()
 
@@ -1001,7 +1021,11 @@ class TestTeamConfigErrors:
 
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--skip-intake",
+                str(project),
             ]
             _main_inner()
 
@@ -1013,7 +1037,11 @@ class TestTeamConfigErrors:
 
         with pytest.raises(SystemExit):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--skip-intake",
+                str(project),
             ]
             _main_inner()
 
@@ -1042,6 +1070,10 @@ class TestPermissionErrors:
             pytest.raises(SystemExit),
         ):
             sys.argv = [
-                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+                "kodo",
+                "--goal",
+                "Build X",
+                "--skip-intake",
+                str(project),
             ]
             _main_inner()

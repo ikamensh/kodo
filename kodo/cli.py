@@ -1035,9 +1035,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
     try:
         _save_config(project_dir, params)
     except PermissionError:
-        _fail(
-            f"Cannot write config to {project_dir / '.kodo'} (permission denied)"
-        )
+        _fail(f"Cannot write config to {project_dir / '.kodo'} (permission denied)")
     return params
 
 
@@ -1426,9 +1424,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     try:
         _save_config(project_dir, params)
     except PermissionError:
-        _fail(
-            f"Cannot write config to {project_dir / '.kodo'} (permission denied)"
-        )
+        _fail(f"Cannot write config to {project_dir / '.kodo'} (permission denied)")
     return params
 
 

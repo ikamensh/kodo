@@ -401,48 +401,49 @@ def parse_run(log_file: Path) -> RunState | None:
     current_stage_cycles = 0
     current_stage_index: int | None = None
 
-    for raw_line in open(log_file):
-        try:
-            evt = json.loads(raw_line)
-        except (json.JSONDecodeError, ValueError):
-            continue  # tolerate corrupt lines
+    with open(log_file) as fh:
+        for raw_line in fh:
+            try:
+                evt = json.loads(raw_line)
+            except (json.JSONDecodeError, ValueError):
+                continue  # tolerate corrupt lines
 
-        event = evt.get("event")
-        if event == "run_start":
-            run_start = evt
-            if evt.get("has_stages"):
-                has_stages = True
-        elif event == "cli_args":
-            cli_args = evt
-        elif event == "cycle_end":
-            completed_cycles += 1
-            last_summary = evt["summary"]
-            if current_stage_index is not None:
-                current_stage_cycles += 1
-        elif event == "run_end":
-            finished = True
-        elif event == "stage_start":
-            current_stage_index = evt["stage_index"]
-            current_stage_cycles = 0
-        elif event == "stage_end":
-            stage_idx = evt["stage_index"]
-            if evt["finished"]:
-                completed_stages.append(stage_idx)
-                stage_summaries.append(evt["summary"])
-            current_stage_index = None
-            current_stage_cycles = 0
-        elif event == "session_query_end":
-            sid = evt.get("session_id") or evt.get("chat_id")
-            if sid:
-                agent_session_ids[evt["session"]] = sid
-        elif event == "orchestrator_tool_call":
-            pass
-        elif event == "agent_run_end":
-            agent_name = evt["agent"]
-            if agent_name:
-                for key in list(agent_session_ids.keys()):
-                    if key in ("claude", "codex", "cursor", "gemini-cli"):
-                        agent_session_ids[agent_name] = agent_session_ids.pop(key)
+            event = evt.get("event")
+            if event == "run_start":
+                run_start = evt
+                if evt.get("has_stages"):
+                    has_stages = True
+            elif event == "cli_args":
+                cli_args = evt
+            elif event == "cycle_end":
+                completed_cycles += 1
+                last_summary = evt["summary"]
+                if current_stage_index is not None:
+                    current_stage_cycles += 1
+            elif event == "run_end":
+                finished = True
+            elif event == "stage_start":
+                current_stage_index = evt["stage_index"]
+                current_stage_cycles = 0
+            elif event == "stage_end":
+                stage_idx = evt["stage_index"]
+                if evt["finished"]:
+                    completed_stages.append(stage_idx)
+                    stage_summaries.append(evt["summary"])
+                current_stage_index = None
+                current_stage_cycles = 0
+            elif event == "session_query_end":
+                sid = evt.get("session_id") or evt.get("chat_id")
+                if sid:
+                    agent_session_ids[evt["session"]] = sid
+            elif event == "orchestrator_tool_call":
+                pass
+            elif event == "agent_run_end":
+                agent_name = evt["agent"]
+                if agent_name:
+                    for key in list(agent_session_ids.keys()):
+                        if key in ("claude", "codex", "cursor", "gemini-cli"):
+                            agent_session_ids[agent_name] = agent_session_ids.pop(key)
 
     if run_start is None or cli_args is None:
         return None
