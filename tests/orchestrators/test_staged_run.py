@@ -1158,3 +1158,65 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
     assert "simulated stage 2 crash" in s2.summary
     # Stage 3 should not have been attempted
     assert not any(sr.stage_index == 3 for sr in result.stage_results)
+
+
+# ── Worktree cleanup on interrupt ────────────────────────────────────────
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
+    """If KeyboardInterrupt fires during worktree creation, already-created
+    worktrees must still be cleaned up (no leak)."""
+    # Need a real git repo so the first create_worktree succeeds
+    import subprocess
+
+    project = tmp_path / "repo"
+    project.mkdir()
+    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=project,
+        capture_output=True,
+        check=True,
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_NAME": "test",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "test",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        },
+    )
+    log.init(RunDir.create(tmp_path))
+
+    plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
+    orch = FakeOrchestrator(
+        cycle_results=[
+            CycleResult(summary="s1 done", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    call_count = 0
+    original_create = create_worktree
+
+    def create_then_interrupt(proj_dir, label):
+        """First call succeeds; second raises KeyboardInterrupt."""
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_create(proj_dir, label)
+        raise KeyboardInterrupt("simulated interrupt during worktree creation")
+
+    with (
+        patch("kodo.orchestrators.base.create_worktree", side_effect=create_then_interrupt),
+        patch(
+            "kodo.orchestrators.base.remove_worktree"
+        ) as mock_remove,
+        patch("kodo.viewer.open_viewer", create=True),
+    ):
+        # The KeyboardInterrupt should propagate but cleanup should happen first
+        with pytest.raises(KeyboardInterrupt):
+            orch.run("goal", project, team, max_cycles=10, plan=plan)
+
+        # The first worktree was successfully created — verify it was cleaned up
+        assert mock_remove.call_count == 1

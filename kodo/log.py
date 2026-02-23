@@ -401,7 +401,7 @@ def parse_run(log_file: Path) -> RunState | None:
     current_stage_cycles = 0
     current_stage_index: int | None = None
 
-    for raw_line in log_file.read_text().splitlines():
+    for raw_line in open(log_file):
         try:
             evt = json.loads(raw_line)
         except (json.JSONDecodeError, ValueError):

@@ -1120,20 +1120,6 @@ class OrchestratorBase:
                 # runs in its own worktree so it cannot corrupt the main
                 # working directory even if it writes files.
                 worktrees: dict[int, tuple[Path, str]] = {}
-                for stage in group:
-                    try:
-                        wt_dir, branch = create_worktree(
-                            project_dir, f"stage-{stage.index}"
-                        )
-                        worktrees[stage.index] = (wt_dir, branch)
-                        log.tprint(
-                            f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}"
-                        )
-                    except (subprocess.CalledProcessError, OSError) as exc:
-                        log.tprint(
-                            f"[orchestrator] Worktree creation failed for "
-                            f"stage {stage.index}, using project dir: {exc}"
-                        )
 
                 def _run_in_own_loop(
                     orchestrator,
@@ -1161,6 +1147,20 @@ class OrchestratorBase:
                         loop.close()
 
                 try:
+                    for stage in group:
+                        try:
+                            wt_dir, branch = create_worktree(
+                                project_dir, f"stage-{stage.index}"
+                            )
+                            worktrees[stage.index] = (wt_dir, branch)
+                            log.tprint(
+                                f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}"
+                            )
+                        except (subprocess.CalledProcessError, OSError) as exc:
+                            log.tprint(
+                                f"[orchestrator] Worktree creation failed for "
+                                f"stage {stage.index}, using project dir: {exc}"
+                            )
                     with ThreadPoolExecutor(max_workers=len(group)) as pool:
                         for stage in group:
                             stage_dir = (

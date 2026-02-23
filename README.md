@@ -127,7 +127,7 @@ kodo --goal 'Build a REST API for user management' ./my-project
 kodo --goal-file requirements.md ./my-project
 kodo --goal 'Build X' --mode saga --exchanges 50 --cycles 10 ./my-project
 
-# Resume an interrupted run (looks in project's .kodo/logs/)
+# Resume an interrupted run (looks in ~/.kodo/runs/)
 kodo --resume                       # resume latest incomplete run in current dir
 kodo ./my-project --resume          # resume latest in specific project
 kodo --resume 20260218_205503       # resume specific run by ID
@@ -154,7 +154,6 @@ kodo --goal 'Build X' \
      --cycles 5 \                         # total cycles (default: mode-specific)
      --orchestrator api \                 # api (default) or claude-code
      --orchestrator-model gemini-flash \  # opus, sonnet, gemini-pro, gemini-flash
-     --budget 5.00 \                      # per-step USD limit (default: none)
      --skip-intake \                      # skip AI goal refinement
      --yes \                              # skip confirmation prompts
      ./my-project
@@ -273,11 +272,11 @@ The progress table labels subscription-covered costs as **Virtual** to make this
 
 ```bash
 # Open the interactive HTML viewer
-python -m kodo.viewer .kodo/logs/20260218_205503.jsonl
+python -m kodo.viewer ~/.kodo/runs/20260218_205503/run.jsonl
 # Or serve on port 8080: python -m kodo.viewer --serve --port 8080 <logfile.jsonl>
 
 # Or get a text summary
-python analyze_run.py .kodo/logs/*.jsonl
+python analyze_run.py ~/.kodo/runs/*/run.jsonl
 ```
 
 ## 🐍 Programmatic usage

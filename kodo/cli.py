@@ -1032,7 +1032,12 @@ def _load_or_select_params(project_dir: Path) -> dict:
                 return prev
 
     params = select_params()
-    _save_config(project_dir, params)
+    try:
+        _save_config(project_dir, params)
+    except PermissionError:
+        _fail(
+            f"Cannot write config to {project_dir / '.kodo'} (permission denied)"
+        )
     return params
 
 
@@ -1060,19 +1065,19 @@ def launch_run(
     # Try loading a team JSON config; fall back to hardcoded mode
     try:
         team_config = load_team_config(params["mode"], project_dir)
-    except (ValueError, KeyError) as exc:
+        if team_config:
+            team = build_team_from_json(team_config)
+            system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
+            verifiers = team_config.get("verifiers")
+            max_exchanges = team_config.get("max_exchanges", params["max_exchanges"])
+            max_cycles = team_config.get("max_cycles", params["max_cycles"])
+        else:
+            team = mode.build_team()
+            system_prompt = mode.system_prompt
+            max_exchanges = params["max_exchanges"]
+            max_cycles = params["max_cycles"]
+    except (ValueError, KeyError, RuntimeError, OSError) as exc:
         _fail(f"Invalid team config: {exc}")
-    if team_config:
-        team = build_team_from_json(team_config)
-        system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
-        verifiers = team_config.get("verifiers")
-        max_exchanges = team_config.get("max_exchanges", params["max_exchanges"])
-        max_cycles = team_config.get("max_cycles", params["max_cycles"])
-    else:
-        team = mode.build_team()
-        system_prompt = mode.system_prompt
-        max_exchanges = params["max_exchanges"]
-        max_cycles = params["max_cycles"]
 
     orchestrator = build_orchestrator(
         params["orchestrator"],
@@ -1144,14 +1149,17 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
     mode = get_mode(params["mode"])
     verifiers = None
 
-    team_config = load_team_config(params["mode"], project_dir)
-    if team_config:
-        team = build_team_from_json(team_config)
-        system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
-        verifiers = team_config.get("verifiers")
-    else:
-        team = mode.build_team()
-        system_prompt = mode.system_prompt
+    try:
+        team_config = load_team_config(params["mode"], project_dir)
+        if team_config:
+            team = build_team_from_json(team_config)
+            system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
+            verifiers = team_config.get("verifiers")
+        else:
+            team = mode.build_team()
+            system_prompt = mode.system_prompt
+    except (ValueError, KeyError, RuntimeError, OSError) as exc:
+        _fail(f"Invalid team config: {exc}")
 
     orchestrator = build_orchestrator(
         params["orchestrator"],
@@ -1395,8 +1403,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
 
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:
-        print(f"Error: {key_err}", file=sys.stderr)
-        sys.exit(1)
+        _fail(key_err)
 
     params = {
         "mode": mode_name,
@@ -1416,7 +1423,12 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         auto_commit = False
     params["auto_commit"] = auto_commit
 
-    _save_config(project_dir, params)
+    try:
+        _save_config(project_dir, params)
+    except PermissionError:
+        _fail(
+            f"Cannot write config to {project_dir / '.kodo'} (permission denied)"
+        )
     return params
 
 
@@ -1514,6 +1526,8 @@ def _main_inner() -> None:
 
     parser = argparse.ArgumentParser(
         description="kodo — autonomous multi-agent coding",
+        epilog="subcommands:\n  kodo runs [PROJECT_DIR]  List all known runs",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
     parser.add_argument(
@@ -1556,20 +1570,29 @@ def _main_inner() -> None:
 
     # Non-interactive config flags
     parser.add_argument(
-        "--mode", type=str, default=None, choices=["saga", "mission", "quick"]
+        "--mode",
+        type=str,
+        default=None,
+        choices=["saga", "mission", "quick"],
+        help="Run mode (default: saga).",
     )
     parser.add_argument(
-        "--exchanges", type=int, default=None, help="Max exchanges per cycle"
+        "--exchanges", type=int, default=None, help="Max exchanges per cycle."
     )
-    parser.add_argument("--cycles", type=int, default=None, help="Max cycles")
+    parser.add_argument("--cycles", type=int, default=None, help="Max cycles.")
     parser.add_argument(
-        "--orchestrator", type=str, default=None, choices=["api", "claude-code"]
+        "--orchestrator",
+        type=str,
+        default=None,
+        choices=["api", "claude-code"],
+        help="Orchestrator backend.",
     )
     parser.add_argument(
         "--orchestrator-model",
         type=str,
         default=None,
         choices=["opus", "sonnet", "gemini-pro", "gemini-flash"],
+        help="Model for the orchestrator LLM.",
     )
     parser.add_argument(
         "--skip-intake",
@@ -1611,6 +1634,14 @@ def _main_inner() -> None:
         help="Project directory (default: current dir)",
     )
     args = parser.parse_args()
+
+    # ── Early input validation ───────────────────────────────────────────
+    if args.goal is not None and not args.goal.strip():
+        _fail("--goal must not be empty or whitespace-only.")
+    if args.exchanges is not None and args.exchanges <= 0:
+        _fail("--exchanges must be a positive integer.")
+    if args.cycles is not None and args.cycles <= 0:
+        _fail("--cycles must be a positive integer.")
 
     # --json and --auto-refine imply --yes
     if args.json or args.auto_refine:

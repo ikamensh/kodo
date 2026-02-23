@@ -8,8 +8,10 @@ Usage: python -m kodo.viewer <logfile.jsonl>
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
+import shutil
 import sys
 import tempfile
 import webbrowser
@@ -43,6 +45,7 @@ def open_viewer(log_path: Path | None = None) -> None:
     with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
         f.write(html)
         tmp = f.name
+    atexit.register(os.unlink, tmp)
     url = f"file://{tmp}"
     webbrowser.open(url)
     print(f"Log viewer: {url}")
@@ -51,6 +54,7 @@ def open_viewer(log_path: Path | None = None) -> None:
 def _serve(port: int, log_path: Path | None) -> None:
     html = _build_html(log_path)
     tmpdir = tempfile.mkdtemp()
+    atexit.register(shutil.rmtree, tmpdir, True)
     (Path(tmpdir) / "index.html").write_text(html)
 
     class Handler(SimpleHTTPRequestHandler):

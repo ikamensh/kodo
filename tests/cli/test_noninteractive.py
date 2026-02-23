@@ -114,7 +114,10 @@ class TestBuildParamsFromFlags:
 
     def test_api_key_validation_exits(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
-        with patch("kodo.cli.check_api_key", return_value="ANTHROPIC_API_KEY not set"):
+        with (
+            patch("kodo.cli.check_api_key", return_value="ANTHROPIC_API_KEY not set"),
+            patch("kodo.cli._original_stdout", None),
+        ):
             with pytest.raises(SystemExit):
                 _build_params_from_flags(args, project)
 
@@ -915,3 +918,130 @@ class TestLibraryImprovePlan:
         plan = _build_improve_plan("/tmp/report.md", ProjectType.APP)
         names = [s.name for s in plan.stages]
         assert "Happy Path Integration Testing" in names
+
+
+# ---------------------------------------------------------------------------
+# TestInputValidation — BUG-3/4/5: goal, exchanges, cycles
+# ---------------------------------------------------------------------------
+
+
+class TestInputValidation:
+    @pytest.fixture(autouse=True)
+    def _fake_backends(self):
+        with (
+            patch("kodo.cli.has_claude", return_value=True),
+            patch("kodo.cli.check_api_key", return_value=None),
+        ):
+            yield
+
+    def test_empty_goal_rejected(self, project):
+        """--goal '' should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = ["kodo", "--goal", "", str(project)]
+            _main_inner()
+
+    def test_whitespace_only_goal_rejected(self, project):
+        """--goal '   ' should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = ["kodo", "--goal", "   \t\n  ", str(project)]
+            _main_inner()
+
+    def test_negative_exchanges_rejected(self, project):
+        """--exchanges -5 should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--exchanges", "-5", str(project),
+            ]
+            _main_inner()
+
+    def test_zero_exchanges_rejected(self, project):
+        """--exchanges 0 should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--exchanges", "0", str(project),
+            ]
+            _main_inner()
+
+    def test_negative_cycles_rejected(self, project):
+        """--cycles -1 should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--cycles", "-1", str(project),
+            ]
+            _main_inner()
+
+    def test_zero_cycles_rejected(self, project):
+        """--cycles 0 should fail with a clear error."""
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--cycles", "0", str(project),
+            ]
+            _main_inner()
+
+
+# ---------------------------------------------------------------------------
+# TestTeamConfigErrors — BUG-2: malformed team.json
+# ---------------------------------------------------------------------------
+
+
+class TestTeamConfigErrors:
+    @pytest.fixture(autouse=True)
+    def _fake_backends(self):
+        with (
+            patch("kodo.cli.has_claude", return_value=True),
+            patch("kodo.cli.check_api_key", return_value=None),
+        ):
+            yield
+
+    def test_malformed_team_json_handled(self, project):
+        """Invalid JSON in team.json should produce a clear error, not a traceback."""
+        kodo_dir = project / ".kodo"
+        kodo_dir.mkdir(parents=True, exist_ok=True)
+        (kodo_dir / "team.json").write_text("{invalid json!!")
+
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+            ]
+            _main_inner()
+
+    def test_team_json_missing_agents_handled(self, project):
+        """team.json without 'agents' key should produce a clear error."""
+        kodo_dir = project / ".kodo"
+        kodo_dir.mkdir(parents=True, exist_ok=True)
+        (kodo_dir / "team.json").write_text(json.dumps({"name": "broken"}))
+
+        with pytest.raises(SystemExit):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+            ]
+            _main_inner()
+
+
+# ---------------------------------------------------------------------------
+# TestPermissionErrors — BUG-7: .kodo/ directory creation
+# ---------------------------------------------------------------------------
+
+
+class TestPermissionErrors:
+    @pytest.fixture(autouse=True)
+    def _fake_backends(self):
+        with (
+            patch("kodo.cli.has_claude", return_value=True),
+            patch("kodo.cli.check_api_key", return_value=None),
+        ):
+            yield
+
+    def test_kodo_dir_permission_error_handled(self, project):
+        """PermissionError from _save_config should produce a clear error."""
+        with (
+            patch(
+                "kodo.cli._save_config",
+                side_effect=PermissionError("mock permission denied"),
+            ),
+            pytest.raises(SystemExit),
+        ):
+            sys.argv = [
+                "kodo", "--goal", "Build X", "--skip-intake", str(project),
+            ]
+            _main_inner()
