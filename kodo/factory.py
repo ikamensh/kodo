@@ -354,6 +354,14 @@ def _mission_description() -> str:
 
 def get_modes() -> dict[str, Mode]:
     """Build the mode registry based on available backends."""
+    mission = Mode(
+        name="mission",
+        description=_mission_description(),
+        system_prompt=_mission_system_prompt(),
+        build_team=_build_team_mission,
+        default_max_exchanges=20,
+        default_max_cycles=1,
+    )
     return {
         "saga": Mode(
             name="saga",
@@ -363,14 +371,8 @@ def get_modes() -> dict[str, Mode]:
             default_max_exchanges=30,
             default_max_cycles=5,
         ),
-        "mission": Mode(
-            name="mission",
-            description=_mission_description(),
-            system_prompt=_mission_system_prompt(),
-            build_team=_build_team_mission,
-            default_max_exchanges=20,
-            default_max_cycles=1,
-        ),
+        "mission": mission,
+        "quick": mission,  # alias for mission
     }
 
 

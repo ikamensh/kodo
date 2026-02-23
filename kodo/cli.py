@@ -1232,7 +1232,9 @@ def _main_inner() -> None:
     )
 
     # Non-interactive config flags
-    parser.add_argument("--mode", type=str, default=None, choices=["saga", "mission"])
+    parser.add_argument(
+        "--mode", type=str, default=None, choices=["saga", "mission", "quick"]
+    )
     parser.add_argument(
         "--exchanges", type=int, default=None, help="Max exchanges per cycle"
     )

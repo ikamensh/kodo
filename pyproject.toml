@@ -1,6 +1,6 @@
 [project]
 name = "kodo"
-version = "0.4.34"
+version = "0.4.35"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -38,3 +38,8 @@ kodo = "kodo.cli:main"
 "scripts/**" = ["E402"]
 # CLI needs load_dotenv() before kodo imports (env vars for API keys).
 "kodo/cli.py" = ["E402"]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]

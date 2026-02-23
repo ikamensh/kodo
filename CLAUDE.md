@@ -14,6 +14,9 @@ uv run pytest tests/cli/test_intake.py -v
 # Run a single test by name
 uv run pytest tests/ -k "test_name" -v
 
+# Run CLI with mocked sessions (no API keys)
+uv run python scripts/run_cli_mocked.py
+
 # Lint and format
 ruff check kodo/ tests/ scripts/
 ruff format kodo/ tests/ scripts/
@@ -45,7 +48,7 @@ kodo is an autonomous multi-agent coding system designed to run overnight on Cla
 ### Modes
 
 - **saga**: Full team (worker_fast, worker_smart, architect, tester, tester_browser). Default: 30 exchanges, 5 cycles.
-- **mission**: Minimal team (worker_fast, worker_smart). Default: 20 exchanges, 1 cycle.
+- **mission** / **quick**: Minimal team (worker_fast, worker_smart). Default: 20 exchanges, 1 cycle.
 
 ### Verification
 
@@ -58,6 +61,12 @@ Two buckets: "API" (real spend on orchestrator) and "Virtual" (subscription-cove
 ### Shared prompts
 
 Agent role prompts (`TESTER_PROMPT`, `ARCHITECT_PROMPT`, etc.) live in `kodo/__init__.py`. The orchestrator system prompt is in `kodo/orchestrators/base.py`.
+
+## CLI Verification
+
+- `kodo runs` — Lists runs from ~/.kodo/runs/. With no runs (or filtered project with none): prints "No runs found." and exits 0.
+- `kodo --goal "X" --yes --mode quick` — Non-interactive run. Without API keys and `--orchestrator api`: fails immediately with "ANTHROPIC_API_KEY not set" (or GEMINI_API_KEY for gemini models). Use `--skip-intake` to skip the intake phase.
+- `scripts/run_cli_mocked.py` — Full CLI flow with mocked orchestrator and agents; no API keys or backends required.
 
 ## Test Conventions
 
