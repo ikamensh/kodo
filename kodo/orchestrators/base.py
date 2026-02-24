@@ -826,12 +826,10 @@ class OrchestratorBase:
             )
             log.print_stats_table(final=True)
 
-            # Open the HTML log viewer for easy inspection
+            # Print a command to open the log viewer (don't auto-open)
             log_file = log.get_log_file()
             if log_file and log_file.exists():
-                from kodo.viewer import open_viewer
-
-                open_viewer(log_file)
+                print(f"\n  View run: uv run python -m kodo.viewer {log_file}\n")
 
         return result
 

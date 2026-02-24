@@ -59,7 +59,7 @@ def _summarize_ollama(model: str, task: str, report: str) -> str:
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read())
-    return data.get("response", "").strip()
+    return (data.get("response") or "").strip()
 
 
 def _summarize_gemini(api_key: str, task: str, report: str) -> str:
@@ -85,7 +85,7 @@ def _summarize_gemini(api_key: str, task: str, report: str) -> str:
     if candidates:
         parts = candidates[0].get("content", {}).get("parts", [])
         if parts:
-            return parts[0].get("text", "").strip()
+            return (parts[0].get("text") or "").strip()
     return ""
 
 
