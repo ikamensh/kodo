@@ -43,6 +43,7 @@ class RunDir:
         rid = run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         rd = RunDir(project_dir=project_dir, run_id=rid)
         rd.root.mkdir(parents=True, exist_ok=True)
+        rd.root.chmod(0o700)
         return rd
 
     @staticmethod
@@ -196,6 +197,7 @@ def init(run_dir: RunDir) -> Path:
     _virtual_cost_note_shown = False
 
     run_dir.root.mkdir(parents=True, exist_ok=True)
+    run_dir.root.chmod(0o700)
     _log_file = run_dir.log_file
 
     emit("run_init", project_dir=str(run_dir.project_dir), version=__version__)

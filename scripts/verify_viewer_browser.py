@@ -11,7 +11,7 @@ from playwright.sync_api import sync_playwright
 
 PROJECT_ROOT = Path(__file__).parent.parent
 # Use real log if available
-LOG_PATH = PROJECT_ROOT / ".kodo/logs/20260219_200346.jsonl"
+LOG_PATH = Path.home() / ".kodo/runs/20260219_200346/run.jsonl"
 MINIMAL_EVENTS = [
     {
         "ts": "2026-01-01T00:00:00Z",

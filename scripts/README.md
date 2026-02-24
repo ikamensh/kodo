@@ -7,7 +7,7 @@ Utility scripts for development and analysis. Not part of the `kodo` package.
 Parse kodo JSONL run logs and print a human-readable report: costs, tokens, timeline, per-agent breakdown, and final outcome.
 
 ```bash
-uv run python scripts/analyze_run.py .kodo/logs/<logfile>.jsonl
+uv run python scripts/analyze_run.py ~/.kodo/runs/<run_id>/run.jsonl
 ```
 
 ## `harness.py`
