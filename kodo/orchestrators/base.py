@@ -1158,7 +1158,7 @@ class OrchestratorBase:
             )
             log.tprint(
                 f"[orchestrator] Stage {stage.index} ({stage.name}) "
-                f"— budget exhausted after {len(stage_res.cycles)} cycle(s)"
+                f"— cycle limit reached after {len(stage_res.cycles)} cycle(s)"
             )
 
         return stage_res
@@ -1177,7 +1177,7 @@ class OrchestratorBase:
         verifiers: dict | None = None,
         auto_commit: bool = False,
     ) -> None:
-        """Staged execution: iterate over plan stages with a shared cycle budget.
+        """Staged execution: iterate over plan stages with a shared cycle limit.
 
         Supports parallel execution: stages with the same ``parallel_group``
         run concurrently via ThreadPoolExecutor.  Each parallel stage runs in
@@ -1208,16 +1208,20 @@ class OrchestratorBase:
             if max_idx > start_stage_idx:
                 remaining_groups.append(group)
 
-        # Divide cycle budget across remaining groups
+        # Divide remaining cycles across remaining groups
         remaining_cycles = max_cycles - (resume.completed_cycles if resume else 0)
 
         for group in remaining_groups:
             if remaining_cycles <= 0:
-                log.tprint("[orchestrator] Stopping run — cycle budget exhausted")
+                skipped = sum(len(g) for g in remaining_groups[remaining_groups.index(group):])
+                log.tprint(
+                    f"[orchestrator] Stopping run — all {max_cycles} cycle(s) used, "
+                    f"{skipped} stage(s) remaining"
+                )
                 break
 
             if len(group) == 1:
-                # Sequential: single stage gets remaining budget
+                # Sequential: single stage gets remaining cycles
                 stage = group[0]
                 initial_prior = ""
                 if (
@@ -1266,7 +1270,7 @@ class OrchestratorBase:
                     log.tprint("[orchestrator] Stopping run — stage did not complete")
                     break
             else:
-                # Parallel group: split budget evenly, run concurrently
+                # Parallel group: split cycles evenly, run concurrently
                 per_stage_cycles = max(1, remaining_cycles // len(group))
                 stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
                 print()

@@ -267,10 +267,10 @@ def _fmt_cost(c: float) -> str:
 def _bucket_label(b: str) -> str:
     return {
         "api": "API",
-        "claude_subscription": "Claude",
+        "claude_subscription": "CC Sub",
         "codex_subscription": "Codex",
         "cursor_subscription": "Cursor",
-        "gemini_api": "Gemini",
+        "gemini_api": "Gemini API",
     }.get(b, b)
 
 

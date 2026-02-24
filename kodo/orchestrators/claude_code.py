@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 from pathlib import Path
 
@@ -96,6 +97,10 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
         # the same task throughout.
         _MAX_NUDGES = 3
 
+        # Strip ANTHROPIC_API_KEY so the SDK subprocess uses the Claude.ai
+        # subscription instead of API billing.  Mirrors ClaudeSession logic.
+        saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
+
         async def _run_cycle():
             client = ClaudeSDKClient(options=options)
             try:
@@ -117,11 +122,14 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                                 message.total_cost_usd or 0.0,
                                 "claude_subscription",
                             )
-                            result.summary = (
-                                (done_signal.summary or "")
-                                if done_signal.called
-                                else (message.result or "")
-                            )
+                            if done_signal.called:
+                                result.summary = done_signal.summary or ""
+                            elif message.is_error:
+                                result.summary = (
+                                    f"[Claude Code error] {message.result or ''}"
+                                )
+                            else:
+                                result.summary = message.result or ""
                             log.emit(
                                 "orchestrator_response",
                                 orchestrator="claude_code",
@@ -142,7 +150,9 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         break
 
                     if message.is_error:
-                        log.tprint(f"⚠️  [orchestrator] error: {message.result}")
+                        log.tprint(
+                            f"⚠️  [orchestrator] Claude Code error: {message.result}"
+                        )
                         break
 
                     nudges += 1
@@ -184,6 +194,10 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             thread.join(timeout=5)
             if not thread.is_alive():
                 loop.close()
+            # Restore ANTHROPIC_API_KEY so the orchestrator's own API calls
+            # (summarizer, etc.) continue to work.
+            if saved_api_key is not None:
+                os.environ["ANTHROPIC_API_KEY"] = saved_api_key
 
         # If we ran out of turns without calling done, build a summary from
         # the summarizer's accumulated agent reports so the next cycle has context.
