@@ -247,7 +247,7 @@ class TestImproveJsonOutput:
         ):
             # Write the report file into the run dir
             report_path = run_dir.root / "improve-report.md"
-            report_path.write_text(report_content)
+            report_path.write_text(report_content, encoding="utf-8")
             return RunResult(
                 cycles=[
                     CycleResult(

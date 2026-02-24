@@ -886,7 +886,7 @@ class TestLibraryImprovePlan:
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
         consumer = plan.stages[1]
-        assert "/tmp/mylib" in consumer.description
+        assert str(Path("/tmp/mylib")) in consumer.description
 
     def test_fix_stage_references_all_findings(self):
         plan = _build_improve_plan(
