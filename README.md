@@ -32,11 +32,10 @@ Real run from [blackopt](https://github.com/ikamen/blackopt) — building an aut
            "Fix structural bugs identified by architect"
 ✅ [11:29] worker_smart: 82 turns of editing. All bugs fixed, tests pass.
 
-⚡ [12:36] orchestrator dispatches 3 agents in parallel:
-           → architect:     "Analyze how to implement DE and PSO"
-           → worker_fast:   "Implement TabuSearch and EDA"
-           → worker_smart:  "Build autosolve() — concurrent portfolio,
-                             adaptive scheduling"
+⚡ [12:36] orchestrator → architect: "Analyze how to implement DE and PSO"
+   [15:22] orchestrator → worker_fast: "Implement TabuSearch and EDA"
+   [16:01] orchestrator → worker_smart: "Build autosolve() — concurrent
+                          portfolio, adaptive scheduling"
 
 🏁 [35:20] orchestrator → done("autosolve complete, 4 new algorithms")
            → tester:          runs tests ✅
@@ -84,7 +83,7 @@ kodo lets you set a goal, go to bed, and wake up to working code that's been ind
 
 ```bash
 # 1. Install uv (Python package manager) — skip if you already have it
-curl -LsSf https://astral.sh/uv/install.sh | sh
+#    See https://docs.astral.sh/uv/getting-started/installation/
 
 # 2. Install kodo as a global CLI tool
 uv tool install git+https://github.com/ikamen/kodo
@@ -125,7 +124,7 @@ kodo ./my-project        # run in specific directory
 # Non-interactive (for scripting, CI, overnight cron jobs)
 kodo --goal 'Build a REST API for user management' ./my-project
 kodo --goal-file requirements.md ./my-project
-kodo --goal 'Build X' --mode saga --exchanges 50 --cycles 10 ./my-project
+kodo --goal 'Build X' --team saga --exchanges 50 --cycles 10 ./my-project
 
 # Resume an interrupted run (looks in ~/.kodo/runs/)
 kodo --resume                       # resume latest incomplete run in current dir
@@ -138,7 +137,7 @@ kodo --resume 20260218_205503       # resume specific run by ID
 The interactive CLI will:
 1. Ask for your goal (or reuse an existing `goal.md`)
 2. Optionally refine it via a Claude interview
-3. Let you pick mode, orchestrator, and limits
+3. Let you pick team, orchestrator, and limits
 4. Show a summary and ask for confirmation before starting
 5. Print a live progress table as agents work
 
@@ -146,31 +145,52 @@ The interactive CLI will:
 
 Passing `--goal` or `--goal-file` enables non-interactive mode — no prompts, no confirmations. The AI still breaks down your goal into stages (unless `--skip-intake` is set), but without asking clarifying questions.
 
-```bash
-# All flags (with defaults shown)
-kodo --goal 'Build X' \
-     --mode saga \                        # saga (default) or mission
-     --exchanges 30 \                     # per cycle (default: mode-specific)
-     --cycles 5 \                         # total cycles (default: mode-specific)
-     --orchestrator api \                 # api (default) or claude-code
-     --orchestrator-model gemini-flash \  # opus, sonnet, gemini-pro, gemini-flash
-     --skip-intake \                      # skip AI goal refinement
-     --yes \                              # skip confirmation prompts
-     ./my-project
+### All flags
 
-# Structured JSON output (for CI, scripts, or other agents calling kodo)
-kodo --goal 'Build X' --json ./my-project
-# Outputs: {"status": "completed", "finished": true, "cycles": 3, "exchanges": 15, ...}
-# Exit codes: 0 = success, 1 = error, 2 = partial (ran but didn't finish)
-# --json implies --yes and redirects progress output to stderr
-
-# Overnight usage
-nohup kodo --goal-file feature.md --cycles 10 ./my-project > run.log 2>&1 &
 ```
+kodo [project_dir] [options]
+
+Goal (mutually exclusive):
+  --goal TEXT               Goal text (inline)
+  --goal-file PATH          Path to file containing goal
+  --improve                 Auto-analyze, test, and fix the codebase
+
+Improve options:
+  --improve-type TYPE       auto (default) | app | library
+
+Configuration:
+  --team TEAM               saga (default) | mission | quick
+  --exchanges N             Max exchanges per cycle
+  --cycles N                Max cycles
+  --orchestrator BACKEND    api (default) | claude-code
+  --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
+
+Behavior:
+  --skip-intake             Skip AI goal refinement
+  --auto-refine             Auto-refine goal (no human input, for overnight runs)
+  --yes, -y                 Skip confirmation prompts
+  --no-auto-commit          Disable auto-commit after stages
+
+Output:
+  --json                    Structured JSON to stdout (implies --yes)
+  --resume [RUN_ID]         Resume an interrupted run
+  --version                 Show version
+```
+
 
 > **⚠️ Heads up:** agents run with full permissions (`bypassPermissions` mode). They primarily work in your project directory but **can access any file on your system** (installing dependencies, editing configs, etc.). Make sure you have a git commit or backup before launching.
 
-## 🏗️ Architecture
+### Subcommands
+
+```bash
+kodo runs                     # list all past runs
+kodo runs ./my-project        # list runs for a specific project
+kodo backends                 # show available backends, models, API key status
+kodo teams                    # list available teams
+kodo teams auto               # auto-generate a team from available backends
+kodo teams add my-team        # interactively create a custom team
+kodo teams edit my-team       # edit an existing team
+```
 
 ```
 🦉 Orchestrator (Gemini Flash — fractions of a cent)
@@ -182,24 +202,6 @@ nohup kodo --goal-file feature.md --cycles 10 ./my-project > run.log 2>&1 &
  └── 🌐 tester_browser   Browser-based UI testing
 ```
 
-```
-kodo/
-  cli.py                     Interactive CLI (goal input → config → launch)
-  agent.py                   Agent (prompt + session → run())
-  sessions/
-    base.py                  Session protocol, QueryResult, SessionStats
-    claude.py                ClaudeSession (claude-agent-sdk, persistent)
-    codex.py                 CodexSession (codex CLI, persistent)
-    cursor.py                CursorSession (cursor-agent CLI, persistent)
-    gemini_cli.py            GeminiCliSession (gemini CLI, persistent)
-  orchestrators/
-    base.py                  Orchestrator protocol, CycleResult, RunResult
-    api.py                   ApiOrchestrator (Pydantic AI — Anthropic, Gemini)
-    claude_code.py           ClaudeCodeOrchestrator (Claude Code + MCP)
-  log.py                     JSONL structured logging + live stats
-  viewer.py / viewer.html    Browser-based log viewer
-```
-
 **Key concepts:**
 
 - **Session** — a stateful conversation with a backend (Claude, Cursor, Codex, or Gemini CLI). Tracks token usage, supports reset.
@@ -209,6 +211,7 @@ kodo/
   - `ApiOrchestrator` — runs on Anthropic/Gemini API. Pay-per-token orchestrator, but workers still use your subscription.
 - **Cycle** — one unit of orchestrated work. Think of it as one dev session.
 - **Run** — multiple cycles until done, with summaries bridging context between cycles.
+- **Stage** — an independently verifiable piece of a plan. Stages run sequentially, or in parallel in git worktrees when grouped.
 
 ## 🎨 Custom teams
 
@@ -216,7 +219,7 @@ You can customize which agents run by dropping a `team.json` file — no code ch
 
 **Lookup order:**
 1. `{project}/.kodo/team.json` — project-level override
-2. `~/.kodo/teams/{mode}.json` — user-level named team
+2. `~/.kodo/teams/{name}.json` — user-level named team
 
 **Example:** adding a UX/UI designer agent to review user-facing code:
 
@@ -274,24 +277,4 @@ The progress table labels subscription-covered costs as **Virtual** to make this
 # Open the interactive HTML viewer
 python -m kodo.viewer ~/.kodo/runs/20260218_205503/run.jsonl
 # Or serve on port 8080: python -m kodo.viewer --serve --port 8080 <logfile.jsonl>
-
-# Or get a text summary
-python analyze_run.py ~/.kodo/runs/*/run.jsonl
-```
-
-## 🐍 Programmatic usage
-
-```python
-from kodo import Agent
-from kodo.sessions.claude import ClaudeSession
-from kodo.orchestrators.claude_code import ClaudeCodeOrchestrator
-
-session = ClaudeSession(model="sonnet")
-team = {
-    "worker": Agent(session, "Implement the task given to you.", max_turns=30),
-    "reviewer": Agent(ClaudeSession(model="sonnet"), "Review for bugs.", max_turns=10),
-}
-
-orch = ClaudeCodeOrchestrator(model="opus")
-result = orch.run("Build a REST API for todos", project_dir, team, max_cycles=3)
 ```
