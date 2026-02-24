@@ -6,4 +6,4 @@ dist/
 build/
 .env
 .kodo/
-tmp_mock_run/
+tmp_*/
