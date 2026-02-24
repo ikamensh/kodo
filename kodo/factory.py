@@ -6,6 +6,7 @@ Centralises the duplicated team-building logic from main.py and cli.py.
 from __future__ import annotations
 
 import shutil
+import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
@@ -82,6 +83,78 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
         if not os.environ.get("ANTHROPIC_API_KEY"):
             return "ANTHROPIC_API_KEY not set — required for API orchestrator with Claude models"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Backend preflight checks
+# ---------------------------------------------------------------------------
+
+# Binary → version/help command to test viability
+_PREFLIGHT_CMDS: dict[str, list[str]] = {
+    "claude": ["claude", "--version"],
+    "cursor": ["cursor-agent", "--version"],
+    "codex": ["codex", "--version"],
+    "gemini-cli": ["gemini", "--version"],
+}
+
+# Session class → backend key for preflight
+_SESSION_BACKEND_MAP: dict[str, str] = {
+    "ClaudeSession": "claude",
+    "CursorSession": "cursor",
+    "CodexSession": "codex",
+    "GeminiCliSession": "gemini-cli",
+}
+
+
+def _detect_backend(agent: "Agent") -> str | None:
+    """Infer the backend key from an agent's session type."""
+    cls_name = type(agent.session).__name__
+    return _SESSION_BACKEND_MAP.get(cls_name)
+
+
+def preflight_check_backends(team: "TeamConfig") -> list[str]:
+    """Run a lightweight smoke test on each backend in the team.
+
+    Returns a list of warning strings (empty = all OK).
+    Checks are best-effort — a passing preflight doesn't guarantee the
+    backend will work for real queries, but catches obvious issues like
+    expired subscriptions, unlinked auth, or broken binaries.
+    """
+    warnings: list[str] = []
+    checked: set[str] = set()
+
+    for name, agent in team.items():
+        backend = _detect_backend(agent)
+        if backend is None or backend in checked:
+            continue
+        checked.add(backend)
+
+        cmd = _PREFLIGHT_CMDS.get(backend)
+        if cmd is None:
+            continue
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode != 0:
+                combined = f"{result.stderr}\n{result.stdout}".strip()
+                # Truncate to keep warning readable
+                snippet = (
+                    combined[:200] if combined else f"exit code {result.returncode}"
+                )
+                warnings.append(f"  {backend}: preflight failed — {snippet}")
+        except FileNotFoundError:
+            warnings.append(f"  {backend}: binary not found on PATH")
+        except subprocess.TimeoutExpired:
+            warnings.append(f"  {backend}: preflight timed out (15s)")
+        except OSError as exc:
+            warnings.append(f"  {backend}: {exc}")
+
+    return warnings
 
 
 # ---------------------------------------------------------------------------

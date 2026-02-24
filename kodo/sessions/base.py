@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import threading
 from dataclasses import dataclass, field
@@ -164,3 +165,69 @@ class SubprocessSession:
         then call ``super().reset()``."""
         self._stats = SessionStats()
         self._system_prompt_sent = False
+
+
+# ---------------------------------------------------------------------------
+# Shared error classification for subprocess-based sessions
+# ---------------------------------------------------------------------------
+
+_AUTH_PATTERNS = re.compile(
+    r"unauthori[sz]ed|authentication failed|invalid.{0,20}(api.?key|token|credential)"
+    r"|401\b|403\b|forbidden|access denied|not authenticated",
+    re.IGNORECASE,
+)
+
+_SUBSCRIPTION_PATTERNS = re.compile(
+    r"subscription|billing|payment|quota exceeded|rate.?limit"
+    r"|usage.?limit|plan.?limit|account.?(suspended|disabled|deactivated)",
+    re.IGNORECASE,
+)
+
+_BINARY_PATTERNS = re.compile(
+    r"command not found|no such file|not found|not installed"
+    r"|permission denied|cannot execute|exec format error",
+    re.IGNORECASE,
+)
+
+
+def classify_session_error(
+    returncode: int,
+    stderr: str,
+    stdout: str = "",
+    backend: str = "",
+) -> str | None:
+    """Classify a subprocess failure into an actionable hint, or None.
+
+    Returns a short human-readable hint when the error matches a known
+    pattern; None if nothing specific was detected.
+    """
+    combined = f"{stderr}\n{stdout}"
+
+    if _AUTH_PATTERNS.search(combined):
+        return (
+            f"{backend + ': ' if backend else ''}"
+            f"Authentication failed — check your API key or login status."
+        )
+
+    if _SUBSCRIPTION_PATTERNS.search(combined):
+        return (
+            f"{backend + ': ' if backend else ''}"
+            f"Subscription/billing issue — check your account status."
+        )
+
+    if _BINARY_PATTERNS.search(combined):
+        return (
+            f"{backend + ': ' if backend else ''}"
+            f"Binary not working — reinstall or check PATH."
+        )
+
+    if returncode < 0:
+        import signal
+
+        try:
+            sig = signal.Signals(-returncode).name
+        except (ValueError, AttributeError):
+            sig = str(-returncode)
+        return f"{backend + ': ' if backend else ''}Process killed by signal {sig}."
+
+    return None

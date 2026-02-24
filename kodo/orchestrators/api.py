@@ -264,7 +264,20 @@ class ApiOrchestrator(OrchestratorBase):
                 break
             except ModelHTTPError as exc:
                 status = exc.status_code
-                if status == 529 and self._fallback_pydantic and attempt == 0:
+                # Auth failures: not retryable, give a clear message
+                if status in (401, 403):
+                    provider = "Gemini" if "gemini" in self.model else "Anthropic"
+                    log.tprint(
+                        f"[orchestrator] Authentication failed (HTTP {status}). "
+                        f"Check your API key for {provider}."
+                    )
+                    log.emit(
+                        "orchestrator_auth_error",
+                        status_code=status,
+                        provider=provider,
+                    )
+                    raise
+                elif status == 529 and self._fallback_pydantic and attempt == 0:
                     log.tprint(
                         f"[orchestrator] 529 on {self.model}, "
                         f"falling back to {self._fallback_model}"
@@ -280,7 +293,10 @@ class ApiOrchestrator(OrchestratorBase):
                         tools=tools,
                         history_processors=history_processors or None,
                     )
-                elif status in (429, 500, 502, 503, 529) and attempt < max_retries - 1:
+                elif (
+                    status in (408, 429, 500, 502, 503, 504, 529)
+                    and attempt < max_retries - 1
+                ):
                     wait = 30 * (attempt + 1)
                     log.tprint(
                         f"[orchestrator] {status} from model API, "

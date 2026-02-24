@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
-from kodo.sessions.base import QueryResult, SubprocessSession
+from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
 class CursorSession(SubprocessSession):
@@ -107,6 +107,12 @@ class CursorSession(SubprocessSession):
         is_error = proc.returncode != 0
         if not is_error:
             stderr_text = ""
+        elif not result_text:
+            hint = classify_session_error(
+                proc.returncode, stderr_text, backend="cursor"
+            )
+            if hint:
+                result_text = hint
 
         self._stats.queries += 1
 

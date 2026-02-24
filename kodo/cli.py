@@ -26,6 +26,7 @@ from kodo.factory import (
     has_cursor,
     has_gemini_cli,
     check_api_key,
+    preflight_check_backends,
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage, ResumeState
@@ -1083,6 +1084,23 @@ def launch_run(
         system_prompt=system_prompt,
     )
 
+    # Preflight: smoke-test backends before committing to a long run
+    preflight_warnings = preflight_check_backends(team)
+    if preflight_warnings:
+        if len(preflight_warnings) == len(team):
+            # ALL backends failed — abort
+            _fail(
+                "All backends failed preflight checks:\n"
+                + "\n".join(preflight_warnings)
+                + "\nFix the issues above or install a working backend."
+            )
+        if not json_mode:
+            print("\n⚠ Backend preflight warnings:")
+            for w in preflight_warnings:
+                print(w)
+            print("  (Continuing — some backends may fail at runtime)\n")
+        log.emit("preflight_warnings", warnings=preflight_warnings)
+
     if not json_mode:
         print(f"\nMode: {mode.name} — {mode.description}")
         if team_config:
@@ -1514,15 +1532,101 @@ def _cmd_runs() -> None:
         )
 
 
+def _cmd_backends() -> None:
+    """List available backends (CLI agents and API orchestrator models)."""
+    import os
+    import subprocess
+
+    from kodo.factory import (
+        available_backends,
+        _PREFLIGHT_CMDS,
+        _MODEL_ALIASES,
+        check_api_key,
+    )
+
+    available_backends.cache_clear()
+    backends = available_backends()
+
+    _INSTALL_LINKS: dict[str, str] = {
+        "claude": "https://docs.anthropic.com/en/docs/claude-code",
+        "codex": "https://github.com/openai/codex",
+        "cursor": "https://docs.cursor.com/agent",
+        "gemini-cli": "https://github.com/google-gemini/gemini-cli",
+    }
+
+    # --- CLI backends (agents) ---
+    print("CLI backends (agents):")
+    for name, present in backends.items():
+        if not present:
+            link = _INSTALL_LINKS.get(name, "")
+            print(f"  {name:<12}  not found  {link}")
+            continue
+
+        # Get version
+        cmd = _PREFLIGHT_CMDS.get(name)
+        version = "?"
+        if cmd:
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if proc.returncode == 0:
+                    version = proc.stdout.strip().split("\n")[0]
+                else:
+                    version = f"error (exit {proc.returncode})"
+            except (subprocess.TimeoutExpired, OSError):
+                version = "error"
+
+        print(f"  {name:<12}  {version}")
+
+    # --- API orchestrator models ---
+    print("\nOrchestrator models (API):")
+    for alias, full_id in sorted(_MODEL_ALIASES.items()):
+        key_err = check_api_key("api", alias)
+        status = "ready" if key_err is None else "no key"
+        provider = "Gemini" if full_id.startswith("gemini") else "Anthropic"
+        print(f"  {alias:<14}  {full_id:<35}  {provider:<10}  {status}")
+
+    # --- API key status ---
+    print("\nAPI keys:")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    google_key = os.environ.get("GOOGLE_API_KEY")
+
+    def _masked(val: str) -> str:
+        return f"{val[:4]}...{val[-4:]}" if len(val) > 12 else "***"
+
+    if anthropic_key:
+        print(f"  ANTHROPIC_API_KEY       set ({_masked(anthropic_key)})")
+    else:
+        print(
+            "  ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys"
+        )
+
+    # GEMINI_API_KEY and GOOGLE_API_KEY are interchangeable for Gemini
+    gkey = gemini_key or google_key
+    if gkey:
+        source = "GEMINI_API_KEY" if gemini_key else "GOOGLE_API_KEY"
+        print(f"  Gemini                  set via {source} ({_masked(gkey)})")
+    else:
+        print("  Gemini                  not set  https://aistudio.google.com/apikey")
+
+
 def _main_inner() -> None:
     # Handle subcommands before argparse
     if len(sys.argv) > 1 and sys.argv[1] == "runs":
         _cmd_runs()
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "backends":
+        _cmd_backends()
+        return
 
     parser = argparse.ArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo runs [PROJECT_DIR]  List all known runs",
+        epilog="subcommands:\n  kodo runs [PROJECT_DIR]  List all known runs\n  kodo backends            List available backends and API keys",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")

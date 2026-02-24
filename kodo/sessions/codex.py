@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
-from kodo.sessions.base import QueryResult, SubprocessSession
+from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
 class CodexSession(SubprocessSession):
@@ -181,6 +181,14 @@ class CodexSession(SubprocessSession):
                 )
             else:
                 result_text = last_err
+
+        # Classify the error for better diagnostics
+        if is_error and not result_text:
+            hint = classify_session_error(
+                proc.returncode, stderr_text, "\n".join(error_messages), "codex"
+            )
+            if hint:
+                result_text = hint
 
         self._stats.queries += 1
         self._stats.total_input_tokens += input_tokens

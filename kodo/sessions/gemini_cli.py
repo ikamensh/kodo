@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
-from kodo.sessions.base import QueryResult, SubprocessSession
+from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
 class GeminiCliSession(SubprocessSession):
@@ -127,7 +127,10 @@ class GeminiCliSession(SubprocessSession):
                 result_text = stdout_text.strip()
 
         if is_error and not result_text:
-            result_text = stderr_text
+            hint = classify_session_error(
+                proc.returncode, stderr_text, stdout_text, "gemini"
+            )
+            result_text = hint or stderr_text
 
         self._stats.queries += 1
         self._stats.total_input_tokens += input_tokens

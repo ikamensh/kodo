@@ -152,11 +152,13 @@ class ClaudeSession:
                 **({"system_prompt": self.system_prompt} if self.system_prompt else {}),
             )
             self._client = ClaudeSDKClient(options=options)
-            self._run(self._client.connect())
-
-            # Restore the key so the orchestrator's own API calls still work.
-            if saved_api_key is not None:
-                os.environ["ANTHROPIC_API_KEY"] = saved_api_key
+            try:
+                self._run(self._client.connect())
+            finally:
+                # Restore the key so the orchestrator's own API calls still work,
+                # even if connect() failed.
+                if saved_api_key is not None:
+                    os.environ["ANTHROPIC_API_KEY"] = saved_api_key
 
     def _disconnect(self) -> None:
         if self._client is not None:
@@ -208,7 +210,23 @@ class ClaudeSession:
 
         if self._loop.is_closed():
             raise RuntimeError("Session is closed")
-        self._ensure_client(project_dir)
+        try:
+            self._ensure_client(project_dir)
+        except Exception as exc:
+            # Connection failed (auth error, binary broken, etc.)
+            # Clean up the broken client so the next call can retry.
+            self._client = None
+            self._project_dir = None
+            exc_name = type(exc).__name__
+            return QueryResult(
+                text=(
+                    f"Claude session failed to connect: {exc_name}: {exc}\n"
+                    "Check that Claude Code is installed, authenticated, "
+                    "and your subscription is active."
+                ),
+                elapsed_s=0.0,
+                is_error=True,
+            )
 
         # If a plan was captured in the previous query, check whether the
         # orchestrator is approving it or asking for revisions.  Only approve
