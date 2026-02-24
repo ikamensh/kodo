@@ -1,5 +1,20 @@
 # Rules for writing code in this repo
 
+## End-to-end test scenarios (mocked)
+
+Primary user workflows and how to verify them with mocks (no API keys or real backends):
+
+| Scenario | Script | What it verifies |
+|----------|--------|------------------|
+| **Non-interactive run** | `scripts/smoke_test_cli.py` | CLI starts, mocked orchestrator runs one cycle, exits 0, JSON output |
+| **Full mocked run** | `scripts/run_cli_mocked.py` | Goal + team + launch flow, run_start/cycle_end/run_end emitted |
+| **Resume interrupted run** | `scripts/smoke_test_resume.py` | Creates incomplete run, `kodo --resume` finds it, passes correct ResumeState to orchestrator |
+| **Improve mode** | `scripts/smoke_test_improve.py` | Project type detection (app vs library), 4-stage improve plan, orchestrator receives plan |
+| **Interactive flow** | `scripts/smoke_test_interactive.py` | Goal input, team/orchestrator/model selection, refine skip, confirmation, launch |
+| **Improve full run** | `scripts/run_improve_mocked.py` | `kodo --improve` on buggy_project, plan built, cycle completes |
+
+**Log viewer (browser):** `python -m kodo.viewer <run.jsonl>` or `--serve --port 8080`. `scripts/verify_viewer_browser.py` uses Playwright (optional dep) to verify embedded data, stats bar, timeline, expand button.
+
 ## Rule A.0
 
 User has insight, and final decision. But also user can miss detail and might have wrong ideas. If you think what user is asking

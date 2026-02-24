@@ -81,16 +81,16 @@ kodo lets you set a goal, go to bed, and wake up to working code that's been ind
 
 ## 📦 Install
 
+**Linux / macOS:**
 ```bash
-# 1. Install uv (Python package manager) — skip if you already have it
-#    See https://docs.astral.sh/uv/getting-started/installation/
-
-# 2. Install kodo as a global CLI tool
+curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv (skip if you have it)
 uv tool install git+https://github.com/ikamen/kodo
+```
 
-# Or from a local checkout:
-git clone https://github.com/ikamen/kodo && cd kodo
-uv tool install .
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # install uv (skip if you have it)
+uv tool install git+https://github.com/ikamen/kodo
 ```
 
 That's it. `kodo` is now on your PATH.
