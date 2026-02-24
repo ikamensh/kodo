@@ -107,12 +107,11 @@ class TestBuildParamsFromFlags:
         # Without Gemini key, falls back to claude-code
         assert params["orchestrator"] == "claude-code"
 
-    def test_improve_mode_skips_api_default(self, project):
+    def test_improve_mode_uses_api_with_gemini_key(self, project):
         args = _make_args(improve=True, orchestrator_model="gemini-flash")
         with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
             params = _build_params_from_flags(args, project)
-        # --improve skips the api default even with gemini key
-        assert params["orchestrator"] == "claude-code"
+        assert params["orchestrator"] == "api"
 
     def test_orchestrator_explicit(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
@@ -623,6 +622,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._params.has_claude", return_value=True),
             patch("kodo.cli._params.check_api_key", return_value=None),
+            patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
             sys.argv = ["kodo", "--improve", str(buggy_project)]
             _main_inner()
@@ -639,7 +639,7 @@ class TestImproveFlag:
             "improve" in goal_text.lower() or "improvement report" in goal_text.lower()
         )
         assert params["team"] == "saga"
-        assert params["orchestrator"] == "claude-code"
+        assert params["orchestrator"] == "api"
         assert plan is not None
         assert len(plan.stages) == 4
         assert plan.stages[0].name == "Baseline & Static Analysis"

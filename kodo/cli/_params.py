@@ -259,7 +259,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
 
     if args.orchestrator:
         orchestrator = args.orchestrator
-    elif not getattr(args, "improve", False) and _has_gemini_key:
+    elif _has_gemini_key:
         orchestrator = "api"
     elif has_claude():
         orchestrator = "claude-code"
