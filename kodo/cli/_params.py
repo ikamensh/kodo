@@ -109,8 +109,11 @@ def select_params() -> dict:
     team_name = team_choice.split(" — ")[0]
     team_preset = get_team(team_name)
 
-    # Build orchestrator choices based on available backends
+    # Build orchestrator choices based on available backends.
+    # API is recommended: CLI tools tend to solve problems themselves instead
+    # of purely delegating, which makes them worse orchestrators.
     orch_options: list[str] = []
+    orch_options.append("api (recommended — delegates cleanly, pay-per-token)")
     if _claude:
         orch_options.append("claude-code (free on Max subscription)")
     if _gemini:
@@ -119,7 +122,6 @@ def select_params() -> dict:
         orch_options.append("codex (free on Codex subscription)")
     if _cursor:
         orch_options.append("cursor (free on Cursor subscription)")
-    orch_options.append("api (pay-per-token)")
 
     orchestrator = _select_one("Orchestrator:", orch_options).split(" (")[0]
 

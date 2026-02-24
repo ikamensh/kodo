@@ -94,6 +94,8 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
         # Run the entire connect→query→collect→disconnect lifecycle in a single
         # async function on a fresh event loop so anyio cancel scopes stay in
         # the same task throughout.
+        _MAX_NUDGES = 3
+
         async def _run_cycle():
             client = ClaudeSDKClient(options=options)
             try:
@@ -101,39 +103,67 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                 log.tprint("🚀 [orchestrator] starting cycle...")
                 await client.query(prompt)
 
-                async for message in client.receive_response():
-                    if isinstance(message, ResultMessage):
-                        result.exchanges = message.num_turns or 0
-                        result.total_cost_usd = message.total_cost_usd or 0.0
-                        log.get_run_stats().record_orchestrator(
-                            result.total_cost_usd, "claude_subscription"
-                        )
-                        result.finished = done_signal.called
+                nudges = 0
+                while True:
+                    async for message in client.receive_response():
+                        if isinstance(message, ResultMessage):
+                            result.exchanges = (
+                                result.exchanges + (message.num_turns or 0)
+                            )
+                            result.total_cost_usd = (
+                                result.total_cost_usd
+                                + (message.total_cost_usd or 0.0)
+                            )
+                            log.get_run_stats().record_orchestrator(
+                                message.total_cost_usd or 0.0,
+                                "claude_subscription",
+                            )
+                            result.summary = (
+                                (done_signal.summary or "")
+                                if done_signal.called
+                                else (message.result or "")
+                            )
+                            log.emit(
+                                "orchestrator_response",
+                                orchestrator="claude_code",
+                                is_error=message.is_error,
+                                num_turns=message.num_turns,
+                                cost_usd=message.total_cost_usd,
+                                result_text=message.result,
+                                done_called=done_signal.called,
+                            )
+
+                    if done_signal.called:
+                        result.finished = True
                         result.success = done_signal.success
-                        result.summary = (
-                            (done_signal.summary or "")
-                            if done_signal.called
-                            else (message.result or "")
+                        log.tprint(
+                            f"✅ [orchestrator] cycle done (done tool called): "
+                            f"{done_signal.summary[:200]}"
                         )
-                        log.emit(
-                            "orchestrator_response",
-                            orchestrator="claude_code",
-                            is_error=message.is_error,
-                            num_turns=message.num_turns,
-                            cost_usd=message.total_cost_usd,
-                            result_text=message.result,
-                            done_called=done_signal.called,
+                        break
+
+                    if message.is_error:
+                        log.tprint(
+                            f"⚠️  [orchestrator] error: {message.result}"
                         )
-                        if done_signal.called:
-                            log.tprint(
-                                f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
-                            )
-                        elif message.is_error:
-                            log.tprint(f"⚠️  [orchestrator] error: {message.result}")
-                        else:
-                            log.tprint(
-                                "⏱️  [orchestrator] cycle ended without calling done (hit turn limit?)"
-                            )
+                        break
+
+                    nudges += 1
+                    if nudges > _MAX_NUDGES:
+                        log.tprint(
+                            "⏱️  [orchestrator] cycle ended without calling "
+                            f"done after {_MAX_NUDGES} nudges"
+                        )
+                        break
+
+                    log.tprint(
+                        f"🔄 [orchestrator] nudging to call done() "
+                        f"(attempt {nudges}/{_MAX_NUDGES})..."
+                    )
+                    await client.query(
+                        "You must call the done() tool to complete this cycle. "
+                        "Summarize what you've accomplished and call done()."
+                    )
             finally:
                 try:
                     await client.disconnect()

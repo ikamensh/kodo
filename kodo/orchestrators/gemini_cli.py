@@ -117,70 +117,90 @@ class GeminiCliOrchestrator(OrchestratorBase):
                     self.model,
                 ]
 
-                proc = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    cwd=str(project_dir),
-                    timeout=max_exchanges * 120,  # generous timeout
-                )
-
-                # Parse response
-                response_text = ""
-                input_tokens = 0
-                output_tokens = 0
-
-                if proc.stdout.strip():
-                    try:
-                        data = json.loads(proc.stdout)
-                        response_text = data.get("response", "")
-                        stats_models = data.get("stats", {}).get("models", {})
-                        for model_stats in stats_models.values():
-                            tokens = model_stats.get("tokens", {})
-                            input_tokens += tokens.get("prompt", 0)
-                            output_tokens += tokens.get("candidates", 0)
-                    except json.JSONDecodeError:
-                        response_text = proc.stdout.strip()
-
-                if proc.returncode != 0 and not response_text:
-                    response_text = (
-                        proc.stderr or f"gemini exited with code {proc.returncode}"
+                try:
+                    proc = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        cwd=str(project_dir),
+                        timeout=max_exchanges * 120,  # generous timeout
                     )
-
-                result.exchanges = (
-                    max(1, (input_tokens + output_tokens) // 4000)
-                    if output_tokens
-                    else 1
-                )
-                result.total_cost_usd = 0.0  # free tier
-                log.get_run_stats().record_orchestrator(0.0, "gemini_cli")
-
-                result.finished = done_signal.called
-                result.success = done_signal.success
-                result.summary = (
-                    (done_signal.summary or "") if done_signal.called else response_text
-                )
-
-                log.emit(
-                    "orchestrator_response",
-                    orchestrator="gemini-cli",
-                    is_error=proc.returncode != 0,
-                    result_text=response_text[:2000],
-                    done_called=done_signal.called,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                )
-
-                if done_signal.called:
-                    log.tprint(
-                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                except subprocess.TimeoutExpired as exc:
+                    result.finished = False
+                    result.exchanges = 1
+                    result.summary = (
+                        f"Gemini CLI timed out after {exc.timeout}s. "
+                        "Consider reducing scope or increasing max_exchanges."
                     )
-                elif proc.returncode != 0:
-                    log.tprint(
-                        f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}"
+                    log.tprint(f"⚠️  [orchestrator] gemini-cli timeout: {exc.timeout}s")
+                    log.emit(
+                        "orchestrator_response",
+                        orchestrator="gemini-cli",
+                        is_error=True,
+                        result_text=result.summary[:2000],
+                        done_called=False,
                     )
                 else:
-                    log.tprint("⏱️  [orchestrator] cycle ended without calling done")
+                    # Parse response
+                    response_text = ""
+                    input_tokens = 0
+                    output_tokens = 0
+
+                    if proc.stdout.strip():
+                        try:
+                            data = json.loads(proc.stdout)
+                            response_text = data.get("response", "")
+                            stats_models = data.get("stats", {}).get("models", {})
+                            for model_stats in stats_models.values():
+                                tokens = model_stats.get("tokens", {})
+                                input_tokens += tokens.get("prompt", 0)
+                                output_tokens += tokens.get("candidates", 0)
+                        except json.JSONDecodeError:
+                            response_text = proc.stdout.strip()
+
+                    if proc.returncode != 0 and not response_text:
+                        response_text = (
+                            proc.stderr or f"gemini exited with code {proc.returncode}"
+                        )
+
+                    result.exchanges = (
+                        max(1, (input_tokens + output_tokens) // 4000)
+                        if output_tokens
+                        else 1
+                    )
+                    result.total_cost_usd = 0.0  # free tier
+                    log.get_run_stats().record_orchestrator(0.0, "gemini_cli")
+
+                    result.finished = done_signal.called
+                    result.success = done_signal.success
+                    result.summary = (
+                        (done_signal.summary or "")
+                        if done_signal.called
+                        else response_text
+                    )
+
+                    log.emit(
+                        "orchestrator_response",
+                        orchestrator="gemini-cli",
+                        is_error=proc.returncode != 0,
+                        result_text=response_text[:2000],
+                        done_called=done_signal.called,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+
+                    if done_signal.called:
+                        log.tprint(
+                            f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                        )
+                    elif proc.returncode != 0:
+                        log.tprint(
+                            f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}"
+                        )
+                    else:
+                        log.tprint(
+                            "⏱️  [orchestrator] cycle ended without calling done"
+                        )
 
             finally:
                 # Always clean up MCP registration

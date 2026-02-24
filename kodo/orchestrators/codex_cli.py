@@ -93,74 +93,82 @@ class CodexOrchestrator(OrchestratorBase):
                 f"mcp_servers.kodo_team.args={json.dumps(bridge_cmd[1:])}",
             ]
 
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-
-            # Parse JSONL output
-            response_text = ""
-            exchanges = 0
-            for line in proc.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    msg = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                msg_type = msg.get("type") or msg.get("msg", {}).get("type", "")
-                if msg_type == "task_started":
-                    exchanges += 1
-                elif msg_type == "message":
-                    content = msg.get("msg", {}).get("content", "")
-                    if content:
-                        response_text = content
-                elif msg_type == "task_complete":
-                    response_text = msg.get("msg", {}).get("message", response_text)
-
-                # Codex nests messages under "msg"
-                inner = msg.get("msg", {})
-                if inner.get("type") == "task_complete":
-                    response_text = inner.get("message", response_text)
-
-            proc.wait()
-            stderr_text = proc.stderr.read()
-
-            if proc.returncode != 0 and not response_text:
-                response_text = (
-                    stderr_text or f"codex exited with code {proc.returncode}"
+            proc = None
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
                 )
 
-            result.exchanges = max(exchanges, 1)
-            result.total_cost_usd = 0.0  # subscription-covered
-            log.get_run_stats().record_orchestrator(0.0, "codex_subscription")
+                # Parse JSONL output
+                response_text = ""
+                exchanges = 0
+                for line in proc.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
 
-            result.finished = done_signal.called
-            result.success = done_signal.success
-            result.summary = (
-                (done_signal.summary or "") if done_signal.called else response_text
-            )
+                    msg_type = msg.get("type") or msg.get("msg", {}).get("type", "")
+                    if msg_type == "task_started":
+                        exchanges += 1
+                    elif msg_type == "message":
+                        content = msg.get("msg", {}).get("content", "")
+                        if content:
+                            response_text = content
+                    elif msg_type == "task_complete":
+                        response_text = msg.get("msg", {}).get("message", response_text)
 
-            log.emit(
-                "orchestrator_response",
-                orchestrator="codex",
-                is_error=proc.returncode != 0,
-                result_text=response_text[:2000],
-                done_called=done_signal.called,
-            )
+                    # Codex nests messages under "msg"
+                    inner = msg.get("msg", {})
+                    if inner.get("type") == "task_complete":
+                        response_text = inner.get("message", response_text)
 
-            if done_signal.called:
-                log.tprint(
-                    f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                proc.wait()
+                stderr_text = proc.stderr.read()
+
+                if proc.returncode != 0 and not response_text:
+                    response_text = (
+                        stderr_text or f"codex exited with code {proc.returncode}"
+                    )
+
+                result.exchanges = max(exchanges, 1)
+                result.total_cost_usd = 0.0  # subscription-covered
+                log.get_run_stats().record_orchestrator(0.0, "codex_subscription")
+
+                result.finished = done_signal.called
+                result.success = done_signal.success
+                result.summary = (
+                    (done_signal.summary or "") if done_signal.called else response_text
                 )
-            elif proc.returncode != 0:
-                log.tprint(f"⚠️  [orchestrator] codex error: {response_text[:200]}")
-            else:
-                log.tprint("⏱️  [orchestrator] cycle ended without calling done")
+
+                log.emit(
+                    "orchestrator_response",
+                    orchestrator="codex",
+                    is_error=proc.returncode != 0,
+                    result_text=response_text[:2000],
+                    done_called=done_signal.called,
+                )
+
+                if done_signal.called:
+                    log.tprint(
+                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                    )
+                elif proc.returncode != 0:
+                    log.tprint(f"⚠️  [orchestrator] codex error: {response_text[:200]}")
+                else:
+                    log.tprint("⏱️  [orchestrator] cycle ended without calling done")
+
+            finally:
+                if proc is not None:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait()
 
         # Fallback summary
         if not result.finished and not result.summary:

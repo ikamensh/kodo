@@ -108,11 +108,13 @@ You need **at least one** agent backend installed:
 
 Claude Code + one fast backend (Cursor, Codex, or Gemini CLI) is recommended. See [docs/providers.md](docs/providers.md) for detailed setup instructions, authentication, and troubleshooting.
 
-For the **API orchestrator**, set a key in `.env` or your environment:
+For the **API orchestrator** (recommended), set a key in `.env` or your environment:
 ```bash
 GOOGLE_API_KEY=...     # Gemini orchestrator (recommended — fast and cheap)
 ANTHROPIC_API_KEY=...  # Claude API orchestrator (alternative)
 ```
+
+> **Why API over CLI orchestrators?** CLI coding tools (Claude Code, Cursor, Codex) are built to solve problems themselves — they'll try to write code, micromanage agents, or go off-script instead of purely delegating. A plain API model stays in its lane as a coordinator: it thinks high level and delegates, closer to human user behavior.
 
 ## 🚀 Usage
 
@@ -162,7 +164,7 @@ Configuration:
   --team TEAM               saga (default) | mission | quick
   --exchanges N             Max exchanges per cycle
   --cycles N                Max cycles
-  --orchestrator BACKEND    api (default) | claude-code
+  --orchestrator BACKEND    api (default, recommended) | claude-code
   --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
 
 Behavior:

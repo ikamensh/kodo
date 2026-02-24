@@ -1,8 +1,13 @@
 """Run launch and resume logic, plus JSON output helpers."""
 
 import json
+import logging
 import sys
 from pathlib import Path
+
+# Suppress noisy SDK info messages ("Using bundled Claude Code CLI: ...")
+# that break the clean progress output.
+logging.getLogger("claude_agent_sdk").setLevel(logging.WARNING)
 
 from kodo import log
 from kodo.factory import (

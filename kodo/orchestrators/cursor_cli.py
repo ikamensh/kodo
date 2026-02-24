@@ -102,6 +102,7 @@ class CursorOrchestrator(OrchestratorBase):
             except OSError as exc:
                 raise RuntimeError(f"Failed to write Cursor MCP config: {exc}") from exc
 
+            proc = None
             try:
                 log.tprint("🚀 [orchestrator] starting cursor cycle...")
 
@@ -181,26 +182,31 @@ class CursorOrchestrator(OrchestratorBase):
                     log.tprint("⏱️  [orchestrator] cycle ended without calling done")
 
             finally:
-                # Restore original MCP config
-                if original_config is not None:
-                    mcp_config_path.write_text(original_config, encoding="utf-8")
-                elif mcp_config_path.exists():
-                    # Remove only our entry if we created the file
-                    try:
-                        current = json.loads(
-                            mcp_config_path.read_text(encoding="utf-8")
-                        )
-                        servers = current.get("mcpServers", {})
-                        servers.pop("kodo_team", None)
-                        if servers:
-                            current["mcpServers"] = servers
-                            mcp_config_path.write_text(
-                                json.dumps(current, indent=2), encoding="utf-8"
+                if proc is not None:
+                    if proc.poll() is None:
+                        proc.kill()
+                    proc.wait()
+                try:
+                    if original_config is not None:
+                        mcp_config_path.write_text(original_config, encoding="utf-8")
+                    elif mcp_config_path.exists():
+                        try:
+                            current = json.loads(
+                                mcp_config_path.read_text(encoding="utf-8")
                             )
-                        else:
+                            servers = current.get("mcpServers", {})
+                            servers.pop("kodo_team", None)
+                            if servers:
+                                current["mcpServers"] = servers
+                                mcp_config_path.write_text(
+                                    json.dumps(current, indent=2), encoding="utf-8"
+                                )
+                            else:
+                                mcp_config_path.unlink(missing_ok=True)
+                        except (json.JSONDecodeError, OSError):
                             mcp_config_path.unlink(missing_ok=True)
-                    except (json.JSONDecodeError, OSError):
-                        mcp_config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
         # Fallback summary
         if not result.finished and not result.summary:

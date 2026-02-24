@@ -1031,7 +1031,8 @@ class OrchestratorBase:
 
         for i in range(start_cycle, max_cycles + 1):
             if i > 1:
-                log.tprint(f"\n[orchestrator] === CYCLE {i}/{max_cycles} ===")
+                print()
+                log.tprint(f"[orchestrator] === CYCLE {i}/{max_cycles} ===")
             log.emit(
                 "run_cycle",
                 orchestrator=self._orchestrator_name,
@@ -1082,8 +1083,9 @@ class OrchestratorBase:
             stage_name=stage.name,
             max_cycles=max_cycles_for_stage,
         )
+        print()
         log.tprint(
-            f"\n[orchestrator] === STAGE {stage.index}/{len(plan.stages)}: "
+            f"[orchestrator] === STAGE {stage.index}/{len(plan.stages)}: "
             f"{stage.name} ==="
         )
 
@@ -1098,8 +1100,9 @@ class OrchestratorBase:
         while cycles_used < max_cycles_for_stage:
             cycles_used += 1
 
+            print()
             log.tprint(
-                f"\n[orchestrator] === CYCLE {cycles_used}/{max_cycles_for_stage} "
+                f"[orchestrator] === CYCLE {cycles_used}/{max_cycles_for_stage} "
                 f"(stage {stage.index}) ==="
             )
             log.emit(
@@ -1266,7 +1269,8 @@ class OrchestratorBase:
                 # Parallel group: split budget evenly, run concurrently
                 per_stage_cycles = max(1, remaining_cycles // len(group))
                 stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
-                log.tprint(f"\n[orchestrator] === PARALLEL GROUP: {stage_labels} ===")
+                print()
+                log.tprint(f"[orchestrator] === PARALLEL GROUP: {stage_labels} ===")
                 log.emit(
                     "parallel_group_start",
                     stages=[s.index for s in group],
