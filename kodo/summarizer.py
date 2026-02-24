@@ -83,7 +83,8 @@ def _summarize_gemini(api_key: str, task: str, report: str) -> str:
         data = json.loads(resp.read())
     candidates = data.get("candidates", [])
     if candidates:
-        parts = candidates[0].get("content", {}).get("parts", [])
+        content = candidates[0].get("content") or {}
+        parts = content.get("parts", [])
         if parts:
             return (parts[0].get("text") or "").strip()
     return ""
@@ -127,6 +128,8 @@ class Summarizer:
         self._executor.submit(self._do_summarize, agent_name, task, report)
 
     def _do_summarize(self, agent_name: str, task: str, report: str) -> None:
+        task = task or ""
+        report = report or ""
         try:
             if self._backend == "ollama":
                 text = _summarize_ollama(self._backend_param, task, report)

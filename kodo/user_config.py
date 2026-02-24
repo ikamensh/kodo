@@ -6,18 +6,22 @@ import functools
 import json
 from pathlib import Path
 
-_USER_CONFIG_PATH = Path.home() / ".kodo" / "config.json"
+
+def _user_config_path() -> Path:
+    """Lazy path to avoid Path.home() at import time."""
+    return Path.home() / ".kodo" / "config.json"
 
 
 @functools.lru_cache(maxsize=1)
 def load_user_config() -> dict:
     """Load ~/.kodo/config.json. Returns empty dict if missing or invalid."""
-    if not _USER_CONFIG_PATH.is_file():
+    path = _user_config_path()
+    if not path.is_file():
         return {}
     try:
-        data = json.loads(_USER_CONFIG_PATH.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return {}
 
 

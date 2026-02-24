@@ -173,7 +173,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         result.finished = done_signal.called
                         result.success = done_signal.success
                         result.summary = (
-                            done_signal.summary
+                            (done_signal.summary or "")
                             if done_signal.called
                             else (message.result or "")
                         )
@@ -199,8 +199,13 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             finally:
                 try:
                     await client.disconnect()
-                except RuntimeError:
-                    pass  # anyio cancel scope mismatch on cleanup — harmless
+                except RuntimeError as exc:
+                    msg = str(exc).lower()
+                    if "cancel" in msg or "anyio" in msg:
+                        pass  # anyio cancel scope mismatch on cleanup — harmless
+                    else:
+                        log.tprint(f"[orchestrator] disconnect error: {exc}")
+                        raise
 
         # Use a dedicated thread so we never collide with a caller's loop
         loop = asyncio.new_event_loop()
@@ -212,7 +217,8 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
         finally:
             loop.call_soon_threadsafe(loop.stop)
             thread.join(timeout=5)
-            loop.close()
+            if not thread.is_alive():
+                loop.close()
 
         # If we ran out of turns without calling done, build a summary from
         # the summarizer's accumulated agent reports so the next cycle has context.

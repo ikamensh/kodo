@@ -108,7 +108,7 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
             )
             if has_project and not has_scripts:
                 return ProjectType.LIBRARY
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             pass
 
     # JavaScript: package.json with main/exports but no bin
@@ -120,7 +120,7 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
             has_bin = "bin" in pkg
             if has_entry and not has_bin:
                 return ProjectType.LIBRARY
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
     # Rust: Cargo.toml with [lib] but no [[bin]]
@@ -132,7 +132,7 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
             has_bin = bool(re.search(r"^\[\[bin\]\]", content, re.MULTILINE))
             if has_lib and not has_bin:
                 return ProjectType.LIBRARY
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             pass
 
     # Go: go.mod exists but no main.go or cmd/
@@ -156,7 +156,7 @@ def _detect_project_type(project_dir: Path) -> ProjectType:
         if setup_py.exists():
             try:
                 has_cli = "console_scripts" in setup_py.read_text(encoding="utf-8")
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 pass
         if has_examples_or_docs and not has_cli:
             return ProjectType.LIBRARY
@@ -322,11 +322,13 @@ def _build_improve_plan_library(
     Focuses on API surface quality, developer experience, and consumer-side
     testing rather than app-centric happy-path/adversarial testing.
     """
+    if project_dir is None:
+        raise ValueError("project_dir required for library improve plan")
     run_dir = str(Path(report_path).parent)
     api_findings = f"{run_dir}/findings-api-audit.md"
     consumer_findings = f"{run_dir}/findings-consumer-project.md"
     misuse_findings = f"{run_dir}/findings-api-misuse.md"
-    install_path = str(project_dir) if project_dir else "."
+    install_path = str(project_dir)
 
     return GoalPlan(
         context=(
@@ -708,13 +710,13 @@ def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | Non
                 for s in plan.stages:
                     print(f"    {s.index}. {s.name}")
                 return plan
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             print(f"\nWarning: could not read {output_file}: {exc}")
         return None
     else:
         try:
             refined = output_file.read_text(encoding="utf-8").strip()
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             return None
         if refined:
             print(f"\nRefined goal read from {output_file}")
@@ -1016,7 +1018,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
     if cfg_path.exists():
         try:
             prev = json.loads(cfg_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             prev = None
         if isinstance(prev, dict) and required_keys <= prev.keys():
             mode = get_mode(prev["mode"])
@@ -1153,14 +1155,30 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
 
     project_dir = run_dir.project_dir
 
-    # Reconstruct params from RunState
-    params = {
-        "mode": state.mode or "saga",
-        "orchestrator": "api" if state.orchestrator == "api" else "claude-code",
-        "orchestrator_model": state.model,
-        "max_exchanges": state.max_exchanges,
-        "max_cycles": state.max_cycles,
+    # Load params from run config if available; otherwise reconstruct from RunState
+    required_keys = {
+        "mode",
+        "orchestrator",
+        "orchestrator_model",
+        "max_exchanges",
+        "max_cycles",
     }
+    params = {}
+    if run_dir.config_file.exists():
+        try:
+            loaded = json.loads(run_dir.config_file.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict) and required_keys <= loaded.keys():
+                params = loaded
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            pass
+    if not params:
+        params = {
+            "mode": state.mode or "saga",
+            "orchestrator": "api" if state.orchestrator == "api" else "claude-code",
+            "orchestrator_model": state.model,
+            "max_exchanges": state.max_exchanges,
+            "max_cycles": state.max_cycles,
+        }
 
     mode = get_mode(params["mode"])
     verifiers = None
@@ -1197,6 +1215,8 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
     plan: GoalPlan | None = None
     if state.has_stages:
         plan = _load_goal_plan(run_dir)
+        if plan is None:
+            _fail("Cannot resume: staged run but goal-plan.json not found or invalid.")
 
     print(f"\nResuming run: {state.run_id}")
     print(f"Mode: {mode.name} — {mode.description}")
