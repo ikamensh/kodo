@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from kodo.cli import _main_inner, launch_run
-from kodo.factory import Mode
+from kodo.factory import TeamPreset
 from kodo.log import RunDir
 from kodo.orchestrators.base import RunResult, CycleResult
 
@@ -184,7 +184,7 @@ class TestLaunchRunReturnsResult:
 
         fake_team = {"worker": Agent(FakeSession(), "test worker")}
 
-        fake_mode = Mode(
+        fake_mode = TeamPreset(
             name="saga",
             description="test",
             system_prompt="test",
@@ -196,7 +196,7 @@ class TestLaunchRunReturnsResult:
         with (
             patch("kodo.cli._launch.build_orchestrator") as mock_orch,
             patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.get_mode", return_value=fake_mode),
+            patch("kodo.cli._launch.get_team", return_value=fake_mode),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "test"
@@ -205,7 +205,7 @@ class TestLaunchRunReturnsResult:
                 run_dir,
                 "Build X",
                 {
-                    "mode": "saga",
+                    "team": "saga",
                     "orchestrator": "claude-code",
                     "orchestrator_model": "opus",
                     "max_exchanges": 10,

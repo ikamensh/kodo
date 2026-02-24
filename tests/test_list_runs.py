@@ -16,7 +16,7 @@ _RUN_START = {
     "max_cycles": 5,
     "team": [],
 }
-_CLI_ARGS = {"event": "cli_args", "mode": "saga"}
+_CLI_ARGS = {"event": "cli_args", "team": "saga"}
 
 
 def _make_run(run_id: str, project_dir: str, goal: str, events: list[dict]) -> None:

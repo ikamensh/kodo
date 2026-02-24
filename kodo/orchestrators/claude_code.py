@@ -16,71 +16,8 @@ from kodo.orchestrators.base import (
     TeamConfig,
     VerificationState,
     build_cycle_prompt,
-    handle_agent_call,
-    handle_done,
+    build_mcp_server,
 )
-
-
-def _build_mcp_server(
-    team: TeamConfig,
-    project_dir: Path,
-    summarizer: Summarizer,
-    done_signal: DoneSignal,
-    goal: str,
-    verification_state: VerificationState | None = None,
-    browser_testing: bool = False,
-    verifiers: dict | None = None,
-    auto_commit: bool = False,
-):
-    """Build a FastMCP server exposing each team agent as a tool."""
-    from mcp.server.fastmcp import FastMCP
-
-    mcp = FastMCP("team")
-
-    for name, agent in team.items():
-
-        def _make_handler(agent_name, agent_obj, agent_desc):
-            def handler(task: str, new_conversation: bool = False) -> str:
-                """Delegate a task to this agent."""
-                return handle_agent_call(
-                    agent_name,
-                    agent_obj,
-                    task,
-                    project_dir,
-                    summarizer,
-                    new_conversation=new_conversation,
-                    orchestrator_tag="claude_code",
-                )
-
-            handler.__name__ = f"ask_{agent_name}"
-            handler.__doc__ = (
-                f"Delegate a task to the {agent_name} agent.\n{agent_desc}"
-            )
-            return handler
-
-        mcp.add_tool(
-            _make_handler(name, agent, agent.description.strip()), name=f"ask_{name}"
-        )
-
-    def done(summary: str, success: bool) -> str:
-        """Signal that the goal is complete. Runs automated verification first — \
-if the tester or architect find issues, the call is rejected and you must fix them."""
-        return handle_done(
-            summary,
-            success,
-            done_signal,
-            goal,
-            team,
-            project_dir,
-            verification_state=verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
-            orchestrator_tag="claude_code",
-            auto_commit=auto_commit,
-        )
-
-    mcp.add_tool(done)
-    return mcp
 
 
 class ClaudeCodeOrchestrator(OrchestratorBase):
@@ -119,13 +56,14 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
 
         done_signal = DoneSignal()
         verification_state = VerificationState()
-        mcp = _build_mcp_server(
+        mcp = build_mcp_server(
             team,
             project_dir,
             self._summarizer,
             done_signal,
             goal,
-            verification_state,
+            orchestrator_tag="claude_code",
+            verification_state=verification_state,
             browser_testing=browser_testing,
             verifiers=verifiers,
             auto_commit=auto_commit,

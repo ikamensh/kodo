@@ -352,7 +352,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
     print()
 
     _save_team(mode_name, config)
-    print(f"\nUse with: kodo --mode {mode_name}")
+    print(f"\nUse with: kodo --team {mode_name}")
 
 
 def _teams_dir() -> Path:

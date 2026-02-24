@@ -116,7 +116,7 @@ def main():
             "--goal",
             "Echo hello world",
             "--yes",
-            "--mode",
+            "--team",
             "quick",
             "--skip-intake",
             "--orchestrator",

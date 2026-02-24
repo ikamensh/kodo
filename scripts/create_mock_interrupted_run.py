@@ -39,7 +39,7 @@ def main() -> None:
             "ts": "2025-02-23T12:00:01Z",
             "t": 1,
             "event": "cli_args",
-            "mode": "saga",
+            "team": "saga",
             "goal_text": "Build a simple REST API for todo items",
             "has_plan": False,
             "max_exchanges": 30,

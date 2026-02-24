@@ -7,9 +7,10 @@ from pathlib import Path
 import questionary
 
 from kodo.factory import (
-    MODES,
-    get_mode,
+    TEAMS,
+    get_team,
     has_claude,
+    has_codex,
     has_cursor,
     has_gemini_cli,
     check_api_key,
@@ -102,29 +103,47 @@ def select_params() -> dict:
     parts.append(f"Gemini CLI: {'yes' if _gemini else 'not found'}")
     print(f"  Backends: {' | '.join(parts)}\n")
 
-    # Mode selection
-    mode_options = [f"{name} — {m.description}" for name, m in MODES.items()]
-    mode_choice = _select_one("Mode:", mode_options)
-    mode_name = mode_choice.split(" — ")[0]
-    mode = get_mode(mode_name)
+    # Team selection
+    team_options = [f"{name} — {m.description}" for name, m in TEAMS.items()]
+    team_choice = _select_one("Team:", team_options)
+    team_name = team_choice.split(" — ")[0]
+    team_preset = get_team(team_name)
 
-    orch_model = _select_one(
-        "Orchestrator model:", ["opus", "sonnet", "gemini-pro", "gemini-flash"]
-    )
-    if orch_model.startswith("gemini"):
-        orchestrator = "api"
-    elif not has_claude():
-        # claude-code orchestrator requires the claude CLI
-        orchestrator = "api"
-        print("  (Using API orchestrator — Claude Code CLI not found)")
+    # Build orchestrator choices based on available backends
+    orch_options: list[str] = []
+    if _claude:
+        orch_options.append("claude-code (free on Max subscription)")
+    if _gemini:
+        orch_options.append("gemini-cli (free with Google account)")
+    if has_codex():
+        orch_options.append("codex (free on Codex subscription)")
+    if _cursor:
+        orch_options.append("cursor (free on Cursor subscription)")
+    orch_options.append("api (pay-per-token)")
+
+    orchestrator = _select_one("Orchestrator:", orch_options).split(" (")[0]
+
+    # Select model appropriate for the chosen orchestrator
+    if orchestrator == "gemini-cli":
+        orch_model = _select_one(
+            "Orchestrator model:",
+            ["gemini-2.5-flash", "gemini-2.5-pro"],
+        )
+    elif orchestrator == "codex":
+        orch_model = _select_one("Orchestrator model:", ["o3", "o4-mini"])
+    elif orchestrator == "cursor":
+        orch_model = _select_one(
+            "Orchestrator model:",
+            ["sonnet-4", "sonnet-4-thinking", "gpt-5"],
+        )
+    elif orchestrator == "api":
+        orch_model = _select_one(
+            "Orchestrator model:",
+            ["opus", "sonnet", "gemini-pro", "gemini-flash"],
+        )
     else:
-        orchestrator = _select_one(
-            "Orchestrator:",
-            [
-                "claude-code (free on Max subscription)",
-                "api (pay-per-token)",
-            ],
-        ).split(" (")[0]
+        # claude-code
+        orch_model = _select_one("Orchestrator model:", ["opus", "sonnet"])
 
     # Validate API key early
     key_err = check_api_key(orchestrator, orch_model)
@@ -137,7 +156,7 @@ def select_params() -> dict:
         "\n  An exchange = one orchestrator turn: think, delegate to agent, read result."
     )
     exchange_presets = ["20", "30", "50"]
-    default_ex = str(mode.default_max_exchanges)
+    default_ex = str(team_preset.default_max_exchanges)
     ex_default_idx = (
         exchange_presets.index(default_ex) if default_ex in exchange_presets else 1
     )
@@ -148,7 +167,7 @@ def select_params() -> dict:
     print("\n  A cycle = one full orchestrator session. If it doesn't finish,")
     print("  a new cycle starts with a summary of prior progress.")
     cycle_presets = ["1", "3", "5", "10"]
-    default_cy = str(mode.default_max_cycles)
+    default_cy = str(team_preset.default_max_cycles)
     cy_default_idx = (
         cycle_presets.index(default_cy) if default_cy in cycle_presets else 2
     )
@@ -157,7 +176,7 @@ def select_params() -> dict:
     )
 
     return {
-        "mode": mode_name,
+        "team": team_name,
         "orchestrator": orchestrator,
         "orchestrator_model": orch_model,
         "max_exchanges": int(max_exchanges),
@@ -188,7 +207,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
         if legacy.exists():
             cfg_path = legacy
     required_keys = {
-        "mode",
+        "team",
         "orchestrator",
         "orchestrator_model",
         "max_exchanges",
@@ -199,10 +218,13 @@ def _load_or_select_params(project_dir: Path) -> dict:
             prev = json.loads(cfg_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             prev = None
+        # Accept old configs with "mode" key
+        if isinstance(prev, dict) and "mode" in prev and "team" not in prev:
+            prev["team"] = prev.pop("mode")
         if isinstance(prev, dict) and required_keys <= prev.keys():
-            mode = get_mode(prev["mode"])
+            team_preset = get_team(prev["team"])
             print("\n  Previous config found:")
-            print(f"    Mode:         {mode.name} — {mode.description}")
+            print(f"    Team:         {team_preset.name} — {team_preset.description}")
             print(
                 f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})"
             )
@@ -222,35 +244,50 @@ def _load_or_select_params(project_dir: Path) -> dict:
 
 
 def _build_params_from_flags(args, project_dir: Path) -> dict:
-    """Build config dict from CLI flags, falling back to mode defaults."""
-    mode_name = args.mode or "saga"
-    mode = get_mode(mode_name)
+    """Build config dict from CLI flags, falling back to team defaults."""
+    team_name = args.team or "saga"
+    team_preset = get_team(team_name)
 
-    orch_model = args.orchestrator_model or "gemini-flash"
+    orch_model = args.orchestrator_model  # may be None
 
     if args.orchestrator:
         orchestrator = args.orchestrator
-    elif orch_model.startswith("gemini"):
-        orchestrator = "api"
-    elif not has_claude():
-        orchestrator = "api"
-    else:
+    elif has_claude():
         orchestrator = "claude-code"
+    elif has_gemini_cli():
+        orchestrator = "gemini-cli"
+    elif has_codex():
+        orchestrator = "codex"
+    elif has_cursor():
+        orchestrator = "cursor"
+    else:
+        orchestrator = "api"
+
+    # Default model per orchestrator when not explicitly specified
+    if not orch_model:
+        _ORCH_DEFAULT_MODELS = {
+            "claude-code": "opus",
+            "gemini-cli": "gemini-2.5-flash",
+            "codex": "o3",
+            "cursor": "sonnet-4",
+            "api": "gemini-flash",
+        }
+        orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, "gemini-flash")
 
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:
         _fail(key_err)
 
     params = {
-        "mode": mode_name,
+        "team": team_name,
         "orchestrator": orchestrator,
         "orchestrator_model": orch_model,
         "max_exchanges": args.exchanges
         if args.exchanges and args.exchanges > 0
-        else mode.default_max_exchanges,
+        else team_preset.default_max_exchanges,
         "max_cycles": args.cycles
         if args.cycles and args.cycles > 0
-        else mode.default_max_cycles,
+        else team_preset.default_max_cycles,
     }
 
     # Auto-commit: on by default, disabled with --no-auto-commit or user config

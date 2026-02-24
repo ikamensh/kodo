@@ -49,7 +49,7 @@ class TestConfigCorruption:
                 "max_cycles": 1,
                 "team": ["worker_fast"],
             },
-            {"event": "cli_args", "mode": "saga"},
+            {"event": "cli_args", "team": "saga"},
             {"event": "cycle_end", "summary": "partial"},
         ]
         (run_root / "run.jsonl").write_text(

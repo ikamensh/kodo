@@ -6,7 +6,7 @@ from pathlib import Path
 
 from kodo import log
 from kodo.factory import (
-    get_mode,
+    get_team,
     build_orchestrator,
     preflight_check_backends,
 )
@@ -120,21 +120,21 @@ def launch_run(
 
     project_dir = run_dir.project_dir
 
-    mode = get_mode(params["mode"])
+    team_preset = get_team(params["team"])
     verifiers = None
 
-    # Try loading a team JSON config; fall back to hardcoded mode
+    # Try loading a team JSON config; fall back to built-in preset
     try:
-        team_config = load_team_config(params["mode"], project_dir)
+        team_config = load_team_config(params["team"], project_dir)
         if team_config:
             team = build_team_from_json(team_config)
-            system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
+            system_prompt = team_config.get("orchestrator_prompt") or team_preset.system_prompt
             verifiers = team_config.get("verifiers")
             max_exchanges = team_config.get("max_exchanges", params["max_exchanges"])
             max_cycles = team_config.get("max_cycles", params["max_cycles"])
         else:
-            team = mode.build_team()
-            system_prompt = mode.system_prompt
+            team = team_preset.build_team()
+            system_prompt = team_preset.system_prompt
             max_exchanges = params["max_exchanges"]
             max_cycles = params["max_cycles"]
     except (ValueError, KeyError, RuntimeError, OSError) as exc:
@@ -164,7 +164,7 @@ def launch_run(
         log.emit("preflight_warnings", warnings=preflight_warnings)
 
     if not json_mode:
-        print(f"\nMode: {mode.name} — {mode.description}")
+        print(f"\nTeam: {team_preset.name} — {team_preset.description}")
         if team_config:
             team_name = team_config.get("name", "custom")
             print(f"Team config: {team_name}")
@@ -222,7 +222,7 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
 
     # Load params from run config if available; otherwise reconstruct from RunState
     required_keys = {
-        "mode",
+        "team",
         "orchestrator",
         "orchestrator_model",
         "max_exchanges",
@@ -232,31 +232,34 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
     if run_dir.config_file.exists():
         try:
             loaded = json.loads(run_dir.config_file.read_text(encoding="utf-8"))
+            # Accept old configs with "mode" key
+            if isinstance(loaded, dict) and "mode" in loaded and "team" not in loaded:
+                loaded["team"] = loaded.pop("mode")
             if isinstance(loaded, dict) and required_keys <= loaded.keys():
                 params = loaded
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             pass
     if not params:
         params = {
-            "mode": state.mode or "saga",
+            "team": state.team_preset or "saga",
             "orchestrator": "api" if state.orchestrator == "api" else "claude-code",
             "orchestrator_model": state.model,
             "max_exchanges": state.max_exchanges,
             "max_cycles": state.max_cycles,
         }
 
-    mode = get_mode(params["mode"])
+    team_preset = get_team(params["team"])
     verifiers = None
 
     try:
-        team_config = load_team_config(params["mode"], project_dir)
+        team_config = load_team_config(params["team"], project_dir)
         if team_config:
             team = build_team_from_json(team_config)
-            system_prompt = team_config.get("orchestrator_prompt") or mode.system_prompt
+            system_prompt = team_config.get("orchestrator_prompt") or team_preset.system_prompt
             verifiers = team_config.get("verifiers")
         else:
-            team = mode.build_team()
-            system_prompt = mode.system_prompt
+            team = team_preset.build_team()
+            system_prompt = team_preset.system_prompt
     except (ValueError, KeyError, RuntimeError, OSError) as exc:
         _fail(f"Invalid team config: {exc}")
 
@@ -284,7 +287,7 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
             _fail("Cannot resume: staged run but goal-plan.json not found or invalid.")
 
     print(f"\nResuming run: {state.run_id}")
-    print(f"Mode: {mode.name} — {mode.description}")
+    print(f"Team: {team_preset.name} — {team_preset.description}")
     print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
     print("Team:")
     for k, a in team.items():

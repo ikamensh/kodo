@@ -69,11 +69,15 @@ def _gemini_only() -> bool:
     )
 
 
+# CLI-based orchestrators that don't need API keys
+_CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor"}
+
+
 def check_api_key(orchestrator: str, model: str) -> str | None:
     """Return an error message if the required API key is missing, else None."""
     import os
 
-    if orchestrator == "claude-code":
+    if orchestrator in _CLI_ORCHESTRATORS:
         return None
 
     _GEMINI_ALIASES = {
@@ -169,12 +173,12 @@ def preflight_check_backends(team: "TeamConfig") -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Mode
+# Team preset
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class Mode:
+class TeamPreset:
     """Bundles a team composition, orchestrator prompt, and default params."""
 
     name: str
@@ -449,12 +453,12 @@ Delegate, verify, send back with specific feedback if wrong. Call done when solv
 
 
 # ---------------------------------------------------------------------------
-# Mode registry
+# Team registry
 # ---------------------------------------------------------------------------
 
 
 def _describe_backends() -> str:
-    """Human-readable summary of available backends for mode descriptions."""
+    """Human-readable summary of available backends for team descriptions."""
     parts = []
     if has_cursor():
         parts.append("Cursor")
@@ -492,9 +496,9 @@ def _mission_description() -> str:
     return f"{label.title()} worker(s) ({_describe_backends()}) solving one issue, orchestrator as quality gate"
 
 
-def get_modes() -> dict[str, Mode]:
-    """Build the mode registry based on available backends."""
-    mission = Mode(
+def get_team_presets() -> dict[str, TeamPreset]:
+    """Build the team preset registry based on available backends."""
+    mission = TeamPreset(
         name="mission",
         description=_mission_description(),
         system_prompt=_mission_system_prompt(),
@@ -503,7 +507,7 @@ def get_modes() -> dict[str, Mode]:
         default_max_cycles=1,
     )
     return {
-        "saga": Mode(
+        "saga": TeamPreset(
             name="saga",
             description=_saga_description(),
             system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
@@ -516,13 +520,12 @@ def get_modes() -> dict[str, Mode]:
     }
 
 
-# Keep MODES as a lazy accessor for backward compat
-MODES = get_modes()
+TEAMS = get_team_presets()
 
 
-def get_mode(name: str) -> Mode:
-    """Look up a mode by name. Raises KeyError if not found."""
-    return MODES[name]
+def get_team(name: str) -> TeamPreset:
+    """Look up a team preset by name. Raises KeyError if not found."""
+    return TEAMS[name]
 
 
 # ---------------------------------------------------------------------------
@@ -560,11 +563,12 @@ def build_orchestrator(
     system_prompt: str | None = None,
     fallback_model: str | None = None,
 ):
-    """Construct an orchestrator by name ('api' or 'claude-code').
+    """Construct an orchestrator by name.
 
+    Supported names: 'api', 'claude-code', 'gemini-cli', 'codex', 'cursor'.
     *model* can be a short alias ("opus") or a full model ID.
     *system_prompt* is forwarded to the orchestrator; defaults to the base prompt.
-    *fallback_model* is used when the primary model returns 529.
+    *fallback_model* is used when the primary model returns 529 (API only).
     """
     if name == "api":
         from kodo.orchestrators.api import ApiOrchestrator
@@ -580,6 +584,24 @@ def build_orchestrator(
             system_prompt=system_prompt,
             fallback_model=fb_model,
         )
+
+    if name == "gemini-cli":
+        from kodo.orchestrators.gemini_cli import GeminiCliOrchestrator
+
+        orch_model = model or "gemini-2.5-flash"
+        return GeminiCliOrchestrator(model=orch_model, system_prompt=system_prompt)
+
+    if name == "codex":
+        from kodo.orchestrators.codex_cli import CodexOrchestrator
+
+        orch_model = model or "o3"
+        return CodexOrchestrator(model=orch_model, system_prompt=system_prompt)
+
+    if name == "cursor":
+        from kodo.orchestrators.cursor_cli import CursorOrchestrator
+
+        orch_model = model or "sonnet-4"
+        return CursorOrchestrator(model=orch_model, system_prompt=system_prompt)
 
     from kodo.orchestrators.claude_code import ClaudeCodeOrchestrator
 

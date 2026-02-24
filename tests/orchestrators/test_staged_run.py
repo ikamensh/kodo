@@ -368,7 +368,7 @@ def _cli_args_event(**overrides):
         "ts": "t",
         "t": 0.1,
         "event": "cli_args",
-        "mode": "saga",
+        "team": "saga",
         **overrides,
     }
 

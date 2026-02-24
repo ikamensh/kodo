@@ -36,7 +36,7 @@ def _make_args(**overrides) -> Namespace:
         goal="Build something",
         goal_file=None,
         improve=False,
-        mode=None,
+        team=None,
         exchanges=None,
         cycles=None,
         orchestrator=None,
@@ -66,12 +66,12 @@ class TestBuildParamsFromFlags:
     def test_defaults_to_saga_mode(self, project):
         args = _make_args()
         params = _build_params_from_flags(args, project)
-        assert params["mode"] == "saga"
+        assert params["team"] == "saga"
 
     def test_explicit_mode(self, project):
-        args = _make_args(mode="mission")
+        args = _make_args(team="mission")
         params = _build_params_from_flags(args, project)
-        assert params["mode"] == "mission"
+        assert params["team"] == "mission"
 
     def test_exchanges_falls_back_to_mode_default(self, project):
         args = _make_args()
@@ -89,15 +89,16 @@ class TestBuildParamsFromFlags:
         assert params["max_cycles"] == 5  # saga default
 
     def test_mission_mode_defaults(self, project):
-        args = _make_args(mode="mission")
+        args = _make_args(team="mission")
         params = _build_params_from_flags(args, project)
         assert params["max_exchanges"] == 20
         assert params["max_cycles"] == 1
 
-    def test_orchestrator_auto_detects_api_for_gemini(self, project):
+    def test_orchestrator_auto_detects_claude_code(self, project):
         args = _make_args(orchestrator_model="gemini-flash")
         params = _build_params_from_flags(args, project)
-        assert params["orchestrator"] == "api"
+        # With has_claude=True, auto-detection prefers claude-code
+        assert params["orchestrator"] == "claude-code"
 
     def test_orchestrator_explicit(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
@@ -110,7 +111,7 @@ class TestBuildParamsFromFlags:
         config_path = project / ".kodo" / "config.json"
         assert config_path.exists()
         saved = json.loads(config_path.read_text())
-        assert saved["mode"] == "saga"
+        assert saved["team"] == "saga"
 
     def test_api_key_validation_exits(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
@@ -132,7 +133,7 @@ def test_unreadable_config_falls_back_to_selection(project):
     cfg.write_text(
         json.dumps(
             {
-                "mode": "saga",
+                "team": "saga",
                 "orchestrator": "api",
                 "orchestrator_model": "opus",
                 "max_exchanges": 30,
@@ -151,7 +152,7 @@ def test_unreadable_config_falls_back_to_selection(project):
     with patch.object(Path, "read_text", patched_read_text):
         with patch("kodo.cli._params.select_params") as mock_select:
             mock_select.return_value = {
-                "mode": "saga",
+                "team": "saga",
                 "orchestrator": "api",
                 "orchestrator_model": "opus",
                 "max_exchanges": 30,
@@ -382,7 +383,7 @@ class TestNonInteractiveEndToEnd:
                 "kodo",
                 "--goal",
                 "Build X",
-                "--mode",
+                "--team",
                 "mission",
                 "--exchanges",
                 "42",
@@ -397,7 +398,7 @@ class TestNonInteractiveEndToEnd:
             _main_inner()
 
             params = mock_launch.call_args[0][2]
-            assert params["mode"] == "mission"
+            assert params["team"] == "mission"
             assert params["max_exchanges"] == 42
             assert params["max_cycles"] == 7
             assert params["orchestrator"] == "api"
@@ -511,18 +512,18 @@ class TestImproveFlag:
             sys.argv = ["kodo", "--improve", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
-            assert params["mode"] == "saga"
+            assert params["team"] == "saga"
 
-    def test_improve_respects_explicit_mode(self, project):
-        """--improve should not override an explicitly set --mode."""
+    def test_improve_respects_explicit_team(self, project):
+        """--improve should not override an explicitly set --team."""
         with (
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", "--mode", "mission", str(project)]
+            sys.argv = ["kodo", "--improve", "--team", "mission", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
-            assert params["mode"] == "mission"
+            assert params["team"] == "mission"
 
     def test_improve_no_interactive_prompts(self, project):
         """--improve must never call input() or questionary."""
@@ -623,8 +624,8 @@ class TestImproveFlag:
         assert (
             "improve" in goal_text.lower() or "improvement report" in goal_text.lower()
         )
-        assert params["mode"] == "saga"
-        assert params["orchestrator"] == "api"
+        assert params["team"] == "saga"
+        assert params["orchestrator"] == "claude-code"
         assert plan is not None
         assert len(plan.stages) == 4
         assert plan.stages[0].name == "Baseline & Static Analysis"
@@ -1108,7 +1109,7 @@ class TestGoalMdOSErrorWarning:
             patch(
                 "kodo.cli._main._load_or_select_params",
                 return_value={
-                    "mode": "saga",
+                    "team": "saga",
                     "orchestrator": "api",
                     "orchestrator_model": "opus",
                     "max_exchanges": 30,
@@ -1141,7 +1142,7 @@ class TestInvalidModeDefensiveCheck:
     def test_invalid_mode_in_params_exits(self, project):
         """If params contain an unknown mode, _main_inner exits with error."""
         bad_params = {
-            "mode": "turbo",
+            "team": "turbo",
             "orchestrator": "api",
             "orchestrator_model": "opus",
             "max_exchanges": 30,
@@ -1156,8 +1157,8 @@ class TestInvalidModeDefensiveCheck:
             sys.argv = ["kodo", "--goal", "Build something", str(project)]
             _main_inner()
 
-    def test_missing_mode_key_in_params_exits(self, project):
-        """If params dict has no 'mode' key, _main_inner exits with error."""
+    def test_missing_team_key_in_params_exits(self, project):
+        """If params dict has no 'team' key, _main_inner exits with error."""
         bad_params = {
             "orchestrator": "api",
             "orchestrator_model": "opus",

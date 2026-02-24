@@ -39,13 +39,13 @@ kodo is an autonomous multi-agent coding system designed to run overnight on Cla
 
 - `kodo/cli.py` — Interactive CLI, goal collection, intake refinement
 - `kodo/agent.py` — Agent class wrapping a Session with a directive, timeout, and structured logging
-- `kodo/factory.py` — Mode registry (`saga`/`mission`), team builders, model alias resolution, backend detection
-- `kodo/team_config.py` — Loads/builds teams from JSON config (`{project}/.kodo/team.json` or `~/.kodo/teams/{mode}.json`)
+- `kodo/factory.py` — Team preset registry (`saga`/`mission`), team builders, model alias resolution, backend detection
+- `kodo/team_config.py` — Loads/builds teams from JSON config (`{project}/.kodo/team.json` or `~/.kodo/teams/{name}.json`)
 - `kodo/log.py` — Structured JSONL logging to `~/.kodo/runs/{run_id}/`, run stats, resume support
 - `kodo/sessions/` — Session protocol implementations: `ClaudeSession` (SDK), `CursorSession` (CLI), `CodexSession`, `GeminiCliSession`
 - `kodo/orchestrators/` — `ApiOrchestrator` (pydantic-ai) and `ClaudeCodeOrchestrator` (MCP-based)
 
-### Modes
+### Teams
 
 - **saga**: Full team (worker_fast, worker_smart, architect, tester, tester_browser). Default: 30 exchanges, 5 cycles.
 - **mission** / **quick**: Minimal team (worker_fast, worker_smart). Default: 20 exchanges, 1 cycle.
@@ -65,7 +65,7 @@ Agent role prompts (`TESTER_PROMPT`, `ARCHITECT_PROMPT`, etc.) live in `kodo/__i
 ## CLI Verification
 
 - `kodo runs` — Lists runs from ~/.kodo/runs/. With no runs (or filtered project with none): prints "No runs found." and exits 0.
-- `kodo --goal "X" --yes --mode quick` — Non-interactive run. Without API keys and `--orchestrator api`: fails immediately with "ANTHROPIC_API_KEY not set" (or GEMINI_API_KEY for gemini models). Use `--skip-intake` to skip the intake phase.
+- `kodo --goal "X" --yes --team quick` — Non-interactive run. Without API keys and `--orchestrator api`: fails immediately with "ANTHROPIC_API_KEY not set" (or GEMINI_API_KEY for gemini models). Use `--skip-intake` to skip the intake phase.
 - `scripts/run_cli_mocked.py` — Full CLI flow with mocked orchestrator and agents; no API keys or backends required.
 
 ## Test Conventions

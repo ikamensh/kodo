@@ -380,7 +380,7 @@ class RunState:
     last_summary: str
     finished: bool
     agent_session_ids: dict[str, str]  # agent_name → last session_id
-    mode: str
+    team_preset: str
     has_stages: bool
     completed_stages: list[int]
     stage_summaries: list[str]
@@ -464,7 +464,7 @@ def parse_run(log_file: Path) -> RunState | None:
         last_summary=last_summary,
         finished=finished,
         agent_session_ids=agent_session_ids,
-        mode=cli_args.get("mode", "saga"),
+        team_preset=cli_args.get("team", cli_args.get("mode", "saga")),
         has_stages=has_stages,
         completed_stages=completed_stages,
         stage_summaries=stage_summaries,

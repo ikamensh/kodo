@@ -9,8 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from kodo.orchestrators.base import DoneSignal
-from kodo.orchestrators.claude_code import _build_mcp_server
+from kodo.orchestrators.base import DoneSignal, build_mcp_server
 from kodo.summarizer import Summarizer
 from tests.conftest import make_agent
 
@@ -23,7 +22,7 @@ def _make_done_handler(team, project_dir, goal="Build X"):
         patch("kodo.summarizer._probe_gemini", return_value=None),
     ):
         summarizer = Summarizer()
-    mcp = _build_mcp_server(team, project_dir, summarizer, signal, goal)
+    mcp = build_mcp_server(team, project_dir, summarizer, signal, goal)
 
     # Extract the done handler from FastMCP's registered tools
     done_fn = None

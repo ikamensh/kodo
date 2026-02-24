@@ -9,7 +9,7 @@ import pytest
 from kodo.factory import (
     available_backends,
     clear_backend_cache,
-    get_mode,
+    get_team,
     build_orchestrator,
 )
 
@@ -27,9 +27,9 @@ def test_clear_backend_cache_invalidates():
     assert all(v for v in b2.values())
 
 
-def test_get_mode_invalid():
+def test_get_team_invalid():
     with pytest.raises(KeyError):
-        get_mode("nonexistent_mode")
+        get_team("nonexistent_mode")
 
 
 def test_build_orchestrator_api():

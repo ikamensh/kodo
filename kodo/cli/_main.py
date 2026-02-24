@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from kodo import log, __version__  # noqa: E402
-from kodo.factory import get_mode, MODES, has_claude, has_cursor  # noqa: E402
+from kodo.factory import get_team, TEAMS, has_claude, has_cursor  # noqa: E402
 from kodo.log import RunDir  # noqa: E402
 from kodo.orchestrators.base import GoalPlan  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
@@ -121,11 +121,11 @@ def _main_inner() -> None:
 
     # Non-interactive config flags
     parser.add_argument(
-        "--mode",
+        "--team",
         type=str,
         default=None,
         choices=["saga", "mission", "quick"],
-        help="Run mode (default: saga).",
+        help="Team preset (default: saga).",
     )
     parser.add_argument(
         "--exchanges", type=int, default=None, help="Max exchanges per cycle."
@@ -135,7 +135,7 @@ def _main_inner() -> None:
         "--orchestrator",
         type=str,
         default=None,
-        choices=["api", "claude-code"],
+        choices=["api", "claude-code", "gemini-cli", "codex", "cursor"],
         help="Orchestrator backend.",
     )
     parser.add_argument(
@@ -202,8 +202,8 @@ def _main_inner() -> None:
     if args.improve:
         args.skip_intake = True
         args.yes = True
-        if args.mode is None:
-            args.mode = "saga"
+        if args.team is None:
+            args.team = "saga"
 
     non_interactive = (
         args.goal is not None or args.goal_file is not None or args.improve
@@ -388,11 +388,11 @@ def _main_inner() -> None:
                     goal_text = intake_result
 
     # 5. Summary and confirm
-    mode_name = params.get("mode")
-    if mode_name not in MODES:
-        _fail(f"Unknown mode {mode_name!r}. Valid modes: {', '.join(MODES)}.")
+    team_name = params.get("team")
+    if team_name not in TEAMS:
+        _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(TEAMS)}.")
     if not args.json:
-        mode = get_mode(mode_name)
+        team_preset = get_team(team_name)
         print("\n" + "=" * 60)
         print("  READY TO LAUNCH")
         print("=" * 60)
@@ -402,7 +402,7 @@ def _main_inner() -> None:
             print(f"  Stages:       {len(plan.stages)}")
             for s in plan.stages:
                 print(f"                  {s.index}. {s.name}")
-        print(f"  Mode:         {mode.name} — {mode.description}")
+        print(f"  Team:         {team_preset.name} — {team_preset.description}")
         print(
             f"  Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})"
         )

@@ -41,7 +41,7 @@ def _create_run(run_id: str, project_dir: str, goal: str, *, finished: bool = Fa
             "max_cycles": 5,
             "team": ["worker_fast", "worker_smart"],
         },
-        {"event": "cli_args", "mode": "saga"},
+        {"event": "cli_args", "team": "saga"},
         {"event": "cycle_end", "summary": f"worked on: {goal[:30]}"},
     ]
     if finished:
@@ -154,7 +154,7 @@ class TestMockedRunHappyPath:
                 "--goal",
                 "Echo hello world",
                 "--yes",
-                "--mode",
+                "--team",
                 "quick",
                 "--skip-intake",
                 "--orchestrator",
@@ -183,7 +183,7 @@ class TestMockedRunHappyPath:
                 "--goal",
                 "Build a thing",
                 "--yes",
-                "--mode",
+                "--team",
                 "quick",
                 "--skip-intake",
                 str(project),
@@ -197,7 +197,7 @@ class TestMockedRunHappyPath:
             assert (run_dir / "goal.md").read_text().strip() == "Build a thing"
             assert (run_dir / "config.json").exists()
             config = json.loads((run_dir / "config.json").read_text())
-            assert config["mode"] == "quick"  # --mode quick stored as-is
+            assert config["team"] == "quick"  # --team quick stored as-is
 
 
 class TestMockedResumeHappyPath:
@@ -216,7 +216,7 @@ class TestMockedResumeHappyPath:
                 "max_cycles": 1,
                 "team": ["worker_fast", "worker_smart"],
             },
-            {"event": "cli_args", "mode": "saga"},
+            {"event": "cli_args", "team": "saga"},
             {"event": "cycle_end", "summary": "partial work"},
         ]
         lines = [
@@ -229,7 +229,7 @@ class TestMockedResumeHappyPath:
         (run_root / "config.json").write_text(
             json.dumps(
                 {
-                    "mode": "saga",
+                    "team": "saga",
                     "orchestrator": "api",
                     "orchestrator_model": "opus",
                     "max_exchanges": 20,
@@ -380,7 +380,7 @@ class TestGoalFile:
                 str(goal_file),
                 "--yes",
                 "--skip-intake",
-                "--mode",
+                "--team",
                 "quick",
                 str(project),
             ]
@@ -419,7 +419,7 @@ class TestImprove:
 
 
 # ---------------------------------------------------------------------------
-# Error paths: OSError on goal.md, KeyError in get_mode
+# Error paths: OSError on goal.md, KeyError in get_team
 # ---------------------------------------------------------------------------
 
 
@@ -450,7 +450,7 @@ class TestGoalMdOserror:
             patch("builtins.input", return_value="y"),
         ):
             mock_params.return_value = {
-                "mode": "saga",
+                "team": "saga",
                 "orchestrator": "api",
                 "orchestrator_model": "gemini-flash",
                 "max_exchanges": 30,
@@ -464,8 +464,8 @@ class TestGoalMdOserror:
         assert goal_arg == "Fallback goal from get_goal"
 
 
-class TestGetModeKeyError:
-    """Invalid mode in params triggers KeyError from get_mode."""
+class TestGetTeamKeyError:
+    """Invalid team in params triggers KeyError from get_team."""
 
     def test_invalid_mode_exits_with_error(self, tmp_path: Path):
         project = tmp_path / "proj"
@@ -473,7 +473,7 @@ class TestGetModeKeyError:
 
         def fake_build_params(args, project_dir):
             return {
-                "mode": "invalid_mode",
+                "team": "invalid_mode",
                 "orchestrator": "api",
                 "orchestrator_model": "gemini-flash",
                 "max_exchanges": 30,
