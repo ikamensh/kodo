@@ -94,10 +94,24 @@ class TestBuildParamsFromFlags:
         assert params["max_exchanges"] == 20
         assert params["max_cycles"] == 1
 
-    def test_orchestrator_auto_detects_claude_code(self, project):
+    def test_orchestrator_defaults_to_api_when_gemini_key_available(self, project):
         args = _make_args(orchestrator_model="gemini-flash")
-        params = _build_params_from_flags(args, project)
-        # With has_claude=True, auto-detection prefers claude-code
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
+            params = _build_params_from_flags(args, project)
+        assert params["orchestrator"] == "api"
+
+    def test_orchestrator_auto_detects_claude_code_without_gemini_key(self, project):
+        args = _make_args(orchestrator_model="gemini-flash")
+        with patch.dict("os.environ", {}, clear=True):
+            params = _build_params_from_flags(args, project)
+        # Without Gemini key, falls back to claude-code
+        assert params["orchestrator"] == "claude-code"
+
+    def test_improve_mode_skips_api_default(self, project):
+        args = _make_args(improve=True, orchestrator_model="gemini-flash")
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
+            params = _build_params_from_flags(args, project)
+        # --improve skips the api default even with gemini key
         assert params["orchestrator"] == "claude-code"
 
     def test_orchestrator_explicit(self, project):

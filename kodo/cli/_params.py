@@ -1,6 +1,7 @@
 """Interactive parameter selection and config persistence."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -252,8 +253,14 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
 
     orch_model = args.orchestrator_model  # may be None
 
+    _has_gemini_key = bool(
+        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    )
+
     if args.orchestrator:
         orchestrator = args.orchestrator
+    elif not getattr(args, "improve", False) and _has_gemini_key:
+        orchestrator = "api"
     elif has_claude():
         orchestrator = "claude-code"
     elif has_gemini_cli():

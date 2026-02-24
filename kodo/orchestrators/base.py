@@ -1213,7 +1213,9 @@ class OrchestratorBase:
 
         for group in remaining_groups:
             if remaining_cycles <= 0:
-                skipped = sum(len(g) for g in remaining_groups[remaining_groups.index(group):])
+                skipped = sum(
+                    len(g) for g in remaining_groups[remaining_groups.index(group) :]
+                )
                 log.tprint(
                     f"[orchestrator] Stopping run — all {max_cycles} cycle(s) used, "
                     f"{skipped} stage(s) remaining"
