@@ -491,7 +491,12 @@ class McpServerContext:
 
         if shutil.which("npx"):
             return ["npx", "-y", "mcp-remote", self.sse_url]
-        return [sys.executable, "-u", "-c", _STDIO_BRIDGE_SCRIPT.format(url=self.sse_url)]
+        return [
+            sys.executable,
+            "-u",
+            "-c",
+            _STDIO_BRIDGE_SCRIPT.format(url=self.sse_url),
+        ]
 
     def __exit__(self, *exc) -> None:
         if hasattr(self, "_server"):

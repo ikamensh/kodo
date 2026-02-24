@@ -128,7 +128,9 @@ def launch_run(
         team_config = load_team_config(params["team"], project_dir)
         if team_config:
             team = build_team_from_json(team_config)
-            system_prompt = team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            system_prompt = (
+                team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            )
             verifiers = team_config.get("verifiers")
             max_exchanges = team_config.get("max_exchanges", params["max_exchanges"])
             max_cycles = team_config.get("max_cycles", params["max_cycles"])
@@ -255,7 +257,9 @@ def launch_resume(run_dir: RunDir, state: log.RunState):
         team_config = load_team_config(params["team"], project_dir)
         if team_config:
             team = build_team_from_json(team_config)
-            system_prompt = team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            system_prompt = (
+                team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            )
             verifiers = team_config.get("verifiers")
         else:
             team = team_preset.build_team()

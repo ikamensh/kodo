@@ -180,9 +180,7 @@ class ApiOrchestrator(OrchestratorBase):
             # Google/Gemini models — recreate with a fresh HTTP client
             from pydantic_ai.providers.google import GoogleProvider
 
-            provider = GoogleProvider(
-                http_client=httpx.AsyncClient(timeout=60.0)
-            )
+            provider = GoogleProvider(http_client=httpx.AsyncClient(timeout=60.0))
             type_of_model = type(base_model)
             copy._pydantic_model = type_of_model(
                 base_model._model_name, provider=provider

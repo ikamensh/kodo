@@ -78,14 +78,19 @@ class CodexOrchestrator(OrchestratorBase):
             # Codex only supports stdio MCP; use a bridge command
             bridge_cmd = ctx.stdio_bridge_cmd
             cmd = [
-                "codex", "exec",
+                "codex",
+                "exec",
                 full_prompt,
                 "--full-auto",
                 "--json",
-                "-C", str(project_dir),
-                "-m", self.model,
-                "-c", f'mcp_servers.kodo_team.command="{bridge_cmd[0]}"',
-                "-c", f'mcp_servers.kodo_team.args={json.dumps(bridge_cmd[1:])}',
+                "-C",
+                str(project_dir),
+                "-m",
+                self.model,
+                "-c",
+                f'mcp_servers.kodo_team.command="{bridge_cmd[0]}"',
+                "-c",
+                f"mcp_servers.kodo_team.args={json.dumps(bridge_cmd[1:])}",
             ]
 
             proc = subprocess.Popen(
@@ -126,7 +131,9 @@ class CodexOrchestrator(OrchestratorBase):
             stderr_text = proc.stderr.read()
 
             if proc.returncode != 0 and not response_text:
-                response_text = stderr_text or f"codex exited with code {proc.returncode}"
+                response_text = (
+                    stderr_text or f"codex exited with code {proc.returncode}"
+                )
 
             result.exchanges = max(exchanges, 1)
             result.total_cost_usd = 0.0  # subscription-covered
@@ -135,9 +142,7 @@ class CodexOrchestrator(OrchestratorBase):
             result.finished = done_signal.called
             result.success = done_signal.success
             result.summary = (
-                (done_signal.summary or "")
-                if done_signal.called
-                else response_text
+                (done_signal.summary or "") if done_signal.called else response_text
             )
 
             log.emit(

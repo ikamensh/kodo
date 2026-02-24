@@ -236,7 +236,12 @@ class TestCmdTeams:
             ),
             patch(
                 "kodo.factory.available_backends",
-                return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False},
+                return_value={
+                    "claude": True,
+                    "codex": False,
+                    "cursor": False,
+                    "gemini-cli": False,
+                },
             ),
         ):
             _cmd_teams()

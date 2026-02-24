@@ -126,7 +126,9 @@ class TestFlagConflicts:
 
     def test_negative_exchanges_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--exchanges", "-1", str(tmp_path)]),
+            patch(
+                "sys.argv", ["kodo", "--goal", "X", "--exchanges", "-1", str(tmp_path)]
+            ),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -140,7 +142,10 @@ class TestFlagConflicts:
 
     def test_invalid_team_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--team", "nonexistent", str(tmp_path)]),
+            patch(
+                "sys.argv",
+                ["kodo", "--goal", "X", "--team", "nonexistent", str(tmp_path)],
+            ),
             pytest.raises(SystemExit) as exc_info,
         ):
             _main_inner()
@@ -148,7 +153,10 @@ class TestFlagConflicts:
 
     def test_goal_file_not_found_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--goal-file", str(tmp_path / "nope.md"), str(tmp_path)]),
+            patch(
+                "sys.argv",
+                ["kodo", "--goal-file", str(tmp_path / "nope.md"), str(tmp_path)],
+            ),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -194,10 +202,18 @@ class TestNoAutoCommit:
             )
 
         with (
-            patch("sys.argv", [
-                "kodo", "--goal", "Build X", "--yes", "--skip-intake",
-                "--no-auto-commit", str(tmp_path),
-            ]),
+            patch(
+                "sys.argv",
+                [
+                    "kodo",
+                    "--goal",
+                    "Build X",
+                    "--yes",
+                    "--skip-intake",
+                    "--no-auto-commit",
+                    str(tmp_path),
+                ],
+            ),
             patch("kodo.cli._main.launch_run", side_effect=fake_launch),
         ):
             _main_inner()
@@ -264,7 +280,9 @@ class TestResumeCLI:
         with (
             patch("sys.argv", ["kodo", "--resume", "--yes", str(tmp_path)]),
             patch("kodo.cli._main.log.find_incomplete_runs", return_value=[fake_state]),
-            patch("kodo.cli._main.launch_resume", return_value=fake_result) as mock_resume,
+            patch(
+                "kodo.cli._main.launch_resume", return_value=fake_result
+            ) as mock_resume,
         ):
             _main_inner()
 

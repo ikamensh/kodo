@@ -111,9 +111,12 @@ class CursorOrchestrator(OrchestratorBase):
                     "-f",
                     "--approve-mcps",
                     "--trust",
-                    "--output-format", "stream-json",
-                    "--model", self.model,
-                    "--workspace", str(project_dir),
+                    "--output-format",
+                    "stream-json",
+                    "--model",
+                    self.model,
+                    "--workspace",
+                    str(project_dir),
                     full_prompt,
                 ]
 
@@ -145,7 +148,10 @@ class CursorOrchestrator(OrchestratorBase):
                 stderr_text = proc.stderr.read()
 
                 if proc.returncode != 0 and not response_text:
-                    response_text = stderr_text or f"cursor-agent exited with code {proc.returncode}"
+                    response_text = (
+                        stderr_text
+                        or f"cursor-agent exited with code {proc.returncode}"
+                    )
 
                 result.exchanges = max(exchanges, 1)
                 result.total_cost_usd = 0.0  # subscription-covered
@@ -154,9 +160,7 @@ class CursorOrchestrator(OrchestratorBase):
                 result.finished = done_signal.called
                 result.success = done_signal.success
                 result.summary = (
-                    (done_signal.summary or "")
-                    if done_signal.called
-                    else response_text
+                    (done_signal.summary or "") if done_signal.called else response_text
                 )
 
                 log.emit(

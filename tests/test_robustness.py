@@ -181,9 +181,7 @@ class TestBackend500Retry:
             patch("time.sleep"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
-            orch.cycle(
-                "build feature", tmp_path, _make_fake_team(), max_exchanges=10
-            )
+            orch.cycle("build feature", tmp_path, _make_fake_team(), max_exchanges=10)
 
         assert call_count[0] == 2
 

@@ -24,7 +24,9 @@ from kodo.orchestrators.base import (
 class GeminiCliOrchestrator(OrchestratorBase):
     """Orchestrator backed by Gemini CLI with MCP tools for agents."""
 
-    def __init__(self, model: str = "gemini-2.5-flash", system_prompt: str | None = None):
+    def __init__(
+        self, model: str = "gemini-2.5-flash", system_prompt: str | None = None
+    ):
         self.model = model
         self._orchestrator_name = "gemini-cli"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
@@ -79,10 +81,15 @@ class GeminiCliOrchestrator(OrchestratorBase):
             try:
                 subprocess.run(
                     [
-                        "gemini", "mcp", "add", mcp_name,
+                        "gemini",
+                        "mcp",
+                        "add",
+                        mcp_name,
                         ctx.sse_url,
-                        "-t", "sse",
-                        "--scope", "project",
+                        "-t",
+                        "sse",
+                        "--scope",
+                        "project",
                         "--trust",
                     ],
                     capture_output=True,
@@ -92,17 +99,22 @@ class GeminiCliOrchestrator(OrchestratorBase):
                 )
             except subprocess.CalledProcessError as exc:
                 log.tprint(f"⚠️  [gemini-cli] failed to register MCP: {exc.stderr}")
-                raise RuntimeError(f"Failed to register MCP server: {exc.stderr}") from exc
+                raise RuntimeError(
+                    f"Failed to register MCP server: {exc.stderr}"
+                ) from exc
 
             try:
                 log.tprint("🚀 [orchestrator] starting gemini-cli cycle...")
 
                 cmd = [
                     "gemini",
-                    "-p", full_prompt,
+                    "-p",
+                    full_prompt,
                     "-y",
-                    "--output-format", "json",
-                    "-m", self.model,
+                    "--output-format",
+                    "json",
+                    "-m",
+                    self.model,
                 ]
 
                 proc = subprocess.run(
@@ -131,18 +143,22 @@ class GeminiCliOrchestrator(OrchestratorBase):
                         response_text = proc.stdout.strip()
 
                 if proc.returncode != 0 and not response_text:
-                    response_text = proc.stderr or f"gemini exited with code {proc.returncode}"
+                    response_text = (
+                        proc.stderr or f"gemini exited with code {proc.returncode}"
+                    )
 
-                result.exchanges = max(1, (input_tokens + output_tokens) // 4000) if output_tokens else 1
+                result.exchanges = (
+                    max(1, (input_tokens + output_tokens) // 4000)
+                    if output_tokens
+                    else 1
+                )
                 result.total_cost_usd = 0.0  # free tier
                 log.get_run_stats().record_orchestrator(0.0, "gemini_cli")
 
                 result.finished = done_signal.called
                 result.success = done_signal.success
                 result.summary = (
-                    (done_signal.summary or "")
-                    if done_signal.called
-                    else response_text
+                    (done_signal.summary or "") if done_signal.called else response_text
                 )
 
                 log.emit(
@@ -160,11 +176,11 @@ class GeminiCliOrchestrator(OrchestratorBase):
                         f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
                     )
                 elif proc.returncode != 0:
-                    log.tprint(f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}")
-                else:
                     log.tprint(
-                        "⏱️  [orchestrator] cycle ended without calling done"
+                        f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}"
                     )
+                else:
+                    log.tprint("⏱️  [orchestrator] cycle ended without calling done")
 
             finally:
                 # Always clean up MCP registration
