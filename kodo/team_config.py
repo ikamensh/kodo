@@ -68,6 +68,45 @@ def _load_json(path: Path) -> dict:
     return data
 
 
+def _defaults_dir() -> Path:
+    """Path to the built-in team defaults shipped with kodo."""
+    return Path(__file__).parent / "defaults"
+
+
+def list_available_teams() -> list[tuple[str, str, dict]]:
+    """Return ``(name, source, config)`` for all discoverable teams.
+
+    Sources:
+    - ``"built-in"`` — from ``kodo/defaults/team-*.json``
+    - ``"user"``     — from ``~/.kodo/teams/*.json``
+
+    User teams override built-in teams with the same name.
+    """
+    teams: dict[str, tuple[str, dict]] = {}
+
+    # Built-in defaults
+    for path in sorted(_defaults_dir().glob("team-*.json")):
+        name = path.stem.removeprefix("team-")
+        try:
+            cfg = _load_json(path)
+        except (ValueError, OSError):
+            continue
+        teams[name] = ("built-in", cfg)
+
+    # User-level teams
+    user_dir = Path.home() / ".kodo" / "teams"
+    if user_dir.is_dir():
+        for path in sorted(user_dir.glob("*.json")):
+            name = path.stem
+            try:
+                cfg = _load_json(path)
+            except (ValueError, OSError):
+                continue
+            teams[name] = ("user", cfg)
+
+    return [(name, source, cfg) for name, (source, cfg) in teams.items()]
+
+
 def build_team_from_json(config: dict) -> TeamConfig:
     """Build a TeamConfig from a parsed team JSON config.
 

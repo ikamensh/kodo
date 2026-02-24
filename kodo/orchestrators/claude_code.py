@@ -173,7 +173,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         result.finished = done_signal.called
                         result.success = done_signal.success
                         result.summary = (
-                            (done_signal.summary or "")
+                            done_signal.summary
                             if done_signal.called
                             else (message.result or "")
                         )
@@ -188,7 +188,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         )
                         if done_signal.called:
                             log.tprint(
-                                f"[orchestrator] cycle done (done tool called): {(done_signal.summary or '')[:200]}"
+                                f"[orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
                             )
                         elif message.is_error:
                             log.tprint(f"[orchestrator] error: {message.result}")

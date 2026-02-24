@@ -1245,7 +1245,7 @@ wheels = [
 
 [[package]]
 name = "kodo"
-version = "0.4.43"
+version = "0.4.44"
 source = { virtual = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
