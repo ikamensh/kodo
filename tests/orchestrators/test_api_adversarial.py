@@ -87,7 +87,7 @@ def test_agent_crash_returns_error_string(tmp_path: Path):
 
     # Should not crash, and the tool result should contain the error
     assert len(tool_results) == 1
-    assert "ERROR" in tool_results[0]
+    assert "crashed" in tool_results[0]
     assert "exploded" in tool_results[0]
 
 

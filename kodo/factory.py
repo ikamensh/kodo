@@ -28,13 +28,22 @@ from kodo.orchestrators.base import ORCHESTRATOR_SYSTEM_PROMPT, TeamConfig
 
 @lru_cache(maxsize=1)
 def available_backends() -> dict[str, bool]:
-    """Detect which worker backends are installed and on PATH."""
+    """Detect which worker backends are installed and on PATH.
+
+    Result is cached. Call clear_backend_cache() to invalidate (e.g. after
+    env changes or in tests).
+    """
     return {
         "claude": shutil.which("claude") is not None,
         "codex": shutil.which("codex") is not None,
         "cursor": shutil.which("cursor-agent") is not None,
         "gemini-cli": shutil.which("gemini") is not None,
     }
+
+
+def clear_backend_cache() -> None:
+    """Invalidate the available_backends() cache. Call after env changes or in tests."""
+    available_backends.cache_clear()
 
 
 def has_claude() -> bool:
@@ -138,6 +147,8 @@ def preflight_check_backends(team: "TeamConfig") -> list[str]:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15,
             )
             if result.returncode != 0:

@@ -1,4 +1,17 @@
-"""Agent — a prompt + session, ready to run."""
+"""Agent — a prompt + session, ready to run.
+
+Usage::
+
+    agent = Agent(session, "worker description", timeout_s=300)
+    result = agent.run("implement feature X", project_dir)
+
+    # When done, release session resources:
+    agent.close()
+
+    # Or use as a context manager:
+    with Agent(session, "worker") as agent:
+        result = agent.run("task", project_dir)
+"""
 
 from __future__ import annotations
 
@@ -51,6 +64,20 @@ class AgentResult:
 
 
 class Agent:
+    """A prompt + session, ready to run.
+
+    Wraps a :class:`Session` with timeout support, context-reset logic,
+    and structured logging.
+
+    Supports use as a context manager for automatic cleanup::
+
+        with Agent(session, "worker", timeout_s=300) as agent:
+            result = agent.run("task", project_dir)
+        # session.terminate() + session.close() called on exit
+
+    Or call :meth:`close` explicitly when done.
+    """
+
     def __init__(
         self,
         session: Session,
@@ -63,6 +90,16 @@ class Agent:
         self.description = description  # kept for tool description extraction
         self.max_turns = max_turns
         self.timeout_s = timeout_s
+
+    # -- context manager ---------------------------------------------------
+
+    def __enter__(self) -> "Agent":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    # -- core API ----------------------------------------------------------
 
     def run(
         self,
@@ -95,28 +132,7 @@ class Agent:
         log.emit("agent_query", agent=label, prompt=goal)
 
         if self.timeout_s is not None:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    self.session.query,
-                    goal,
-                    project_dir,
-                    max_turns=self.max_turns,
-                )
-                try:
-                    query_result = future.result(timeout=self.timeout_s)
-                except FuturesTimeoutError:
-                    log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
-                    # Kill the underlying process/connection first, then reset
-                    # session state.  terminate() stops the running subprocess
-                    # (or SDK client) so it stops burning tokens immediately;
-                    # reset() clears session state for a clean next run.
-                    self.session.terminate()
-                    self.session.reset()
-                    query_result = QueryResult(
-                        text=f"Agent timed out after {self.timeout_s}s",
-                        elapsed_s=self.timeout_s,
-                        is_error=True,
-                    )
+            query_result = self._run_timed(goal, project_dir, label)
         else:
             query_result = self.session.query(
                 goal, project_dir, max_turns=self.max_turns
@@ -158,6 +174,41 @@ class Agent:
             session_queries=self.session.stats.queries,
         )
 
+    def _run_timed(self, goal: str, project_dir: Path, label: str) -> QueryResult:
+        """Execute a query with a timeout.
+
+        Uses ``shutdown(wait=False)`` so the main thread is never blocked
+        if ``session.terminate()`` doesn't fully kill the worker thread.
+        The worker thread is daemonic via the pool, so it won't prevent
+        process exit.
+        """
+        pool = ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(
+            self.session.query,
+            goal,
+            project_dir,
+            max_turns=self.max_turns,
+        )
+        try:
+            return future.result(timeout=self.timeout_s)
+        except FuturesTimeoutError:
+            log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
+            # Kill the underlying process/connection first, then reset
+            # session state.  terminate() stops the running subprocess
+            # (or SDK client) so it stops burning tokens immediately;
+            # reset() clears session state for a clean next run.
+            self.session.terminate()
+            self.session.reset()
+            return QueryResult(
+                text=f"Agent timed out after {self.timeout_s}s",
+                elapsed_s=self.timeout_s,
+                is_error=True,
+            )
+        finally:
+            # Don't wait for the worker thread — if terminate() didn't kill
+            # it, waiting here would hang the caller indefinitely.
+            pool.shutdown(wait=False)
+
     def clone(self) -> "Agent":
         """Create a new Agent with a fresh session copy (no shared state)."""
         return Agent(
@@ -168,6 +219,12 @@ class Agent:
         )
 
     def close(self) -> None:
-        """Clean up the underlying session if it supports it."""
+        """Release resources held by the underlying session.
+
+        Calls ``session.terminate()`` to stop any in-flight work, then
+        ``session.close()`` (if available) for final cleanup.  Safe to
+        call multiple times.
+        """
+        self.session.terminate()
         if hasattr(self.session, "close"):
             self.session.close()

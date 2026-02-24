@@ -160,7 +160,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             client = ClaudeSDKClient(options=options)
             try:
                 await client.connect()
-                log.tprint("[orchestrator] starting cycle...")
+                log.tprint("🚀 [orchestrator] starting cycle...")
                 await client.query(prompt)
 
                 async for message in client.receive_response():
@@ -173,7 +173,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         result.finished = done_signal.called
                         result.success = done_signal.success
                         result.summary = (
-                            done_signal.summary
+                            (done_signal.summary or "")
                             if done_signal.called
                             else (message.result or "")
                         )
@@ -188,13 +188,13 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         )
                         if done_signal.called:
                             log.tprint(
-                                f"[orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                                f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
                             )
                         elif message.is_error:
-                            log.tprint(f"[orchestrator] error: {message.result}")
+                            log.tprint(f"⚠️  [orchestrator] error: {message.result}")
                         else:
                             log.tprint(
-                                "[orchestrator] cycle ended without calling done (hit turn limit?)"
+                                "⏱️  [orchestrator] cycle ended without calling done (hit turn limit?)"
                             )
             finally:
                 try:

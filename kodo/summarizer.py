@@ -113,15 +113,17 @@ class Summarizer:
         if ollama_model:
             self._backend = "ollama"
             self._backend_param = ollama_model
-            log.tprint(f"[summarizer] using ollama ({ollama_model})")
+            log.tprint(f"🗜️  [summarizer] using ollama ({ollama_model})")
         else:
             gemini_key = _probe_gemini()
             if gemini_key:
                 self._backend = "gemini"
                 self._backend_param = gemini_key
-                log.tprint("[summarizer] using gemini")
+                log.tprint("🗜️  [summarizer] using gemini")
             else:
-                log.tprint("[summarizer] using truncation (no LLM backend available)")
+                log.tprint(
+                    "🗜️  [summarizer] using truncation (no LLM backend available)"
+                )
 
     def summarize(self, agent_name: str, task: str, report: str) -> None:
         """Submit a summary job (fire-and-forget)."""

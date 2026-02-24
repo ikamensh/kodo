@@ -1,6 +1,6 @@
 [project]
 name = "kodo"
-version = "0.4.45"
+version = "0.4.46"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -37,7 +37,7 @@ kodo = "kodo.cli:main"
 # Scripts often need sys.path manipulation or other setup before imports; E402 is unfixable.
 "scripts/**" = ["E402"]
 # CLI needs load_dotenv() before kodo imports (env vars for API keys).
-"kodo/cli.py" = ["E402"]
+"kodo/cli/_main.py" = ["E402"]
 # Intentional bugs for testing kodo --improve.
 "tests/fixtures/buggy_project/**" = ["F821"]
 

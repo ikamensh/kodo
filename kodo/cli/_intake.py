@@ -1,0 +1,485 @@
+"""Goal collection, intake interview, and auto-refinement."""
+
+import json
+import re
+import sys
+from pathlib import Path
+
+from kodo import log, make_session
+from kodo.factory import has_claude, has_cursor, has_gemini_cli
+from kodo.log import RunDir
+from kodo.orchestrators.base import GoalPlan, GoalStage
+
+from kodo.cli._ui import (
+    _atomic_write,
+    _print_agent,
+    _print_separator,
+    _Spinner,
+    _GREEN,
+    _BOLD,
+    _DIM,
+    _RESET,
+)
+from kodo.cli._params import _select_one
+
+# ---------------------------------------------------------------------------
+# Intake prompts
+# ---------------------------------------------------------------------------
+
+_INTAKE_PREAMBLE = """\
+You are refining a software project goal{purpose}.
+
+Ask 2-3 clarifying questions about constraints, tech choices, and scope.
+When clear enough, write {output}."""
+
+_INTAKE_STAGES_SUFFIX = """
+
+JSON format:
+{{
+  "context": "Shared context — tech stack, key files, conventions",
+  "stages": [
+    {{
+      "index": 1,
+      "name": "Short label",
+      "description": "What this stage accomplishes",
+      "acceptance_criteria": "Verifiable definition of done",
+      "browser_testing": false
+    }}
+  ]
+}}
+
+Set browser_testing=true only for stages with web UI to verify in a browser.
+Break into 2-5 independently verifiable stages, ordered by dependency."""
+
+_AUTO_REFINE_PROMPT = """\
+Review this goal before implementation:
+
+{goal}
+
+Concisely answer (2-3 sentences each):
+1. **Implicit constraints** — what does this goal imply that isn't stated?
+2. **Simplest architecture** — one specific approach, not options.
+3. **Common traps** — most likely over-engineering mistake?
+
+Then write a refined goal to {output_path} incorporating the original intent \
+plus implicit constraints. Keep it concise — an autonomous agent will read it.
+"""
+
+# TODO: The canned questions above are a starting point. Experiment with whether
+# letting the LLM ask its own probing questions (rather than canned ones) produces
+# better refinement. The hypothesis is that canned "is this the simplest
+# architecture" almost never hurts, but LLM-generated questions might catch
+# domain-specific traps that canned questions miss.
+
+
+def _build_intake_prompt(output_path: str, staged: bool) -> str:
+    """Build intake prompt with the correct output file path."""
+    if staged:
+        prompt = _INTAKE_PREAMBLE.format(
+            purpose=" into an ordered list of stages",
+            output=f"a structured goal plan to {output_path}",
+        )
+        return prompt + _INTAKE_STAGES_SUFFIX
+    else:
+        return _INTAKE_PREAMBLE.format(
+            purpose="",
+            output=f"a refined, detailed goal to {output_path}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Goal input
+# ---------------------------------------------------------------------------
+
+
+def get_goal() -> str:
+    """Prompt user for a multiline goal. Empty line finishes input."""
+    print("\nWhat's your goal? (Enter an empty line to finish)")
+    print("-" * 40)
+    lines = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
+        if line == "":
+            break
+        lines.append(line)
+    text = "\n".join(lines).strip()
+    if not text:
+        print("No goal provided. Exiting.")
+        sys.exit(1)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Goal plan parsing
+# ---------------------------------------------------------------------------
+
+
+def _looks_staged(goal_text: str) -> bool:
+    """Heuristic: detect if goal text has numbered steps or bullet lists."""
+    numbered = re.findall(r"^\s*\d+[\.\)]\s+", goal_text, re.MULTILINE)
+    return len(numbered) >= 2
+
+
+def _parse_goal_plan(raw: dict) -> GoalPlan:
+    """Convert a raw dict (from JSON) into a GoalPlan dataclass.
+
+    Skips stages that are missing required fields rather than crashing.
+    """
+    context = raw.get("context")
+    if not context:
+        return GoalPlan(context="", stages=[])  # malformed input, return empty
+    stages = []
+    for s in raw.get("stages", []):
+        if not isinstance(s, dict):
+            continue
+        index = s.get("index")
+        name = s.get("name")
+        description = s.get("description")
+        acceptance_criteria = s.get("acceptance_criteria")
+        if not index or not name or not description or acceptance_criteria is None:
+            continue
+        stages.append(
+            GoalStage(
+                index=index,
+                name=name,
+                description=description,
+                acceptance_criteria=acceptance_criteria,
+                browser_testing=bool(s.get("browser_testing", False)),
+            )
+        )
+    return GoalPlan(context=context, stages=stages)
+
+
+def _load_goal_plan(run_dir: RunDir) -> GoalPlan | None:
+    """Load an existing goal-plan.json from the run directory."""
+    plan_path = run_dir.goal_plan_file
+    if not plan_path.exists():
+        return None
+    try:
+        raw = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    plan = _parse_goal_plan(raw)
+    return plan if plan.stages else None
+
+
+# ---------------------------------------------------------------------------
+# Interactive intake chat
+# ---------------------------------------------------------------------------
+
+
+def run_intake_chat(
+    backend: str,
+    run_dir: RunDir,
+    goal_text: str,
+    staged: bool = False,
+) -> GoalPlan | str | None:
+    """Interactive intake chat using the Session abstraction.
+
+    Returns GoalPlan if staged + file written, refined goal string if
+    single + file written, or None if user bailed.
+    """
+    run_dir.root.mkdir(parents=True, exist_ok=True)
+    log.init(run_dir)
+
+    goal_path = run_dir.goal_file
+    _atomic_write(goal_path, goal_text)
+    print(f"\nGoal saved to {goal_path}")
+
+    output_file = run_dir.goal_plan_file if staged else run_dir.goal_refined_file
+    prompt = _build_intake_prompt(str(output_file), staged)
+    _intake_models = {
+        "claude": "opus",
+        "cursor": "composer-1.5",
+        "gemini-cli": "gemini-2.5-flash",
+    }
+    model = _intake_models.get(backend, "composer-1.5")
+    session = make_session(backend, model, system_prompt=prompt)
+
+    print(
+        f"\n  {_DIM}Intake interview — type {_BOLD}/done{_RESET}{_DIM} or empty line to finish{_RESET}"
+    )
+    _print_separator()
+
+    # First message — agent explores the project and asks clarifying questions
+    project_dir = run_dir.project_dir
+    initial = f"Here's my project goal:\n\n{goal_text}"
+    with _Spinner("Reviewing project"):
+        result = session.query(initial, project_dir, max_turns=10)
+    log.emit(
+        "intake_response",
+        text=result.text,
+        is_error=result.is_error,
+        turns=result.turns,
+    )
+    _print_agent(result.text)
+
+    # If the agent already wrote the output file on the first turn,
+    # skip the conversation loop — no need to make the user type /done.
+    if output_file.exists():
+        _print_separator()
+        return _read_intake_output(output_file, staged)
+
+    # Conversation loop
+    while True:
+        try:
+            user_input = input(f"  {_GREEN}{_BOLD}>{_RESET} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        if not user_input or user_input == "/done":
+            break
+
+        try:
+            with _Spinner("Thinking"):
+                result = session.query(user_input, project_dir, max_turns=10)
+        except Exception as exc:
+            error_msg = f"Session error: {exc}"
+            log.emit("intake_response", text=error_msg, is_error=True, turns=0)
+            _print_agent(error_msg)
+            continue
+        log.emit(
+            "intake_response",
+            text=result.text,
+            is_error=result.is_error,
+            turns=result.turns,
+        )
+        _print_agent(result.text)
+
+    _print_separator()
+
+    # Check if output was written during the conversation
+    if output_file.exists():
+        return _read_intake_output(output_file, staged)
+
+    # User ended the interview — ask Claude to finalize and write the output
+    finalize_msg = (
+        "The user has ended the interview. Based on everything discussed, "
+        "please write the output file now."
+    )
+    with _Spinner("Finalizing"):
+        result = session.query(finalize_msg, project_dir, max_turns=10)
+    _print_agent(result.text)
+
+    if output_file.exists():
+        return _read_intake_output(output_file, staged)
+
+    print("\nNo output file written; using original goal.")
+    return None
+
+
+def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | None:
+    """Read the intake output file and return the appropriate type."""
+    if staged:
+        try:
+            raw = json.loads(output_file.read_text(encoding="utf-8"))
+            plan = _parse_goal_plan(raw)
+            if plan.stages:
+                print(f"\nGoal plan read from {output_file}")
+                print(f"  {len(plan.stages)} stage(s):")
+                for s in plan.stages:
+                    print(f"    {s.index}. {s.name}")
+                return plan
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            print(f"\nWarning: could not read {output_file}: {exc}")
+        return None
+    else:
+        try:
+            refined = output_file.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError):
+            return None
+        if refined:
+            print(f"\nRefined goal read from {output_file}")
+            return refined
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Auto-refinement (no human in the loop)
+# ---------------------------------------------------------------------------
+
+
+def run_intake_auto(
+    backend: str,
+    run_dir: RunDir,
+    goal_text: str,
+) -> str | None:
+    """Automated goal refinement — no human in the loop.
+
+    Uses the same session as interactive intake but sends a single structured
+    prompt instead of a conversation. Returns the refined goal string, or None
+    if refinement failed.
+    """
+    run_dir.root.mkdir(parents=True, exist_ok=True)
+
+    goal_path = run_dir.goal_file
+    _atomic_write(goal_path, goal_text)
+
+    output_file = run_dir.goal_refined_file
+    prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
+    _refine_models = {
+        "claude": "opus",
+        "cursor": "composer-1.5",
+        "gemini-cli": "gemini-2.5-flash",
+    }
+    model = _refine_models.get(backend, "composer-1.5")
+    session = make_session(backend, model, system_prompt=prompt)
+
+    project_dir = run_dir.project_dir
+    print("\n--- Auto-refining goal (no human input) ---")
+
+    with _Spinner("Analyzing goal"):
+        result = session.query(
+            f"Here's the project goal to analyze:\n\n{goal_text}",
+            project_dir,
+            max_turns=10,
+        )
+
+    print(f"\n{result.text}\n")
+
+    if output_file.exists():
+        try:
+            refined = output_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            refined = ""
+        if refined:
+            print(f"Refined goal written to {output_file}")
+            return refined
+
+    # LLM didn't write the file — use its response as the refinement
+    analysis = (result.text or "").strip()
+    if analysis:
+        refined = f"{goal_text}\n\n# Pre-implementation analysis\n\n{analysis}"
+        _atomic_write(output_file, refined)
+        print(f"Refined goal written to {output_file}")
+        return refined
+
+    print("Auto-refinement produced no output; using original goal.")
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Non-interactive intake (single-turn, no conversation)
+# ---------------------------------------------------------------------------
+
+
+def run_intake_noninteractive(
+    run_dir: RunDir,
+    goal_text: str,
+) -> GoalPlan | None:
+    """Non-interactive intake: send goal, get staged plan back, no conversation."""
+    run_dir.root.mkdir(parents=True, exist_ok=True)
+
+    goal_path = run_dir.goal_file
+    _atomic_write(goal_path, goal_text)
+
+    if has_claude():
+        backend, model = "claude", "opus"
+    elif has_cursor():
+        backend, model = "cursor", "composer-1.5"
+    elif has_gemini_cli():
+        backend, model = "gemini-cli", "gemini-2.5-flash"
+    else:
+        print("Skipping intake (no backends available).")
+        return None
+
+    output_file = run_dir.goal_plan_file
+    prompt = _build_intake_prompt(str(output_file), staged=True) + (
+        "\n\nIMPORTANT: This is a non-interactive session. "
+        "Do NOT ask clarifying questions. Analyze the project and goal, "
+        "make reasonable assumptions, and write the goal-plan.json file immediately."
+    )
+    session = make_session(backend, model, system_prompt=prompt)
+
+    project_dir = run_dir.project_dir
+    initial = f"Here's my project goal:\n\n{goal_text}"
+    print("Running intake (non-interactive)...")
+    with _Spinner("Analyzing project and creating plan"):
+        result = session.query(initial, project_dir, max_turns=10)
+    print(f"\n{result.text}\n")
+
+    if not output_file.exists():
+        with _Spinner("Finalizing plan"):
+            result = session.query(
+                "Please write the goal-plan.json file now based on your analysis.",
+                project_dir,
+                max_turns=10,
+            )
+        print(f"\n{result.text}\n")
+
+    if output_file.exists():
+        return _read_intake_output(output_file, staged=True)
+
+    print("Warning: intake did not produce a plan. Proceeding without stages.")
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Offer intake menu (interactive flow)
+# ---------------------------------------------------------------------------
+
+
+def _first_backend() -> str | None:
+    """Return the first available backend key, or None."""
+    if has_claude():
+        return "claude"
+    if has_cursor():
+        return "cursor"
+    if has_gemini_cli():
+        return "gemini-cli"
+    return None
+
+
+def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
+    """Offer goal refinement before launch. Returns refined goal/plan or None."""
+    backend = _first_backend()
+    if not backend:
+        print("\nSkipping refinement (no backends available).")
+        return None
+
+    options = [
+        "Quick refine — surfaces implicit constraints, no conversation",
+        "Interview — interactive Q&A, optionally break into stages",
+        "Skip",
+    ]
+    choice = _select_one("\nRefine goal before launch?", options)
+    if choice.startswith("Skip"):
+        return None
+
+    if choice.startswith("Quick"):
+        refined = run_intake_auto(backend, run_dir, goal_text)
+        return refined
+
+    # Interview — let user pick backend if multiple are available
+    backends: list[str] = []
+    if has_claude():
+        backends.append("Claude")
+    if has_cursor():
+        backends.append("Cursor")
+    if has_gemini_cli():
+        backends.append("Gemini CLI")
+
+    if len(backends) > 1:
+        _backend_map = {
+            "Claude": "claude",
+            "Cursor": "cursor",
+            "Gemini CLI": "gemini-cli",
+        }
+        backend = _backend_map[_select_one("Interview backend:", backends)]
+
+    staged = False
+    if _looks_staged(goal_text):
+        print("This goal looks like it has multiple steps.")
+        stage_choice = input("Break into stages? [Y/n] ").strip().lower()
+        staged = not stage_choice or stage_choice == "y"
+    else:
+        stage_choice = input("Break into stages? [y/N] ").strip().lower()
+        staged = stage_choice == "y"
+
+    return run_intake_chat(backend, run_dir, goal_text, staged=staged)

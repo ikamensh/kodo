@@ -205,6 +205,72 @@ def test_messages_to_text():
     assert "[assistant] hi there" in text
 
 
+class TestSummarizeEmptyOutput:
+    """_summarize should never return None or empty string."""
+
+    def test_empty_output_returns_fallback(self, tmp_path: Path):
+        """When summarizer agent returns empty string, fall back gracefully."""
+        log.init(RunDir.create(tmp_path, "sum_empty"))
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            self.run_sync = lambda prompt, **kw: FakeRunResult(output="")
+
+        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch._summarize([])
+
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+        assert "empty" in result.lower()
+
+    def test_whitespace_output_returns_fallback(self, tmp_path: Path):
+        """When summarizer agent returns only whitespace, fall back gracefully."""
+        log.init(RunDir.create(tmp_path, "sum_ws"))
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            self.run_sync = lambda prompt, **kw: FakeRunResult(output="   \n\t  ")
+
+        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch._summarize([])
+
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+        assert "empty" in result.lower()
+
+    def test_none_output_returns_fallback(self, tmp_path: Path):
+        """When summarizer agent returns None output, fall back gracefully."""
+        log.init(RunDir.create(tmp_path, "sum_none"))
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            self.run_sync = lambda prompt, **kw: FakeRunResult(output=None)
+
+        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch._summarize([])
+
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_valid_output_returned_as_is(self, tmp_path: Path):
+        """When summarizer returns a real summary, use it directly."""
+        log.init(RunDir.create(tmp_path, "sum_ok"))
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            self.run_sync = lambda prompt, **kw: FakeRunResult(
+                output="Completed task X, pending task Y."
+            )
+
+        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch._summarize([])
+
+        assert result == "Completed task X, pending task Y."
+
+
 # ── shared helpers ───────────────────────────────────────────────────────
 
 

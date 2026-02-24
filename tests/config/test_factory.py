@@ -6,7 +6,25 @@ from unittest.mock import patch
 
 import pytest
 
-from kodo.factory import get_mode, build_orchestrator
+from kodo.factory import (
+    available_backends,
+    clear_backend_cache,
+    get_mode,
+    build_orchestrator,
+)
+
+
+def test_clear_backend_cache_invalidates():
+    """clear_backend_cache() causes available_backends() to re-detect."""
+    with patch("kodo.factory.shutil.which", return_value=None):
+        clear_backend_cache()
+        b1 = available_backends()
+    assert all(not v for v in b1.values())
+
+    with patch("kodo.factory.shutil.which", return_value="/usr/bin/fake"):
+        clear_backend_cache()
+        b2 = available_backends()
+    assert all(v for v in b2.values())
 
 
 def test_get_mode_invalid():

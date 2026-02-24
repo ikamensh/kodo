@@ -168,7 +168,7 @@ class TestResumeById:
         from kodo.cli import _main_inner
 
         with (
-            patch("kodo.cli.launch_resume") as mock_resume,
+            patch("kodo.cli._main.launch_resume") as mock_resume,
             patch.object(
                 sys,
                 "argv",

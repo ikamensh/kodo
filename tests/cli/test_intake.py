@@ -34,7 +34,7 @@ class TestIntakeInterviewLoop:
         inputs = iter(["We use React", "/done"])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "Build a web app", staged=False)
@@ -53,7 +53,7 @@ class TestIntakeInterviewLoop:
         inputs = iter(["React and Node", ""])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "Build an API", staged=False)
@@ -72,7 +72,7 @@ class TestIntakeInterviewLoop:
         inputs = iter(["answer1", "answer2", "answer3", "/done"])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
@@ -110,7 +110,7 @@ class TestIntakeInterviewLoop:
         )
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch(
                 "builtins.input", side_effect=AssertionError("should not prompt user")
             ),
@@ -142,7 +142,7 @@ class TestIntakeOutputFile:
         inputs = iter(["Django", "/done"])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             result = run_intake_chat("claude", run_dir, "Build a web app", staged=False)
@@ -181,7 +181,7 @@ class TestIntakeOutputFile:
         inputs = iter(["just do it", "/done"])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             result = run_intake_chat("claude", run_dir, "Build a game", staged=True)
@@ -201,7 +201,7 @@ class TestIntakeOutputFile:
         inputs = iter(["something", "/done"])
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             result = run_intake_chat("claude", run_dir, "Vague goal", staged=False)
@@ -221,7 +221,7 @@ class TestIntakeEdgeCases:
         )
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=KeyboardInterrupt),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
@@ -238,7 +238,7 @@ class TestIntakeEdgeCases:
         )
 
         with (
-            patch("kodo.cli.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=EOFError),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
@@ -262,7 +262,7 @@ class TestAutoRefine:
             },
         )
 
-        with patch("kodo.cli.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result == "Refined: build a REST API with auth"
@@ -275,7 +275,7 @@ class TestAutoRefine:
             response_text="Implicit: needs pagination and rate limiting"
         )
 
-        with patch("kodo.cli.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is not None
@@ -289,7 +289,82 @@ class TestAutoRefine:
         run_dir = RunDir.create(project, "test_auto_empty")
         session = FakeSession(response_text="")
 
-        with patch("kodo.cli.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is None
+
+
+class TestIntakeChatSessionError:
+    """session.query exceptions in the conversation loop should be caught."""
+
+    def test_session_error_logged_and_loop_continues(self, project, capsys):
+        """If session.query raises during conversation, log error and continue."""
+        run_dir = RunDir.create(project, "test_err")
+
+        call_count = 0
+
+        class ErrorThenOkSession(FakeSession):
+            def query(self, prompt, project_dir_arg, *, max_turns=10):
+                nonlocal call_count
+                call_count += 1
+                # First call (initial query) succeeds
+                if call_count == 1:
+                    return super().query(prompt, project_dir_arg, max_turns=max_turns)
+                # Second call (first user answer) raises
+                if call_count == 2:
+                    self._stats.queries += 1
+                    raise ConnectionError("network down")
+                # Third call (second user answer) succeeds
+                return super().query(prompt, project_dir_arg, max_turns=max_turns)
+
+        session = ErrorThenOkSession(response_text="Got it.")
+
+        # User gives two answers then types /done
+        inputs = iter(["answer1", "answer2", "/done"])
+
+        with (
+            patch("kodo.cli._intake.make_session", return_value=session),
+            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+        ):
+            run_intake_chat("claude", run_dir, "Build a thing", staged=False)
+
+        captured = capsys.readouterr()
+        assert "Session error" in captured.out
+        assert "network down" in captured.out
+        # Loop should have continued: initial + error-attempt + answer2 + finalize
+        assert call_count == 4
+
+    def test_session_error_does_not_crash_loop(self, project):
+        """Even if every in-loop query fails, the loop exits cleanly."""
+        run_dir = RunDir.create(project, "test_err_all")
+
+        call_count = 0
+
+        class LoopErrorSession(FakeSession):
+            def query(self, prompt, project_dir_arg, *, max_turns=10):
+                nonlocal call_count
+                call_count += 1
+                # First call (initial query) succeeds
+                if call_count == 1:
+                    return super().query(prompt, project_dir_arg, max_turns=max_turns)
+                # In-loop calls (2, 3) raise; finalize (4) succeeds
+                if call_count <= 3:
+                    self._stats.queries += 1
+                    raise RuntimeError("boom")
+                return super().query(prompt, project_dir_arg, max_turns=max_turns)
+
+        session = LoopErrorSession(response_text="Questions?")
+        inputs = iter(["a", "b", "/done"])
+
+        with (
+            patch("kodo.cli._intake.make_session", return_value=session),
+            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+        ):
+            # Should not raise — loop catches errors and continues
+            result = run_intake_chat("claude", run_dir, "My goal", staged=False)
+
+        # No output file → returns None
+        assert result is None
+        # initial + 2 errors (caught) + finalize = 4 calls
+        assert call_count == 4

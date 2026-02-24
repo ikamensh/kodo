@@ -96,18 +96,20 @@ def main():
 
     # Use default ~/.kodo/runs so kodo runs and resume can find this run
     with (
-        patch("kodo.cli.make_session", side_effect=_fake_make_session),
+        patch("kodo.cli._intake.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.has_claude", return_value=True),
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.cli.has_claude", return_value=True),
-        patch("kodo.cli.has_cursor", return_value=True),
-        patch("kodo.cli.check_api_key", return_value=None),
+        patch("kodo.cli._params.has_claude", return_value=True),
+        patch("kodo.cli._params.has_cursor", return_value=True),
+        patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_mission", _fake_build_team),
         patch("kodo.factory._build_team_saga", _fake_build_team),
-        patch("kodo.cli.build_orchestrator", side_effect=_fake_build_orchestrator),
+        patch(
+            "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
+        ),
     ):
         sys.argv = [
             "kodo",

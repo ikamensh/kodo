@@ -248,7 +248,9 @@ class ApiOrchestrator(OrchestratorBase):
             history_processors=history_processors or None,
         )
 
-        log.tprint(f"\n[orchestrator] starting cycle (max {max_exchanges} requests)...")
+        log.tprint(
+            f"\n🚀 [orchestrator] starting cycle (max {max_exchanges} requests)..."
+        )
 
         max_retries = 3
         run_result = None
@@ -260,7 +262,7 @@ class ApiOrchestrator(OrchestratorBase):
                 )
                 break
             except UsageLimitExceeded:
-                log.tprint(f"[orchestrator] request limit reached ({max_exchanges})")
+                log.tprint(f"⏱️  [orchestrator] request limit reached ({max_exchanges})")
                 break
             except ModelHTTPError as exc:
                 status = exc.status_code
@@ -375,7 +377,16 @@ class ApiOrchestrator(OrchestratorBase):
             summary_result = summarizer_agent.run_sync(
                 f"Conversation:\n\n{_messages_to_text(messages)}",
             )
-            summary = summary_result.output
+            output = summary_result.output
+            if output and output.strip():
+                summary = output.strip()
+            else:
+                accumulated = self._summarizer.get_accumulated_summary()
+                summary = (
+                    f"[Summarization returned empty. Work so far:]\n{accumulated}"
+                    if accumulated
+                    else "[Summarization returned empty. No detailed summary available.]"
+                )
         except Exception as exc:
             log.tprint(f"[orchestrator] summarization failed: {exc}")
             log.emit("summarize_error", error=str(exc))

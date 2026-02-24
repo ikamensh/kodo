@@ -296,7 +296,7 @@ def print_stats_table(final: bool = False) -> None:
 
     # Header
     sep = "-" * 70
-    label = "FINAL STATS" if final else "PROGRESS"
+    label = "📊 FINAL STATS" if final else "📊 PROGRESS"
     print(f"\n  {sep}")
     print(f"  | {label:<66} |")
     print(

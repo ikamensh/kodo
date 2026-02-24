@@ -135,9 +135,9 @@ def handle_agent_call(
 
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
-    log.tprint(f"[orchestrator] → {agent_name}: {task[:100]}...")
+    log.tprint(f"🔧 [orchestrator] → {agent_name}: {task[:100]}...")
     if new_conversation:
-        log.tprint("[orchestrator]   (new conversation)")
+        log.tprint("   (new conversation)")
 
     if cycle_log is not None:
         cycle_log.append(f"→ {agent_name}: {task[:200]}")
@@ -158,7 +158,7 @@ def handle_agent_call(
             agent_name=agent_name,
         )
     except Exception as exc:
-        error_msg = f"[ERROR] {agent_name} crashed: {type(exc).__name__}: {exc}"
+        error_msg = f"💥 {agent_name} crashed: {type(exc).__name__}: {exc}"
         log.emit("agent_crash", agent=agent_name, error=str(exc))
         log.tprint(error_msg)
         if cycle_log is not None:
@@ -177,14 +177,16 @@ def handle_agent_call(
         report=report,
     )
 
-    done_msg = f"[{agent_name}] done ({agent_result.elapsed_s:.1f}s)"
+    done_msg = f"✅ [{agent_name}] done ({agent_result.elapsed_s:.1f}s)"
     if agent_obj.session.cost_bucket != "cursor_subscription":
         done_msg += f" | session: {agent_result.session_tokens:,} tokens"
     log.tprint(done_msg)
     if agent_result.is_error:
-        log.tprint(f"[{agent_name}] reported error")
+        log.tprint(f"⚠️  [{agent_name}] reported error")
     if agent_result.context_reset:
-        log.tprint(f"[{agent_name}] context reset: {agent_result.context_reset_reason}")
+        log.tprint(
+            f"🔄 [{agent_name}] context reset: {agent_result.context_reset_reason}"
+        )
 
     log.print_stats_table()
 
@@ -213,7 +215,7 @@ def _auto_commit(
         or next((a for a in team.values()), None)
     )
     if worker is None:
-        log.tprint("[auto-commit] no worker available, skipping")
+        log.tprint("📝 [auto-commit] no worker available, skipping")
         log.emit("auto_commit_skip", reason="no_worker")
         return
 
@@ -226,7 +228,7 @@ def _auto_commit(
         f"Summary of completed work:\n{summary}"
     )
 
-    log.tprint(f"[auto-commit] dispatching {worker_name} to commit...")
+    log.tprint(f"📝 [auto-commit] dispatching {worker_name} to commit...")
     log.emit("auto_commit_start", worker=worker_name)
 
     try:
@@ -238,10 +240,10 @@ def _auto_commit(
         )
         report = (result.text or "")[:2000]
         log.emit("auto_commit_done", worker=worker_name, report=report)
-        log.tprint(f"[auto-commit] {worker_name} finished")
+        log.tprint(f"📝 [auto-commit] {worker_name} finished")
     except Exception as exc:
         log.emit("auto_commit_error", worker=worker_name, error=str(exc))
-        log.tprint(f"[auto-commit] {worker_name} failed: {exc}")
+        log.tprint(f"📝 [auto-commit] {worker_name} failed: {exc}")
 
 
 def handle_done(
@@ -267,7 +269,7 @@ def handle_done(
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
     log.emit("orchestrator_done_attempt", **tag, summary=summary, success=success)
-    log.tprint(f"[orchestrator] DONE requested (success={success}): {summary}")
+    log.tprint(f"🏁 [orchestrator] DONE requested (success={success}): {summary}")
 
     if not success:
         done_signal.called = True
@@ -286,7 +288,7 @@ def handle_done(
     )
     if rejection:
         log.emit("orchestrator_done_rejected", **tag, rejection=rejection[:5000])
-        log.tprint("[done] REJECTED — verification found issues")
+        log.tprint("❌ [done] REJECTED — verification found issues")
         return rejection
 
     # Auto-commit after successful verification
@@ -297,7 +299,7 @@ def handle_done(
     done_signal.summary = summary
     done_signal.success = True
     log.emit("orchestrator_done_accepted", **tag, summary=summary)
-    log.tprint("[done] ACCEPTED — all checks pass")
+    log.tprint("🎉 [done] ACCEPTED — all checks pass")
     return "Verified and accepted. All checks pass."
 
 

@@ -111,6 +111,89 @@ def test_agent_close_no_error_without_close_method(tmp_project: Path) -> None:
     agent.close()
 
 
+def test_agent_timeout_does_not_hang_on_stuck_session(tmp_project: Path) -> None:
+    """When terminate() doesn't actually stop the worker thread,
+    run() must still return promptly instead of hanging at pool.shutdown()."""
+    import threading
+
+    class _HangingSession(FakeSession):
+        """Session whose query blocks until an event is set, ignoring terminate."""
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._unblock = threading.Event()
+
+        def query(self, prompt, project_dir, *, max_turns):
+            # Block until explicitly unblocked (simulates a stuck session)
+            self._unblock.wait(timeout=5)
+            return super().query(prompt, project_dir, max_turns=max_turns)
+
+        def terminate(self) -> None:
+            # Intentionally does NOT unblock — simulates a stuck terminate
+            pass
+
+    session = _HangingSession(response_text="never seen")
+    agent = Agent(session, "hanging agent", max_turns=5, timeout_s=0.05)
+
+    start = time.monotonic()
+    result = agent.run("do something", tmp_project, agent_name="test")
+    elapsed = time.monotonic() - start
+
+    assert result.is_error is True
+    assert "timed out" in result.text.lower()
+    # The key assertion: run() returns quickly even though the worker
+    # thread is still blocked.  Without shutdown(wait=False), this would
+    # hang for ~5 seconds (the _unblock.wait timeout).
+    assert elapsed < 1.0, f"run() took {elapsed:.1f}s — likely hung on pool.shutdown()"
+
+    # Clean up: unblock the worker thread so it can exit
+    session._unblock.set()
+
+
+def test_agent_context_manager(tmp_project: Path) -> None:
+    """Agent can be used as a context manager, calling close() on exit."""
+    call_order: list[str] = []
+
+    class _TrackedSession(FakeSession):
+        def terminate(self) -> None:
+            call_order.append("terminate")
+
+    session = _TrackedSession(response_text="ok")
+    session.close_called = False
+
+    def _close():
+        session.close_called = True
+        call_order.append("close")
+
+    session.close = _close
+
+    with Agent(session, "worker", max_turns=5) as agent:
+        result = agent.run("task", tmp_project, agent_name="test")
+        assert result.text == "ok"
+
+    # close() should have been called, which calls terminate() then close()
+    assert session.close_called is True
+    assert "terminate" in call_order
+    assert "close" in call_order
+
+
+def test_agent_close_calls_terminate_then_close(tmp_project: Path) -> None:
+    """close() calls terminate() before close() on the session."""
+    call_order: list[str] = []
+
+    class _TrackedSession(FakeSession):
+        def terminate(self) -> None:
+            call_order.append("terminate")
+
+    session = _TrackedSession(response_text="ok")
+    session.close = lambda: call_order.append("close")
+
+    agent = Agent(session, "worker", max_turns=5)
+    agent.close()
+
+    assert call_order == ["terminate", "close"]
+
+
 class TestAgentResult:
     def test_format_report_with_context_reset(self) -> None:
         qr = QueryResult(text="result", elapsed_s=1.0)
