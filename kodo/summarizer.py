@@ -121,9 +121,7 @@ class Summarizer:
                 self._backend_param = gemini_key
                 log.tprint("  [summarizer] using gemini")
             else:
-                log.tprint(
-                    "  [summarizer] using truncation (no LLM backend available)"
-                )
+                log.tprint("  [summarizer] using truncation (no LLM backend available)")
 
     def summarize(self, agent_name: str, task: str, report: str) -> None:
         """Submit a summary job (fire-and-forget)."""

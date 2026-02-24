@@ -198,9 +198,7 @@ class GeminiCliOrchestrator(OrchestratorBase):
                             f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}"
                         )
                     else:
-                        log.tprint(
-                            "⏱️  [orchestrator] cycle ended without calling done"
-                        )
+                        log.tprint("⏱️  [orchestrator] cycle ended without calling done")
 
             finally:
                 # Always clean up MCP registration

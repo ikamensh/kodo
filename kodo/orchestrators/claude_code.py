@@ -107,12 +107,11 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                 while True:
                     async for message in client.receive_response():
                         if isinstance(message, ResultMessage):
-                            result.exchanges = (
-                                result.exchanges + (message.num_turns or 0)
+                            result.exchanges = result.exchanges + (
+                                message.num_turns or 0
                             )
-                            result.total_cost_usd = (
-                                result.total_cost_usd
-                                + (message.total_cost_usd or 0.0)
+                            result.total_cost_usd = result.total_cost_usd + (
+                                message.total_cost_usd or 0.0
                             )
                             log.get_run_stats().record_orchestrator(
                                 message.total_cost_usd or 0.0,
@@ -143,9 +142,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         break
 
                     if message.is_error:
-                        log.tprint(
-                            f"⚠️  [orchestrator] error: {message.result}"
-                        )
+                        log.tprint(f"⚠️  [orchestrator] error: {message.result}")
                         break
 
                     nudges += 1
