@@ -92,7 +92,8 @@ class CursorSession(SubprocessSession):
             raw_messages.append(msg)
 
             if msg.get("type") == "result":
-                result_text = msg.get("result", "")
+                r = msg.get("result", "")
+                result_text = str(r) if r is not None else ""
             # Capture chat ID from any message that reports it
             if "chatId" in msg:
                 self._chat_id = msg["chatId"]
@@ -128,8 +129,9 @@ class CursorSession(SubprocessSession):
             raw_messages=raw_messages,
         )
 
+        text_out = result_text if result_text else stderr_text
         return QueryResult(
-            text=result_text or stderr_text,
+            text=text_out,
             elapsed_s=elapsed,
             is_error=is_error,
         )

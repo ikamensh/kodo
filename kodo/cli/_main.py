@@ -226,10 +226,7 @@ def _main_inner() -> None:
         _fail("--resume cannot be used with --goal/--goal-file/--improve")
 
     project_dir = Path(args.project_dir)
-    try:
-        project_dir.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        _fail(f"Cannot create project directory (permission denied): {project_dir}")
+    project_dir.mkdir(parents=True, exist_ok=True)
     project_dir = project_dir.resolve()
     if not args.json:
         print(f"  Project: {project_dir}")
@@ -282,7 +279,7 @@ def _main_inner() -> None:
                 )
             try:
                 goal_text = goal_path.read_text(encoding="utf-8").strip()
-            except OSError as exc:
+            except (OSError, UnicodeDecodeError) as exc:
                 _fail(f"Cannot read goal file: {goal_path} — {exc}")
             if not goal_text:
                 _fail("Goal file is empty.")
@@ -295,7 +292,7 @@ def _main_inner() -> None:
         if goal_file is not None:
             try:
                 goal_text = goal_file.read_text(encoding="utf-8").strip()
-            except OSError as exc:
+            except (OSError, UnicodeDecodeError) as exc:
                 print(f"\nWarning: could not read {goal_file}: {exc}")
                 goal_text = get_goal()
             else:

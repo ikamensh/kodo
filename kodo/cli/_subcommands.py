@@ -10,6 +10,17 @@ import questionary
 from kodo import log
 
 
+def _truncate_word(text: str, width: int) -> str:
+    """Truncate *text* to at most *width* chars on a word boundary."""
+    if len(text) <= width:
+        return text
+    cut = text[:width].rsplit(" ", 1)[0]
+    # If the very first word is longer than width, hard-cut it.
+    if not cut:
+        cut = text[:width]
+    return cut + "..."
+
+
 # ---------------------------------------------------------------------------
 # kodo runs
 # ---------------------------------------------------------------------------
@@ -33,7 +44,6 @@ def _cmd_runs() -> None:
         print("No runs found.")
         return
 
-    # Column widths
     id_w = max(len(r.run_id) for r in runs)
     dir_w = max(len(r.project_dir) for r in runs)
 
@@ -42,9 +52,7 @@ def _cmd_runs() -> None:
     print("  " + "-" * (len(header) - 2))
     for r in runs:
         status = "done" if r.finished else f"cycle {r.completed_cycles}/{r.max_cycles}"
-        goal_snippet = r.goal[:60].replace("\n", " ")
-        if len(r.goal) > 60:
-            goal_snippet += "..."
+        goal_snippet = _truncate_word(r.goal.replace("\n", " "), 60)
         print(
             f"  {r.run_id:<{id_w}}  {status:<10}  {r.project_dir:<{dir_w}}  {goal_snippet}"
         )
@@ -210,7 +218,7 @@ def _cmd_teams_list() -> None:
         for akey, acfg in agents.items():
             backend = acfg.get("backend", "?")
             model = acfg.get("model", "?")
-            adesc = acfg.get("description", "").split("\n")[0][:60]
+            adesc = _truncate_word(acfg.get("description", "").split("\n")[0], 60)
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
             status = "ok" if ok else "missing"

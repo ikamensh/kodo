@@ -22,6 +22,24 @@ from kodo.cli._ui import (
 )
 from kodo.cli._params import _select_one
 
+
+def _close_session(session) -> None:
+    """Terminate and close a session, ignoring errors.
+
+    Intake sessions are not wrapped in Agent so they lack automatic cleanup.
+    This helper ensures subprocess-backed sessions don't leak child processes.
+    """
+    try:
+        session.terminate()
+    except Exception:
+        pass
+    if hasattr(session, "close"):
+        try:
+            session.close()
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # Intake prompts
 # ---------------------------------------------------------------------------
@@ -139,7 +157,7 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         name = s.get("name")
         description = s.get("description")
         acceptance_criteria = s.get("acceptance_criteria")
-        if not index or not name or not description or acceptance_criteria is None:
+        if index is None or not name or not description or acceptance_criteria is None:
             continue
         stages.append(
             GoalStage(
@@ -201,49 +219,17 @@ def run_intake_chat(
     model = _intake_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
-    print(
-        f"\n  {_DIM}Intake interview — type {_BOLD}/done{_RESET}{_DIM} or empty line to finish{_RESET}"
-    )
-    _print_separator()
-
-    # First message — agent explores the project and asks clarifying questions
-    project_dir = run_dir.project_dir
-    initial = f"Here's my project goal:\n\n{goal_text}"
-    with _Spinner("Reviewing project"):
-        result = session.query(initial, project_dir, max_turns=10)
-    log.emit(
-        "intake_response",
-        text=result.text,
-        is_error=result.is_error,
-        turns=result.turns,
-    )
-    _print_agent(result.text)
-
-    # If the agent already wrote the output file on the first turn,
-    # skip the conversation loop — no need to make the user type /done.
-    if output_file.exists():
+    try:
+        print(
+            f"\n  {_DIM}Intake interview — type {_BOLD}/done{_RESET}{_DIM} or empty line to finish{_RESET}"
+        )
         _print_separator()
-        return _read_intake_output(output_file, staged)
 
-    # Conversation loop
-    while True:
-        try:
-            user_input = input(f"  {_GREEN}{_BOLD}>{_RESET} ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-
-        if not user_input or user_input == "/done":
-            break
-
-        try:
-            with _Spinner("Thinking"):
-                result = session.query(user_input, project_dir, max_turns=10)
-        except Exception as exc:
-            error_msg = f"Session error: {exc}"
-            log.emit("intake_response", text=error_msg, is_error=True, turns=0)
-            _print_agent(error_msg)
-            continue
+        # First message — agent explores the project and asks clarifying questions
+        project_dir = run_dir.project_dir
+        initial = f"Here's my project goal:\n\n{goal_text}"
+        with _Spinner("Reviewing project"):
+            result = session.query(initial, project_dir, max_turns=10)
         log.emit(
             "intake_response",
             text=result.text,
@@ -252,26 +238,61 @@ def run_intake_chat(
         )
         _print_agent(result.text)
 
-    _print_separator()
+        # If the agent already wrote the output file on the first turn,
+        # skip the conversation loop — no need to make the user type /done.
+        if output_file.exists():
+            _print_separator()
+            return _read_intake_output(output_file, staged)
 
-    # Check if output was written during the conversation
-    if output_file.exists():
-        return _read_intake_output(output_file, staged)
+        # Conversation loop
+        while True:
+            try:
+                user_input = input(f"  {_GREEN}{_BOLD}>{_RESET} ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
 
-    # User ended the interview — ask Claude to finalize and write the output
-    finalize_msg = (
-        "The user has ended the interview. Based on everything discussed, "
-        "please write the output file now."
-    )
-    with _Spinner("Finalizing"):
-        result = session.query(finalize_msg, project_dir, max_turns=10)
-    _print_agent(result.text)
+            if not user_input or user_input == "/done":
+                break
 
-    if output_file.exists():
-        return _read_intake_output(output_file, staged)
+            try:
+                with _Spinner("Thinking"):
+                    result = session.query(user_input, project_dir, max_turns=10)
+            except Exception as exc:
+                error_msg = f"Session error: {exc}"
+                log.emit("intake_response", text=error_msg, is_error=True, turns=0)
+                _print_agent(error_msg)
+                continue
+            log.emit(
+                "intake_response",
+                text=result.text,
+                is_error=result.is_error,
+                turns=result.turns,
+            )
+            _print_agent(result.text)
 
-    print("\nNo output file written; using original goal.")
-    return None
+        _print_separator()
+
+        # Check if output was written during the conversation
+        if output_file.exists():
+            return _read_intake_output(output_file, staged)
+
+        # User ended the interview — ask Claude to finalize and write the output
+        finalize_msg = (
+            "The user has ended the interview. Based on everything discussed, "
+            "please write the output file now."
+        )
+        with _Spinner("Finalizing"):
+            result = session.query(finalize_msg, project_dir, max_turns=10)
+        _print_agent(result.text)
+
+        if output_file.exists():
+            return _read_intake_output(output_file, staged)
+
+        print("\nNo output file written; using original goal.")
+        return None
+    finally:
+        _close_session(session)
 
 
 def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | None:
@@ -331,37 +352,40 @@ def run_intake_auto(
     model = _refine_models.get(backend, "composer-1.5")
     session = make_session(backend, model, system_prompt=prompt)
 
-    project_dir = run_dir.project_dir
-    print("\n--- Auto-refining goal (no human input) ---")
+    try:
+        project_dir = run_dir.project_dir
+        print("\n--- Auto-refining goal (no human input) ---")
 
-    with _Spinner("Analyzing goal"):
-        result = session.query(
-            f"Here's the project goal to analyze:\n\n{goal_text}",
-            project_dir,
-            max_turns=10,
-        )
+        with _Spinner("Analyzing goal"):
+            result = session.query(
+                f"Here's the project goal to analyze:\n\n{goal_text}",
+                project_dir,
+                max_turns=10,
+            )
 
-    print(f"\n{result.text}\n")
+        print(f"\n{result.text}\n")
 
-    if output_file.exists():
-        try:
-            refined = output_file.read_text(encoding="utf-8").strip()
-        except OSError:
-            refined = ""
-        if refined:
+        if output_file.exists():
+            try:
+                refined = output_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                refined = ""
+            if refined:
+                print(f"Refined goal written to {output_file}")
+                return refined
+
+        # LLM didn't write the file — use its response as the refinement
+        analysis = (result.text or "").strip()
+        if analysis:
+            refined = f"{goal_text}\n\n# Pre-implementation analysis\n\n{analysis}"
+            _atomic_write(output_file, refined)
             print(f"Refined goal written to {output_file}")
             return refined
 
-    # LLM didn't write the file — use its response as the refinement
-    analysis = (result.text or "").strip()
-    if analysis:
-        refined = f"{goal_text}\n\n# Pre-implementation analysis\n\n{analysis}"
-        _atomic_write(output_file, refined)
-        print(f"Refined goal written to {output_file}")
-        return refined
-
-    print("Auto-refinement produced no output; using original goal.")
-    return None
+        print("Auto-refinement produced no output; using original goal.")
+        return None
+    finally:
+        _close_session(session)
 
 
 # ---------------------------------------------------------------------------
@@ -397,27 +421,30 @@ def run_intake_noninteractive(
     )
     session = make_session(backend, model, system_prompt=prompt)
 
-    project_dir = run_dir.project_dir
-    initial = f"Here's my project goal:\n\n{goal_text}"
-    print("Running intake (non-interactive)...")
-    with _Spinner("Analyzing project and creating plan"):
-        result = session.query(initial, project_dir, max_turns=10)
-    print(f"\n{result.text}\n")
-
-    if not output_file.exists():
-        with _Spinner("Finalizing plan"):
-            result = session.query(
-                "Please write the goal-plan.json file now based on your analysis.",
-                project_dir,
-                max_turns=10,
-            )
+    try:
+        project_dir = run_dir.project_dir
+        initial = f"Here's my project goal:\n\n{goal_text}"
+        print("Running intake (non-interactive)...")
+        with _Spinner("Analyzing project and creating plan"):
+            result = session.query(initial, project_dir, max_turns=10)
         print(f"\n{result.text}\n")
 
-    if output_file.exists():
-        return _read_intake_output(output_file, staged=True)
+        if not output_file.exists():
+            with _Spinner("Finalizing plan"):
+                result = session.query(
+                    "Please write the goal-plan.json file now based on your analysis.",
+                    project_dir,
+                    max_turns=10,
+                )
+            print(f"\n{result.text}\n")
 
-    print("Warning: intake did not produce a plan. Proceeding without stages.")
-    return None
+        if output_file.exists():
+            return _read_intake_output(output_file, staged=True)
+
+        print("Warning: intake did not produce a plan. Proceeding without stages.")
+        return None
+    finally:
+        _close_session(session)
 
 
 # ---------------------------------------------------------------------------

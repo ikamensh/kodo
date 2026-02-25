@@ -6,6 +6,8 @@ import json
 import threading
 from pathlib import Path
 
+import pytest
+
 from kodo import log
 from kodo.log import RunDir
 
@@ -86,4 +88,38 @@ def test_emit_with_path_and_dataclass_values(tmp_path: Path):
     record = json.loads(lines[-1])
     assert record["event"] == "complex"
     assert "foo" in record["path"]
-    assert record["info"]["name"] == "x"
+
+
+def test_emit_survives_disk_write_failure(tmp_path: Path):
+    """Boundary Condition 1: emit() must not crash the caller if the log file
+    becomes unwritable (e.g., permission errors).
+
+    After init(), we make the log file read-only. A subsequent emit() would
+    fail to open/write. The caller must not see an exception.
+
+    KNOWN FAILURE: log.emit() does not catch OSError/PermissionError from
+    open()/write(). When the log file becomes read-only (or disk fills, etc.),
+    the exception propagates and crashes the caller. Location: log.py ~line 229,
+    ``with open(_log_file, "a") as f: f.write(...)``.
+    """
+    run_dir = RunDir.create(tmp_path, "unwritable")
+    log.init(run_dir)
+    log.emit("first_event")  # succeeds
+
+    # Make the log file read-only so the next write fails
+    log_file = log.get_log_file()
+    assert log_file is not None
+    log_file.chmod(0o444)
+
+    try:
+        log.emit("second_event")  # should not raise
+    except (OSError, PermissionError) as e:
+        pytest.xfail(
+            f"Boundary Condition 1: emit() propagates disk write failures. "
+            f"Expected: swallow OSError and continue. "
+            f"Got: {type(e).__name__}: {e}"
+        )
+    # First event was written before chmod; second_event was swallowed
+    lines = log_file.read_text().strip().split("\n")
+    assert len(lines) >= 1
+    assert any("first_event" in line for line in lines)

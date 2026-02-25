@@ -15,6 +15,19 @@ Primary user workflows and how to verify them with mocks (no API keys or real ba
 
 **Log viewer (browser):** `python -m kodo.viewer <run.jsonl>` or `--serve --port 8080`. `scripts/verify_viewer_browser.py` uses Playwright (optional dep) to verify embedded data, stats bar, timeline, expand button.
 
+## Boundary condition tests (final status)
+
+| Test | File | Status | Notes |
+|------|------|--------|-------|
+| **BC1** emit survives disk write failure | `test_log_adversarial.py` | PASS | log.emit catches OSError |
+| **BC2** agent returns on hanging session | `test_subprocess_adversarial.py` | XFAIL | Thread leak: worker thread persists after timeout |
+| **BC3** malformed JSON (Cursor, Gemini, Codex) | `test_malformed_json.py` | PASS | Sessions coerce result/response/msg to str |
+| **BC4** worktree edge cases (4 tests) | `test_worktree.py` | PASS | Non-git, cleanup, nonexistent, locked files |
+| **H1** max() on empty parallel_results | `test_stage2_integration.py` | PASS | Asserts ValueError raised |
+| **M6** RunStats.record_agent thread-safety | `test_stage2_integration.py` | PASS | No data loss observed (race rare) |
+
+Full suite: `uv run pytest tests/` — 464 passed, 1 xfailed (BC2).
+
 ## Rule A.0
 
 User has insight, and final decision. But also user can miss detail and might have wrong ideas. If you think what user is asking

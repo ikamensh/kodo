@@ -83,9 +83,13 @@ def main() -> None:
     args = parser.parse_args()
 
     log_path = Path(args.logfile) if args.logfile else None
-    if log_path is not None and not log_path.exists():
-        print(f"File not found: {log_path}", file=sys.stderr)
-        sys.exit(1)
+    if log_path is not None:
+        if not log_path.exists():
+            print(f"File not found: {log_path}", file=sys.stderr)
+            sys.exit(1)
+        if log_path.is_dir():
+            print(f"Expected a log file, not a directory: {log_path}", file=sys.stderr)
+            sys.exit(1)
 
     if args.serve:
         _serve(args.port, log_path)

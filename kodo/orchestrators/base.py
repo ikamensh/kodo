@@ -1413,7 +1413,9 @@ class OrchestratorBase:
                 # Sort summaries by stage index for deterministic ordering
                 parallel_results.sort(key=lambda r: r.stage_index)
                 # For parallel work, count the max branch (wall-clock)
-                remaining_cycles -= max(len(r.cycles) for r in parallel_results)
+                remaining_cycles -= max(
+                    (len(r.cycles) for r in parallel_results), default=0
+                )
 
                 # Add all parallel summaries to context for subsequent stages
                 for pr in parallel_results:

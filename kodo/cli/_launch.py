@@ -67,10 +67,9 @@ def _format_json_output(
     """Build the structured JSON output dict."""
     if error is not None:
         return {"status": "error", "error": error}
-
     if result.finished:
         status = "completed"
-    elif result.cycles:
+    elif result.cycles is not None:
         status = "partial"
     else:
         status = "failed"

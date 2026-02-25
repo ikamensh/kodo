@@ -77,6 +77,7 @@ class SubprocessSession:
     """
 
     _session_label: str  # set by each subclass
+    _WAIT_TIMEOUT = 7200  # 2h max; prevents indefinite block if process hangs
 
     def __init__(self, model: str, system_prompt: str | None = None):
         self.model = model
@@ -132,7 +133,15 @@ class SubprocessSession:
         thread: threading.Thread,
     ) -> str:
         """Wait for process and join drain thread.  Returns stderr text."""
-        proc.wait()
+        try:
+            proc.wait(timeout=self._WAIT_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
         # Allow up to 30s for drain to finish; process has exited so stderr
         # should close soon. Increase from 5s to avoid truncating long output.
         thread.join(timeout=30)

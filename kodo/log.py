@@ -227,8 +227,11 @@ def emit(event: str, **data: Any) -> None:
     }
 
     with _lock:
-        with open(_log_file, "a") as f:
-            f.write(json.dumps(record, default=_serialize) + "\n")
+        try:
+            with open(_log_file, "a") as f:
+                f.write(json.dumps(record, default=_serialize) + "\n")
+        except OSError:
+            pass  # best-effort logging; don't crash on write failure
 
 
 def tprint(msg: str) -> None:
@@ -403,7 +406,7 @@ def parse_run(log_file: Path) -> RunState | None:
     current_stage_cycles = 0
     current_stage_index: int | None = None
 
-    with open(log_file) as fh:
+    with open(log_file, encoding="utf-8", errors="replace") as fh:
         for raw_line in fh:
             try:
                 evt = json.loads(raw_line)
@@ -419,29 +422,30 @@ def parse_run(log_file: Path) -> RunState | None:
                 cli_args = evt
             elif event == "cycle_end":
                 completed_cycles += 1
-                last_summary = evt["summary"]
+                last_summary = evt.get("summary", "")
                 if current_stage_index is not None:
                     current_stage_cycles += 1
             elif event == "run_end":
                 finished = True
             elif event == "stage_start":
-                current_stage_index = evt["stage_index"]
+                current_stage_index = evt.get("stage_index")
                 current_stage_cycles = 0
             elif event == "stage_end":
-                stage_idx = evt["stage_index"]
-                if evt["finished"]:
+                stage_idx = evt.get("stage_index")
+                if stage_idx is not None and evt.get("finished", False):
                     completed_stages.append(stage_idx)
-                    stage_summaries.append(evt["summary"])
+                    stage_summaries.append(evt.get("summary", ""))
                 current_stage_index = None
                 current_stage_cycles = 0
             elif event == "session_query_end":
                 sid = evt.get("session_id") or evt.get("chat_id")
-                if sid:
-                    agent_session_ids[evt["session"]] = sid
+                session_name = evt.get("session")
+                if sid and session_name:
+                    agent_session_ids[session_name] = sid
             elif event == "orchestrator_tool_call":
                 pass
             elif event == "agent_run_end":
-                agent_name = evt["agent"]
+                agent_name = evt.get("agent")
                 if agent_name:
                     for key in list(agent_session_ids.keys()):
                         if key in ("claude", "codex", "cursor", "gemini-cli"):
@@ -450,16 +454,22 @@ def parse_run(log_file: Path) -> RunState | None:
     if run_start is None or cli_args is None:
         return None
 
+    # Require critical fields; return None if corrupted run_start
+    try:
+        goal = run_start["goal"]
+    except KeyError:
+        return None
+
     return RunState(
         run_id=_extract_run_id(log_file),
         log_file=log_file,
-        goal=run_start["goal"],
-        orchestrator=run_start["orchestrator"],
-        model=run_start["model"],
-        project_dir=run_start["project_dir"],
-        max_exchanges=run_start["max_exchanges"],
-        max_cycles=run_start["max_cycles"],
-        team=run_start["team"],
+        goal=goal,
+        orchestrator=run_start.get("orchestrator", "unknown"),
+        model=run_start.get("model", "unknown"),
+        project_dir=run_start.get("project_dir", ""),
+        max_exchanges=run_start.get("max_exchanges", 0),
+        max_cycles=run_start.get("max_cycles", 0),
+        team=run_start.get("team", []),
         completed_cycles=completed_cycles,
         last_summary=last_summary,
         finished=finished,

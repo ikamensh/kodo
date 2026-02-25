@@ -111,7 +111,8 @@ class CodexSession(SubprocessSession):
             # Codex emits two shapes:
             #   top-level: {"type": "...", ...}
             #   nested:    {"id": "0", "msg": {"type": "...", ...}}
-            inner = msg.get("msg", {}) if "msg" in msg else {}
+            raw_inner = msg.get("msg", {}) if "msg" in msg else {}
+            inner = raw_inner if isinstance(raw_inner, dict) else {}
             event_type = msg.get("type", "") or inner.get("type", "")
 
             # Capture session/thread ID
@@ -208,8 +209,9 @@ class CodexSession(SubprocessSession):
             raw_messages=raw_messages,
         )
 
+        text_out = result_text if result_text else stderr_text
         return QueryResult(
-            text=result_text or stderr_text,
+            text=text_out,
             elapsed_s=elapsed,
             is_error=is_error,
             input_tokens=input_tokens or None,

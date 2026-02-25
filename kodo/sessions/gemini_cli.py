@@ -94,7 +94,8 @@ class GeminiCliSession(SubprocessSession):
         if stdout_text.strip():
             try:
                 data = json.loads(stdout_text)
-                result_text = data.get("response", "")
+                r = data.get("response", "")
+                result_text = str(r) if r is not None else ""
                 # Extract token stats from stats.models
                 stats_models = data.get("stats", {}).get("models", {})
                 for model_stats in stats_models.values():
@@ -151,8 +152,9 @@ class GeminiCliSession(SubprocessSession):
             output_tokens=output_tokens,
         )
 
+        text_out = result_text or ""
         return QueryResult(
-            text=result_text,
+            text=text_out,
             elapsed_s=elapsed,
             is_error=is_error,
             input_tokens=input_tokens or None,

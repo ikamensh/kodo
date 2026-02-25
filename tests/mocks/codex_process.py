@@ -111,5 +111,5 @@ class MockCodexProcess:
 
         self.stdout = io.StringIO("\n".join(lines) + "\n")
 
-    def wait(self) -> int:
+    def wait(self, timeout=None) -> int:
         return self.returncode

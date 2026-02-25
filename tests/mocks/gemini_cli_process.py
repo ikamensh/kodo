@@ -86,5 +86,5 @@ class MockGeminiCliProcess:
             data["error"] = error
         self.stdout = io.StringIO(json.dumps(data) + "\n")
 
-    def wait(self) -> int:
+    def wait(self, timeout=None) -> int:
         return self.returncode
