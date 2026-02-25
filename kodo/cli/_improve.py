@@ -1,6 +1,5 @@
 """Improve mode: AI-driven discovery + staged plans for --improve."""
 
-import json
 import re
 from pathlib import Path
 
@@ -198,33 +197,51 @@ def run_improve_discovery(run_dir, report_path: str) -> GoalPlan | None:
 # ---------------------------------------------------------------------------
 
 
+def _slugify(name: str) -> str:
+    """Turn a stage name into a filesystem-safe slug."""
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or "stage"
+
+
+def _is_triage_stage(name: str) -> bool:
+    n = name.lower()
+    return "triage" in n or "verify" in n
+
+
+def _is_fix_stage(name: str) -> bool:
+    n = name.lower()
+    return "fix" in n or "report" in n
+
+
 def _validate_improve_plan(
     plan: GoalPlan, report_path: str, run_dir: str
 ) -> GoalPlan:
-    """Ensure the plan has triage and fix/report as final stages.
+    """Post-process an AI-generated plan to ensure correctness.
 
-    If the AI omitted them, append hardcoded fallback stages.
+    1. Append triage and fix/report stages if the AI omitted them.
+    2. Assign a findings file path to each analysis/testing stage.
+    3. Inject "Do NOT modify source code" into parallel stages.
+    4. Wire all findings paths into triage and fix stage descriptions.
     """
+    triage_path = f"{run_dir}/triage-results.md"
     stages = list(plan.stages)
-    names_lower = [s.name.lower() for s in stages]
 
-    has_triage = any("triage" in n or "verify" in n for n in names_lower)
-    has_fix = any("fix" in n or "report" in n for n in names_lower)
+    # --- 1. Ensure triage and fix stages exist ---
+
+    has_triage = any(_is_triage_stage(s.name) for s in stages)
+    has_fix = any(_is_fix_stage(s.name) for s in stages)
 
     if not has_triage:
-        triage_path = f"{run_dir}/triage-results.md"
         stages.append(
             GoalStage(
                 index=len(stages) + 1,
                 name="Triage & Verify",
-                description=_TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path)
-                + "\n\nReview all findings files from previous stages.",
+                description=_TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
                 acceptance_criteria=f"Every finding has a verdict in {triage_path}.",
             )
         )
 
     if not has_fix:
-        triage_path = f"{run_dir}/triage-results.md"
         stages.append(
             GoalStage(
                 index=len(stages) + 1,
@@ -245,7 +262,59 @@ def _validate_improve_plan(
             )
         )
 
-    return GoalPlan(context=plan.context, stages=stages)
+    # --- 2. Assign findings paths and inject instructions ---
+
+    findings_paths: list[str] = []
+    augmented: list[GoalStage] = []
+
+    for stage in stages:
+        if _is_triage_stage(stage.name) or _is_fix_stage(stage.name):
+            augmented.append(stage)
+            continue
+
+        # Assign a findings file
+        findings_file = f"{run_dir}/findings-{_slugify(stage.name)}.md"
+        findings_paths.append(findings_file)
+
+        extra = f"\n\nWrite findings to `{findings_file}`.\n\n{_TRIAGE_FINDINGS_FORMAT}"
+
+        if stage.parallel_group is not None:
+            extra = f"\n\nDo NOT modify source code.{extra}"
+
+        augmented.append(
+            GoalStage(
+                index=stage.index,
+                name=stage.name,
+                description=stage.description + extra,
+                acceptance_criteria=stage.acceptance_criteria,
+                browser_testing=stage.browser_testing,
+                parallel_group=stage.parallel_group,
+                persist_changes=stage.persist_changes,
+            )
+        )
+
+    # --- 3. Wire findings paths into triage and fix stages ---
+
+    if findings_paths:
+        findings_list = ", ".join(f"`{p}`" for p in findings_paths)
+        findings_ref = f"\n\nFindings files: {findings_list}."
+
+        final: list[GoalStage] = []
+        for stage in augmented:
+            if _is_triage_stage(stage.name) or _is_fix_stage(stage.name):
+                stage = GoalStage(
+                    index=stage.index,
+                    name=stage.name,
+                    description=stage.description + findings_ref,
+                    acceptance_criteria=stage.acceptance_criteria,
+                    browser_testing=stage.browser_testing,
+                    parallel_group=stage.parallel_group,
+                    persist_changes=stage.persist_changes,
+                )
+            final.append(stage)
+        augmented = final
+
+    return GoalPlan(context=plan.context, stages=augmented)
 
 
 # ---------------------------------------------------------------------------

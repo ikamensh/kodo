@@ -7,7 +7,6 @@ from kodo.cli._intake import (  # noqa: F401
     run_intake_auto,
     run_intake_chat,
     run_intake_noninteractive,
-    run_single_turn_plan,
     get_goal,
     _looks_staged,
     _parse_goal_plan,
