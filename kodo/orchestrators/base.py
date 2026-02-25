@@ -226,6 +226,7 @@ def _auto_commit(
     directive = (
         "Review `git diff` and `git status`. Stage the relevant changed files "
         "and commit with a clear, concise message describing what was accomplished. "
+        "Add Co-Authored-By: kodo <noreply@github.com>"
         "Do NOT push. Do NOT commit unrelated or generated files.\n\n"
         f"Summary of completed work:\n{summary}"
     )

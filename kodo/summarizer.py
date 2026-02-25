@@ -66,7 +66,7 @@ def _summarize_gemini(api_key: str, task: str, report: str) -> str:
     prompt = _PROMPT_TEMPLATE.format(task=task[:200], report=report[:2000])
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash-lite:generateContent?key={api_key}"
+        "gemini-2.5-flash-lite:generateContent"
     )
     payload = json.dumps(
         {
@@ -76,7 +76,10 @@ def _summarize_gemini(api_key: str, task: str, report: str) -> str:
     req = urllib.request.Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "x-goog-api-key": api_key,
+        },
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
