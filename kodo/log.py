@@ -115,22 +115,24 @@ class RunStats:
         is_error: bool,
         cost_bucket: str,
     ) -> None:
-        if agent not in self.agents:
-            self.agents[agent] = _AgentStats(cost_bucket=cost_bucket)
-        s = self.agents[agent]
-        s.calls += 1
-        s.cost_usd += cost_usd
-        s.input_tokens += input_tokens
-        s.output_tokens += output_tokens
-        s.elapsed_s += elapsed_s
-        if is_error:
-            s.errors += 1
-        if cost_bucket:
-            s.cost_bucket = cost_bucket
+        with _lock:
+            if agent not in self.agents:
+                self.agents[agent] = _AgentStats(cost_bucket=cost_bucket)
+            s = self.agents[agent]
+            s.calls += 1
+            s.cost_usd += cost_usd
+            s.input_tokens += input_tokens
+            s.output_tokens += output_tokens
+            s.elapsed_s += elapsed_s
+            if is_error:
+                s.errors += 1
+            if cost_bucket:
+                s.cost_bucket = cost_bucket
 
     def record_orchestrator(self, cost_usd: float, bucket: str = "api") -> None:
-        self.orchestrator_cost_usd += cost_usd
-        self.orchestrator_bucket = bucket
+        with _lock:
+            self.orchestrator_cost_usd += cost_usd
+            self.orchestrator_bucket = bucket
 
     @property
     def total_exchanges(self) -> int:
@@ -159,13 +161,33 @@ _run_stats = RunStats()
 
 def _test_snapshot():
     """Capture current module state for later restoration."""
-    return (_log_file, _run_id, _start_time, _runs_root)
+    return (
+        _log_file,
+        _run_id,
+        _start_time,
+        _runs_root,
+        _run_stats,
+        _virtual_cost_note_shown,
+    )
 
 
 def _test_restore(snapshot):
     """Restore module state from a snapshot."""
-    global _log_file, _run_id, _start_time, _runs_root
-    _log_file, _run_id, _start_time, _runs_root = snapshot
+    global \
+        _log_file, \
+        _run_id, \
+        _start_time, \
+        _runs_root, \
+        _run_stats, \
+        _virtual_cost_note_shown
+    (
+        _log_file,
+        _run_id,
+        _start_time,
+        _runs_root,
+        _run_stats,
+        _virtual_cost_note_shown,
+    ) = snapshot
 
 
 def _test_redirect_runs(path: Path):
@@ -354,11 +376,6 @@ def print_stats_table(final: bool = False) -> None:
         )
         _virtual_cost_note_shown = True
     print()
-
-
-def get_run_id() -> str | None:
-    """Return the current run ID, or None if not initialized."""
-    return _run_id
 
 
 # ---------------------------------------------------------------------------

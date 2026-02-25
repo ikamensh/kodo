@@ -18,13 +18,18 @@ class CursorSession(SubprocessSession):
         model: str = "composer-1.5",
         system_prompt: str | None = None,
         resume_chat_id: str | None = None,
+        timeout_s: int = 7200,
     ):
-        super().__init__(model, system_prompt)
+        super().__init__(model, system_prompt, timeout_s=timeout_s)
         self._chat_id: str | None = resume_chat_id
 
     def clone(self) -> "CursorSession":
         """Create a fresh session with the same config but no state."""
-        return CursorSession(model=self.model, system_prompt=self.system_prompt)
+        return CursorSession(
+            model=self.model,
+            system_prompt=self.system_prompt,
+            timeout_s=self._timeout_s,
+        )
 
     @property
     def cost_bucket(self) -> str:
@@ -110,7 +115,11 @@ class CursorSession(SubprocessSession):
             stderr_text = ""
         elif not result_text:
             hint = classify_session_error(
-                proc.returncode, stderr_text, backend="cursor"
+                proc.returncode,
+                stderr_text,
+                backend="cursor",
+                did_timeout=self._did_timeout,
+                timeout_s=self._timeout_s,
             )
             if hint:
                 result_text = hint

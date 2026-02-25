@@ -29,6 +29,7 @@ _AGENT_DEFAULTS = {
     "description": "",
     "system_prompt": None,
     "fallback_model": None,
+    "session_timeout_s": 7200,
 }
 
 
@@ -150,6 +151,9 @@ def build_team_from_json(config: dict) -> TeamConfig:
         fallback_model = agent_cfg.get(
             "fallback_model", _AGENT_DEFAULTS["fallback_model"]
         )
+        session_timeout_s = agent_cfg.get(
+            "session_timeout_s", _AGENT_DEFAULTS["session_timeout_s"]
+        )
 
         session = make_session(
             backend,
@@ -157,6 +161,7 @@ def build_team_from_json(config: dict) -> TeamConfig:
             system_prompt=system_prompt,
             chrome=chrome,
             fallback_model=fallback_model,
+            session_timeout_s=session_timeout_s,
         )
 
         team[agent_key] = Agent(
@@ -169,7 +174,7 @@ def build_team_from_json(config: dict) -> TeamConfig:
     if not team:
         raise RuntimeError(
             "No agents available after checking backends. "
-            "Install at least one of: claude, cursor-agent, codex, or gemini."
+            "Install at least one of: claude, cursor, codex, or gemini-cli."
         )
 
     return team

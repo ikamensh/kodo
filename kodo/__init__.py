@@ -1,12 +1,14 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.68"
+__version__ = "0.4.69"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
 from kodo.sessions.base import QueryResult, Session, SessionStats
 from kodo.orchestrators.base import (
     CycleResult,
+    GoalPlan,
+    GoalStage,
     Orchestrator,
     ResumeState,
     RunResult,
@@ -52,6 +54,7 @@ def make_session(
     chrome: bool = False,
     fallback_model: str | None = None,
     use_api_key: bool = False,
+    session_timeout_s: int = 7200,
 ) -> Session:
     """Create a worker session for the given backend.
 
@@ -66,11 +69,17 @@ def make_session(
     from kodo.sessions.gemini_cli import GeminiCliSession
 
     if backend == "gemini-cli":
-        return GeminiCliSession(model=model, system_prompt=system_prompt)
+        return GeminiCliSession(
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+        )
     if backend == "codex":
-        return CodexSession(model=model, system_prompt=system_prompt)
+        return CodexSession(
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+        )
     if backend == "cursor":
-        return CursorSession(model=model, system_prompt=system_prompt)
+        return CursorSession(
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+        )
     return ClaudeSession(
         model=model,
         system_prompt=system_prompt,
@@ -88,6 +97,8 @@ __all__ = [
     "Session",
     "SessionStats",
     "CycleResult",
+    "GoalPlan",
+    "GoalStage",
     "ResumeState",
     "RunResult",
     "Orchestrator",

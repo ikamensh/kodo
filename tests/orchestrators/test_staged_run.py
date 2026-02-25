@@ -841,6 +841,33 @@ def test_parallel_stages_share_snapshot(mock_viewer, tmp_project):
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_parallel_orchestrator_close_called(mock_viewer, tmp_project):
+    """_run_in_own_loop should call close() on each parallel orchestrator copy."""
+    plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
+    close_calls: list[bool] = []
+
+    class CloseTrackingOrchestrator(FakeOrchestrator):
+        async def close(self):
+            close_calls.append(True)
+
+    orch = CloseTrackingOrchestrator(
+        cycle_results=[
+            CycleResult(summary="s1", finished=True),
+            CycleResult(summary="s2", finished=True),
+            CycleResult(summary="s3", finished=True),
+            CycleResult(summary="s4", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
+
+    # Two parallel stages => two close() calls (one per for_parallel() copy)
+    assert len(close_calls) == 2
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
 def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project):
     """Parallel stages should not auto-commit (changes are discarded anyway)."""
     plan = _make_parallel_plan()

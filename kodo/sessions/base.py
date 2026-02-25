@@ -79,12 +79,19 @@ class SubprocessSession:
     _session_label: str  # set by each subclass
     _WAIT_TIMEOUT = 7200  # 2h max; prevents indefinite block if process hangs
 
-    def __init__(self, model: str, system_prompt: str | None = None):
+    def __init__(
+        self,
+        model: str,
+        system_prompt: str | None = None,
+        timeout_s: int = 7200,
+    ):
         self.model = model
         self.system_prompt = system_prompt
         self._stats = SessionStats()
         self._system_prompt_sent = False
         self._process: subprocess.Popen | None = None
+        self._timeout_s = timeout_s
+        self._did_timeout = False
 
     @property
     def stats(self) -> SessionStats:
@@ -134,8 +141,9 @@ class SubprocessSession:
     ) -> str:
         """Wait for process and join drain thread.  Returns stderr text."""
         try:
-            proc.wait(timeout=self._WAIT_TIMEOUT)
+            proc.wait(timeout=self._timeout_s)
         except subprocess.TimeoutExpired:
+            self._did_timeout = True
             proc.terminate()
             try:
                 proc.wait(timeout=5)
@@ -154,8 +162,11 @@ class SubprocessSession:
         first; escalates to SIGKILL if the process doesn't exit within 5 s.
         """
         proc = self._process
-        if proc is None or proc.poll() is not None:
+        if proc is None:
             return  # nothing running
+        if proc.poll() is not None:
+            self._process = None
+            return  # already exited
         try:
             proc.terminate()
         except OSError:
@@ -188,7 +199,8 @@ _AUTH_PATTERNS = re.compile(
 
 _SUBSCRIPTION_PATTERNS = re.compile(
     r"subscription|billing|payment|quota exceeded|rate.?limit"
-    r"|usage.?limit|plan.?limit|account.?(suspended|disabled|deactivated)",
+    r"|usage.?limit|plan.?limit|account.?(suspended|disabled|deactivated)"
+    r"|429\b|too many requests|connection refused|503\b|service unavailable",
     re.IGNORECASE,
 )
 
@@ -204,12 +216,22 @@ def classify_session_error(
     stderr: str,
     stdout: str = "",
     backend: str = "",
+    *,
+    did_timeout: bool = False,
+    timeout_s: int = 0,
 ) -> str | None:
     """Classify a subprocess failure into an actionable hint, or None.
 
     Returns a short human-readable hint when the error matches a known
     pattern; None if nothing specific was detected.
     """
+    if did_timeout:
+        prefix = f"{backend}: " if backend else ""
+        return (
+            f"{prefix}Process timed out after {timeout_s}s. "
+            "Hint: increase session_timeout_s in TeamConfig."
+        )
+
     combined = f"{stderr}\n{stdout}"
 
     if _AUTH_PATTERNS.search(combined):

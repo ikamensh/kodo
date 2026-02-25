@@ -1245,15 +1245,17 @@ wheels = [
 
 [[package]]
 name = "kodo"
-version = "0.4.66"
+version = "0.4.68"
 source = { virtual = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
+    { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic-ai" },
     { name = "python-dotenv" },
     { name = "questionary" },
     { name = "summarization-pydantic-ai" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -1270,6 +1272,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.1.36" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "mcp", specifier = ">=1.0" },
     { name = "pydantic-ai", specifier = ">=1.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0" },
@@ -1277,6 +1280,7 @@ requires-dist = [
     { name = "questionary", specifier = ">=2.0" },
     { name = "ruff", marker = "extra == 'test'" },
     { name = "summarization-pydantic-ai", specifier = ">=0.0.3" },
+    { name = "uvicorn", specifier = ">=0.40" },
 ]
 provides-extras = ["test"]
 

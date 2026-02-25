@@ -506,6 +506,10 @@ class McpServerContext:
             self._server.should_exit = True
         if self._thread:
             self._thread.join(timeout=5)
+            if self._thread.is_alive():
+                from kodo import log
+
+                log.tprint("[mcp] server thread did not stop within 5s")
 
 
 @dataclass
@@ -814,6 +818,31 @@ _KODO_GIT_ENV = {
 }
 
 
+def _strip_pycache_from_index(repo_dir: Path) -> None:
+    """Remove __pycache__ files from the git index (but not working tree).
+
+    Agents frequently commit __pycache__/.pyc which causes merge conflicts
+    when multiple parallel branches each commit different bytecode.
+    """
+    cached = subprocess.run(
+        ["git", "ls-files", "--cached", "-z"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    pycache_files = [
+        f
+        for f in cached.stdout.split("\0")
+        if f and ("__pycache__/" in f or f.endswith(".pyc"))
+    ]
+    if pycache_files:
+        subprocess.run(
+            ["git", "rm", "-r", "--cached", "--quiet", "--"] + pycache_files,
+            cwd=repo_dir,
+            capture_output=True,
+        )
+
+
 def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
     """Commit any uncommitted changes in a worktree.
 
@@ -838,6 +867,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         capture_output=True,
         check=True,
     )
+    _strip_pycache_from_index(worktree_dir)
     result = subprocess.run(
         ["git", "commit", "-m", f"kodo: parallel stage '{stage_name}' changes"],
         cwd=worktree_dir,
@@ -891,8 +921,56 @@ def merge_worktree_branch(
         log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
         return MergeResult(success=True, had_changes=False)
 
-    # Clean untracked files (e.g. __pycache__) that would block merge.
-    # After a failed merge-abort, also reset any dirty state.
+    # Strip __pycache__ from the branch (agents commit bytecode that
+    # causes binary conflicts across parallel branches).
+    current_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "checkout", branch_name],
+        cwd=project_dir,
+        capture_output=True,
+    )
+    _strip_pycache_from_index(project_dir)
+    # Commit only if we actually removed something
+    subprocess.run(
+        [
+            "git",
+            "commit",
+            "-m",
+            "kodo: strip __pycache__ before merge",
+            "--allow-empty-message",
+        ],
+        cwd=project_dir,
+        capture_output=True,
+        env={**os.environ, **_KODO_GIT_ENV},
+    )
+    subprocess.run(
+        ["git", "checkout", current_branch],
+        cwd=project_dir,
+        capture_output=True,
+    )
+
+    # Strip __pycache__ from current branch too (prior merge may have
+    # brought in bytecode that would conflict with the next branch).
+    _strip_pycache_from_index(project_dir)
+    subprocess.run(
+        [
+            "git",
+            "commit",
+            "-m",
+            "kodo: strip __pycache__ from main",
+            "--allow-empty-message",
+        ],
+        cwd=project_dir,
+        capture_output=True,
+        env={**os.environ, **_KODO_GIT_ENV},
+    )
+
+    # Clean untracked files and dirty state that would block merge.
     subprocess.run(
         ["git", "checkout", "--", "."],
         cwd=project_dir,
@@ -1054,6 +1132,13 @@ class OrchestratorBase:
         should override this to return an independent copy.
         """
         return self
+
+    async def close(self) -> None:
+        """Clean up resources (HTTP clients, etc.).
+
+        Default is a no-op.  Subclasses that acquire resources in
+        ``for_parallel()`` should override this.
+        """
 
     def run(
         self,
@@ -1488,6 +1573,10 @@ class OrchestratorBase:
                             **kwargs,
                         )
                     finally:
+                        try:
+                            loop.run_until_complete(orchestrator.close())
+                        except Exception:
+                            pass  # best-effort cleanup
                         loop.close()
 
                 parallel_results: list[StageResult] = []

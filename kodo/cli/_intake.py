@@ -595,7 +595,6 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
         }
         backend = _backend_map[_select_one("Interview backend:", backends)]
 
-    staged = False
     if _looks_staged(goal_text):
         print("This goal looks like it has multiple steps.")
         stage_choice = input("Break into stages? [Y/n] ").strip().lower()

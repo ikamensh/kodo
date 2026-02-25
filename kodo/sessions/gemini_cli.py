@@ -18,8 +18,9 @@ class GeminiCliSession(SubprocessSession):
         model: str = "gemini-2.5-flash",
         system_prompt: str | None = None,
         resume_session: bool = False,
+        timeout_s: int = 7200,
     ):
-        super().__init__(model, system_prompt)
+        super().__init__(model, system_prompt, timeout_s=timeout_s)
         self._resume_next = resume_session
         # Gemini CLI auto-saves sessions; --resume loads the last one.
         # We track whether to pass --resume on the next query.
@@ -27,7 +28,11 @@ class GeminiCliSession(SubprocessSession):
 
     def clone(self) -> "GeminiCliSession":
         """Create a fresh session with the same config but no state."""
-        return GeminiCliSession(model=self.model, system_prompt=self.system_prompt)
+        return GeminiCliSession(
+            model=self.model,
+            system_prompt=self.system_prompt,
+            timeout_s=self._timeout_s,
+        )
 
     @property
     def cost_bucket(self) -> str:
@@ -129,7 +134,12 @@ class GeminiCliSession(SubprocessSession):
 
         if is_error and not result_text:
             hint = classify_session_error(
-                proc.returncode, stderr_text, stdout_text, "gemini"
+                proc.returncode,
+                stderr_text,
+                stdout_text,
+                "gemini",
+                did_timeout=self._did_timeout,
+                timeout_s=self._timeout_s,
             )
             result_text = hint or stderr_text
 

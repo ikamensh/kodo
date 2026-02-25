@@ -236,6 +236,7 @@ class TestBuildTeamFromJson:
             system_prompt=None,
             chrome=True,
             fallback_model="sonnet",
+            session_timeout_s=7200,
         )
 
 

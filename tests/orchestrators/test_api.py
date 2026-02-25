@@ -271,6 +271,41 @@ class TestSummarizeEmptyOutput:
         assert result == "Completed task X, pending task Y."
 
 
+# ── close() tests ───────────────────────────────────────────────────────
+
+
+def test_close_releases_http_client():
+    """close() should aclose the _http_client if present, and no-op otherwise."""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    orch = ApiOrchestrator(model="claude-opus-4-6")
+
+    # No client — close is a no-op
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(orch.close())
+    loop.close()
+    assert orch._http_client is None
+
+    # With a client — should call aclose and clear
+    mock_client = AsyncMock()
+    orch._http_client = mock_client
+
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(orch.close())
+    loop.close()
+
+    mock_client.aclose.assert_awaited_once()
+    assert orch._http_client is None
+
+    # Idempotent — second close is a no-op
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(orch.close())
+    loop.close()
+    # aclose still only called once
+    mock_client.aclose.assert_awaited_once()
+
+
 # ── shared helpers ───────────────────────────────────────────────────────
 
 

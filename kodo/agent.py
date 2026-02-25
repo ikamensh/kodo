@@ -177,10 +177,9 @@ class Agent:
     def _run_timed(self, goal: str, project_dir: Path, label: str) -> QueryResult:
         """Execute a query with a timeout.
 
-        Uses ``shutdown(wait=False)`` so the main thread is never blocked
-        if ``session.terminate()`` doesn't fully kill the worker thread.
-        The worker thread is daemonic via the pool, so it won't prevent
-        process exit.
+        Uses ``shutdown(wait=False, cancel_futures=True)`` so the main
+        thread is never blocked if ``session.terminate()`` doesn't fully
+        kill the worker thread.
         """
         pool = ThreadPoolExecutor(max_workers=1)
         future = pool.submit(
@@ -200,14 +199,17 @@ class Agent:
             self.session.terminate()
             self.session.reset()
             return QueryResult(
-                text=f"Agent timed out after {self.timeout_s}s",
+                text=(
+                    f"Agent timed out after {self.timeout_s}s. "
+                    "Hint: increase timeout_s in Agent or TeamConfig."
+                ),
                 elapsed_s=self.timeout_s,
                 is_error=True,
             )
         finally:
             # Don't wait for the worker thread — if terminate() didn't kill
             # it, waiting here would hang the caller indefinitely.
-            pool.shutdown(wait=False)
+            pool.shutdown(wait=False, cancel_futures=True)
 
     def clone(self) -> "Agent":
         """Create a new Agent with a fresh session copy (no shared state)."""

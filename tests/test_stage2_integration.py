@@ -158,13 +158,10 @@ class TestBugM5SnapshotLeaksStats:
     Location: log.py — _test_snapshot returns a 4-tuple without RunStats.
     """
 
-    def test_snapshot_omits_run_stats(self):
+    def test_snapshot_includes_run_stats(self):
         snapshot = log._test_snapshot()
-        assert len(snapshot) == 4
-        for item in snapshot:
-            if isinstance(item, log.RunStats):
-                return  # fixed — RunStats is now captured
-        # Bug confirmed: stats not in snapshot
+        assert len(snapshot) == 6
+        assert any(isinstance(item, log.RunStats) for item in snapshot)
 
 
 # ---------------------------------------------------------------------------

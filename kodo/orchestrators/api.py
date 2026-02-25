@@ -154,6 +154,7 @@ class ApiOrchestrator(OrchestratorBase):
             else None
         )
         self._summarizer = Summarizer()
+        self._http_client: httpx.AsyncClient | None = None
 
     def for_parallel(self) -> "ApiOrchestrator":
         """Create a copy safe for use in a parallel thread.
@@ -180,7 +181,9 @@ class ApiOrchestrator(OrchestratorBase):
             # Google/Gemini models — recreate with a fresh HTTP client
             from pydantic_ai.providers.google import GoogleProvider
 
-            provider = GoogleProvider(http_client=httpx.AsyncClient(timeout=60.0))
+            http_client = httpx.AsyncClient(timeout=60.0)
+            copy._http_client = http_client
+            provider = GoogleProvider(http_client=http_client)
             type_of_model = type(base_model)
             copy._pydantic_model = type_of_model(
                 base_model._model_name, provider=provider
@@ -190,6 +193,12 @@ class ApiOrchestrator(OrchestratorBase):
             # instance; the cache issue is specific to Google providers.
             copy._pydantic_model = base_model
         return copy
+
+    async def close(self) -> None:
+        """Close any HTTP client created by :meth:`for_parallel`."""
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
 
     def cycle(
         self,

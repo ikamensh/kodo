@@ -19,15 +19,19 @@ class CodexSession(SubprocessSession):
         system_prompt: str | None = None,
         resume_session_id: str | None = None,
         sandbox: str = "workspace-write",
+        timeout_s: int = 7200,
     ):
-        super().__init__(model, system_prompt)
+        super().__init__(model, system_prompt, timeout_s=timeout_s)
         self._session_id: str | None = resume_session_id
         self._sandbox = sandbox
 
     def clone(self) -> "CodexSession":
         """Create a fresh session with the same config but no state."""
         return CodexSession(
-            model=self.model, system_prompt=self.system_prompt, sandbox=self._sandbox
+            model=self.model,
+            system_prompt=self.system_prompt,
+            sandbox=self._sandbox,
+            timeout_s=self._timeout_s,
         )
 
     @property
@@ -186,7 +190,12 @@ class CodexSession(SubprocessSession):
         # Classify the error for better diagnostics
         if is_error and not result_text:
             hint = classify_session_error(
-                proc.returncode, stderr_text, "\n".join(error_messages), "codex"
+                proc.returncode,
+                stderr_text,
+                "\n".join(error_messages),
+                "codex",
+                did_timeout=self._did_timeout,
+                timeout_s=self._timeout_s,
             )
             if hint:
                 result_text = hint

@@ -136,7 +136,7 @@ def preflight_check_backends(team: "TeamConfig") -> list[str]:
     warnings: list[str] = []
     checked: set[str] = set()
 
-    for name, agent in team.items():
+    for _, agent in team.items():
         backend = _detect_backend(agent)
         if backend is None or backend in checked:
             continue
@@ -236,7 +236,7 @@ def _build_team_saga(
     if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
-            "claude, cursor-agent, codex, or gemini."
+            "claude, cursor, codex, or gemini-cli."
         )
 
     team: TeamConfig = {}
@@ -360,7 +360,7 @@ def _build_team_mission() -> TeamConfig:
     if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
-            "claude, cursor-agent, codex, or gemini."
+            "claude, cursor, codex, or gemini-cli."
         )
 
     team: TeamConfig = {}
@@ -539,22 +539,6 @@ _MODEL_ALIASES: dict[str, str] = {
     "gemini-pro": "gemini-3.1-pro-preview",
     "gemini-flash": "gemini-3-flash-preview",
 }
-
-
-def default_fallback(model: str) -> str | None:
-    """Return a sensible fallback model for *model*, or None."""
-    full = _MODEL_ALIASES.get(model, model)
-    if full.startswith("claude"):
-        return "gemini-3.1-pro-preview"
-    if full.startswith("gemini"):
-        return "claude-sonnet-4-5-20250929"
-    return None
-
-
-def model_alias_for_display(full_model_id: str) -> str:
-    """Return short alias for display, or full ID if no alias."""
-    rev = {v: k for k, v in _MODEL_ALIASES.items()}
-    return rev.get(full_model_id, full_model_id)
 
 
 def build_orchestrator(
