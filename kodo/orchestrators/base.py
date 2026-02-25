@@ -934,7 +934,7 @@ def _resolve_conflicts_with_agent(
         ),
     )
     try:
-        result = session.query(
+        session.query(
             f"Resolve the merge conflicts in this project. The conflicting files are:\n"
             f"{files}\n\n"
             f"The branch being merged is '{branch_name}' (stage: {stage_name}). "
@@ -956,7 +956,7 @@ def _resolve_conflicts_with_agent(
         text=True,
     )
     if remaining.stdout.strip():
-        log.tprint(f"[persist] Agent failed to resolve all conflicts")
+        log.tprint("[persist] Agent failed to resolve all conflicts")
         log.emit(
             "persist_conflict_resolve_failed",
             stage_name=stage_name,
