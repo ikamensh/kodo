@@ -117,8 +117,8 @@ class TestIntakeInterviewLoop:
         ):
             result = run_intake_chat("claude", run_dir, "Build a game", staged=True)
 
-        # Only the initial query — no user input waited for
-        assert session.stats.queries == 1
+        # Initial query + parallelism pass — no user input waited for
+        assert session.stats.queries == 2
         assert result is not None
 
 

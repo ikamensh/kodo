@@ -14,11 +14,15 @@ from kodo.orchestrators.base import (
     CycleResult,
     GoalPlan,
     GoalStage,
+    MergeResult,
     OrchestratorBase,
     ResumeState,
+    _remove_worktree_keep_branch,
+    commit_worktree_changes,
     compose_stage_goal,
     create_worktree,
     execution_groups,
+    merge_worktree_branch,
     remove_worktree,
 )
 from tests.conftest import make_agent
@@ -530,6 +534,46 @@ def test_parse_goal_plan_skips_incomplete_stages():
     plan = _parse_goal_plan(raw)
     assert len(plan.stages) == 1
     assert plan.stages[0].name == "Good"
+
+
+def test_parse_goal_plan_parallel_and_persist():
+    from kodo.cli import _parse_goal_plan
+
+    raw = {
+        "context": "Test",
+        "stages": [
+            {
+                "index": 1,
+                "name": "Setup",
+                "description": "d1",
+                "acceptance_criteria": "c1",
+            },
+            {
+                "index": 2,
+                "name": "WorkA",
+                "description": "d2",
+                "acceptance_criteria": "c2",
+                "parallel_group": 1,
+                "persist_changes": True,
+            },
+            {
+                "index": 3,
+                "name": "WorkB",
+                "description": "d3",
+                "acceptance_criteria": "c3",
+                "parallel_group": 1,
+                "persist_changes": False,
+            },
+        ],
+    }
+    plan = _parse_goal_plan(raw)
+    assert len(plan.stages) == 3
+    assert plan.stages[0].parallel_group is None
+    assert plan.stages[0].persist_changes is False
+    assert plan.stages[1].parallel_group == 1
+    assert plan.stages[1].persist_changes is True
+    assert plan.stages[2].parallel_group == 1
+    assert plan.stages[2].persist_changes is False
 
 
 def test_parse_goal_plan_no_context_returns_empty():
@@ -1220,3 +1264,270 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
 
         # The first worktree was successfully created — verify it was cleaned up
         assert mock_remove.call_count == 1
+
+
+# ── persist_changes helper tests ──────────────────────────────────────────
+
+
+_GIT_ENV = {
+    **__import__("os").environ,
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
+
+
+def _git(project, *args):
+    """Run a git command in project dir."""
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args], cwd=project, capture_output=True, text=True, env=_GIT_ENV
+    )
+
+
+class TestCommitWorktreeChanges:
+    def test_commits_unstaged_files(self, git_project):
+        wt, branch = create_worktree(git_project, "commit-test")
+        (wt / "new.py").write_text("print('hello')")
+        assert commit_worktree_changes(wt, "TestStage")
+        # Verify commit exists on worktree branch
+        log_out = _git(wt, "log", "--oneline", "-1")
+        assert "parallel stage 'TestStage'" in log_out.stdout
+        remove_worktree(git_project, wt, branch)
+
+    def test_no_changes_returns_false(self, git_project):
+        wt, branch = create_worktree(git_project, "noop-test")
+        assert not commit_worktree_changes(wt, "TestStage")
+        remove_worktree(git_project, wt, branch)
+
+
+class TestRemoveWorktreeKeepBranch:
+    def test_dir_removed_branch_survives(self, git_project):
+        import subprocess
+
+        wt, branch = create_worktree(git_project, "keep-branch")
+        assert wt.exists()
+        _remove_worktree_keep_branch(git_project, wt)
+        assert not wt.exists()
+        # Branch should still exist
+        branches = subprocess.run(
+            ["git", "branch"], cwd=git_project, capture_output=True, text=True
+        ).stdout
+        assert branch in branches
+        # Clean up branch
+        subprocess.run(
+            ["git", "branch", "-D", branch],
+            cwd=git_project,
+            capture_output=True,
+        )
+
+
+class TestMergeWorktreeBranch:
+    def test_clean_merge(self, git_project):
+        wt, branch = create_worktree(git_project, "merge-clean")
+        (wt / "feature.py").write_text("# new feature")
+        _git(wt, "add", "-A")
+        _git(wt, "commit", "-m", "add feature")
+        _remove_worktree_keep_branch(git_project, wt)
+
+        result = merge_worktree_branch(git_project, branch, "MergeStage")
+        assert result.success
+        assert result.had_changes
+        assert not result.conflict
+        assert (git_project / "feature.py").exists()
+
+        # Clean up branch
+        _git(git_project, "branch", "-D", branch)
+
+    def test_no_commits_ahead(self, git_project):
+        wt, branch = create_worktree(git_project, "merge-noop")
+        _remove_worktree_keep_branch(git_project, wt)
+
+        result = merge_worktree_branch(git_project, branch, "NoopStage")
+        assert result.success
+        assert not result.had_changes
+        _git(git_project, "branch", "-D", branch)
+
+    def test_conflict_aborts_cleanly(self, git_project):
+        # Create a file on main branch
+        (git_project / "shared.py").write_text("original")
+        _git(git_project, "add", "-A")
+        _git(git_project, "commit", "-m", "add shared")
+
+        # Create worktree and modify the same file
+        wt, branch = create_worktree(git_project, "merge-conflict")
+        (wt / "shared.py").write_text("worktree version")
+        _git(wt, "add", "-A")
+        _git(wt, "commit", "-m", "worktree change")
+        _remove_worktree_keep_branch(git_project, wt)
+
+        # Modify same file on main
+        (git_project / "shared.py").write_text("main version")
+        _git(git_project, "add", "-A")
+        _git(git_project, "commit", "-m", "main change")
+
+        result = merge_worktree_branch(git_project, branch, "ConflictStage")
+        assert not result.success
+        assert result.had_changes
+        assert result.conflict
+
+        # Main should be clean (no dirty state)
+        status = _git(git_project, "status", "--porcelain")
+        assert not status.stdout.strip()
+
+        _git(git_project, "branch", "-D", branch)
+
+
+# ── persist_changes integration tests ─────────────────────────────────────
+
+
+def _make_persist_plan(persist_a=False, persist_b=False) -> GoalPlan:
+    """Plan with S1 sequential, S2+S3 parallel (configurable persist), S4 sequential."""
+    return GoalPlan(
+        context="test persist",
+        stages=[
+            GoalStage(
+                index=1, name="Setup", description="d1", acceptance_criteria="c1"
+            ),
+            GoalStage(
+                index=2,
+                name="WorkA",
+                description="d2",
+                acceptance_criteria="c2",
+                parallel_group=1,
+                persist_changes=persist_a,
+            ),
+            GoalStage(
+                index=3,
+                name="WorkB",
+                description="d3",
+                acceptance_criteria="c3",
+                parallel_group=1,
+                persist_changes=persist_b,
+            ),
+            GoalStage(
+                index=4, name="Final", description="d4", acceptance_criteria="c4"
+            ),
+        ],
+    )
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_persist_changes_merges_to_main(mock_viewer, tmp_path):
+    """Parallel stage with persist_changes=True should merge files back."""
+    import subprocess
+
+    project = tmp_path / "repo"
+    project.mkdir()
+    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=project,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
+    )
+    log.init(RunDir.create(tmp_path))
+
+    plan = _make_persist_plan(persist_a=True, persist_b=False)
+
+    class FileWritingOrchestrator(FakeOrchestrator):
+        def cycle(self, goal, project_dir, team, **kwargs):
+            # Write a file only in worktree-based (parallel) stages
+            if project_dir != project:
+                # Use "stage-2" vs "stage-3" from worktree path to distinguish
+                if "stage-2" in str(project_dir):
+                    (project_dir / "from_a.py").write_text("# from A")
+                else:
+                    (project_dir / "from_b.py").write_text("# from B")
+            return CycleResult(summary="done", finished=True)
+
+    orch = FileWritingOrchestrator()
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run("goal", project, team, max_cycles=10, plan=plan, auto_commit=True)
+
+    # WorkA (stage 2) had persist_changes=True — its file should be on main
+    assert (project / "from_a.py").exists(), "Persist stage A file should be merged"
+    # WorkB (stage 3) had persist_changes=False — its file should NOT be on main
+    assert not (project / "from_b.py").exists(), "Non-persist stage B file should be discarded"
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_persist_changes_false_discards(mock_viewer, tmp_path):
+    """Default persist_changes=False should discard worktree changes (regression)."""
+    import subprocess
+
+    project = tmp_path / "repo"
+    project.mkdir()
+    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=project,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
+    )
+    log.init(RunDir.create(tmp_path))
+
+    plan = _make_persist_plan(persist_a=False, persist_b=False)
+
+    class FileWritingOrchestrator(FakeOrchestrator):
+        def cycle(self, goal, project_dir, team, **kwargs):
+            # Write file only in worktree (parallel stage), not main dir
+            if project_dir != project:
+                (project_dir / "should_vanish.py").write_text("# gone")
+            return CycleResult(summary="done", finished=True)
+
+    orch = FileWritingOrchestrator()
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run("goal", project, team, max_cycles=10, plan=plan)
+
+    assert not (project / "should_vanish.py").exists()
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
+    """persist_changes=True should pass auto_commit=True to parallel cycle."""
+    plan = _make_persist_plan(persist_a=True, persist_b=False)
+
+    auto_commit_per_call = []
+
+    class TrackingOrchestrator(FakeOrchestrator):
+        def cycle(
+            self, goal, project_dir, team, *,
+            max_exchanges=30, prior_summary="", browser_testing=False,
+            verifiers=None, auto_commit=False,
+        ):
+            auto_commit_per_call.append(auto_commit)
+            return super().cycle(
+                goal, project_dir, team,
+                max_exchanges=max_exchanges, prior_summary=prior_summary,
+                browser_testing=browser_testing, verifiers=verifiers,
+                auto_commit=auto_commit,
+            )
+
+    orch = TrackingOrchestrator(
+        cycle_results=[
+            CycleResult(summary="s1", finished=True),
+            CycleResult(summary="s2", finished=True),
+            CycleResult(summary="s3", finished=True),
+            CycleResult(summary="s4", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run("goal", tmp_project, team, max_cycles=10, plan=plan, auto_commit=True)
+
+    # Stage 1: True, WorkA (persist): True, WorkB (no persist): False, Stage 4: True
+    assert auto_commit_per_call[0] is True  # stage 1
+    parallel_commits = auto_commit_per_call[1:3]
+    assert True in parallel_commits  # WorkA (persist_changes=True)
+    assert False in parallel_commits  # WorkB (persist_changes=False)
+    assert auto_commit_per_call[3] is True  # stage 4

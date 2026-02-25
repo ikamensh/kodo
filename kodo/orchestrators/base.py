@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import socket
 import subprocess
@@ -28,6 +29,7 @@ class GoalStage:
     acceptance_criteria: str  # verifiable "done" definition
     browser_testing: bool = False  # whether this stage needs browser verification
     parallel_group: int | None = None  # stages with same group run concurrently
+    persist_changes: bool = False  # merge worktree changes back after completion
 
 
 @dataclass
@@ -794,6 +796,139 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         shutil.rmtree(worktree_dir, ignore_errors=True)
 
 
+@dataclass
+class MergeResult:
+    """Result of merging a worktree branch back into the main branch."""
+
+    success: bool
+    had_changes: bool
+    conflict: bool = False
+    error: str = ""
+
+
+_KODO_GIT_ENV = {
+    "GIT_AUTHOR_NAME": "kodo",
+    "GIT_AUTHOR_EMAIL": "noreply@github.com",
+    "GIT_COMMITTER_NAME": "kodo",
+    "GIT_COMMITTER_EMAIL": "noreply@github.com",
+}
+
+
+def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
+    """Commit any uncommitted changes in a worktree.
+
+    Returns True if a commit was made.  Used as a safety net before merging —
+    catches changes the agent didn't commit during its run.
+    """
+    from kodo import log
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=worktree_dir,
+        capture_output=True,
+        text=True,
+    )
+    if not status.stdout.strip():
+        log.tprint(f"[persist] Stage '{stage_name}': no uncommitted changes")
+        return False
+
+    subprocess.run(
+        ["git", "add", "-A"],
+        cwd=worktree_dir,
+        capture_output=True,
+        check=True,
+    )
+    result = subprocess.run(
+        ["git", "commit", "-m", f"kodo: parallel stage '{stage_name}' changes"],
+        cwd=worktree_dir,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **_KODO_GIT_ENV},
+    )
+    if result.returncode != 0:
+        log.tprint(f"[persist] Stage '{stage_name}': commit failed: {result.stderr}")
+        return False
+
+    log.tprint(f"[persist] Stage '{stage_name}': committed worktree changes")
+    return True
+
+
+def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
+    """Remove a worktree directory without deleting its branch."""
+    result = subprocess.run(
+        ["git", "worktree", "remove", str(worktree_dir), "--force"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 and worktree_dir.exists():
+        shutil.rmtree(worktree_dir, ignore_errors=True)
+    subprocess.run(
+        ["git", "worktree", "prune"],
+        cwd=project_dir,
+        capture_output=True,
+    )
+
+
+def merge_worktree_branch(
+    project_dir: Path, branch_name: str, stage_name: str
+) -> MergeResult:
+    """Merge a worktree branch into the current branch at *project_dir*.
+
+    Uses ``--no-ff`` to preserve branch history.  On conflict, aborts the
+    merge and returns a result with ``conflict=True``.
+    """
+    from kodo import log
+
+    # Check if branch has any commits ahead of HEAD
+    diff_check = subprocess.run(
+        ["git", "log", f"HEAD..{branch_name}", "--oneline"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if not diff_check.stdout.strip():
+        log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
+        return MergeResult(success=True, had_changes=False)
+
+    result = subprocess.run(
+        [
+            "git", "merge", branch_name, "--no-ff",
+            "-m", f"Merge kodo parallel stage: {stage_name}",
+        ],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **_KODO_GIT_ENV},
+    )
+
+    if result.returncode != 0:
+        subprocess.run(
+            ["git", "merge", "--abort"],
+            cwd=project_dir,
+            capture_output=True,
+        )
+        is_conflict = "CONFLICT" in (result.stdout + result.stderr)
+        log.tprint(
+            f"[persist] Stage '{stage_name}': "
+            f"merge {'conflict' if is_conflict else 'failed'}"
+        )
+        log.emit(
+            "persist_merge_failed",
+            stage_name=stage_name,
+            branch=branch_name,
+            conflict=is_conflict,
+            error=result.stderr[:1000],
+        )
+        return MergeResult(
+            success=False, had_changes=True, conflict=is_conflict, error=result.stderr,
+        )
+
+    log.tprint(f"[persist] Stage '{stage_name}': merged successfully")
+    log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
+    return MergeResult(success=True, had_changes=True)
+
+
 def execution_groups(plan: GoalPlan) -> list[list[GoalStage]]:
     """Group stages into execution order for sequential and parallel running.
 
@@ -1334,6 +1469,7 @@ class OrchestratorBase:
                     finally:
                         loop.close()
 
+                parallel_results: list[StageResult] = []
                 try:
                     for stage in group:
                         try:
@@ -1368,12 +1504,13 @@ class OrchestratorBase:
                                 max_cycles_for_stage=per_stage_cycles,
                                 initial_prior_summary=initial_prior,
                                 verifiers=verifiers,
-                                auto_commit=False,
+                                auto_commit=(
+                                    stage.persist_changes and auto_commit
+                                ),
                             )
                             futures_map[future] = stage
 
                         # Collect results as they finish
-                        parallel_results: list[StageResult] = []
                         for future in as_completed(futures_map):
                             stage = futures_map[future]
                             try:
@@ -1399,16 +1536,82 @@ class OrchestratorBase:
                 finally:
                     # Clean up cloned sessions and worktrees even on
                     # KeyboardInterrupt to avoid leaking temp directories.
+
+                    # Build lookup for persist_changes stages
+                    stages_by_idx = {s.index: s for s in group}
+                    finished_indices = {
+                        pr.stage_index
+                        for pr in parallel_results
+                        if pr.finished
+                    } if parallel_results else set()
+
+                    # 1. Commit uncommitted changes in persist_changes
+                    #    worktrees (safety net before merge).
+                    branches_to_merge: list[tuple[str, str, int]] = []
+                    for stage_idx, (wt_dir, branch) in worktrees.items():
+                        stg = stages_by_idx.get(stage_idx)
+                        if (
+                            stg
+                            and stg.persist_changes
+                            and stage_idx in finished_indices
+                        ):
+                            try:
+                                commit_worktree_changes(wt_dir, stg.name)
+                                branches_to_merge.append(
+                                    (branch, stg.name, stage_idx)
+                                )
+                            except Exception as exc:
+                                log.tprint(
+                                    f"[persist] Commit failed for "
+                                    f"stage {stage_idx}: {exc}"
+                                )
+
+                    # 2. Close cloned sessions
                     for st in stage_teams.values():
                         for agent in st.values():
                             agent.close()
+
+                    # 3. Remove worktrees — keep branches that need merging
+                    branches_to_keep = {b for b, _, _ in branches_to_merge}
                     for stage_idx, (wt_dir, branch) in worktrees.items():
                         try:
-                            remove_worktree(project_dir, wt_dir, branch)
+                            if branch in branches_to_keep:
+                                _remove_worktree_keep_branch(
+                                    project_dir, wt_dir
+                                )
+                            else:
+                                remove_worktree(project_dir, wt_dir, branch)
                         except Exception as exc:
                             log.tprint(
                                 f"[orchestrator] Worktree cleanup failed for "
                                 f"stage {stage_idx}: {exc}"
+                            )
+
+                    # 4. Merge persist_changes branches sequentially
+                    branches_to_merge.sort(key=lambda x: x[2])
+                    for branch, stage_name, stage_idx in branches_to_merge:
+                        try:
+                            merge_result = merge_worktree_branch(
+                                project_dir, branch, stage_name
+                            )
+                            log.emit(
+                                "persist_stage_merge",
+                                stage_index=stage_idx,
+                                success=merge_result.success,
+                                had_changes=merge_result.had_changes,
+                                conflict=merge_result.conflict,
+                            )
+                        except Exception as exc:
+                            log.tprint(
+                                f"[persist] Merge failed for "
+                                f"stage {stage_idx}: {exc}"
+                            )
+                        finally:
+                            # Always clean up the branch after merge attempt
+                            subprocess.run(
+                                ["git", "branch", "-D", branch],
+                                cwd=project_dir,
+                                capture_output=True,
                             )
 
                 # Sort summaries by stage index for deterministic ordering

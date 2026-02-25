@@ -69,6 +69,24 @@ JSON format:
 Set browser_testing=true only for stages with web UI to verify in a browser.
 Break into 2-5 independently verifiable stages, ordered by dependency."""
 
+_PARALLELISM_PASS_PROMPT = """\
+Now review the plan you just wrote and identify stages that can run in parallel.
+
+Stages can be parallel when they:
+- Touch different files or areas of the codebase
+- Don't depend on each other's output
+- Could be done by separate developers simultaneously
+
+For each stage, decide:
+- parallel_group: assign the same integer to stages that should run concurrently. \
+null for sequential stages. Each parallel stage runs in its own git worktree.
+- persist_changes: true if a parallel stage produces code changes that should \
+be merged back into the main branch. false for read-only/exploration stages \
+(testing, auditing, analysis).
+
+Update the JSON file, adding parallel_group and persist_changes to each stage. \
+If no stages can be parallelized, leave them all as null/false."""
+
 _AUTO_REFINE_PROMPT = """\
 Review this goal before implementation:
 
@@ -166,6 +184,8 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
                 description=description,
                 acceptance_criteria=acceptance_criteria,
                 browser_testing=bool(s.get("browser_testing", False)),
+                parallel_group=s.get("parallel_group"),
+                persist_changes=bool(s.get("persist_changes", False)),
             )
         )
     return GoalPlan(context=context, stages=stages)
@@ -242,7 +262,11 @@ def run_intake_chat(
         # skip the conversation loop — no need to make the user type /done.
         if output_file.exists():
             _print_separator()
-            return _read_intake_output(output_file, staged)
+            return _read_intake_output(
+                output_file, staged,
+                session=session if staged else None,
+                project_dir=project_dir if staged else None,
+            )
 
         # Conversation loop
         while True:
@@ -275,7 +299,11 @@ def run_intake_chat(
 
         # Check if output was written during the conversation
         if output_file.exists():
-            return _read_intake_output(output_file, staged)
+            return _read_intake_output(
+                output_file, staged,
+                session=session if staged else None,
+                project_dir=project_dir if staged else None,
+            )
 
         # User ended the interview — ask Claude to finalize and write the output
         finalize_msg = (
@@ -287,7 +315,11 @@ def run_intake_chat(
         _print_agent(result.text)
 
         if output_file.exists():
-            return _read_intake_output(output_file, staged)
+            return _read_intake_output(
+                output_file, staged,
+                session=session if staged else None,
+                project_dir=project_dir if staged else None,
+            )
 
         print("\nNo output file written; using original goal.")
         return None
@@ -295,9 +327,36 @@ def run_intake_chat(
         _close_session(session)
 
 
-def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | None:
-    """Read the intake output file and return the appropriate type."""
+def _run_parallelism_pass(session, output_file: Path, project_dir: Path) -> None:
+    """Second turn: ask the LLM to annotate the sequential plan with parallelism.
+
+    Sends ``_PARALLELISM_PASS_PROMPT`` in the same session so the LLM has full
+    context from the planning conversation.  The LLM overwrites the plan file
+    with updated ``parallel_group`` / ``persist_changes`` fields.
+    """
+    try:
+        with _Spinner("Identifying parallelism"):
+            session.query(_PARALLELISM_PASS_PROMPT, project_dir, max_turns=10)
+    except Exception as exc:
+        print(f"\n  Parallelism pass failed ({exc}), using sequential plan.")
+
+
+def _read_intake_output(
+    output_file: Path,
+    staged: bool,
+    *,
+    session=None,
+    project_dir: Path | None = None,
+) -> GoalPlan | str | None:
+    """Read the intake output file and return the appropriate type.
+
+    When *session* and *project_dir* are provided for a staged plan, runs a
+    parallelism pass (second LLM turn) to annotate stages with
+    ``parallel_group`` and ``persist_changes`` before parsing.
+    """
     if staged:
+        if session is not None and project_dir is not None:
+            _run_parallelism_pass(session, output_file, project_dir)
         try:
             raw = json.loads(output_file.read_text(encoding="utf-8"))
             plan = _parse_goal_plan(raw)
@@ -305,7 +364,9 @@ def _read_intake_output(output_file: Path, staged: bool) -> GoalPlan | str | Non
                 print(f"\nGoal plan read from {output_file}")
                 print(f"  {len(plan.stages)} stage(s):")
                 for s in plan.stages:
-                    print(f"    {s.index}. {s.name}")
+                    pg = f" [parallel group {s.parallel_group}]" if s.parallel_group is not None else ""
+                    pc = " [persist]" if s.persist_changes else ""
+                    print(f"    {s.index}. {s.name}{pg}{pc}")
                 return plan
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             print(f"\nWarning: could not read {output_file}: {exc}")
@@ -439,7 +500,10 @@ def run_intake_noninteractive(
             print(f"\n{result.text}\n")
 
         if output_file.exists():
-            return _read_intake_output(output_file, staged=True)
+            return _read_intake_output(
+                output_file, staged=True,
+                session=session, project_dir=project_dir,
+            )
 
         print("Warning: intake did not produce a plan. Proceeding without stages.")
         return None

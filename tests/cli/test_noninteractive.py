@@ -280,7 +280,8 @@ class TestRunIntakeNoninteractive:
 
         assert result is not None
         assert len(result.stages) == 1
-        assert session.stats.queries == 1
+        # 1 planning query + 1 parallelism pass
+        assert session.stats.queries == 2
 
     def test_finalize_fallback(self, project):
         """If first query doesn't produce file, sends finalize query."""
@@ -316,7 +317,8 @@ class TestRunIntakeNoninteractive:
             result = run_intake_noninteractive(run_dir, "Build something")
 
         assert result is not None
-        assert session.stats.queries == 2
+        # 1 planning + 1 finalize + 1 parallelism pass
+        assert session.stats.queries == 3
 
     def test_returns_none_when_no_file_written(self, project):
         run_dir = RunDir.create(project, "test")
