@@ -263,7 +263,8 @@ def run_intake_chat(
         if output_file.exists():
             _print_separator()
             return _read_intake_output(
-                output_file, staged,
+                output_file,
+                staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
@@ -300,7 +301,8 @@ def run_intake_chat(
         # Check if output was written during the conversation
         if output_file.exists():
             return _read_intake_output(
-                output_file, staged,
+                output_file,
+                staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
@@ -316,7 +318,8 @@ def run_intake_chat(
 
         if output_file.exists():
             return _read_intake_output(
-                output_file, staged,
+                output_file,
+                staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
@@ -364,7 +367,11 @@ def _read_intake_output(
                 print(f"\nGoal plan read from {output_file}")
                 print(f"  {len(plan.stages)} stage(s):")
                 for s in plan.stages:
-                    pg = f" [parallel group {s.parallel_group}]" if s.parallel_group is not None else ""
+                    pg = (
+                        f" [parallel group {s.parallel_group}]"
+                        if s.parallel_group is not None
+                        else ""
+                    )
                     pc = " [persist]" if s.persist_changes else ""
                     print(f"    {s.index}. {s.name}{pg}{pc}")
                 return plan
@@ -498,8 +505,10 @@ def run_single_turn_plan(
 
         if output_file.exists():
             return _read_intake_output(
-                output_file, staged=True,
-                session=session, project_dir=project_dir,
+                output_file,
+                staged=True,
+                session=session,
+                project_dir=project_dir,
             )
 
         return None

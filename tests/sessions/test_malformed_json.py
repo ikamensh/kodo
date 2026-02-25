@@ -55,11 +55,13 @@ def test_cursor_result_is_dict_instead_of_string(tmp_path: Path):
     session = CursorSession()
 
     # Semantically nonsensical: result should be string, we send dict
-    malformed = json.dumps({
-        "type": "result",
-        "result": {"foo": "bar", "nested": True},
-        "chatId": "c1",
-    })
+    malformed = json.dumps(
+        {
+            "type": "result",
+            "result": {"foo": "bar", "nested": True},
+            "chatId": "c1",
+        }
+    )
     mock_popen = _make_mock_popen(malformed + "\n")
 
     with patch("kodo.sessions.base.subprocess.Popen", mock_popen):
@@ -89,13 +91,17 @@ def test_gemini_response_field_is_list(tmp_path: Path):
     session = GeminiCliSession(model="gemini-2.5-flash")
 
     # Semantically nonsensical: response should be string, we send list
-    malformed = json.dumps({
-        "response": ["chunk1", "chunk2", "chunk3"],
-        "stats": {
-            "models": {"gemini-2.5-flash": {"tokens": {"prompt": 0, "candidates": 0}}},
-            "tools": {},
-        },
-    })
+    malformed = json.dumps(
+        {
+            "response": ["chunk1", "chunk2", "chunk3"],
+            "stats": {
+                "models": {
+                    "gemini-2.5-flash": {"tokens": {"prompt": 0, "candidates": 0}}
+                },
+                "tools": {},
+            },
+        }
+    )
     mock_popen = _make_mock_popen(malformed + "\n")
 
     with patch("kodo.sessions.base.subprocess.Popen", mock_popen):

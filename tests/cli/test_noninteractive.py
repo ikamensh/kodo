@@ -786,7 +786,9 @@ class TestValidateImprovePlan:
         return GoalPlan(context="test", stages=stages)
 
     def test_passes_through_complete_plan(self):
-        plan = self._make_plan(["Baseline", "Testing", "Triage & Verify", "Fix & Report"])
+        plan = self._make_plan(
+            ["Baseline", "Testing", "Triage & Verify", "Fix & Report"]
+        )
         result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
         assert len(result.stages) == 4
 
@@ -820,7 +822,9 @@ class TestValidateImprovePlan:
 
     def test_assigns_findings_paths_to_analysis_stages(self):
         """Each analysis stage gets a findings file path injected."""
-        plan = self._make_plan(["Baseline", "Edge Cases", "Triage & Verify", "Fix & Report"])
+        plan = self._make_plan(
+            ["Baseline", "Edge Cases", "Triage & Verify", "Fix & Report"]
+        )
         result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
         assert "findings-baseline.md" in result.stages[0].description
         assert "findings-edge-cases.md" in result.stages[1].description
@@ -828,7 +832,13 @@ class TestValidateImprovePlan:
     def test_parallel_stages_get_no_modify_instruction(self):
         """Parallel stages get 'Do NOT modify source code' injected."""
         plan = self._make_plan(
-            ["Baseline", "Happy Path", "Adversarial", "Triage & Verify", "Fix & Report"],
+            [
+                "Baseline",
+                "Happy Path",
+                "Adversarial",
+                "Triage & Verify",
+                "Fix & Report",
+            ],
             parallel_groups={"Happy Path": 1, "Adversarial": 1},
         )
         result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
@@ -839,7 +849,9 @@ class TestValidateImprovePlan:
 
     def test_triage_stage_gets_findings_refs(self):
         """Triage stage description references all findings files."""
-        plan = self._make_plan(["Baseline", "Testing", "Triage & Verify", "Fix & Report"])
+        plan = self._make_plan(
+            ["Baseline", "Testing", "Triage & Verify", "Fix & Report"]
+        )
         result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
         triage = result.stages[2]
         assert "findings-baseline.md" in triage.description
@@ -847,7 +859,9 @@ class TestValidateImprovePlan:
 
     def test_fix_stage_gets_findings_refs(self):
         """Fix stage description references all findings files."""
-        plan = self._make_plan(["Baseline", "Testing", "Triage & Verify", "Fix & Report"])
+        plan = self._make_plan(
+            ["Baseline", "Testing", "Triage & Verify", "Fix & Report"]
+        )
         result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
         fix = result.stages[3]
         assert "findings-baseline.md" in fix.description

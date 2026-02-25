@@ -891,10 +891,27 @@ def merge_worktree_branch(
         log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
         return MergeResult(success=True, had_changes=False)
 
+    # Clean untracked files (e.g. __pycache__) that would block merge.
+    # After a failed merge-abort, also reset any dirty state.
+    subprocess.run(
+        ["git", "checkout", "--", "."],
+        cwd=project_dir,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "clean", "-fd"],
+        cwd=project_dir,
+        capture_output=True,
+    )
+
     result = subprocess.run(
         [
-            "git", "merge", branch_name, "--no-ff",
-            "-m", f"Merge kodo parallel stage: {stage_name}",
+            "git",
+            "merge",
+            branch_name,
+            "--no-ff",
+            "-m",
+            f"Merge kodo parallel stage: {stage_name}",
         ],
         cwd=project_dir,
         capture_output=True,
@@ -921,7 +938,10 @@ def merge_worktree_branch(
             error=result.stderr[:1000],
         )
         return MergeResult(
-            success=False, had_changes=True, conflict=is_conflict, error=result.stderr,
+            success=False,
+            had_changes=True,
+            conflict=is_conflict,
+            error=result.stderr,
         )
 
     log.tprint(f"[persist] Stage '{stage_name}': merged successfully")
@@ -1486,9 +1506,7 @@ class OrchestratorBase:
                                 f"[orchestrator] Worktree creation failed for "
                                 f"stage {stage.index}, using project dir: {exc}"
                             )
-                    max_parallel = int(
-                        os.environ.get("KODO_MAX_PARALLEL", "2")
-                    )
+                    max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
                     workers = min(len(group), max_parallel)
                     with ThreadPoolExecutor(max_workers=workers) as pool:
                         for stage in group:
@@ -1509,9 +1527,7 @@ class OrchestratorBase:
                                 max_cycles_for_stage=per_stage_cycles,
                                 initial_prior_summary=initial_prior,
                                 verifiers=verifiers,
-                                auto_commit=(
-                                    stage.persist_changes and auto_commit
-                                ),
+                                auto_commit=(stage.persist_changes and auto_commit),
                             )
                             futures_map[future] = stage
 
@@ -1544,11 +1560,11 @@ class OrchestratorBase:
 
                     # Build lookup for persist_changes stages
                     stages_by_idx = {s.index: s for s in group}
-                    finished_indices = {
-                        pr.stage_index
-                        for pr in parallel_results
-                        if pr.finished
-                    } if parallel_results else set()
+                    finished_indices = (
+                        {pr.stage_index for pr in parallel_results if pr.finished}
+                        if parallel_results
+                        else set()
+                    )
 
                     # 1. Commit uncommitted changes in persist_changes
                     #    worktrees (safety net before merge).
@@ -1562,9 +1578,7 @@ class OrchestratorBase:
                         ):
                             try:
                                 commit_worktree_changes(wt_dir, stg.name)
-                                branches_to_merge.append(
-                                    (branch, stg.name, stage_idx)
-                                )
+                                branches_to_merge.append((branch, stg.name, stage_idx))
                             except Exception as exc:
                                 log.tprint(
                                     f"[persist] Commit failed for "
@@ -1581,9 +1595,7 @@ class OrchestratorBase:
                     for stage_idx, (wt_dir, branch) in worktrees.items():
                         try:
                             if branch in branches_to_keep:
-                                _remove_worktree_keep_branch(
-                                    project_dir, wt_dir
-                                )
+                                _remove_worktree_keep_branch(project_dir, wt_dir)
                             else:
                                 remove_worktree(project_dir, wt_dir, branch)
                         except Exception as exc:
@@ -1608,8 +1620,7 @@ class OrchestratorBase:
                             )
                         except Exception as exc:
                             log.tprint(
-                                f"[persist] Merge failed for "
-                                f"stage {stage_idx}: {exc}"
+                                f"[persist] Merge failed for stage {stage_idx}: {exc}"
                             )
                         finally:
                             # Always clean up the branch after merge attempt

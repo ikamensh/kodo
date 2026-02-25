@@ -105,7 +105,6 @@ def main() -> int:
 
     with (
         patch("kodo.cli._intake.make_session", side_effect=_fake_make_session),
-        patch("kodo.cli._improve.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.has_claude", return_value=True),
         patch("kodo.factory.has_cursor", return_value=True),

@@ -14,7 +14,6 @@ from kodo.orchestrators.base import (
     CycleResult,
     GoalPlan,
     GoalStage,
-    MergeResult,
     OrchestratorBase,
     ResumeState,
     _remove_worktree_keep_branch,
@@ -1453,7 +1452,9 @@ def test_persist_changes_merges_to_main(mock_viewer, tmp_path):
     # WorkA (stage 2) had persist_changes=True — its file should be on main
     assert (project / "from_a.py").exists(), "Persist stage A file should be merged"
     # WorkB (stage 3) had persist_changes=False — its file should NOT be on main
-    assert not (project / "from_b.py").exists(), "Non-persist stage B file should be discarded"
+    assert not (project / "from_b.py").exists(), (
+        "Non-persist stage B file should be discarded"
+    )
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
@@ -1500,15 +1501,26 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
 
     class TrackingOrchestrator(FakeOrchestrator):
         def cycle(
-            self, goal, project_dir, team, *,
-            max_exchanges=30, prior_summary="", browser_testing=False,
-            verifiers=None, auto_commit=False,
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            browser_testing=False,
+            verifiers=None,
+            auto_commit=False,
         ):
             auto_commit_per_call.append(auto_commit)
             return super().cycle(
-                goal, project_dir, team,
-                max_exchanges=max_exchanges, prior_summary=prior_summary,
-                browser_testing=browser_testing, verifiers=verifiers,
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                browser_testing=browser_testing,
+                verifiers=verifiers,
                 auto_commit=auto_commit,
             )
 

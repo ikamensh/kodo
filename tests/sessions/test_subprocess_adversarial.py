@@ -20,7 +20,7 @@ import pytest
 from kodo import log
 from kodo.agent import Agent
 from kodo.log import RunDir
-from kodo.sessions.base import QueryResult, SessionStats
+from kodo.sessions.base import QueryResult
 from tests.conftest import FakeSession
 
 

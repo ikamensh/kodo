@@ -213,9 +213,7 @@ def _is_fix_stage(name: str) -> bool:
     return "fix" in n or "report" in n
 
 
-def _validate_improve_plan(
-    plan: GoalPlan, report_path: str, run_dir: str
-) -> GoalPlan:
+def _validate_improve_plan(plan: GoalPlan, report_path: str, run_dir: str) -> GoalPlan:
     """Post-process an AI-generated plan to ensure correctness.
 
     1. Append triage and fix/report stages if the AI omitted them.
@@ -402,9 +400,7 @@ def _build_fallback_plan(report_path: str) -> GoalPlan:
                     f"`{adversarial_findings}`. "
                     "Also include Stage 1 findings from prior context."
                 ),
-                acceptance_criteria=(
-                    f"Every finding has a verdict in {triage_path}."
-                ),
+                acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
             ),
             GoalStage(
                 index=5,
