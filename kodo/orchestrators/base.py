@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -13,7 +15,6 @@ from pathlib import Path
 from typing import Protocol
 
 from kodo.agent import Agent
-
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
@@ -181,7 +182,8 @@ def handle_agent_call(
         report=report,
     )
 
-    done_msg = f"✅ [{agent_name}] done ({agent_result.elapsed_s:.1f}s)"
+    icon = "⚠️" if agent_result.is_error else "✅"
+    done_msg = f"{icon} [{agent_name}] done ({agent_result.elapsed_s:.1f}s)"
     if agent_obj.session.cost_bucket != "cursor_subscription":
         done_msg += f" | session: {agent_result.session_tokens:,} tokens"
     log.tprint(done_msg)
@@ -434,6 +436,7 @@ class McpServerContext:
         self._mcp = mcp
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._exc: Exception | None = None
         self.port: int = 0
         self.sse_url: str = ""
 
@@ -450,35 +453,52 @@ class McpServerContext:
         ready = threading.Event()
 
         def _run():
-            import uvicorn
+            try:
+                import uvicorn
 
-            config = uvicorn.Config(
-                self._mcp.sse_app(),
-                host="127.0.0.1",
-                port=self.port,
-                log_level="error",
-            )
-            server = uvicorn.Server(config)
-            self._server = server
+                config = uvicorn.Config(
+                    self._mcp.sse_app(),
+                    host="127.0.0.1",
+                    port=self.port,
+                    log_level="error",
+                )
+                server = uvicorn.Server(config)
+                self._server = server
 
-            # Signal ready once server is started
-            original_startup = server.startup
+                # Signal ready once server is started
+                original_startup = server.startup
 
-            async def _startup(sockets=None):
-                await original_startup(sockets)
-                ready.set()
+                async def _startup(sockets=None):
+                    await original_startup(sockets)
+                    ready.set()
 
-            server.startup = _startup
+                server.startup = _startup
 
-            self._loop = asyncio.new_event_loop()
-            self._loop.run_until_complete(server.serve())
+                self._loop = asyncio.new_event_loop()
+                self._loop.run_until_complete(server.serve())
+            except Exception as e:
+                self._exc = e
+                ready.set()  # unblock main thread so it can raise
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
 
         # Wait for the server to be ready (up to 10s)
         if not ready.wait(timeout=10):
+            if hasattr(self, "_server"):
+                self._server.should_exit = True
+            if self._thread:
+                self._thread.join(timeout=5)
+            if self._exc:
+                raise self._exc
             raise RuntimeError("MCP server failed to start within 10s")
+
+        if self._exc:
+            if hasattr(self, "_server"):
+                self._server.should_exit = True
+            if self._thread:
+                self._thread.join(timeout=5)
+            raise self._exc
 
         return self
 
@@ -510,6 +530,13 @@ class McpServerContext:
                 from kodo import log
 
                 log.tprint("[mcp] server thread did not stop within 5s")
+        # Always close the event loop once the thread has exited to avoid
+        # leaking file descriptors / selector resources.
+        if self._loop and (not self._thread or not self._thread.is_alive()):
+            try:
+                self._loop.close()
+            except Exception:
+                pass  # best-effort cleanup
 
 
 @dataclass
@@ -525,9 +552,16 @@ class VerificationState:
 
 
 def _check_passed(report: str) -> bool:
-    """Return True if a verifier report signals acceptance."""
+    """Return True if a verifier report signals acceptance.
+
+    Uses word-boundary matching to avoid substring false positives
+    (e.g. "NOT ALL CHECKS PASS" or "The user said ALL CHECKS PASS").
+    """
     upper = report.upper()
-    return PASS_SIGNAL in upper or MINOR_SIGNAL in upper
+    if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:
+        return False
+    pattern = re.compile(r"\bALL CHECKS PASS\b|\bMINOR ISSUES FIXED\b")
+    return bool(pattern.search(upper))
 
 
 def verify_done(
@@ -799,6 +833,13 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
     if worktree_dir.exists():
         shutil.rmtree(worktree_dir, ignore_errors=True)
 
+    # 4. Prune stale worktree metadata (rmtree leaves .git/worktrees/ entries)
+    subprocess.run(
+        ["git", "worktree", "prune"],
+        cwd=project_dir,
+        capture_output=True,
+    )
+
 
 @dataclass
 class MergeResult:
@@ -992,6 +1033,24 @@ def merge_worktree_branch(
     """
     from kodo import log
 
+    # Pre-flight: abort early if the main repo has uncommitted changes.
+    # Running destructive commands (checkout, clean) on a dirty worktree
+    # would silently discard user work.
+    preflight = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if preflight.stdout.strip():
+        dirty_msg = (
+            f"Stage '{stage_name}': refusing to merge — main repo has uncommitted "
+            f"changes. Commit or stash them first.\n"
+            f"Dirty files:\n{preflight.stdout.strip()[:500]}"
+        )
+        log.tprint(f"[persist] {dirty_msg}")
+        return MergeResult(success=False, had_changes=False, error=dirty_msg)
+
     # Check if branch has any commits ahead of HEAD
     diff_check = subprocess.run(
         ["git", "log", f"HEAD..{branch_name}", "--oneline"],
@@ -999,70 +1058,133 @@ def merge_worktree_branch(
         capture_output=True,
         text=True,
     )
+    if diff_check.returncode != 0:
+        log.tprint(f"[persist] Stage '{stage_name}': branch '{branch_name}' not found")
+        return MergeResult(
+            success=False, had_changes=False, error=diff_check.stderr or ""
+        )
     if not diff_check.stdout.strip():
         log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
         return MergeResult(success=True, had_changes=False)
 
     # Strip __pycache__ from the branch (agents commit bytecode that
     # causes binary conflicts across parallel branches).
-    current_branch = subprocess.run(
+    rev_parse = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=project_dir,
         capture_output=True,
         text=True,
-    ).stdout.strip()
-    subprocess.run(
-        ["git", "checkout", branch_name],
-        cwd=project_dir,
-        capture_output=True,
     )
+    if rev_parse.returncode != 0:
+        return MergeResult(
+            success=False, had_changes=False, error=rev_parse.stderr or ""
+        )
+    current_branch = rev_parse.stdout.strip()
+
+    try:
+        subprocess.run(
+            ["git", "checkout", branch_name],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        log.tprint(
+            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {e.stderr}"
+        )
+        return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
+
     _strip_pycache_from_index(project_dir)
-    # Commit only if we actually removed something
-    subprocess.run(
-        [
-            "git",
-            "commit",
-            "-m",
-            "kodo: strip __pycache__ before merge",
-            "--allow-empty-message",
-        ],
+    status_before = subprocess.run(
+        ["git", "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
-        env={**os.environ, **_KODO_GIT_ENV},
+        text=True,
     )
-    subprocess.run(
-        ["git", "checkout", current_branch],
-        cwd=project_dir,
-        capture_output=True,
-    )
+    if status_before.stdout.strip():
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                "kodo: strip __pycache__ before merge",
+            ],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+            env={**os.environ, **_KODO_GIT_ENV},
+        )
+
+    try:
+        subprocess.run(
+            ["git", "checkout", current_branch],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        log.tprint(
+            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {e.stderr}"
+        )
+        return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
 
     # Strip __pycache__ from current branch too (prior merge may have
     # brought in bytecode that would conflict with the next branch).
     _strip_pycache_from_index(project_dir)
-    subprocess.run(
-        [
-            "git",
-            "commit",
-            "-m",
-            "kodo: strip __pycache__ from main",
-            "--allow-empty-message",
-        ],
+    status_main = subprocess.run(
+        ["git", "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
-        env={**os.environ, **_KODO_GIT_ENV},
+        text=True,
     )
+    if status_main.stdout.strip():
+        subprocess.run(
+            [
+                "git",
+                "commit",
+                "-m",
+                "kodo: strip __pycache__ from main",
+            ],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+            env={**os.environ, **_KODO_GIT_ENV},
+        )
 
     # Clean untracked files and dirty state that would block merge.
-    subprocess.run(
-        ["git", "checkout", "--", "."],
+    # Skip if user has local changes — don't wipe their data.
+    status_clean = subprocess.run(
+        ["git", "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
+        text=True,
     )
-    subprocess.run(
-        ["git", "clean", "-fd"],
-        cwd=project_dir,
-        capture_output=True,
-    )
+    if status_clean.stdout.strip():
+        log.tprint(
+            f"[persist] Stage '{stage_name}': skipping checkout/clean — "
+            "untracked or modified files would be lost"
+        )
+    else:
+        co = subprocess.run(
+            ["git", "checkout", "--", "."],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+        )
+        if co.returncode != 0:
+            log.tprint(
+                f"[persist] Stage '{stage_name}': checkout -- . failed: {co.stderr}"
+            )
+        cl = subprocess.run(
+            ["git", "clean", "-fd"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+        )
+        if cl.returncode != 0:
+            log.tprint(f"[persist] Stage '{stage_name}': clean -fd failed: {cl.stderr}")
 
     result = subprocess.run(
         [
@@ -1083,20 +1205,32 @@ def merge_worktree_branch(
         is_conflict = "CONFLICT" in (result.stdout + result.stderr)
 
         if is_conflict:
-            log.tprint(f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution")
-            resolved = _resolve_conflicts_with_agent(project_dir, branch_name, stage_name)
+            log.tprint(
+                f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution"
+            )
+            resolved = _resolve_conflicts_with_agent(
+                project_dir, branch_name, stage_name
+            )
             if resolved:
-                log.tprint(f"[persist] Stage '{stage_name}': conflicts resolved by agent")
+                log.tprint(
+                    f"[persist] Stage '{stage_name}': conflicts resolved by agent"
+                )
                 log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
                 return MergeResult(success=True, had_changes=True)
             # Agent failed — abort the merge
-            log.tprint(f"[persist] Stage '{stage_name}': agent could not resolve conflicts")
+            log.tprint(
+                f"[persist] Stage '{stage_name}': agent could not resolve conflicts"
+            )
 
-        subprocess.run(
+        abort = subprocess.run(
             ["git", "merge", "--abort"],
             cwd=project_dir,
             capture_output=True,
         )
+        if abort.returncode != 0:
+            log.tprint(
+                f"[persist] Stage '{stage_name}': merge --abort failed: {abort.stderr}"
+            )
         merge_output = result.stdout + result.stderr
         log.tprint(
             f"[persist] Stage '{stage_name}': "
@@ -1631,7 +1765,7 @@ class OrchestratorBase:
                     and group is remaining_groups[0]
                 ):
                     initial_prior = resume.prior_summary
-                futures_map: dict = {}
+                futures_map: dict[concurrent.futures.Future, GoalStage] = {}
 
                 # Each parallel stage gets its own cloned team (fresh
                 # sessions) so agents aren't shared across threads.

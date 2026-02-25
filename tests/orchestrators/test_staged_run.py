@@ -26,7 +26,6 @@ from kodo.orchestrators.base import (
 )
 from tests.conftest import make_agent
 
-
 # ── compose_stage_goal tests ─────────────────────────────────────────────
 
 
@@ -573,6 +572,84 @@ def test_parse_goal_plan_parallel_and_persist():
     assert plan.stages[1].persist_changes is True
     assert plan.stages[2].parallel_group == 1
     assert plan.stages[2].persist_changes is False
+
+
+def test_parse_goal_plan_validation_raises():
+    """Invalid index or parallel_group raises ValueError."""
+    from kodo.cli import _parse_goal_plan
+
+    with pytest.raises(ValueError, match="positive"):
+        _parse_goal_plan(
+            {
+                "context": "X",
+                "stages": [
+                    {
+                        "index": -1,
+                        "name": "S",
+                        "description": "D",
+                        "acceptance_criteria": "C",
+                    }
+                ],
+            }
+        )
+
+    with pytest.raises(ValueError, match="Duplicate"):
+        _parse_goal_plan(
+            {
+                "context": "X",
+                "stages": [
+                    {
+                        "index": 1,
+                        "name": "A",
+                        "description": "D",
+                        "acceptance_criteria": "C",
+                    },
+                    {
+                        "index": 1,
+                        "name": "B",
+                        "description": "D",
+                        "acceptance_criteria": "C",
+                    },
+                ],
+            }
+        )
+
+    with pytest.raises(ValueError, match="parallel_group"):
+        _parse_goal_plan(
+            {
+                "context": "X",
+                "stages": [
+                    {
+                        "index": 1,
+                        "name": "S",
+                        "description": "D",
+                        "acceptance_criteria": "C",
+                        "parallel_group": "abc",
+                    }
+                ],
+            }
+        )
+
+
+def test_parse_goal_plan_parallel_group_coerced():
+    """parallel_group string "1" is coerced to int."""
+    from kodo.cli import _parse_goal_plan
+
+    plan = _parse_goal_plan(
+        {
+            "context": "X",
+            "stages": [
+                {
+                    "index": 1,
+                    "name": "S",
+                    "description": "D",
+                    "acceptance_criteria": "C",
+                    "parallel_group": "1",
+                }
+            ],
+        }
+    )
+    assert plan.stages[0].parallel_group == 1
 
 
 def test_parse_goal_plan_no_context_returns_empty():

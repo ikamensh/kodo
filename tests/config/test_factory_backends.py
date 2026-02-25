@@ -12,8 +12,8 @@ from unittest.mock import patch
 import pytest
 
 from kodo.factory import (
-    _build_team_saga,
     _build_team_mission,
+    _build_team_saga,
     _mission_system_prompt,
     check_api_key,
 )

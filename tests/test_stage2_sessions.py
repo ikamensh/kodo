@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 from kodo.sessions.base import QueryResult, SubprocessSession
 
-
 # ---------------------------------------------------------------------------
 # SubprocessSession stderr cap
 # ---------------------------------------------------------------------------

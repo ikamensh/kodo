@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import questionary
 
@@ -69,9 +70,9 @@ def _cmd_backends() -> None:
     import subprocess
 
     from kodo.factory import (
-        available_backends,
-        _PREFLIGHT_CMDS,
         _MODEL_ALIASES,
+        _PREFLIGHT_CMDS,
+        available_backends,
         check_api_key,
     )
 
@@ -181,9 +182,8 @@ def _cmd_teams() -> None:
 
 def _cmd_teams_list() -> None:
     """List all available teams (built-in and user-defined)."""
-    from kodo.team_config import list_available_teams, _BACKEND_MAP
-
     from kodo.factory import available_backends
+    from kodo.team_config import _BACKEND_MAP, list_available_teams
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -228,9 +228,8 @@ def _cmd_teams_list() -> None:
 
 def _cmd_teams_auto(mode_name: str) -> None:
     """Generate a viable team config from available backends."""
-    from kodo.team_config import list_available_teams, _BACKEND_MAP
-
     from kodo.factory import available_backends
+    from kodo.team_config import _BACKEND_MAP, list_available_teams
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -371,10 +370,10 @@ def _teams_dir() -> Path:
 
 
 def _ask_agent_fields(
-    defaults: dict | None = None,
-) -> dict:
+    defaults: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Interactively collect fields for one agent definition."""
-    from kodo.team_config import _BACKEND_MAP, _AGENT_DEFAULTS
+    from kodo.team_config import _AGENT_DEFAULTS, _BACKEND_MAP
 
     d = defaults or {}
     backends = list(_BACKEND_MAP.keys())
@@ -424,7 +423,7 @@ def _ask_agent_fields(
         print("Cancelled.")
         sys.exit(1)
 
-    agent: dict = {
+    agent: dict[str, Any] = {
         "backend": backend,
         "model": model.strip(),
         "description": description,
@@ -454,7 +453,7 @@ def _ask_agent_fields(
     return agent
 
 
-def _save_team(name: str, config: dict) -> Path:
+def _save_team(name: str, config: dict[str, Any]) -> Path:
     """Write team config to ~/.kodo/teams/{name}.json."""
     path = _teams_dir() / f"{name}.json"
     path.write_text(json.dumps(config, indent=2) + "\n")
@@ -494,7 +493,7 @@ def _cmd_teams_add(name: str) -> None:
         print("Cancelled.")
         sys.exit(1)
 
-    agents: dict = {}
+    agents: dict[str, dict[str, Any]] = {}
     while True:
         print(f"\n--- Add agent ({len(agents)} so far) ---")
         agent_key = questionary.text("Agent key name (empty to finish):").ask()
@@ -514,7 +513,11 @@ def _cmd_teams_add(name: str) -> None:
 
     # Assign verifiers
     agent_keys = list(agents.keys())
-    verifiers: dict = {"testers": [], "browser_testers": [], "reviewers": []}
+    verifiers: dict[str, list[str]] = {
+        "testers": [],
+        "browser_testers": [],
+        "reviewers": [],
+    }
 
     if len(agent_keys) > 1:
         print("\n--- Verifier assignment ---")

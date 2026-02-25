@@ -14,13 +14,11 @@ from unittest.mock import patch
 import pytest
 
 from kodo import log
-from kodo.cli import main
-from kodo.cli import _main_inner
+from kodo.cli import _main_inner, main
 from kodo.cli._intake import _load_goal_plan
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator
 from tests.conftest import FakeRunResult
-
 
 # ---------------------------------------------------------------------------
 # File corruption

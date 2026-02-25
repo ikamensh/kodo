@@ -7,7 +7,6 @@ from pathlib import Path
 
 from kodo import log
 
-
 _CLI_ARGS = {"event": "cli_args", "team": "saga"}
 
 

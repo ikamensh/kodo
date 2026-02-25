@@ -121,13 +121,38 @@ class SubprocessSession:
         self._process = proc
         stderr_chunks: list[str] = []
         _STDERR_MAX_LINES = 10_000  # cap to avoid unbounded memory
+        _STDERR_MAX_LINE = 65536  # 64KB per line to avoid unbounded single-line buffer
 
         def _drain() -> None:
-            for i, line in enumerate(proc.stderr):
-                if i < _STDERR_MAX_LINES:
-                    stderr_chunks.append(line)
-                elif i == _STDERR_MAX_LINES:
-                    stderr_chunks.append("\n[... stderr truncated ...]\n")
+            buf = ""
+            line_count = 0
+            while True:
+                chunk = proc.stderr.read(4096)
+                if not chunk:
+                    if buf and line_count < _STDERR_MAX_LINES:
+                        stderr_chunks.append(
+                            buf[:_STDERR_MAX_LINE]
+                            + (
+                                "\n[... truncated ...]\n"
+                                if len(buf) > _STDERR_MAX_LINE
+                                else "\n"
+                            )
+                        )
+                    break
+                buf += chunk
+                while "\n" in buf or len(buf) >= _STDERR_MAX_LINE:
+                    if "\n" in buf:
+                        line, _, buf = buf.partition("\n")
+                        line = line + "\n"
+                    else:
+                        line = buf[:_STDERR_MAX_LINE] + "\n[... truncated ...]\n"
+                        buf = buf[_STDERR_MAX_LINE:]
+                    if line_count < _STDERR_MAX_LINES:
+                        stderr_chunks.append(line)
+                        line_count += 1
+                    elif line_count == _STDERR_MAX_LINES:
+                        stderr_chunks.append("\n[... stderr truncated ...]\n")
+                        line_count += 1
 
         thread = threading.Thread(target=_drain, daemon=True)
         thread.start()
@@ -176,7 +201,8 @@ class SubprocessSession:
         except subprocess.TimeoutExpired:
             try:
                 proc.kill()
-            except OSError:
+                proc.wait(timeout=2)  # reap zombie after kill
+            except (OSError, subprocess.TimeoutExpired):
                 pass
         self._process = None
 

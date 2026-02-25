@@ -20,7 +20,6 @@ from kodo.orchestrators.base import (
 from kodo.sessions.base import QueryResult
 from tests.conftest import FakeRunResult, FakeSession, make_agent
 
-
 GOAL = "Build a hello-world web server."
 SUMMARY = "Implemented hello-world server on port 8000."
 

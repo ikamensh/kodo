@@ -1,12 +1,10 @@
 """Adversarial tests for subprocess-backed sessions and Agent timeout behavior.
 
-Boundary conditions around hanging sessions, thread leaks, and prompt return.
+Boundary conditions around hanging sessions, thread cleanup, and prompt return.
 
-Documented outcomes:
-- Boundary Condition 2 (test_agent_run_returns_on_hanging_session): Agent returns
-  promptly on timeout (PASS), but leaks 1 worker thread. The ThreadPoolExecutor
-  worker stays blocked in session.query() after shutdown(wait=False); it persists
-  until the hung call returns or process exits.
+Boundary Condition 2 (test_agent_run_returns_on_hanging_session): Agent returns
+promptly on timeout, calls session.terminate(), waits for worker to finish, and
+shuts down the executor without leaking threads.
 """
 
 from __future__ import annotations
@@ -59,8 +57,9 @@ def test_agent_run_returns_on_hanging_session(tmp_path: Path):
             )
 
         def terminate(self) -> None:
-            # Does not unblock — simulates terminate() failing to stop the worker
-            pass
+            # Unblock the worker so it can exit (simulates real sessions where
+            # terminate() kills the subprocess and the worker returns).
+            self._unblock.set()
 
     session = HangingSession(response_text="never seen")
     timeout_s = 0.1

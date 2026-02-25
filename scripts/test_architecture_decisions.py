@@ -35,12 +35,12 @@ from kodo.agent import Agent
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator
 from scripts.harness import (
+    _c,
     extract_orchestrator_choice,
     instrument_team,
     print_banner,
     print_log_summary,
     print_separator,
-    _c,
 )
 
 # ── Orchestrator prompt ──────────────────────────────────────────────────

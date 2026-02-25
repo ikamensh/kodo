@@ -1,12 +1,12 @@
-# CI Assistant — automated bot on our VPS (46.225.111.102:8080)
+# CI Assistant — automated bot
 #
 # Triggers after the "Tests" workflow completes:
 #
-# 1. Push to main + Tests FAIL → sends "ci_failure" to VPS
+# 1. Push to main + Tests FAIL → sends "ci_failure" to the CI assistant
 #    Claude attempts a fix and pushes, or creates a GitHub issue
 #    explaining the root cause with options/pros/cons.
 #
-# 2. PR + Tests PASS → sends "pr_review" to VPS
+# 2. PR + Tests PASS → sends "pr_review" to the CI assistant
 #    Claude posts a PR comment with a structured review:
 #      a) Purpose check — does the PR state what problem it solves
 #         and how users benefit? (can be implicit)
@@ -15,7 +15,7 @@
 #      d) Quality OK → recommend merging (may suggest optional improvements)
 #      e) Quality not OK → request specific changes
 #
-# 3. PR + Tests FAIL → sends "pr_ci_failure" to VPS
+# 3. PR + Tests FAIL → sends "pr_ci_failure" to the CI assistant
 #    Claude posts a review comment noting the test failure + reviews the PR.
 #
 # Secrets required: CI_ASSISTANT_URL, CI_ASSISTANT_SECRET

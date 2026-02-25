@@ -6,8 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kodo.cli._subcommands import _cmd_runs, _cmd_backends, _cmd_teams
-
+from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams
 
 # ---------------------------------------------------------------------------
 # kodo runs

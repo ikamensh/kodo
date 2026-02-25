@@ -6,8 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from kodo import log
-from kodo.log import RunDir
 from kodo.agent import Agent
+from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator, _messages_to_text
 from tests.conftest import FakeRunResult, FakeSession
 

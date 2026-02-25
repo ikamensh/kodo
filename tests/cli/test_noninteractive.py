@@ -10,17 +10,17 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.conftest import make_scripted_session
 from kodo.cli import (
     _build_fallback_plan,
     _build_params_from_flags,
     _extract_section,
     _load_or_select_params,
-    run_intake_noninteractive,
     _main_inner,
+    run_intake_noninteractive,
 )
 from kodo.cli._improve import _validate_improve_plan
 from kodo.log import RunDir
+from tests.conftest import make_scripted_session
 
 
 @pytest.fixture

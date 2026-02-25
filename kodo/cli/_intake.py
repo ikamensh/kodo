@@ -6,21 +6,20 @@ import sys
 from pathlib import Path
 
 from kodo import log, make_session
-from kodo.factory import has_claude, has_cursor, has_gemini_cli
-from kodo.log import RunDir
-from kodo.orchestrators.base import GoalPlan, GoalStage
-
+from kodo.cli._params import _select_one
 from kodo.cli._ui import (
+    _BOLD,
+    _DIM,
+    _GREEN,
+    _RESET,
     _atomic_write,
     _print_agent,
     _print_separator,
     _Spinner,
-    _GREEN,
-    _BOLD,
-    _DIM,
-    _RESET,
 )
-from kodo.cli._params import _select_one
+from kodo.factory import has_claude, has_cursor, has_gemini_cli
+from kodo.log import RunDir
+from kodo.orchestrators.base import GoalPlan, GoalStage
 
 
 def _close_session(session) -> None:
@@ -162,12 +161,14 @@ def _looks_staged(goal_text: str) -> bool:
 def _parse_goal_plan(raw: dict) -> GoalPlan:
     """Convert a raw dict (from JSON) into a GoalPlan dataclass.
 
-    Skips stages that are missing required fields rather than crashing.
+    Skips stages that are missing required fields. Raises ValueError for
+    invalid index (must be positive int) or parallel_group (must coerce to int).
     """
     context = raw.get("context")
     if not context:
         return GoalPlan(context="", stages=[])  # malformed input, return empty
     stages = []
+    seen_indices: set[int] = set()
     for s in raw.get("stages", []):
         if not isinstance(s, dict):
             continue
@@ -177,14 +178,32 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         acceptance_criteria = s.get("acceptance_criteria")
         if index is None or not name or not description or acceptance_criteria is None:
             continue
+        try:
+            idx = int(index)
+        except (TypeError, ValueError):
+            raise ValueError(f"Stage index must be a positive integer, got {index!r}")
+        if idx <= 0:
+            raise ValueError(f"Stage index must be positive, got {idx}")
+        if idx in seen_indices:
+            raise ValueError(f"Duplicate stage index: {idx}")
+        seen_indices.add(idx)
+
+        pg_raw = s.get("parallel_group")
+        pg: int | None = None
+        if pg_raw is not None:
+            try:
+                pg = int(pg_raw)
+            except (TypeError, ValueError):
+                raise ValueError(f"parallel_group must be integer, got {pg_raw!r}")
+
         stages.append(
             GoalStage(
-                index=index,
+                index=idx,
                 name=name,
                 description=description,
                 acceptance_criteria=acceptance_criteria,
                 browser_testing=bool(s.get("browser_testing", False)),
-                parallel_group=s.get("parallel_group"),
+                parallel_group=pg,
                 persist_changes=bool(s.get("persist_changes", False)),
             )
         )

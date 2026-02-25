@@ -8,11 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from kodo.team_config import load_team_config, build_team_from_json
 from kodo.orchestrators.base import verify_done
-
+from kodo.team_config import build_team_from_json, load_team_config
 from tests.conftest import FakeSession, make_agent
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

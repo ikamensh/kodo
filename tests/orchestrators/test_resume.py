@@ -10,7 +10,6 @@ import pytest
 from kodo import log
 from kodo.log import RunDir
 from kodo.orchestrators.base import CycleResult, OrchestratorBase, ResumeState
-
 from tests.conftest import make_agent
 
 

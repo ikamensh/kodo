@@ -9,7 +9,9 @@ import pytest
 
 from kodo import log
 from kodo.agent import Agent
+from kodo.factory import clear_backend_cache
 from kodo.sessions.base import QueryResult, SessionStats
+from kodo.user_config import clear_user_config_cache
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +21,8 @@ def _isolate_log(tmp_path: Path):
     runs_tmp = tmp_path / "kodo_runs"
     runs_tmp.mkdir()
     log._test_redirect_runs(runs_tmp)
+    clear_backend_cache()
+    clear_user_config_cache()
     yield
     log._test_restore(saved)
 

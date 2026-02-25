@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import time
+from pathlib import Path
 
 import httpx
 from pydantic_ai import Agent, Tool
@@ -20,7 +19,6 @@ from pydantic_ai.usage import UsageLimits
 from pydantic_ai_summarization import create_summarization_processor
 
 from kodo import log
-from kodo.summarizer import Summarizer
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     CycleResult,
@@ -32,6 +30,7 @@ from kodo.orchestrators.base import (
     handle_agent_call,
     handle_done,
 )
+from kodo.summarizer import Summarizer
 
 # Per-1M-token pricing: (input, output)
 _MODEL_PRICING: dict[str, tuple[float, float]] = {

@@ -8,7 +8,6 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
-
 from kodo import log
 from kodo.log import RunDir
 from kodo.sessions.claude import ClaudeSession, _extract_tokens

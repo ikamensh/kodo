@@ -11,37 +11,37 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from kodo import log, __version__  # noqa: E402
-from kodo.factory import get_team, TEAMS, has_claude, has_cursor  # noqa: E402
-from kodo.log import RunDir  # noqa: E402
-from kodo.orchestrators.base import GoalPlan  # noqa: E402
-from kodo.cli._ui import _print_banner  # noqa: E402
+from kodo import __version__, log  # noqa: E402
 from kodo.cli._improve import (  # noqa: E402
     _IMPROVE_GOAL,
     _IMPROVE_REPORT_FORMAT,
-    run_improve_discovery,
     _build_fallback_plan,
     _extract_section,
+    run_improve_discovery,
 )
 from kodo.cli._intake import (  # noqa: E402
+    _load_goal_plan,
+    _offer_intake,
     get_goal,
     run_intake_auto,
     run_intake_noninteractive,
-    _offer_intake,
-    _load_goal_plan,
+)
+from kodo.cli._launch import (  # noqa: E402
+    EXIT_ERROR,
+    _emit_json_and_exit,
+    _fail,
+    launch_resume,
+    launch_run,
 )
 from kodo.cli._params import (  # noqa: E402
     _build_params_from_flags,
     _load_or_select_params,
 )
-from kodo.cli._launch import (  # noqa: E402
-    EXIT_ERROR,
-    _fail,
-    _emit_json_and_exit,
-    launch_run,
-    launch_resume,
-)
-from kodo.cli._subcommands import _cmd_runs, _cmd_backends, _cmd_teams  # noqa: E402
+from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams  # noqa: E402
+from kodo.cli._ui import _print_banner  # noqa: E402
+from kodo.factory import TEAMS, get_team, has_claude, has_cursor  # noqa: E402
+from kodo.log import RunDir  # noqa: E402
+from kodo.orchestrators.base import GoalPlan  # noqa: E402
 
 
 def main() -> None:

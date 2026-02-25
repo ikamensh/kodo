@@ -8,7 +8,6 @@ import threading
 from pathlib import Path
 
 from kodo import log
-from kodo.summarizer import Summarizer
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     CycleResult,
@@ -19,6 +18,7 @@ from kodo.orchestrators.base import (
     build_cycle_prompt,
     build_mcp_server,
 )
+from kodo.summarizer import Summarizer
 
 
 class ClaudeCodeOrchestrator(OrchestratorBase):

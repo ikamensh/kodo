@@ -19,11 +19,10 @@ from pathlib import Path
 import pytest
 
 from kodo import log
-from kodo.cli._launch import _format_json_output
 from kodo.cli._intake import _parse_goal_plan
+from kodo.cli._launch import _format_json_output
 from kodo.log import RunDir
 from kodo.orchestrators.base import StageResult
-
 
 # ---------------------------------------------------------------------------
 # H1: max() on empty parallel_results crashes with ValueError
@@ -117,12 +116,13 @@ class TestBugM11FormatJsonOutputNone:
 
 
 class TestBugM12StageIndexZero:
-    """M12: ``if not index`` is True for index=0, silently discarding stage 0.
+    """M12: index must be positive; 0 and negative raise ValueError.
 
-    Location: cli/_intake.py — _parse_goal_plan stage filtering.
+    Location: cli/_intake.py — _parse_goal_plan validation.
     """
 
-    def test_stage_zero_preserved(self):
+    def test_stage_zero_raises(self):
+        """index=0 is invalid; raises ValueError."""
         raw = {
             "context": "test context",
             "stages": [
@@ -132,19 +132,10 @@ class TestBugM12StageIndexZero:
                     "description": "first",
                     "acceptance_criteria": "done",
                 },
-                {
-                    "index": 1,
-                    "name": "stage-one",
-                    "description": "second",
-                    "acceptance_criteria": "done",
-                },
             ],
         }
-        plan = _parse_goal_plan(raw)
-        stage_indices = [s.index for s in plan.stages]
-        if 0 not in stage_indices:
-            pytest.xfail("BUG M12: stage index=0 dropped due to `not index` falsiness")
-        assert len(plan.stages) == 2
+        with pytest.raises(ValueError, match="positive"):
+            _parse_goal_plan(raw)
 
 
 # ---------------------------------------------------------------------------

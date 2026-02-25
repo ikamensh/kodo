@@ -210,17 +210,18 @@ def init(run_dir: RunDir) -> Path:
 
     from kodo import __version__
 
-    if _run_id == run_dir.run_id and _log_file is not None:
-        return _log_file
+    with _lock:
+        if _run_id == run_dir.run_id and _log_file is not None:
+            return _log_file
 
-    _run_id = run_dir.run_id
-    _start_time = time.monotonic()
-    _run_stats = RunStats()
-    _virtual_cost_note_shown = False
+        _run_id = run_dir.run_id
+        _start_time = time.monotonic()
+        _run_stats = RunStats()
+        _virtual_cost_note_shown = False
 
-    run_dir.root.mkdir(parents=True, exist_ok=True)
-    run_dir.root.chmod(0o700)
-    _log_file = run_dir.log_file
+        run_dir.root.mkdir(parents=True, exist_ok=True)
+        run_dir.root.chmod(0o700)
+        _log_file = run_dir.log_file
 
     emit("run_init", project_dir=str(run_dir.project_dir), version=__version__)
     return _log_file
@@ -238,17 +239,17 @@ def get_log_file() -> Path | None:
 
 def emit(event: str, **data: Any) -> None:
     """Write a single log event."""
-    if _log_file is None:
-        return
-
-    record = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "t": round(time.monotonic() - (_start_time or 0), 3),
-        "event": event,
-        **data,
-    }
-
     with _lock:
+        if _log_file is None:
+            return
+
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "t": round(time.monotonic() - (_start_time or 0), 3),
+            "event": event,
+            **data,
+        }
+
         try:
             with open(_log_file, "a") as f:
                 f.write(json.dumps(record, default=_serialize) + "\n")
@@ -536,10 +537,11 @@ def init_append(log_file: Path) -> Path:
     """Set module globals to append to an existing log file. Emits run_resumed marker."""
     global _log_file, _run_id, _start_time, _run_stats
 
-    _log_file = log_file
-    _run_id = _extract_run_id(log_file)
-    _start_time = time.monotonic()
-    _run_stats = RunStats()
+    with _lock:
+        _log_file = log_file
+        _run_id = _extract_run_id(log_file)
+        _start_time = time.monotonic()
+        _run_stats = RunStats()
 
     emit("run_resumed", log_file=str(log_file))
     return log_file

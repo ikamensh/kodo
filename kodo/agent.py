@@ -15,12 +15,13 @@ Usage::
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
 
-from kodo.sessions.base import QueryResult, Session
 from kodo import log
+from kodo.sessions.base import QueryResult, Session
 
 
 @dataclass
@@ -177,9 +178,9 @@ class Agent:
     def _run_timed(self, goal: str, project_dir: Path, label: str) -> QueryResult:
         """Execute a query with a timeout.
 
-        Uses ``shutdown(wait=False, cancel_futures=True)`` so the main
-        thread is never blocked if ``session.terminate()`` doesn't fully
-        kill the worker thread.
+        On timeout: calls session.terminate(), waits briefly for the worker
+        to finish, then shuts down the executor. If the worker still hasn't
+        finished, logs a warning and proceeds without blocking.
         """
         pool = ThreadPoolExecutor(max_workers=1)
         future = pool.submit(
@@ -192,11 +193,17 @@ class Agent:
             return future.result(timeout=self.timeout_s)
         except FuturesTimeoutError:
             log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
-            # Kill the underlying process/connection first, then reset
-            # session state.  terminate() stops the running subprocess
-            # (or SDK client) so it stops burning tokens immediately;
-            # reset() clears session state for a clean next run.
             self.session.terminate()
+            # Wait briefly for the worker to finish (terminate() kills
+            # subprocess/SDK, so the worker should return).
+            try:
+                future.result(timeout=0.5)
+            except FuturesTimeoutError:
+                log.emit(
+                    "agent_timeout_worker_stuck",
+                    agent=label,
+                    message="Worker thread did not exit after terminate()",
+                )
             self.session.reset()
             return QueryResult(
                 text=(
@@ -207,9 +214,10 @@ class Agent:
                 is_error=True,
             )
         finally:
-            # Don't wait for the worker thread — if terminate() didn't kill
-            # it, waiting here would hang the caller indefinitely.
-            pool.shutdown(wait=False, cancel_futures=True)
+            if future.done():
+                pool.shutdown(wait=True)
+            else:
+                pool.shutdown(wait=False, cancel_futures=True)
 
     def clone(self) -> "Agent":
         """Create a new Agent with a fresh session copy (no shared state)."""

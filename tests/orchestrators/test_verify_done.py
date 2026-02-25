@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pytest
 
-from kodo.orchestrators.base import VerificationState, verify_done
 from kodo.agent import Agent
+from kodo.orchestrators.base import VerificationState, verify_done
 from tests.conftest import FakeSession, make_agent
-
 
 GOAL = "Build a hello-world web server."
 SUMMARY = "Implemented hello-world server on port 8000."
@@ -64,6 +64,17 @@ def test_case_insensitive_pass(tmp_project: Path) -> None:
         "architect": make_agent("All Checks Pass"),
     }
     assert verify_done(GOAL, SUMMARY, team, tmp_project) is None
+
+
+def test_not_all_checks_pass_rejected(tmp_project: Path) -> None:
+    """NOT ALL CHECKS PASS must not be a false positive for acceptance."""
+    team = {
+        "tester": make_agent("NOT ALL CHECKS PASS - server returns 500"),
+        "architect": make_agent("ALL CHECKS PASS"),
+    }
+    result = verify_done(GOAL, SUMMARY, team, tmp_project)
+    assert result is not None
+    assert "tester found issues" in result
 
 
 @pytest.mark.parametrize("present_role", ["tester", "architect"])

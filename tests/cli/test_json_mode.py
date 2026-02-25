@@ -16,7 +16,7 @@ import pytest
 from kodo.cli import _main_inner, launch_run
 from kodo.factory import TeamPreset
 from kodo.log import RunDir
-from kodo.orchestrators.base import RunResult, CycleResult
+from kodo.orchestrators.base import CycleResult, RunResult
 
 
 @pytest.fixture
@@ -173,8 +173,8 @@ class TestJsonOutput:
 class TestLaunchRunReturnsResult:
     def test_returns_run_result(self, project):
         """launch_run should return the RunResult, not None."""
-        from tests.conftest import FakeSession
         from kodo.agent import Agent
+        from tests.conftest import FakeSession
 
         run_dir = RunDir.create(project, "test")
 

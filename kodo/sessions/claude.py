@@ -56,6 +56,7 @@ class ClaudeSession:
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
+        self._closed = False
 
     async def _can_use_tool(
         self,
@@ -113,6 +114,8 @@ class ClaudeSession:
     def _ensure_client(self, project_dir: Path) -> None:
         from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
+        if self._thread and not self._thread.is_alive():
+            raise RuntimeError("Session is closed")
         if self._client is not None and self._project_dir == project_dir:
             return
 
@@ -179,11 +182,24 @@ class ClaudeSession:
         )
 
     def close(self) -> None:
-        """Stop the event loop and join the background thread."""
-        self._disconnect()
-        self._loop.call_soon_threadsafe(self._loop.stop)
+        """Stop the event loop and join the background thread. Idempotent."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._disconnect()
+        except Exception:
+            pass  # best-effort; ensure stop/join/close always run
+        try:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        except RuntimeError:
+            pass  # loop already closed/stopped
         self._thread.join(timeout=5)
-        self._loop.close()
+        if not self._thread.is_alive():
+            try:
+                self._loop.close()
+            except Exception:
+                pass  # best-effort cleanup
 
     def terminate(self) -> None:
         """Forcefully disconnect the SDK client.

@@ -7,19 +7,17 @@ from pathlib import Path
 
 import questionary
 
+from kodo.cli._ui import _atomic_write
 from kodo.factory import (
     TEAMS,
+    check_api_key,
     get_team,
     has_claude,
     has_codex,
     has_cursor,
     has_gemini_cli,
-    check_api_key,
 )
 from kodo.user_config import get_user_default
-
-from kodo.cli._ui import _atomic_write
-
 
 # ---------------------------------------------------------------------------
 # Questionary wrappers

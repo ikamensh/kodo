@@ -10,18 +10,16 @@ from pathlib import Path
 logging.getLogger("claude_agent_sdk").setLevel(logging.WARNING)
 
 from kodo import log
+from kodo.cli._intake import _load_goal_plan
+from kodo.cli._ui import _atomic_write, _backend_label
 from kodo.factory import (
-    get_team,
     build_orchestrator,
+    get_team,
     preflight_check_backends,
 )
 from kodo.log import RunDir
-from kodo.orchestrators.base import GoalPlan, ResumeState
-from kodo.team_config import load_team_config, build_team_from_json
-
-from kodo.cli._ui import _atomic_write, _backend_label
-from kodo.cli._intake import _load_goal_plan
-
+from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult
+from kodo.team_config import build_team_from_json, load_team_config
 
 # ---------------------------------------------------------------------------
 # Exit codes
@@ -220,7 +218,7 @@ def launch_run(
 # ---------------------------------------------------------------------------
 
 
-def launch_resume(run_dir: RunDir, state: log.RunState):
+def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     """Resume an interrupted run from its parsed RunState. Returns the RunResult."""
     log.init_append(state.log_file)
 

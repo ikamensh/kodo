@@ -12,14 +12,13 @@ from functools import lru_cache
 from typing import Callable
 
 from kodo import (
-    TESTER_PROMPT,
-    TESTER_BROWSER_PROMPT,
     ARCHITECT_PROMPT,
+    TESTER_BROWSER_PROMPT,
+    TESTER_PROMPT,
     make_session,
 )
 from kodo.agent import Agent
 from kodo.orchestrators.base import ORCHESTRATOR_SYSTEM_PROMPT, TeamConfig
-
 
 # ---------------------------------------------------------------------------
 # Backend availability detection

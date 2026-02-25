@@ -7,7 +7,6 @@ from pathlib import Path
 
 from kodo import log
 
-
 _RUN_START = {
     "event": "run_start",
     "orchestrator": "api",

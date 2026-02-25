@@ -8,9 +8,9 @@ import pytest
 
 from kodo.factory import (
     available_backends,
+    build_orchestrator,
     clear_backend_cache,
     get_team,
-    build_orchestrator,
 )
 
 

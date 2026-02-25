@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 import os
 import threading
-import urllib.request
 import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from kodo import log
@@ -145,9 +145,17 @@ class Summarizer:
                 with self._lock:
                     self._summaries.append(f"[{agent_name}] {text}")
                 log.tprint(f"[{agent_name}] summary: {text}")
-        except Exception:
-            # Never crash — summaries are best-effort
+        except (
+            urllib.error.URLError,
+            urllib.error.HTTPError,
+            json.JSONDecodeError,
+            OSError,
+            KeyError,
+        ):
+            # Expected: network, JSON, or malformed API response
             pass
+        except Exception as e:
+            log.emit("summarizer_error", agent=agent_name, error=str(e))
 
     def get_accumulated_summary(self) -> str:
         """Drain pending work and return all summaries collected."""

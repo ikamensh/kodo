@@ -1,11 +1,16 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.73"
+__version__ = "0.4.74"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
-from kodo.sessions.base import QueryResult, Session, SessionStats
+
+# ---------------------------------------------------------------------------
+# Shared agent prompts — imported by factory.py
+# ---------------------------------------------------------------------------
 from kodo.orchestrators.base import (
+    MINOR_SIGNAL,
+    PASS_SIGNAL,
     CycleResult,
     GoalPlan,
     GoalStage,
@@ -14,12 +19,7 @@ from kodo.orchestrators.base import (
     RunResult,
     TeamConfig,
 )
-
-# ---------------------------------------------------------------------------
-# Shared agent prompts — imported by factory.py
-# ---------------------------------------------------------------------------
-
-from kodo.orchestrators.base import PASS_SIGNAL, MINOR_SIGNAL
+from kodo.sessions.base import QueryResult, Session, SessionStats
 
 _VERIFIER_SUFFIX = (
     f"Fix minor issues yourself. Only report blocking issues with specific error messages.\n"

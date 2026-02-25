@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from kodo.cli._main import _main_inner, main
-
 
 # ---------------------------------------------------------------------------
 # --help and --version (in-process)

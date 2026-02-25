@@ -25,6 +25,11 @@ def load_user_config() -> dict:
         return {}
 
 
+def clear_user_config_cache() -> None:
+    """Invalidate the load_user_config() cache. Call after config changes or in tests."""
+    load_user_config.cache_clear()
+
+
 def get_user_default(key: str, default=None):
     """Get a user preference, e.g. get_user_default("fallback_model")."""
     return load_user_config().get(key, default)

@@ -20,7 +20,6 @@ print = functools.partial(print, flush=True)  # type: ignore[assignment]
 
 from kodo.agent import Agent, AgentResult
 
-
 # ── Pretty-printing helpers ──────────────────────────────────────────────
 
 COLORS = {

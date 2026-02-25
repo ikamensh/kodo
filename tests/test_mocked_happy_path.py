@@ -22,7 +22,6 @@ from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams
 from kodo.orchestrators.base import CycleResult, RunResult
 from tests.conftest import FakeSession
 
-
 # ---------------------------------------------------------------------------
 # Helpers for subcommand / run creation
 # ---------------------------------------------------------------------------

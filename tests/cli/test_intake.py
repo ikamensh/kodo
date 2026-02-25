@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.conftest import FakeSession, make_scripted_session
 from kodo.cli import run_intake_auto, run_intake_chat
 from kodo.log import RunDir
+from tests.conftest import FakeSession, make_scripted_session
 
 
 @pytest.fixture
