@@ -586,7 +586,7 @@ class TestImproveFlag:
                 else None,
             )
             assert plan is not None
-            assert len(plan.stages) == 5
+            assert len(plan.stages) == 6
 
     def test_improve_plan_stage_order(self, project):
         """--improve stages should follow the right sequence."""
@@ -607,6 +607,7 @@ class TestImproveFlag:
                 "Baseline & Static Analysis",
                 "Happy Path Integration Testing",
                 "Exploratory & Adversarial Testing",
+                "Architecture & Simplification Audit",
                 "Triage & Verify",
                 "Fix & Report",
             ]
@@ -643,7 +644,7 @@ class TestImproveFlag:
         assert params["team"] == "saga"
         assert params["orchestrator"] == "api"
         assert plan is not None
-        assert len(plan.stages) == 5
+        assert len(plan.stages) == 6
         assert plan.stages[0].name == "Baseline & Static Analysis"
 
 
@@ -655,13 +656,13 @@ class TestImproveFlag:
 class TestBuildFallbackPlan:
     """Tests for _build_fallback_plan() structure."""
 
-    def test_has_five_stages(self):
+    def test_has_six_stages(self):
         plan = _build_fallback_plan("/tmp/report.md")
-        assert len(plan.stages) == 5
+        assert len(plan.stages) == 6
 
     def test_stages_have_sequential_indices(self):
         plan = _build_fallback_plan("/tmp/report.md")
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5, 6]
 
     def test_report_path_in_final_stage(self):
         plan = _build_fallback_plan("/tmp/my-report.md")
@@ -690,36 +691,39 @@ class TestBuildFallbackPlan:
         plan = _build_fallback_plan("/tmp/report.md")
         assert "RUNNING" in plan.context
 
-    def test_stages_2_and_3_are_parallel(self):
-        """Stages 2 and 3 should share the same parallel_group."""
+    def test_stages_2_3_4_are_parallel(self):
+        """Stages 2, 3, and 4 should share the same parallel_group."""
         plan = _build_fallback_plan("/tmp/report.md")
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
+        assert plan.stages[3].parallel_group == 1
 
-    def test_stages_1_4_and_5_are_sequential(self):
-        """Stages 1, 4, and 5 should have no parallel_group (sequential)."""
+    def test_stages_1_5_and_6_are_sequential(self):
+        """Stages 1, 5, and 6 should have no parallel_group (sequential)."""
         plan = _build_fallback_plan("/tmp/report.md")
         assert plan.stages[0].parallel_group is None
-        assert plan.stages[3].parallel_group is None
         assert plan.stages[4].parallel_group is None
+        assert plan.stages[5].parallel_group is None
 
     def test_parallel_stage_descriptions_mention_findings_file(self):
         """Stage descriptions should tell agents where to write findings."""
         plan = _build_fallback_plan("/tmp/report.md")
         assert "findings-happy-path.md" in plan.stages[1].description
         assert "findings-adversarial.md" in plan.stages[2].description
+        assert "findings-architecture.md" in plan.stages[3].description
 
-    def test_fix_stage_references_both_findings_files(self):
-        """Stage 5 should tell agents to read both findings files."""
+    def test_fix_stage_references_all_findings_files(self):
+        """Final stage should tell agents to read all findings files."""
         plan = _build_fallback_plan("/tmp/report.md")
-        fix_stage = plan.stages[4]
+        fix_stage = plan.stages[5]
         assert "findings-happy-path.md" in fix_stage.description
         assert "findings-adversarial.md" in fix_stage.description
+        assert "findings-architecture.md" in fix_stage.description
 
     def test_parallel_stages_instruct_no_source_modification(self):
         """Read-only parallel stages should explicitly say not to modify code."""
         plan = _build_fallback_plan("/tmp/report.md")
-        for stage in plan.stages[1:3]:
+        for stage in plan.stages[1:4]:
             assert "Do NOT modify source code" in stage.description
 
 

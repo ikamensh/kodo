@@ -1376,30 +1376,60 @@ class TestMergeWorktreeBranch:
         assert not result.had_changes
         _git(git_project, "branch", "-D", branch)
 
-    def test_conflict_aborts_cleanly(self, git_project):
-        # Create a file on main branch
+    def test_conflict_resolved_by_agent(self, git_project):
+        """When merge conflicts occur, an agent resolves them."""
         (git_project / "shared.py").write_text("original")
         _git(git_project, "add", "-A")
         _git(git_project, "commit", "-m", "add shared")
 
-        # Create worktree and modify the same file
         wt, branch = create_worktree(git_project, "merge-conflict")
         (wt / "shared.py").write_text("worktree version")
         _git(wt, "add", "-A")
         _git(wt, "commit", "-m", "worktree change")
         _remove_worktree_keep_branch(git_project, wt)
 
-        # Modify same file on main
         (git_project / "shared.py").write_text("main version")
         _git(git_project, "add", "-A")
         _git(git_project, "commit", "-m", "main change")
 
         result = merge_worktree_branch(git_project, branch, "ConflictStage")
+        # Agent resolves the conflict
+        assert result.success
+        assert result.had_changes
+
+        content = (git_project / "shared.py").read_text()
+        assert "<<<<<<<" not in content
+
+        _git(git_project, "branch", "-D", branch)
+
+    def test_conflict_aborts_when_agent_fails(self, git_project):
+        """If agent can't resolve conflicts, merge aborts cleanly."""
+        from unittest.mock import patch
+
+        (git_project / "shared.py").write_text("original")
+        _git(git_project, "add", "-A")
+        _git(git_project, "commit", "-m", "add shared")
+
+        wt, branch = create_worktree(git_project, "merge-conflict2")
+        (wt / "shared.py").write_text("worktree version")
+        _git(wt, "add", "-A")
+        _git(wt, "commit", "-m", "worktree change")
+        _remove_worktree_keep_branch(git_project, wt)
+
+        (git_project / "shared.py").write_text("main version")
+        _git(git_project, "add", "-A")
+        _git(git_project, "commit", "-m", "main change")
+
+        with patch(
+            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            return_value=False,
+        ):
+            result = merge_worktree_branch(git_project, branch, "ConflictStage")
+
         assert not result.success
         assert result.had_changes
         assert result.conflict
 
-        # Main should be clean (no dirty state)
         status = _git(git_project, "status", "--porcelain")
         assert not status.stdout.strip()
 

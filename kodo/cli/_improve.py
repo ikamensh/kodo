@@ -323,17 +323,19 @@ def _validate_improve_plan(plan: GoalPlan, report_path: str, run_dir: str) -> Go
 def _build_fallback_plan(report_path: str) -> GoalPlan:
     """Build a generic hardcoded improve plan (fallback when discovery fails).
 
-    This is the original APP plan: baseline, happy path + adversarial in
-    parallel, triage, fix & report.
+    Baseline → three parallel explorations (happy path, adversarial,
+    architecture) → triage → fix & report.
     """
     run_dir = str(Path(report_path).parent)
     happy_findings = f"{run_dir}/findings-happy-path.md"
     adversarial_findings = f"{run_dir}/findings-adversarial.md"
+    architecture_findings = f"{run_dir}/findings-architecture.md"
     triage_path = f"{run_dir}/triage-results.md"
 
     return GoalPlan(
         context=(
-            "Find real bugs by RUNNING the software, not just reading code.\n\n"
+            "Find real bugs and simplification opportunities by RUNNING the "
+            "software and reading the code critically.\n\n"
             f"{_IMPROVE_TIME_GUIDANCE}"
         ),
         stages=[
@@ -391,26 +393,49 @@ def _build_fallback_plan(report_path: str) -> GoalPlan:
             ),
             GoalStage(
                 index=4,
+                name="Architecture & Simplification Audit",
+                parallel_group=1,
+                description=(
+                    "Review the codebase for unnecessary complexity and "
+                    "simplification opportunities. Focus on things that make "
+                    "the code harder to work with today, not theoretical "
+                    "concerns.\n\n"
+                    "For each finding, explain what's wrong, what it should "
+                    "look like instead, and why the change is worth making.\n\n"
+                    "Do NOT modify source code. Write findings to "
+                    f"`{architecture_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                ),
+                acceptance_criteria=(
+                    "Simplification opportunities identified with concrete "
+                    f"proposals. Written to {architecture_findings}."
+                ),
+            ),
+            GoalStage(
+                index=5,
                 name="Triage & Verify",
                 description=_TRIAGE_STAGE_DESCRIPTION.format(
                     triage_path=triage_path,
                 )
                 + (
                     f"\n\nFindings files: `{happy_findings}`, "
-                    f"`{adversarial_findings}`. "
+                    f"`{adversarial_findings}`, "
+                    f"`{architecture_findings}`. "
                     "Also include Stage 1 findings from prior context."
                 ),
                 acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
             ),
             GoalStage(
-                index=5,
+                index=6,
                 name="Fix & Report",
                 description=(
                     f"Act only on `fix` and `needs-decision` from `{triage_path}`. "
                     "Ignore `skip`.\n\n"
                     f"Original findings: `{happy_findings}`, "
-                    f"`{adversarial_findings}`.\n\n"
+                    f"`{adversarial_findings}`, "
+                    f"`{architecture_findings}`.\n\n"
                     "Auto-fix safe issues, flag ambiguous ones. "
+                    "For architecture simplifications marked `fix`, apply them. "
                     f"Write report to `{report_path}`:\n\n"
                     f"{_IMPROVE_REPORT_FORMAT}\n\n"
                     "Commit auto-fixes: "

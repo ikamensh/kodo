@@ -900,13 +900,95 @@ def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
     )
 
 
+def _resolve_conflicts_with_agent(
+    project_dir: Path, branch_name: str, stage_name: str
+) -> bool:
+    """Spin up a Claude Code agent to resolve merge conflicts.
+
+    Returns True if conflicts were resolved and committed.
+    """
+    from kodo import log, make_session
+
+    conflict_files = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=U"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    files = conflict_files.stdout.strip()
+    if not files:
+        return False
+
+    log.tprint(f"[persist] Resolving conflicts in: {files}")
+    log.emit("persist_conflict_resolve_start", stage_name=stage_name, files=files)
+
+    session = make_session(
+        backend="claude-code",
+        model="sonnet",
+        system_prompt=(
+            "You are resolving git merge conflicts. The merge is in progress. "
+            "Conflicting files have <<<<<<< / ======= / >>>>>>> markers. "
+            "Resolve each conflict by keeping BOTH sides' changes integrated "
+            "correctly. Both branches implemented independent features that "
+            "should coexist. After resolving, run `git add` on each file."
+        ),
+    )
+    try:
+        result = session.query(
+            f"Resolve the merge conflicts in this project. The conflicting files are:\n"
+            f"{files}\n\n"
+            f"The branch being merged is '{branch_name}' (stage: {stage_name}). "
+            f"Both the current branch and the incoming branch have valid changes "
+            f"that should be combined. Read each conflicting file, resolve the "
+            f"conflict markers, and `git add` the resolved files. "
+            f"Do NOT commit — just resolve and stage.",
+            project_dir=project_dir,
+            max_turns=30,
+        )
+    finally:
+        session.close()
+
+    # Check if all conflicts are resolved
+    remaining = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=U"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    if remaining.stdout.strip():
+        log.tprint(f"[persist] Agent failed to resolve all conflicts")
+        log.emit(
+            "persist_conflict_resolve_failed",
+            stage_name=stage_name,
+            remaining=remaining.stdout.strip(),
+        )
+        return False
+
+    # Commit the merge
+    commit = subprocess.run(
+        ["git", "commit", "--no-edit"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **_KODO_GIT_ENV},
+    )
+    if commit.returncode != 0:
+        log.tprint(f"[persist] Merge commit failed: {commit.stderr}")
+        return False
+
+    log.tprint(f"[persist] Agent resolved conflicts for '{stage_name}'")
+    log.emit("persist_conflict_resolve_ok", stage_name=stage_name)
+    return True
+
+
 def merge_worktree_branch(
     project_dir: Path, branch_name: str, stage_name: str
 ) -> MergeResult:
     """Merge a worktree branch into the current branch at *project_dir*.
 
-    Uses ``--no-ff`` to preserve branch history.  On conflict, aborts the
-    merge and returns a result with ``conflict=True``.
+    Uses ``--no-ff`` to preserve branch history.  On conflict, spins up
+    a Claude Code agent to resolve the conflicts.  Falls back to abort
+    if the agent cannot resolve them.
     """
     from kodo import log
 
@@ -998,12 +1080,24 @@ def merge_worktree_branch(
     )
 
     if result.returncode != 0:
+        is_conflict = "CONFLICT" in (result.stdout + result.stderr)
+
+        if is_conflict:
+            log.tprint(f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution")
+            resolved = _resolve_conflicts_with_agent(project_dir, branch_name, stage_name)
+            if resolved:
+                log.tprint(f"[persist] Stage '{stage_name}': conflicts resolved by agent")
+                log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
+                return MergeResult(success=True, had_changes=True)
+            # Agent failed — abort the merge
+            log.tprint(f"[persist] Stage '{stage_name}': agent could not resolve conflicts")
+
         subprocess.run(
             ["git", "merge", "--abort"],
             cwd=project_dir,
             capture_output=True,
         )
-        is_conflict = "CONFLICT" in (result.stdout + result.stderr)
+        merge_output = result.stdout + result.stderr
         log.tprint(
             f"[persist] Stage '{stage_name}': "
             f"merge {'conflict' if is_conflict else 'failed'}"
@@ -1013,13 +1107,13 @@ def merge_worktree_branch(
             stage_name=stage_name,
             branch=branch_name,
             conflict=is_conflict,
-            error=result.stderr[:1000],
+            error=merge_output[:1000],
         )
         return MergeResult(
             success=False,
             had_changes=True,
             conflict=is_conflict,
-            error=result.stderr,
+            error=merge_output,
         )
 
     log.tprint(f"[persist] Stage '{stage_name}': merged successfully")
