@@ -135,6 +135,7 @@ def _mocked_patches():
         patch(
             "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
         ),
+        patch("kodo.cli._main.run_improve_discovery", return_value=None),
     )
 
 

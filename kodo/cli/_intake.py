@@ -454,15 +454,20 @@ def run_intake_auto(
 # ---------------------------------------------------------------------------
 
 
-def run_intake_noninteractive(
+def run_single_turn_plan(
     run_dir: RunDir,
-    goal_text: str,
+    system_prompt: str,
+    initial_message: str,
+    *,
+    spinner_text: str = "Analyzing project and creating plan",
 ) -> GoalPlan | None:
-    """Non-interactive intake: send goal, get staged plan back, no conversation."""
-    run_dir.root.mkdir(parents=True, exist_ok=True)
+    """Single-turn plan generation: send prompt, get GoalPlan JSON back.
 
-    goal_path = run_dir.goal_file
-    _atomic_write(goal_path, goal_text)
+    Shared by non-interactive intake and --improve discovery.  Picks the best
+    available backend, creates a session with *system_prompt*, sends
+    *initial_message*, and parses the resulting ``goal-plan.json``.
+    """
+    run_dir.root.mkdir(parents=True, exist_ok=True)
 
     if has_claude():
         backend, model = "claude", "opus"
@@ -471,23 +476,15 @@ def run_intake_noninteractive(
     elif has_gemini_cli():
         backend, model = "gemini-cli", "gemini-2.5-flash"
     else:
-        print("Skipping intake (no backends available).")
         return None
 
     output_file = run_dir.goal_plan_file
-    prompt = _build_intake_prompt(str(output_file), staged=True) + (
-        "\n\nIMPORTANT: This is a non-interactive session. "
-        "Do NOT ask clarifying questions. Analyze the project and goal, "
-        "make reasonable assumptions, and write the goal-plan.json file immediately."
-    )
-    session = make_session(backend, model, system_prompt=prompt)
+    session = make_session(backend, model, system_prompt=system_prompt)
 
     try:
         project_dir = run_dir.project_dir
-        initial = f"Here's my project goal:\n\n{goal_text}"
-        print("Running intake (non-interactive)...")
-        with _Spinner("Analyzing project and creating plan"):
-            result = session.query(initial, project_dir, max_turns=10)
+        with _Spinner(spinner_text):
+            result = session.query(initial_message, project_dir, max_turns=10)
         print(f"\n{result.text}\n")
 
         if not output_file.exists():
@@ -505,10 +502,35 @@ def run_intake_noninteractive(
                 session=session, project_dir=project_dir,
             )
 
-        print("Warning: intake did not produce a plan. Proceeding without stages.")
         return None
     finally:
         _close_session(session)
+
+
+def run_intake_noninteractive(
+    run_dir: RunDir,
+    goal_text: str,
+) -> GoalPlan | None:
+    """Non-interactive intake: send goal, get staged plan back, no conversation."""
+    goal_path = run_dir.goal_file
+    _atomic_write(goal_path, goal_text)
+
+    output_file = run_dir.goal_plan_file
+    prompt = _build_intake_prompt(str(output_file), staged=True) + (
+        "\n\nIMPORTANT: This is a non-interactive session. "
+        "Do NOT ask clarifying questions. Analyze the project and goal, "
+        "make reasonable assumptions, and write the goal-plan.json file immediately."
+    )
+
+    print("Running intake (non-interactive)...")
+    plan = run_single_turn_plan(
+        run_dir,
+        system_prompt=prompt,
+        initial_message=f"Here's my project goal:\n\n{goal_text}",
+    )
+    if plan is None:
+        print("Warning: intake did not produce a plan. Proceeding without stages.")
+    return plan
 
 
 # ---------------------------------------------------------------------------

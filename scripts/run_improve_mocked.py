@@ -1,11 +1,11 @@
-"""Run kodo --improve with mocked AI to verify project type detection and improve cycle setup.
+"""Run kodo --improve with mocked AI to verify fallback plan and improve cycle setup.
 
 Usage:
     uv run python scripts/run_improve_mocked.py
 
 Verifies:
-- Project type is auto-detected (app vs library)
-- Improve plan has 4 stages
+- Discovery falls back to default plan when mocked
+- Fallback plan has 5 stages
 - Saga mode and API orchestrator are used
 - launch_run is invoked with correct goal and plan
 """
@@ -22,8 +22,7 @@ from unittest.mock import MagicMock, patch
 from kodo import log
 from kodo.agent import Agent
 from kodo.cli import (
-    _build_improve_plan,
-    _detect_project_type,
+    _build_fallback_plan,
     _main_inner,
 )
 from kodo.orchestrators.base import CycleResult, RunResult
@@ -102,16 +101,10 @@ def main():
         print(f"Error: {project_dir} not found")
         sys.exit(1)
 
-    # Verify project type detection
-    project_type = _detect_project_type(project_dir)
-    print(f"Project type: {project_type.value}")
-
-    # Verify improve plan structure
+    # Verify fallback plan structure
     report_path = "/tmp/improve-report.md"
-    plan = _build_improve_plan(
-        str(report_path), project_type=project_type, project_dir=project_dir
-    )
-    print(f"Improve plan stages: {len(plan.stages)}")
+    plan = _build_fallback_plan(str(report_path))
+    print(f"Fallback plan stages: {len(plan.stages)}")
     for s in plan.stages:
         print(f"  {s.index}. {s.name}")
 
@@ -130,6 +123,8 @@ def main():
         patch(
             "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
         ),
+        # Mock discovery to return None so fallback plan is used
+        patch("kodo.cli._main.run_improve_discovery", return_value=None),
     ):
         sys.argv = [
             "kodo",

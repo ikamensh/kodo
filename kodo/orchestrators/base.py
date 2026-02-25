@@ -1408,8 +1408,9 @@ class OrchestratorBase:
                     log.tprint("[orchestrator] Stopping run — stage did not complete")
                     break
             else:
-                # Parallel group: split cycles evenly, run concurrently
-                per_stage_cycles = max(1, remaining_cycles // len(group))
+                # Parallel stages run concurrently — each gets the full budget.
+                # Only the longest branch is deducted from remaining_cycles.
+                per_stage_cycles = remaining_cycles
                 stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
                 print()
                 log.tprint(f"[orchestrator] === PARALLEL GROUP: {stage_labels} ===")
@@ -1485,7 +1486,11 @@ class OrchestratorBase:
                                 f"[orchestrator] Worktree creation failed for "
                                 f"stage {stage.index}, using project dir: {exc}"
                             )
-                    with ThreadPoolExecutor(max_workers=len(group)) as pool:
+                    max_parallel = int(
+                        os.environ.get("KODO_MAX_PARALLEL", "2")
+                    )
+                    workers = min(len(group), max_parallel)
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
                         for stage in group:
                             stage_dir = (
                                 worktrees[stage.index][0]

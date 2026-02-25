@@ -12,15 +12,14 @@ import pytest
 
 from tests.conftest import make_scripted_session
 from kodo.cli import (
-    ProjectType,
-    _build_improve_plan,
+    _build_fallback_plan,
     _build_params_from_flags,
-    _detect_project_type,
     _extract_section,
     _load_or_select_params,
     run_intake_noninteractive,
     _main_inner,
 )
+from kodo.cli._improve import _validate_improve_plan
 from kodo.log import RunDir
 
 
@@ -490,6 +489,7 @@ class TestImproveFlag:
         with (
             patch("kodo.cli._params.has_claude", return_value=True),
             patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._main.run_improve_discovery", return_value=None),
         ):
             yield
 
@@ -611,18 +611,17 @@ class TestImproveFlag:
                 "Fix & Report",
             ]
 
-    def test_improve_with_buggy_project_detects_app_and_starts_cycle(self):
-        """--improve on buggy_project: detects app type, uses saga mode, launches with 5-stage plan."""
+    def test_improve_with_buggy_project_uses_fallback_and_starts_cycle(self):
+        """--improve on buggy_project: discovery returns None, falls back, launches with 5-stage plan."""
         buggy_project = (
             Path(__file__).resolve().parent.parent / "fixtures" / "buggy_project"
         )
         if not buggy_project.exists():
             pytest.skip("fixtures/buggy_project not found")
 
-        assert _detect_project_type(buggy_project) == ProjectType.APP
-
         with (
             patch("kodo.cli._main.launch_run") as mock_launch,
+            patch("kodo.cli._main.run_improve_discovery", return_value=None),
             patch("kodo.cli._params.has_claude", return_value=True),
             patch("kodo.cli._params.check_api_key", return_value=None),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
@@ -653,73 +652,73 @@ class TestImproveFlag:
 # ---------------------------------------------------------------------------
 
 
-class TestBuildImprovePlan:
-    """Tests for _build_improve_plan() structure."""
+class TestBuildFallbackPlan:
+    """Tests for _build_fallback_plan() structure."""
 
     def test_has_five_stages(self):
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert len(plan.stages) == 5
 
     def test_stages_have_sequential_indices(self):
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
 
     def test_report_path_in_final_stage(self):
-        plan = _build_improve_plan("/tmp/my-report.md")
+        plan = _build_fallback_plan("/tmp/my-report.md")
         last = plan.stages[-1]
         assert "/tmp/my-report.md" in last.description
         assert "/tmp/my-report.md" in last.acceptance_criteria
 
     def test_time_guidance_in_integration_stages(self):
         """Stages 2 and 3 should include time efficiency guidance."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         for stage in plan.stages[1:3]:
             assert "Mock or stub" in stage.description
             assert "30 seconds" in stage.description
 
     def test_time_guidance_not_in_static_stage(self):
         """Stage 1 (static analysis) should not have time guidance."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert "Mock or stub" not in plan.stages[0].description
 
     def test_all_stages_have_acceptance_criteria(self):
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         for stage in plan.stages:
             assert stage.acceptance_criteria, f"Stage {stage.index} missing criteria"
 
     def test_context_emphasizes_running_software(self):
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert "RUNNING" in plan.context
 
     def test_stages_2_and_3_are_parallel(self):
         """Stages 2 and 3 should share the same parallel_group."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
 
     def test_stages_1_4_and_5_are_sequential(self):
         """Stages 1, 4, and 5 should have no parallel_group (sequential)."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert plan.stages[0].parallel_group is None
         assert plan.stages[3].parallel_group is None
         assert plan.stages[4].parallel_group is None
 
     def test_parallel_stage_descriptions_mention_findings_file(self):
         """Stage descriptions should tell agents where to write findings."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         assert "findings-happy-path.md" in plan.stages[1].description
         assert "findings-adversarial.md" in plan.stages[2].description
 
     def test_fix_stage_references_both_findings_files(self):
         """Stage 5 should tell agents to read both findings files."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         fix_stage = plan.stages[4]
         assert "findings-happy-path.md" in fix_stage.description
         assert "findings-adversarial.md" in fix_stage.description
 
     def test_parallel_stages_instruct_no_source_modification(self):
         """Read-only parallel stages should explicitly say not to modify code."""
-        plan = _build_improve_plan("/tmp/report.md")
+        plan = _build_fallback_plan("/tmp/report.md")
         for stage in plan.stages[1:3]:
             assert "Do NOT modify source code" in stage.description
 
@@ -764,183 +763,54 @@ class TestExtractSection:
 
 
 # ---------------------------------------------------------------------------
-# TestDetectProjectType
+# TestValidateImprovePlan
 # ---------------------------------------------------------------------------
 
 
-class TestDetectProjectType:
-    def test_pyproject_library(self, tmp_path):
-        """pyproject.toml with [project] but no [project.scripts] → LIBRARY."""
-        (tmp_path / "pyproject.toml").write_text(
-            "[project]\nname = 'mylib'\nversion = '1.0'\n"
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+class TestValidateImprovePlan:
+    """Tests for _validate_improve_plan() safety net."""
 
-    def test_pyproject_app_with_scripts(self, tmp_path):
-        """pyproject.toml with [project.scripts] → APP."""
-        (tmp_path / "pyproject.toml").write_text(
-            "[project]\nname = 'myapp'\n\n[project.scripts]\nmyapp = 'myapp:main'\n"
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.APP
+    def _make_plan(self, stage_names):
+        from kodo.orchestrators.base import GoalPlan, GoalStage
 
-    def test_package_json_library(self, tmp_path):
-        """package.json with main but no bin → LIBRARY."""
-        (tmp_path / "package.json").write_text(
-            json.dumps({"name": "mylib", "main": "index.js"})
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+        stages = [
+            GoalStage(index=i + 1, name=n, description=f"Do {n}", acceptance_criteria="Done")
+            for i, n in enumerate(stage_names)
+        ]
+        return GoalPlan(context="test", stages=stages)
 
-    def test_package_json_cli(self, tmp_path):
-        """package.json with main and bin → APP."""
-        (tmp_path / "package.json").write_text(
-            json.dumps(
-                {"name": "mycli", "main": "index.js", "bin": {"mycli": "cli.js"}}
-            )
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.APP
+    def test_passes_through_complete_plan(self):
+        plan = self._make_plan(["Baseline", "Testing", "Triage & Verify", "Fix & Report"])
+        result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
+        assert len(result.stages) == 4
 
-    def test_cargo_toml_lib(self, tmp_path):
-        """Cargo.toml with [lib] but no [[bin]] → LIBRARY."""
-        (tmp_path / "Cargo.toml").write_text(
-            '[package]\nname = "mylib"\n\n[lib]\nname = "mylib"\n'
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+    def test_appends_triage_if_missing(self):
+        plan = self._make_plan(["Baseline", "Testing", "Fix & Report"])
+        result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
+        names = [s.name for s in result.stages]
+        assert "Triage & Verify" in names
+        assert len(result.stages) == 4
 
-    def test_cargo_toml_bin(self, tmp_path):
-        """Cargo.toml with [lib] and [[bin]] → APP."""
-        (tmp_path / "Cargo.toml").write_text(
-            '[package]\nname = "myapp"\n\n[lib]\nname = "myapp"\n\n[[bin]]\nname = "myapp"\n'
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.APP
+    def test_appends_fix_if_missing(self):
+        plan = self._make_plan(["Baseline", "Testing", "Triage & Verify"])
+        result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
+        names = [s.name for s in result.stages]
+        assert "Fix & Report" in names
+        assert len(result.stages) == 4
 
-    def test_go_library(self, tmp_path):
-        """go.mod without main.go or cmd/ → LIBRARY."""
-        (tmp_path / "go.mod").write_text("module example.com/mylib\n")
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
+    def test_appends_both_if_missing(self):
+        plan = self._make_plan(["Baseline", "Testing"])
+        result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
+        names = [s.name for s in result.stages]
+        assert "Triage & Verify" in names
+        assert "Fix & Report" in names
+        assert len(result.stages) == 4
 
-    def test_go_app(self, tmp_path):
-        """go.mod with main.go → APP."""
-        (tmp_path / "go.mod").write_text("module example.com/myapp\n")
-        (tmp_path / "main.go").write_text("package main\n")
-        assert _detect_project_type(tmp_path) == ProjectType.APP
-
-    def test_empty_dir_defaults_to_app(self, tmp_path):
-        """Empty directory → APP (safe fallback)."""
-        assert _detect_project_type(tmp_path) == ProjectType.APP
-
-    def test_python_package_with_examples(self, tmp_path):
-        """Python package with __init__.py + examples/ but no metadata → LIBRARY."""
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (tmp_path / "examples").mkdir()
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
-
-    def test_python_package_without_examples(self, tmp_path):
-        """Python package with __init__.py but no examples/ or docs/ → APP."""
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        assert _detect_project_type(tmp_path) == ProjectType.APP
-
-    def test_package_json_exports(self, tmp_path):
-        """package.json with exports but no bin → LIBRARY."""
-        (tmp_path / "package.json").write_text(
-            json.dumps({"name": "mylib", "exports": {".": "./src/index.js"}})
-        )
-        assert _detect_project_type(tmp_path) == ProjectType.LIBRARY
-
-
-# ---------------------------------------------------------------------------
-# TestLibraryImprovePlan
-# ---------------------------------------------------------------------------
-
-
-class TestLibraryImprovePlan:
-    """Tests for _build_improve_plan() with library project type."""
-
-    def test_has_five_stages(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        assert len(plan.stages) == 5
-
-    def test_stages_have_sequential_indices(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
-
-    def test_has_consumer_project_stage(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        names = [s.name for s in plan.stages]
-        assert "Consumer Project Testing" in names
-
-    def test_has_api_misuse_stage(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        names = [s.name for s in plan.stages]
-        assert "API Misuse & Error Quality" in names
-
-    def test_stages_2_and_3_parallel(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        assert plan.stages[1].parallel_group == 1
-        assert plan.stages[2].parallel_group == 1
-
-    def test_stages_1_4_and_5_sequential(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        assert plan.stages[0].parallel_group is None
-        assert plan.stages[3].parallel_group is None
-        assert plan.stages[4].parallel_group is None
-
-    def test_consumer_stage_references_project_dir(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        consumer = plan.stages[1]
-        assert str(Path("/tmp/mylib")) in consumer.description
-
-    def test_fix_stage_references_all_findings(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        fix_stage = plan.stages[4]
-        assert "findings-api-audit.md" in fix_stage.description
-        assert "findings-consumer-project.md" in fix_stage.description
-        assert "findings-api-misuse.md" in fix_stage.description
-
-    def test_fix_stage_has_dx_notes_section(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        fix_stage = plan.stages[4]
-        assert "Developer Experience Notes" in fix_stage.description
-
-    def test_context_mentions_library(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        assert "library" in plan.context.lower()
-
-    def test_all_stages_have_acceptance_criteria(self):
-        plan = _build_improve_plan(
-            "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
-        )
-        for stage in plan.stages:
-            assert stage.acceptance_criteria, f"Stage {stage.index} missing criteria"
-
-    def test_app_type_still_returns_app_plan(self):
-        """Passing APP type returns the original app plan."""
-        plan = _build_improve_plan("/tmp/report.md", ProjectType.APP)
-        names = [s.name for s in plan.stages]
-        assert "Happy Path Integration Testing" in names
+    def test_recognizes_verify_in_name(self):
+        """A stage named 'Verify Findings' should count as triage."""
+        plan = self._make_plan(["Baseline", "Verify Findings", "Fix & Report"])
+        result = _validate_improve_plan(plan, "/tmp/report.md", "/tmp/run")
+        assert len(result.stages) == 3  # no extra triage appended
 
 
 # ---------------------------------------------------------------------------

@@ -19,10 +19,9 @@ from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.cli._improve import (  # noqa: E402
     _IMPROVE_GOAL,
     _IMPROVE_REPORT_FORMAT,
-    _detect_project_type,
-    _build_improve_plan,
+    run_improve_discovery,
+    _build_fallback_plan,
     _extract_section,
-    ProjectType,
 )
 from kodo.cli._intake import (  # noqa: E402
     get_goal,
@@ -110,14 +109,6 @@ def _main_inner() -> None:
         action="store_true",
         default=False,
         help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
-    )
-
-    parser.add_argument(
-        "--improve-type",
-        type=str,
-        default="auto",
-        choices=["auto", "app", "library"],
-        help="Project type for --improve (default: auto-detect).",
     )
 
     # Non-interactive config flags
@@ -325,21 +316,16 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         goal_text = _IMPROVE_GOAL.format(
-                report_path=report_path,
-                report_format=_IMPROVE_REPORT_FORMAT,
-            )
-        improve_type = getattr(args, "improve_type", "auto")
-        if improve_type == "auto":
-            project_type = _detect_project_type(project_dir)
-        else:
-            project_type = ProjectType(improve_type)
-        if not args.json:
-            print(f"  Improve type: {project_type.value}")
-        plan = _build_improve_plan(
-            str(report_path),
-            project_type=project_type,
-            project_dir=project_dir,
+            report_path=report_path,
+            report_format=_IMPROVE_REPORT_FORMAT,
         )
+        if not args.json:
+            print("  Running improve discovery...")
+        plan = run_improve_discovery(run_dir, str(report_path))
+        if plan is None:
+            if not args.json:
+                print("  Discovery unavailable; using default plan.")
+            plan = _build_fallback_plan(str(report_path))
     elif non_interactive:
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:

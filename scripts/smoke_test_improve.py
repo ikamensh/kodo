@@ -1,6 +1,6 @@
 """Smoke test: run kodo --improve with mocked orchestrator and sessions.
 
-Verifies project type detection, 5-stage improve plan, and a successful cycle.
+Verifies discovery fallback to default 5-stage plan and a successful cycle.
 All external deps mocked. No API keys or real backends required.
 
 Usage:
@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 
 from kodo import log
 from kodo.agent import Agent
-from kodo.cli import ProjectType, _detect_project_type, _main_inner
+from kodo.cli import _main_inner
 from kodo.orchestrators.base import CycleResult, RunResult
 from tests.conftest import FakeSession
 
@@ -45,12 +45,6 @@ def main() -> int:
         "[project.scripts]\nsmoke-app = 'smoke_app:main'\n",
         encoding="utf-8",
     )
-
-    # Verify project type detection
-    detected = _detect_project_type(project_dir)
-    if detected != ProjectType.APP:
-        print(f"FAIL: Expected ProjectType.APP, got {detected}", file=sys.stderr)
-        return 1
 
     plan_captured: list = []
     orchestrator_run_called = []
@@ -111,6 +105,7 @@ def main() -> int:
 
     with (
         patch("kodo.cli._intake.make_session", side_effect=_fake_make_session),
+        patch("kodo.cli._improve.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.make_session", side_effect=_fake_make_session),
         patch("kodo.factory.has_claude", return_value=True),
         patch("kodo.factory.has_cursor", return_value=True),
@@ -122,6 +117,8 @@ def main() -> int:
         patch("kodo.factory._build_team_mission", _fake_build_team),
         patch("kodo.factory._build_team_saga", _fake_build_team),
         patch("kodo.cli._launch.build_orchestrator", return_value=mock_orch),
+        # Mock discovery to return None so fallback plan is used
+        patch("kodo.cli._main.run_improve_discovery", return_value=None),
     ):
         sys.argv = [
             "kodo",

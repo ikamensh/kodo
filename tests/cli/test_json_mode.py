@@ -228,6 +228,7 @@ class TestImproveJsonOutput:
         with (
             patch("kodo.cli._params.has_claude", return_value=True),
             patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._main.run_improve_discovery", return_value=None),
         ):
             yield
 

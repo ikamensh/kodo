@@ -7,16 +7,16 @@ from kodo.cli._intake import (  # noqa: F401
     run_intake_auto,
     run_intake_chat,
     run_intake_noninteractive,
+    run_single_turn_plan,
     get_goal,
     _looks_staged,
     _parse_goal_plan,
     _load_goal_plan,
 )
 from kodo.cli._improve import (  # noqa: F401
-    _detect_project_type,
-    _build_improve_plan,
+    run_improve_discovery,
+    _build_fallback_plan,
     _extract_section,
-    ProjectType,
 )
 from kodo.cli._launch import (  # noqa: F401
     launch_run,
