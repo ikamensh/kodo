@@ -7,38 +7,59 @@ from pathlib import Path
 
 from kodo.orchestrators.base import GoalPlan, GoalStage
 
-_IMPROVE_GOAL = """\
-Thoroughly test and improve this codebase using a structured sequence of testing \
-methodologies. Produce a concrete improvement report at `{report_path}`.
-
-Write your findings to `{report_path}` in this format:
-
+_IMPROVE_REPORT_FORMAT = """\
 ```markdown
 # Improve Report
 
 ## Auto-fixed
-- <file>:<line> — <description of what was fixed>
+- <file>:<line> — <description>
 
 ## Needs decision
 - <file>:<line> — <description + suggested fix>
-```
 
-Commit all auto-fixes in a single commit with message \
-"chore: auto-fix issues found by kodo improve".
+## Skipped by triage
+- <finding title> — <reason>
+```"""
+
+_IMPROVE_GOAL = """\
+Test and improve this codebase. Report at `{report_path}`.
+
+{report_format}
+
+Commit auto-fixes: "chore: auto-fix issues found by kodo improve".
 """
 
 _IMPROVE_TIME_GUIDANCE = """\
-**Time efficiency is critical.** This codebase may be large or involve slow \
-operations (e.g. AI API calls, network requests, heavy builds). You MUST be \
-smart about time:
-- Mock or stub expensive external calls (APIs, databases, network) rather than \
-calling them for real.
-- Use targeted, focused tests — not exhaustive sweeps of every file.
-- Set short timeouts on any subprocess you run. Kill anything that hangs.
-- Prefer testing a representative sample of critical paths over 100% coverage.
-- If a test takes more than 30 seconds, abort it and move on.
-- Engineer your test setup for speed: in-memory fixtures, lightweight fakes, \
-skip heavy initialization."""
+**Be fast.** Mock or stub external calls (APIs, databases, network). \
+Use targeted tests, not exhaustive sweeps. Abort anything over 30 seconds. \
+In-memory fixtures, lightweight fakes, skip heavy init."""
+
+
+_TRIAGE_FINDINGS_FORMAT = """\
+Format each finding as:
+
+### F<n>: <title>
+- **File:** <file>:<line>
+- **Severity:** bug | hardening | style | performance
+- **Evidence:** <proof: test output, error message, or code path — not just assertions>
+- **Proposed fix:** <concrete change>"""
+
+_TRIAGE_STAGE_DESCRIPTION = """\
+Skeptically verify each finding from previous stages. Read the actual code \
+at the cited location. Most findings are phantoms — default to `skip`.
+
+For each finding, ask:
+- Does the evidence hold when you read the actual code?
+- Is there already a guard (exception handler, early return, default, \
+framework guarantee like `exist_ok=True`)?
+- Can the claimed state actually occur? Trace callers.
+- Would the fix be net-negative (more code for an impossible case)?
+
+Write `{triage_path}`:
+
+### F<n>: <title>
+- **Verdict:** fix | skip | needs-decision
+- **Reason:** <1-2 sentences>"""
 
 
 class ProjectType(enum.Enum):
@@ -134,18 +155,18 @@ def _build_improve_plan_app(report_path: str) -> GoalPlan:
     """Build a hardcoded staged plan for --improve mode.
 
     Stages 2 and 3 run in parallel (``parallel_group=1``) and write findings
-    to separate files.  Stage 4 reads those files to produce the consolidated
-    fix & report.  Parallel stages run in git worktrees for isolation.
+    to separate files.  Stage 4 triages findings with skeptical review.
+    Stage 5 reads triage results to produce the consolidated fix & report.
+    Parallel stages run in git worktrees for isolation.
     """
     run_dir = str(Path(report_path).parent)
     happy_findings = f"{run_dir}/findings-happy-path.md"
     adversarial_findings = f"{run_dir}/findings-adversarial.md"
+    triage_path = f"{run_dir}/triage-results.md"
 
     return GoalPlan(
         context=(
-            "You are improving an existing codebase. Your job is to find real bugs "
-            "and issues by actually RUNNING the software, not just reading code. "
-            "Think like a QA engineer, not a code reviewer.\n\n"
+            "Find real bugs by RUNNING the software, not just reading code.\n\n"
             f"{_IMPROVE_TIME_GUIDANCE}"
         ),
         stages=[
@@ -153,21 +174,14 @@ def _build_improve_plan_app(report_path: str) -> GoalPlan:
                 index=1,
                 name="Baseline & Static Analysis",
                 description=(
-                    "Run the existing test suite and note any failures or flaky tests. "
-                    "Run linters/type-checkers if configured (ruff, mypy, pyright, "
-                    "eslint, tsc, etc.). Read through core modules and flag: obvious "
-                    "bugs, dead code, unused imports, missing error handling, security "
-                    "concerns (hardcoded secrets, unsanitised input), performance "
-                    "hot-spots. Run coverage if available and note critical uncovered "
-                    "paths.\n\n"
-                    "This is the analytical sweep — do it all in one pass, quickly. "
-                    "The real value comes in the next stages where you actually run "
-                    "the software."
+                    "Run test suite, linters, type-checkers. Flag obvious bugs, "
+                    "dead code, security concerns, performance hot-spots. "
+                    "Quick analytical sweep — one pass.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Test results documented. Lint/type-check results documented. "
-                    "List of statically-identified issues with file:line references. "
-                    "Coverage gaps noted for critical code paths."
+                    "Test/lint/type-check results documented. Issues listed with "
+                    "file:line. Structured findings format used."
                 ),
             ),
             GoalStage(
@@ -175,30 +189,19 @@ def _build_improve_plan_app(report_path: str) -> GoalPlan:
                 name="Happy Path Integration Testing",
                 parallel_group=1,
                 description=(
-                    "Actually USE the software the way a real user would. Identify "
-                    "the primary user workflows and run them end-to-end.\n\n"
-                    "**Methodology — Scenario Testing:**\n"
-                    "1. Read the README, CLI help, or entry points to understand the "
-                    "main user-facing commands/APIs.\n"
-                    "2. Identify 3-5 core user scenarios (e.g. 'user runs the main "
-                    "command with typical inputs', 'user configures and launches').\n"
-                    "3. For each scenario: set up realistic inputs, run the actual "
-                    "command/function, verify the output is correct.\n"
-                    "4. Write integration tests for any scenario that isn't already "
-                    "covered.\n\n"
+                    "Run 3-5 core user scenarios end-to-end. Read entry points, "
+                    "set up realistic inputs, verify outputs. Write integration "
+                    "tests for uncovered scenarios.\n\n"
                     f"{_IMPROVE_TIME_GUIDANCE}\n\n"
-                    "**Key:** Engineer fast test setups. Mock external services "
-                    "(AI APIs, network calls) with realistic fakes. Use temp dirs "
-                    "for file operations. The goal is to exercise real code paths "
-                    "quickly, not to make real API calls.\n\n"
-                    "**IMPORTANT:** Do NOT modify source code. Write all findings "
-                    f"to `{happy_findings}`."
+                    "Mock or stub external services. Use temp dirs. Exercise real "
+                    "code paths, not real API calls.\n\n"
+                    "Do NOT modify source code. Write findings to "
+                    f"`{happy_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Core user workflows identified and tested end-to-end. "
-                    "Integration tests written or existing gaps documented. "
-                    "All happy-path scenarios pass or bugs are documented. "
-                    f"Detailed findings written to {happy_findings}."
+                    "Core workflows tested end-to-end. Bugs documented. "
+                    f"Structured findings written to {happy_findings}."
                 ),
             ),
             GoalStage(
@@ -206,62 +209,51 @@ def _build_improve_plan_app(report_path: str) -> GoalPlan:
                 name="Exploratory & Adversarial Testing",
                 parallel_group=1,
                 description=(
-                    "Now break it. Use exploratory and negative testing techniques "
-                    "to find bugs that happy-path testing misses.\n\n"
-                    "**Methodology — Exploratory Testing:**\n"
-                    "Use the software freely with a loose charter. Follow your "
-                    "intuition. Try things a user might accidentally do. Try "
-                    "unusual combinations.\n\n"
-                    "**Methodology — Boundary Value & Negative Testing:**\n"
-                    "- Feed edge-case inputs: empty strings, None, zero, negative "
-                    "numbers, extremely long strings, special characters, unicode.\n"
-                    "- Try invalid configurations: missing config files, partial "
-                    "configs, wrong types in config values.\n"
-                    "- Test error paths: what happens when a dependency is missing? "
-                    "When a file doesn't exist? When permissions are wrong?\n"
-                    "- Interrupt operations mid-way if possible.\n"
-                    "- Try flag/argument combinations that aren't documented.\n\n"
+                    "Break it. Edge-case inputs (empty, None, zero, huge, unicode), "
+                    "invalid configs, missing dependencies, wrong permissions, "
+                    "undocumented flag combos. Focus on areas Stage 1 flagged.\n\n"
                     f"{_IMPROVE_TIME_GUIDANCE}\n\n"
-                    "**Key:** Focus on areas the static analysis (Stage 1) flagged "
-                    "as having weak error handling or missing validation. Write "
-                    "test cases for bugs you find.\n\n"
-                    "**IMPORTANT:** Do NOT modify source code. Write all findings "
-                    f"to `{adversarial_findings}`."
+                    "Do NOT modify source code. Write findings to "
+                    f"`{adversarial_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Edge cases and error paths tested. Bugs found are documented "
-                    "with reproduction steps. Test cases written for discovered issues. "
-                    f"Detailed findings written to {adversarial_findings}."
+                    "Edge cases and error paths tested. Bugs documented with "
+                    f"repro steps. Structured findings written to {adversarial_findings}."
                 ),
             ),
             GoalStage(
                 index=4,
-                name="Fix & Report",
-                description=(
-                    "Consolidate everything found across all stages. Read the detailed "
-                    f"findings files:\n"
-                    f"- `{happy_findings}`\n"
-                    f"- `{adversarial_findings}`\n\n"
-                    "For every issue:\n"
-                    "a. **Auto-fix** it if the fix is safe and unambiguous, or\n"
-                    "b. **Flag it** with a one-line description and suggested fix.\n\n"
-                    f"Write the final report to `{report_path}` using this format:\n\n"
-                    "```markdown\n"
-                    "# Improve Report\n\n"
-                    "## Auto-fixed\n"
-                    "- <file>:<line> — <description of what was fixed>\n\n"
-                    "## Needs decision\n"
-                    "- <file>:<line> — <description + suggested fix>\n"
-                    "```\n\n"
-                    "Commit all auto-fixes in a single commit with message "
-                    '"chore: auto-fix issues found by kodo improve".\n\n'
-                    "Include issues from ALL stages — static analysis, happy path "
-                    "failures, and adversarial/exploratory findings."
+                name="Triage & Verify",
+                description=_TRIAGE_STAGE_DESCRIPTION.format(
+                    triage_path=triage_path,
+                )
+                + (
+                    f"\n\nFindings files: `{happy_findings}`, "
+                    f"`{adversarial_findings}`. "
+                    "Also include Stage 1 findings from prior context."
                 ),
                 acceptance_criteria=(
-                    f"Report written to {report_path} with Auto-fixed and Needs "
-                    "decision sections. All auto-fixes committed. Report covers "
-                    "findings from all prior stages."
+                    f"Every finding has a verdict in {triage_path}."
+                ),
+            ),
+            GoalStage(
+                index=5,
+                name="Fix & Report",
+                description=(
+                    f"Act only on `fix` and `needs-decision` from `{triage_path}`. "
+                    "Ignore `skip`.\n\n"
+                    f"Original findings: `{happy_findings}`, "
+                    f"`{adversarial_findings}`.\n\n"
+                    "Auto-fix safe issues, flag ambiguous ones. "
+                    f"Write report to `{report_path}`:\n\n"
+                    f"{_IMPROVE_REPORT_FORMAT}\n\n"
+                    "Commit auto-fixes: "
+                    '"chore: auto-fix issues found by kodo improve".'
+                ),
+                acceptance_criteria=(
+                    f"Report at {report_path}. Auto-fixes committed. "
+                    "Only triage-approved findings acted on."
                 ),
             ),
         ],
@@ -283,14 +275,13 @@ def _build_improve_plan_library(
     api_findings = f"{run_dir}/findings-api-audit.md"
     consumer_findings = f"{run_dir}/findings-consumer-project.md"
     misuse_findings = f"{run_dir}/findings-api-misuse.md"
+    triage_path = f"{run_dir}/triage-results.md"
     install_path = str(project_dir)
 
     return GoalPlan(
         context=(
-            "You are improving a **library/SDK** codebase. Your job is to evaluate "
-            "it from the perspective of a developer who wants to USE this library. "
-            "Focus on API ergonomics, documentation accuracy, error message quality, "
-            "and developer experience — not just correctness.\n\n"
+            "Evaluate this **library/SDK** as a consumer would. Focus on API "
+            "ergonomics, docs accuracy, error quality, and DX.\n\n"
             f"{_IMPROVE_TIME_GUIDANCE}"
         ),
         stages=[
@@ -298,21 +289,15 @@ def _build_improve_plan_library(
                 index=1,
                 name="Baseline & API Surface Audit",
                 description=(
-                    "Run the existing test suite and linters. Then perform a public "
-                    "API inventory:\n\n"
-                    "1. Identify all public modules, classes, and functions.\n"
-                    "2. Check naming consistency (conventions, prefixes, casing).\n"
-                    "3. Verify type annotations are present on public APIs.\n"
-                    "4. Check docstrings exist and match actual signatures.\n"
-                    "5. If docs/ exist, spot-check that documented examples match "
-                    "the actual API signatures and behavior.\n"
-                    "6. Review error/exception types for consistency and clarity.\n\n"
-                    f"Write all findings to `{api_findings}`."
+                    "Run tests and linters. Audit public API: naming consistency, "
+                    "type annotations, docstrings vs actual signatures, "
+                    "error/exception types. Spot-check docs/ examples.\n\n"
+                    f"Write findings to `{api_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Test results documented. Lint/type-check results documented. "
-                    "Public API inventory with naming, typing, docstring, and docs "
-                    f"accuracy assessment written to {api_findings}."
+                    "Test/lint results documented. API inventory written to "
+                    f"{api_findings}. Structured findings format used."
                 ),
             ),
             GoalStage(
@@ -320,26 +305,19 @@ def _build_improve_plan_library(
                 name="Consumer Project Testing",
                 parallel_group=1,
                 description=(
-                    "Create a **fresh consumer project** in a temporary directory "
-                    "that uses this library as a dependency. This tests real-world "
-                    "developer experience.\n\n"
-                    "**Steps:**\n"
-                    "1. Create a temp directory (use mktemp -d or equivalent).\n"
-                    f"2. Install the library: `pip install -e {install_path}` "
-                    "(or the equivalent for the project's language).\n"
-                    "3. Write a small but realistic project that exercises the main "
-                    "API paths — imports, initialization, core operations.\n"
-                    "4. Run it and note: import friction, missing re-exports, "
-                    "confusing defaults, poor error messages on wrong usage.\n"
-                    "5. Assess: could a developer get started from the README alone?\n\n"
+                    "Create a fresh consumer project in a temp dir. "
+                    f"`pip install -e {install_path}`, write a realistic script "
+                    "exercising main API paths, run it. Note import friction, "
+                    "missing re-exports, confusing defaults, unhelpful errors. "
+                    "Could a developer start from the README alone?\n\n"
                     f"{_IMPROVE_TIME_GUIDANCE}\n\n"
-                    "**IMPORTANT:** Do NOT modify the library source code. Write all "
-                    f"findings to `{consumer_findings}`."
+                    "Do NOT modify source code. Write findings to "
+                    f"`{consumer_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Consumer project created and executed. DX friction points "
-                    "documented. Import and initialization experience assessed. "
-                    f"Detailed findings written to {consumer_findings}."
+                    "Consumer project tested. DX friction documented. "
+                    f"Structured findings written to {consumer_findings}."
                 ),
             ),
             GoalStage(
@@ -347,61 +325,61 @@ def _build_improve_plan_library(
                 name="API Misuse & Error Quality",
                 parallel_group=1,
                 description=(
-                    "Systematically misuse the library's public API and grade the "
-                    "error messages for helpfulness.\n\n"
-                    "**Test categories:**\n"
-                    "- Wrong argument types (str instead of int, None where not "
-                    "expected, wrong container type)\n"
-                    "- Missing required arguments\n"
-                    "- Wrong call order (use before init, double-close, etc.)\n"
-                    "- Edge values (empty collections, zero, negative numbers, "
-                    "extremely long strings, unicode)\n\n"
-                    "For each error, grade on:\n"
-                    "- Does the error message say WHAT went wrong?\n"
-                    "- Does it say HOW to fix it?\n"
-                    "- Does it point to the right location (not deep internals)?\n"
-                    "- Is the exception type appropriate (not bare Exception)?\n\n"
+                    "Misuse the public API: wrong types, missing args, wrong call "
+                    "order, edge values. Grade each error message: does it say what "
+                    "went wrong, how to fix it, and point to the right location? "
+                    "Are exception types appropriate?\n\n"
                     f"{_IMPROVE_TIME_GUIDANCE}\n\n"
-                    "**IMPORTANT:** Do NOT modify the library source code. Write all "
-                    f"findings to `{misuse_findings}`."
+                    "Do NOT modify source code. Write findings to "
+                    f"`{misuse_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "API misuse scenarios tested. Error messages graded for "
-                    "helpfulness. Exception types reviewed. "
-                    f"Detailed findings written to {misuse_findings}."
+                    "API misuse tested. Error messages graded. "
+                    f"Structured findings written to {misuse_findings}."
                 ),
             ),
             GoalStage(
                 index=4,
+                name="Triage & Verify",
+                description=_TRIAGE_STAGE_DESCRIPTION.format(
+                    triage_path=triage_path,
+                )
+                + (
+                    f"\n\nFindings files: `{api_findings}`, "
+                    f"`{consumer_findings}`, `{misuse_findings}`."
+                ),
+                acceptance_criteria=(
+                    f"Every finding has a verdict in {triage_path}."
+                ),
+            ),
+            GoalStage(
+                index=5,
                 name="Fix & Report",
                 description=(
-                    "Consolidate everything found across all stages. Read the detailed "
-                    f"findings files:\n"
-                    f"- `{api_findings}`\n"
-                    f"- `{consumer_findings}`\n"
-                    f"- `{misuse_findings}`\n\n"
-                    "For every issue:\n"
-                    "a. **Auto-fix** it if the fix is safe and unambiguous, or\n"
-                    "b. **Flag it** with a one-line description and suggested fix.\n\n"
-                    f"Write the final report to `{report_path}` using this format:\n\n"
+                    f"Act only on `fix` and `needs-decision` from `{triage_path}`. "
+                    "Ignore `skip`.\n\n"
+                    f"Original findings: `{api_findings}`, "
+                    f"`{consumer_findings}`, `{misuse_findings}`.\n\n"
+                    "Auto-fix safe issues, flag ambiguous ones. "
+                    f"Write report to `{report_path}`:\n\n"
                     "```markdown\n"
                     "# Improve Report\n\n"
                     "## Auto-fixed\n"
-                    "- <file>:<line> — <description of what was fixed>\n\n"
+                    "- <file>:<line> — <description>\n\n"
                     "## Needs decision\n"
                     "- <file>:<line> — <description + suggested fix>\n\n"
                     "## Developer Experience Notes\n"
-                    "- <observation about DX, import ergonomics, error clarity, etc.>\n"
+                    "- <DX observation>\n\n"
+                    "## Skipped by triage\n"
+                    "- <finding title> — <reason>\n"
                     "```\n\n"
-                    "Commit all auto-fixes in a single commit with message "
-                    '"chore: auto-fix issues found by kodo improve".\n\n'
-                    "Include issues from ALL stages — API audit, consumer project, "
-                    "and API misuse findings."
+                    "Commit auto-fixes: "
+                    '"chore: auto-fix issues found by kodo improve".'
                 ),
                 acceptance_criteria=(
-                    f"Report written to {report_path} with Auto-fixed, Needs "
-                    "decision, and Developer Experience Notes sections. All auto-fixes "
-                    "committed. Report covers findings from all prior stages."
+                    f"Report at {report_path}. Auto-fixes committed. "
+                    "Only triage-approved findings acted on."
                 ),
             ),
         ],

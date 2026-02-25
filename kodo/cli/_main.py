@@ -18,6 +18,7 @@ from kodo.orchestrators.base import GoalPlan  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.cli._improve import (  # noqa: E402
     _IMPROVE_GOAL,
+    _IMPROVE_REPORT_FORMAT,
     _detect_project_type,
     _build_improve_plan,
     _extract_section,
@@ -323,7 +324,10 @@ def _main_inner() -> None:
 
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
-        goal_text = _IMPROVE_GOAL.format(report_path=report_path)
+        goal_text = _IMPROVE_GOAL.format(
+                report_path=report_path,
+                report_format=_IMPROVE_REPORT_FORMAT,
+            )
         improve_type = getattr(args, "improve_type", "auto")
         if improve_type == "auto":
             project_type = _detect_project_type(project_dir)

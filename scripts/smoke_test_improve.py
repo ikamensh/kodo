@@ -1,6 +1,6 @@
 """Smoke test: run kodo --improve with mocked orchestrator and sessions.
 
-Verifies project type detection, 4-stage improve plan, and a successful cycle.
+Verifies project type detection, 5-stage improve plan, and a successful cycle.
 All external deps mocked. No API keys or real backends required.
 
 Usage:
@@ -149,9 +149,9 @@ def main() -> int:
         return 1
 
     plan = plan_captured[0]
-    if len(plan.stages) != 4:
+    if len(plan.stages) != 5:
         print(
-            f"FAIL: Expected 4-stage improve plan, got {len(plan.stages)}",
+            f"FAIL: Expected 5-stage improve plan, got {len(plan.stages)}",
             file=sys.stderr,
         )
         return 1

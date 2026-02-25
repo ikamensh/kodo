@@ -584,7 +584,7 @@ class TestImproveFlag:
                 else None,
             )
             assert plan is not None
-            assert len(plan.stages) == 4
+            assert len(plan.stages) == 5
 
     def test_improve_plan_stage_order(self, project):
         """--improve stages should follow the right sequence."""
@@ -605,11 +605,12 @@ class TestImproveFlag:
                 "Baseline & Static Analysis",
                 "Happy Path Integration Testing",
                 "Exploratory & Adversarial Testing",
+                "Triage & Verify",
                 "Fix & Report",
             ]
 
     def test_improve_with_buggy_project_detects_app_and_starts_cycle(self):
-        """--improve on buggy_project: detects app type, uses saga mode, launches with 4-stage plan."""
+        """--improve on buggy_project: detects app type, uses saga mode, launches with 5-stage plan."""
         buggy_project = (
             Path(__file__).resolve().parent.parent / "fixtures" / "buggy_project"
         )
@@ -641,7 +642,7 @@ class TestImproveFlag:
         assert params["team"] == "saga"
         assert params["orchestrator"] == "api"
         assert plan is not None
-        assert len(plan.stages) == 4
+        assert len(plan.stages) == 5
         assert plan.stages[0].name == "Baseline & Static Analysis"
 
 
@@ -653,13 +654,13 @@ class TestImproveFlag:
 class TestBuildImprovePlan:
     """Tests for _build_improve_plan() structure."""
 
-    def test_has_four_stages(self):
+    def test_has_five_stages(self):
         plan = _build_improve_plan("/tmp/report.md")
-        assert len(plan.stages) == 4
+        assert len(plan.stages) == 5
 
     def test_stages_have_sequential_indices(self):
         plan = _build_improve_plan("/tmp/report.md")
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4]
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
 
     def test_report_path_in_final_stage(self):
         plan = _build_improve_plan("/tmp/my-report.md")
@@ -694,11 +695,12 @@ class TestBuildImprovePlan:
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
 
-    def test_stages_1_and_4_are_sequential(self):
-        """Stages 1 and 4 should have no parallel_group (sequential)."""
+    def test_stages_1_4_and_5_are_sequential(self):
+        """Stages 1, 4, and 5 should have no parallel_group (sequential)."""
         plan = _build_improve_plan("/tmp/report.md")
         assert plan.stages[0].parallel_group is None
         assert plan.stages[3].parallel_group is None
+        assert plan.stages[4].parallel_group is None
 
     def test_parallel_stage_descriptions_mention_findings_file(self):
         """Stage descriptions should tell agents where to write findings."""
@@ -707,9 +709,9 @@ class TestBuildImprovePlan:
         assert "findings-adversarial.md" in plan.stages[2].description
 
     def test_fix_stage_references_both_findings_files(self):
-        """Stage 4 should tell agents to read both findings files."""
+        """Stage 5 should tell agents to read both findings files."""
         plan = _build_improve_plan("/tmp/report.md")
-        fix_stage = plan.stages[3]
+        fix_stage = plan.stages[4]
         assert "findings-happy-path.md" in fix_stage.description
         assert "findings-adversarial.md" in fix_stage.description
 
@@ -855,17 +857,17 @@ class TestDetectProjectType:
 class TestLibraryImprovePlan:
     """Tests for _build_improve_plan() with library project type."""
 
-    def test_has_four_stages(self):
+    def test_has_five_stages(self):
         plan = _build_improve_plan(
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
-        assert len(plan.stages) == 4
+        assert len(plan.stages) == 5
 
     def test_stages_have_sequential_indices(self):
         plan = _build_improve_plan(
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4]
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
 
     def test_has_consumer_project_stage(self):
         plan = _build_improve_plan(
@@ -888,12 +890,13 @@ class TestLibraryImprovePlan:
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
 
-    def test_stages_1_and_4_sequential(self):
+    def test_stages_1_4_and_5_sequential(self):
         plan = _build_improve_plan(
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
         assert plan.stages[0].parallel_group is None
         assert plan.stages[3].parallel_group is None
+        assert plan.stages[4].parallel_group is None
 
     def test_consumer_stage_references_project_dir(self):
         plan = _build_improve_plan(
@@ -906,7 +909,7 @@ class TestLibraryImprovePlan:
         plan = _build_improve_plan(
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
-        fix_stage = plan.stages[3]
+        fix_stage = plan.stages[4]
         assert "findings-api-audit.md" in fix_stage.description
         assert "findings-consumer-project.md" in fix_stage.description
         assert "findings-api-misuse.md" in fix_stage.description
@@ -915,7 +918,7 @@ class TestLibraryImprovePlan:
         plan = _build_improve_plan(
             "/tmp/report.md", ProjectType.LIBRARY, Path("/tmp/mylib")
         )
-        fix_stage = plan.stages[3]
+        fix_stage = plan.stages[4]
         assert "Developer Experience Notes" in fix_stage.description
 
     def test_context_mentions_library(self):
