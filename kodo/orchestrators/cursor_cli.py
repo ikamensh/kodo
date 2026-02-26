@@ -19,13 +19,14 @@ from kodo.orchestrators.base import (
     build_cycle_prompt,
     build_mcp_server,
 )
+from kodo.models import CURSOR_COMPOSER
 from kodo.summarizer import Summarizer
 
 
 class CursorOrchestrator(OrchestratorBase):
     """Orchestrator backed by Cursor CLI with MCP tools for agents."""
 
-    def __init__(self, model: str = "sonnet-4", system_prompt: str | None = None):
+    def __init__(self, model: str = CURSOR_COMPOSER, system_prompt: str | None = None):
         self.model = model
         self._orchestrator_name = "cursor"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT

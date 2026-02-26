@@ -29,7 +29,7 @@ _RUN_START_TEMPLATE = {
     "max_cycles": 5,
     "team": ["worker_fast", "worker_smart"],
 }
-_CLI_ARGS = {"event": "cli_args", "team": "saga"}
+_CLI_ARGS = {"event": "cli_args", "team": "full"}
 
 
 def _emit(events: list[dict]) -> list[str]:
@@ -218,7 +218,7 @@ class TestInitAndDiscover:
             max_cycles=3,
             team=[],
         )
-        log.emit("cli_args", team="saga")
+        log.emit("cli_args", team="full")
         log.emit("cycle_end", summary="partial work")
 
         runs = log.list_runs(project)
@@ -241,7 +241,7 @@ class TestInitAndDiscover:
             max_cycles=3,
             team=[],
         )
-        log.emit("cli_args", team="saga")
+        log.emit("cli_args", team="full")
         log.emit("cycle_end", summary="all done")
         log.emit("run_end")
 

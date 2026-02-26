@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
+from kodo.models import CURSOR_COMPOSER
 from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
@@ -15,7 +16,7 @@ class CursorSession(SubprocessSession):
 
     def __init__(
         self,
-        model: str = "composer-1.5",
+        model: str = CURSOR_COMPOSER,
         system_prompt: str | None = None,
         resume_chat_id: str | None = None,
         timeout_s: int = 7200,

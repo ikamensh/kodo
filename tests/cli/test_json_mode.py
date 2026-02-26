@@ -185,7 +185,7 @@ class TestLaunchRunReturnsResult:
         fake_team = {"worker": Agent(FakeSession(), "test worker")}
 
         fake_mode = TeamPreset(
-            name="saga",
+            name="full",
             description="test",
             system_prompt="test",
             build_team=lambda: fake_team,
@@ -205,7 +205,7 @@ class TestLaunchRunReturnsResult:
                 run_dir,
                 "Build X",
                 {
-                    "team": "saga",
+                    "team": "full",
                     "orchestrator": "claude-code",
                     "orchestrator_model": "opus",
                     "max_exchanges": 10,

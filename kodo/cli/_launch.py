@@ -173,11 +173,13 @@ def launch_run(
             system_prompt = team_preset.system_prompt
             max_exchanges = params["max_exchanges"]
             max_cycles = params["max_cycles"]
-    except (ValueError, KeyError, RuntimeError, OSError) as exc:
+    except RuntimeError as exc:
         result = _try_auto_fix_team(params["team"], project_dir, exc)
         team, system_prompt, verifiers = result
         max_exchanges = params["max_exchanges"]
         max_cycles = params["max_cycles"]
+    except (ValueError, KeyError, OSError) as exc:
+        _fail(f"Invalid team config: {exc}")
 
     orchestrator = build_orchestrator(
         params["orchestrator"],
@@ -301,9 +303,11 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
         else:
             team = team_preset.build_team()
             system_prompt = team_preset.system_prompt
-    except (ValueError, KeyError, RuntimeError, OSError) as exc:
+    except RuntimeError as exc:
         result = _try_auto_fix_team(params["team"], project_dir, exc)
         team, system_prompt, verifiers = result
+    except (ValueError, KeyError, OSError) as exc:
+        _fail(f"Invalid team config: {exc}")
 
     orchestrator = build_orchestrator(
         params["orchestrator"],

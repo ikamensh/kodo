@@ -40,7 +40,8 @@ from kodo.cli._params import (  # noqa: E402
 )
 from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
-from kodo.factory import TEAMS, get_team, has_claude, has_cursor  # noqa: E402
+from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
+from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET  # noqa: E402
 from kodo.log import RunDir  # noqa: E402
 from kodo.orchestrators.base import GoalPlan  # noqa: E402
 
@@ -135,7 +136,7 @@ def _main_inner() -> None:
         "--orchestrator-model",
         type=str,
         default=None,
-        choices=["opus", "sonnet", "gemini-pro", "gemini-flash"],
+        choices=[CLAUDE_OPUS, CLAUDE_SONNET, "gemini-pro", "gemini-flash"],
         help="Model for the orchestrator LLM.",
     )
     parser.add_argument(

@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
+from kodo.models import CODEX_DEFAULT, CODEX_WORKER
 from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
@@ -15,7 +16,7 @@ class CodexSession(SubprocessSession):
 
     def __init__(
         self,
-        model: str = "gpt-5.2-codex",
+        model: str = CODEX_WORKER,
         system_prompt: str | None = None,
         resume_session_id: str | None = None,
         sandbox: str = "workspace-write",
@@ -181,8 +182,8 @@ class CodexSession(SubprocessSession):
                 result_text = (
                     f"Codex error: {last_err}\n"
                     f"Check your Codex login ('codex login status') and model "
-                    f"('{self.model}'). ChatGPT accounts support gpt-5.2-codex "
-                    f"and gpt-5.2. API accounts may use o4-mini. "
+                    f"('{self.model}'). ChatGPT accounts support {CODEX_WORKER} "
+                    f"and {CODEX_DEFAULT}. API accounts may use {CODEX_DEFAULT}. "
                     f"Run 'codex login' to switch auth method."
                 )
             else:

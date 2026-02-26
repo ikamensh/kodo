@@ -20,13 +20,14 @@ from kodo.orchestrators.base import (
     build_cycle_prompt,
     build_mcp_server,
 )
+from kodo.models import CLAUDE_OPUS
 from kodo.summarizer import Summarizer
 
 
 class ClaudeCodeOrchestrator(OrchestratorBase):
     """Orchestrator backed by a Claude Code session with MCP tools for agents."""
 
-    def __init__(self, model: str = "opus", system_prompt: str | None = None):
+    def __init__(self, model: str = CLAUDE_OPUS, system_prompt: str | None = None):
         self.model = model
         self._orchestrator_name = "claude_code"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT

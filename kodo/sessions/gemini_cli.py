@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import log
+from kodo.models import GEMINI_CLI_FLASH
 from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
@@ -15,7 +16,7 @@ class GeminiCliSession(SubprocessSession):
 
     def __init__(
         self,
-        model: str = "gemini-2.5-flash",
+        model: str = GEMINI_CLI_FLASH,
         system_prompt: str | None = None,
         resume_session: bool = False,
         timeout_s: int = 7200,

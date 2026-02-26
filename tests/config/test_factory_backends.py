@@ -16,9 +16,9 @@ from unittest.mock import patch
 import pytest
 
 from kodo.factory import (
-    _build_team_mission,
-    _build_team_saga,
-    _mission_system_prompt,
+    _build_team_full,
+    _build_team_quick,
+    _quick_system_prompt,
     check_api_key,
 )
 
@@ -54,35 +54,35 @@ class TestSingleBackend:
     )
     def test_single_backend_fills_both_workers(self, kwargs):
         with _backends(**kwargs):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_fast" in team
         assert "worker_smart" in team
 
     def test_no_backends_raises(self):
         with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
-            _build_team_saga()
+            _build_team_full()
 
 
 # ---------------------------------------------------------------------------
-# Saga team priority verification
+# Full team priority verification
 # ---------------------------------------------------------------------------
 
 
-class TestSagaTeamComposition:
-    """The saga team should adapt to which backends are installed."""
+class TestFullTeamComposition:
+    """The full team should adapt to which backends are installed."""
 
     def test_all_backends_available(self):
         with _backends(claude=True, cursor=True, codex=True, gemini=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_fast" in team
         assert "worker_smart" in team
         assert "architect" in team
         assert "tester" in team
 
-    def test_gemini_only_saga_has_full_team(self):
+    def test_gemini_only_full_has_full_team(self):
         """Gemini-only should get all non-browser roles."""
         with _backends(gemini=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_fast" in team
         assert "worker_smart" in team
         assert "architect" in team
@@ -91,29 +91,29 @@ class TestSagaTeamComposition:
     def test_browser_tester_only_with_cursor(self):
         """tester_browser requires cursor (only backend with chrome support)."""
         with _backends(gemini=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "tester_browser" not in team
 
         with _backends(cursor=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "tester_browser" in team
 
     def test_cursor_preferred_over_codex_for_fast_worker(self):
         """When both cursor and codex exist, cursor should win worker_fast."""
         with _backends(cursor=True, codex=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_fast" in team
 
     def test_claude_preferred_for_smart_worker(self):
         """When claude and gemini both exist, claude should win worker_smart."""
         with _backends(claude=True, gemini=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_smart" in team
 
     def test_codex_plus_gemini(self):
         """Codex + Gemini: codex=fast, gemini=smart/architect/tester."""
         with _backends(codex=True, gemini=True):
-            team = _build_team_saga()
+            team = _build_team_full()
         assert "worker_fast" in team
         assert "worker_smart" in team
         assert "architect" in team
@@ -121,12 +121,12 @@ class TestSagaTeamComposition:
 
 
 # ---------------------------------------------------------------------------
-# Mission team
+# Quick team
 # ---------------------------------------------------------------------------
 
 
-class TestMissionTeamComposition:
-    """Mission team has no architect/tester — just workers."""
+class TestQuickTeamComposition:
+    """Quick team has no architect/tester — just workers."""
 
     @pytest.mark.parametrize(
         "kwargs",
@@ -139,37 +139,37 @@ class TestMissionTeamComposition:
     )
     def test_any_single_backend_gives_both_workers(self, kwargs):
         with _backends(**kwargs):
-            team = _build_team_mission()
+            team = _build_team_quick()
         assert "worker_fast" in team
         assert "worker_smart" in team
 
-    def test_mission_has_no_architect_or_tester(self):
+    def test_quick_has_no_architect_or_tester(self):
         with _backends(claude=True, cursor=True):
-            team = _build_team_mission()
+            team = _build_team_quick()
         assert "architect" not in team
         assert "tester" not in team
 
     def test_no_backends_raises(self):
         with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
-            _build_team_mission()
+            _build_team_quick()
 
 
 # ---------------------------------------------------------------------------
-# Mission system prompt adapts to backends
+# Quick system prompt adapts to backends
 # ---------------------------------------------------------------------------
 
 
-class TestMissionPrompt:
+class TestQuickPrompt:
     def test_any_backend_gives_both_workers_in_prompt(self):
         """With priority tables, any backend fills both roles."""
         with _backends(cursor=True):
-            prompt = _mission_system_prompt()
+            prompt = _quick_system_prompt()
         assert "fast worker" in prompt
         assert "smart worker" in prompt
 
     def test_gemini_only_prompt_has_both_workers(self):
         with _backends(gemini=True):
-            prompt = _mission_system_prompt()
+            prompt = _quick_system_prompt()
         assert "fast worker" in prompt
         assert "smart worker" in prompt
 

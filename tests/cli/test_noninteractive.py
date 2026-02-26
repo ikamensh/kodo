@@ -62,20 +62,20 @@ class TestBuildParamsFromFlags:
         ):
             yield
 
-    def test_defaults_to_saga_mode(self, project):
+    def test_defaults_to_full_mode(self, project):
         args = _make_args()
         params = _build_params_from_flags(args, project)
-        assert params["team"] == "saga"
+        assert params["team"] == "full"
 
     def test_explicit_mode(self, project):
-        args = _make_args(team="mission")
+        args = _make_args(team="quick")
         params = _build_params_from_flags(args, project)
-        assert params["team"] == "mission"
+        assert params["team"] == "quick"
 
     def test_exchanges_falls_back_to_mode_default(self, project):
         args = _make_args()
         params = _build_params_from_flags(args, project)
-        assert params["max_exchanges"] == 30  # saga default
+        assert params["max_exchanges"] == 30  # full default
 
     def test_exchanges_override(self, project):
         args = _make_args(exchanges=50)
@@ -85,10 +85,10 @@ class TestBuildParamsFromFlags:
     def test_cycles_falls_back_to_mode_default(self, project):
         args = _make_args()
         params = _build_params_from_flags(args, project)
-        assert params["max_cycles"] == 5  # saga default
+        assert params["max_cycles"] == 5  # full default
 
-    def test_mission_mode_defaults(self, project):
-        args = _make_args(team="mission")
+    def test_quick_mode_defaults(self, project):
+        args = _make_args(team="quick")
         params = _build_params_from_flags(args, project)
         assert params["max_exchanges"] == 20
         assert params["max_cycles"] == 1
@@ -123,7 +123,7 @@ class TestBuildParamsFromFlags:
         config_path = project / ".kodo" / "config.json"
         assert config_path.exists()
         saved = json.loads(config_path.read_text())
-        assert saved["team"] == "saga"
+        assert saved["team"] == "full"
 
     def test_api_key_validation_exits(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
@@ -145,7 +145,7 @@ def test_unreadable_config_falls_back_to_selection(project):
     cfg.write_text(
         json.dumps(
             {
-                "team": "saga",
+                "team": "full",
                 "orchestrator": "api",
                 "orchestrator_model": "opus",
                 "max_exchanges": 30,
@@ -164,7 +164,7 @@ def test_unreadable_config_falls_back_to_selection(project):
     with patch.object(Path, "read_text", patched_read_text):
         with patch("kodo.cli._params.select_params") as mock_select:
             mock_select.return_value = {
-                "team": "saga",
+                "team": "full",
                 "orchestrator": "api",
                 "orchestrator_model": "opus",
                 "max_exchanges": 30,
@@ -398,7 +398,7 @@ class TestNonInteractiveEndToEnd:
                 "--goal",
                 "Build X",
                 "--team",
-                "mission",
+                "quick",
                 "--exchanges",
                 "42",
                 "--cycles",
@@ -412,7 +412,7 @@ class TestNonInteractiveEndToEnd:
             _main_inner()
 
             params = mock_launch.call_args[0][2]
-            assert params["team"] == "mission"
+            assert params["team"] == "quick"
             assert params["max_exchanges"] == 42
             assert params["max_cycles"] == 7
             assert params["orchestrator"] == "api"
@@ -518,8 +518,8 @@ class TestImproveFlag:
             _main_inner()
             mock_intake.assert_not_called()
 
-    def test_improve_defaults_to_saga_mode(self, project):
-        """--improve should default mode to saga."""
+    def test_improve_defaults_to_full_mode(self, project):
+        """--improve should default mode to full."""
         with (
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
@@ -527,7 +527,7 @@ class TestImproveFlag:
             sys.argv = ["kodo", "--improve", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
-            assert params["team"] == "saga"
+            assert params["team"] == "full"
 
     def test_improve_respects_explicit_team(self, project):
         """--improve should not override an explicitly set --team."""
@@ -535,10 +535,10 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", "--team", "mission", str(project)]
+            sys.argv = ["kodo", "--improve", "--team", "quick", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
-            assert params["team"] == "mission"
+            assert params["team"] == "quick"
 
     def test_improve_no_interactive_prompts(self, project):
         """--improve must never call input() or questionary."""
@@ -642,7 +642,7 @@ class TestImproveFlag:
         assert (
             "improve" in goal_text.lower() or "improvement report" in goal_text.lower()
         )
-        assert params["team"] == "saga"
+        assert params["team"] == "full"
         assert params["orchestrator"] == "api"
         assert plan is not None
         assert len(plan.stages) == 7
@@ -1090,7 +1090,7 @@ class TestGoalMdOSErrorWarning:
             patch(
                 "kodo.cli._main._load_or_select_params",
                 return_value={
-                    "team": "saga",
+                    "team": "full",
                     "orchestrator": "api",
                     "orchestrator_model": "opus",
                     "max_exchanges": 30,

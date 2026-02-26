@@ -18,6 +18,20 @@ from kodo import (
     make_session,
 )
 from kodo.agent import Agent
+from kodo.models import (
+    CLAUDE_OPUS,
+    CLAUDE_OPUS_FULL,
+    CLAUDE_SONNET,
+    CLAUDE_SONNET_FULL,
+    CODEX_DEFAULT,
+    CODEX_WORKER,
+    CURSOR_COMPOSER,
+    GEMINI_API_FLASH,
+    GEMINI_API_PRO,
+    GEMINI_API_PRO_V3,
+    GEMINI_CLI_FLASH,
+    GEMINI_CLI_PRO,
+)
 from kodo.orchestrators.base import ORCHESTRATOR_SYSTEM_PROMPT, TeamConfig
 
 # ---------------------------------------------------------------------------
@@ -68,6 +82,47 @@ def _gemini_only() -> bool:
     )
 
 
+# Central backend preference order for "pick the best available".
+# Used for intake, auto-refine, and any other "give me a backend" logic.
+# Ordering rationale: claude (strongest reasoning) > cursor > codex > gemini-cli.
+_BACKEND_PREFERENCE: list[str] = ["claude", "cursor", "codex", "gemini-cli"]
+
+
+def preferred_backend() -> str | None:
+    """Return the best available backend key, or None if none are installed."""
+    for backend in _BACKEND_PREFERENCE:
+        if _is_available(backend):
+            return backend
+    return None
+
+
+def available_backend_names() -> list[str]:
+    """Return display names of all available backends, in preference order."""
+    _DISPLAY_NAMES = {
+        "claude": "Claude",
+        "cursor": "Cursor",
+        "codex": "Codex",
+        "gemini-cli": "Gemini CLI",
+    }
+    return [
+        _DISPLAY_NAMES[b] for b in _BACKEND_PREFERENCE if _is_available(b)
+    ]
+
+
+# Default "smart" model per backend — used for intake, refine, plan generation.
+_BACKEND_SMART_MODEL: dict[str, str] = {
+    "claude": "opus",
+    "cursor": "composer-1.5",
+    "codex": "o3",
+    "gemini-cli": "gemini-3-flash",
+}
+
+
+def smart_model_for_backend(backend: str) -> str:
+    """Return the best model for a backend (for intake/analysis tasks)."""
+    return _BACKEND_SMART_MODEL[backend]
+
+
 # CLI-based orchestrators that don't need API keys
 _CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor"}
 
@@ -82,9 +137,9 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
     _GEMINI_ALIASES = {
         "gemini-pro",
         "gemini-flash",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-flash-preview",
+        GEMINI_API_PRO_V3,
+        GEMINI_API_PRO,
+        GEMINI_API_FLASH,
     }
     if model in _GEMINI_ALIASES or model.startswith("gemini"):
         if not os.environ.get("GEMINI_API_KEY") and not os.environ.get(
@@ -247,29 +302,29 @@ class _BackendOption:
 # Order = preference (best first).
 _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "worker_fast": [
-        _BackendOption("cursor", "composer-1.5"),
-        _BackendOption("codex", "gpt-5.2-codex"),
-        _BackendOption("gemini-cli", "gemini-3-flash"),
-        _BackendOption("claude", "sonnet"),
+        _BackendOption("cursor", CURSOR_COMPOSER),
+        _BackendOption("codex", CODEX_WORKER),
+        _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
+        _BackendOption("claude", CLAUDE_SONNET),
     ],
     "worker_smart": [
-        _BackendOption("claude", "opus", {"fallback_model": "sonnet"}),
-        _BackendOption("gemini-cli", "gemini-3-pro"),
-        _BackendOption("codex", "o3"),
-        _BackendOption("cursor", "composer-1.5"),
+        _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
+        _BackendOption("gemini-cli", GEMINI_CLI_PRO),
+        _BackendOption("codex", CODEX_DEFAULT),
+        _BackendOption("cursor", CURSOR_COMPOSER),
     ],
     "architect": [
-        _BackendOption("claude", "opus", {"fallback_model": "sonnet"}),
-        _BackendOption("gemini-cli", "gemini-3-pro"),
+        _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
+        _BackendOption("gemini-cli", GEMINI_CLI_PRO),
     ],
     "tester": [
-        _BackendOption("cursor", "composer-1.5"),
-        _BackendOption("gemini-cli", "gemini-3-flash"),
-        _BackendOption("claude", "sonnet"),
-        _BackendOption("codex", "o3"),
+        _BackendOption("cursor", CURSOR_COMPOSER),
+        _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
+        _BackendOption("claude", CLAUDE_SONNET),
+        _BackendOption("codex", CODEX_DEFAULT),
     ],
     "tester_browser": [
-        _BackendOption("cursor", "composer-1.5"),
+        _BackendOption("cursor", CURSOR_COMPOSER),
     ],
 }
 
@@ -507,10 +562,10 @@ def get_team(name: str) -> TeamPreset:
 
 # Maps short names ("opus", "sonnet") to full API model IDs.
 _MODEL_ALIASES: dict[str, str] = {
-    "opus": "claude-opus-4-6",
-    "sonnet": "claude-sonnet-4-5-20250929",
-    "gemini-pro": "gemini-3.1-pro-preview",
-    "gemini-flash": "gemini-3-flash-preview",
+    CLAUDE_OPUS: CLAUDE_OPUS_FULL,
+    CLAUDE_SONNET: CLAUDE_SONNET_FULL,
+    "gemini-pro": GEMINI_API_PRO,
+    "gemini-flash": GEMINI_API_FLASH,
 }
 
 
@@ -530,7 +585,7 @@ def build_orchestrator(
     if name == "api":
         from kodo.orchestrators.api import ApiOrchestrator
 
-        orch_model = _MODEL_ALIASES.get(model, model) if model else "claude-opus-4-6"
+        orch_model = _MODEL_ALIASES.get(model, model) if model else CLAUDE_OPUS_FULL
         fb_model = (
             _MODEL_ALIASES.get(fallback_model, fallback_model)
             if fallback_model
@@ -545,22 +600,22 @@ def build_orchestrator(
     if name == "gemini-cli":
         from kodo.orchestrators.gemini_cli import GeminiCliOrchestrator
 
-        orch_model = model or "gemini-3-flash"
+        orch_model = model or GEMINI_CLI_FLASH
         return GeminiCliOrchestrator(model=orch_model, system_prompt=system_prompt)
 
     if name == "codex":
         from kodo.orchestrators.codex_cli import CodexOrchestrator
 
-        orch_model = model or "o3"
+        orch_model = model or CODEX_DEFAULT
         return CodexOrchestrator(model=orch_model, system_prompt=system_prompt)
 
     if name == "cursor":
         from kodo.orchestrators.cursor_cli import CursorOrchestrator
 
-        orch_model = model or "sonnet-4"
+        orch_model = model or CURSOR_COMPOSER
         return CursorOrchestrator(model=orch_model, system_prompt=system_prompt)
 
     from kodo.orchestrators.claude_code import ClaudeCodeOrchestrator
 
-    orch_model = model or "opus"
+    orch_model = model or CLAUDE_OPUS
     return ClaudeCodeOrchestrator(model=orch_model, system_prompt=system_prompt)

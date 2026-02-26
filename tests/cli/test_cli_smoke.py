@@ -263,7 +263,7 @@ class TestResumeCLI:
             stage_summaries={},
             current_stage_cycles=0,
             pending_exchanges=[],
-            team_preset="saga",
+            team_preset="full",
         )
 
         fake_result = MagicMock(

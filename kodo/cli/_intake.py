@@ -17,7 +17,11 @@ from kodo.cli._ui import (
     _print_separator,
     _Spinner,
 )
-from kodo.factory import has_claude, has_cursor, has_gemini_cli
+from kodo.factory import (
+    available_backend_names,
+    preferred_backend,
+    smart_model_for_backend,
+)
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage
 
@@ -250,12 +254,7 @@ def run_intake_chat(
 
     output_file = run_dir.goal_plan_file if staged else run_dir.goal_refined_file
     prompt = _build_intake_prompt(str(output_file), staged)
-    _intake_models = {
-        "claude": "opus",
-        "cursor": "composer-1.5",
-        "gemini-cli": "gemini-2.5-flash",
-    }
-    model = _intake_models.get(backend, "composer-1.5")
+    model = smart_model_for_backend(backend)
     session = make_session(backend, model, system_prompt=prompt)
 
     try:
@@ -431,12 +430,7 @@ def run_intake_auto(
 
     output_file = run_dir.goal_refined_file
     prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
-    _refine_models = {
-        "claude": "opus",
-        "cursor": "composer-1.5",
-        "gemini-cli": "gemini-2.5-flash",
-    }
-    model = _refine_models.get(backend, "composer-1.5")
+    model = smart_model_for_backend(backend)
     session = make_session(backend, model, system_prompt=prompt)
 
     try:
@@ -495,14 +489,10 @@ def run_single_turn_plan(
     """
     run_dir.root.mkdir(parents=True, exist_ok=True)
 
-    if has_claude():
-        backend, model = "claude", "opus"
-    elif has_cursor():
-        backend, model = "cursor", "composer-1.5"
-    elif has_gemini_cli():
-        backend, model = "gemini-cli", "gemini-2.5-flash"
-    else:
+    backend = preferred_backend()
+    if not backend:
         return None
+    model = smart_model_for_backend(backend)
 
     output_file = run_dir.goal_plan_file
     session = make_session(backend, model, system_prompt=system_prompt)
@@ -566,20 +556,9 @@ def run_intake_noninteractive(
 # ---------------------------------------------------------------------------
 
 
-def _first_backend() -> str | None:
-    """Return the first available backend key, or None."""
-    if has_claude():
-        return "claude"
-    if has_cursor():
-        return "cursor"
-    if has_gemini_cli():
-        return "gemini-cli"
-    return None
-
-
 def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
     """Offer goal refinement before launch. Returns refined goal/plan or None."""
-    backend = _first_backend()
+    backend = preferred_backend()
     if not backend:
         print("\nSkipping refinement (no backends available).")
         return None
@@ -598,18 +577,13 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
         return refined
 
     # Interview — let user pick backend if multiple are available
-    backends: list[str] = []
-    if has_claude():
-        backends.append("Claude")
-    if has_cursor():
-        backends.append("Cursor")
-    if has_gemini_cli():
-        backends.append("Gemini CLI")
+    backends = available_backend_names()
 
     if len(backends) > 1:
         _backend_map = {
             "Claude": "claude",
             "Cursor": "cursor",
+            "Codex": "codex",
             "Gemini CLI": "gemini-cli",
         }
         backend = _backend_map[_select_one("Interview backend:", backends)]

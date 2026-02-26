@@ -1028,9 +1028,11 @@ def _resolve_conflicts_with_agent(
     log.tprint(f"[persist] Resolving conflicts in: {files}")
     log.emit("persist_conflict_resolve_start", stage_name=stage_name, files=files)
 
+    from kodo.models import CLAUDE_SONNET
+
     session = make_session(
         backend="claude-code",
-        model="sonnet",
+        model=CLAUDE_SONNET,
         system_prompt=(
             "You are resolving git merge conflicts. The merge is in progress. "
             "Conflicting files have <<<<<<< / ======= / >>>>>>> markers. "

@@ -19,6 +19,13 @@ from pydantic_ai.usage import UsageLimits
 from pydantic_ai_summarization import create_summarization_processor
 
 from kodo import log
+from kodo.models import (
+    CLAUDE_OPUS_FULL,
+    CLAUDE_SONNET_FULL,
+    GEMINI_API_FLASH,
+    GEMINI_API_PRO,
+    GEMINI_API_PRO_V3,
+)
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     CycleConfig,
@@ -35,20 +42,20 @@ from kodo.summarizer import Summarizer
 
 # Per-1M-token pricing: (input, output)
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "claude-opus-4-6": (5, 25),
-    "claude-sonnet-4-5-20250929": (3, 15),
-    "gemini-3.1-pro-preview": (2.0, 12.0),
-    "gemini-3-pro-preview": (2.0, 12.0),
-    "gemini-3-flash-preview": (0.50, 3.0),
+    CLAUDE_OPUS_FULL: (5, 25),
+    CLAUDE_SONNET_FULL: (3, 15),
+    GEMINI_API_PRO: (2.0, 12.0),
+    GEMINI_API_PRO_V3: (2.0, 12.0),
+    GEMINI_API_FLASH: (0.50, 3.0),
 }
 
 # Map our model IDs to pydantic-ai model strings (provider:model).
 _PYDANTIC_MODEL_MAP: dict[str, str] = {
-    "claude-opus-4-6": "anthropic:claude-opus-4-6",
-    "claude-sonnet-4-5-20250929": "anthropic:claude-sonnet-4-5-20250929",
-    "gemini-3.1-pro-preview": "google-gla:gemini-3.1-pro-preview",
-    "gemini-3-pro-preview": "google-gla:gemini-3-pro-preview",
-    "gemini-3-flash-preview": "google-gla:gemini-3-flash-preview",
+    CLAUDE_OPUS_FULL: f"anthropic:{CLAUDE_OPUS_FULL}",
+    CLAUDE_SONNET_FULL: f"anthropic:{CLAUDE_SONNET_FULL}",
+    GEMINI_API_PRO: f"google-gla:{GEMINI_API_PRO}",
+    GEMINI_API_PRO_V3: f"google-gla:{GEMINI_API_PRO_V3}",
+    GEMINI_API_FLASH: f"google-gla:{GEMINI_API_FLASH}",
 }
 
 
@@ -133,7 +140,7 @@ class ApiOrchestrator(OrchestratorBase):
 
     def __init__(
         self,
-        model: str = "claude-opus-4-6",
+        model: str = CLAUDE_OPUS_FULL,
         max_context_tokens: int | None = 100_000,
         system_prompt: str | None = None,
         fallback_model: str | None = None,

@@ -40,7 +40,7 @@ def _create_run(run_id: str, project_dir: str, goal: str, *, finished: bool = Fa
             "max_cycles": 5,
             "team": ["worker_fast", "worker_smart"],
         },
-        {"event": "cli_args", "team": "saga"},
+        {"event": "cli_args", "team": "full"},
         {"event": "cycle_end", "summary": f"worked on: {goal[:30]}"},
     ]
     if finished:
@@ -129,8 +129,8 @@ def _mocked_patches():
         patch("kodo.cli._params.has_claude", return_value=True),
         patch("kodo.cli._params.has_cursor", return_value=True),
         patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.factory._build_team_mission", _fake_build_team),
-        patch("kodo.factory._build_team_saga", _fake_build_team),
+        patch("kodo.factory._build_team_quick", _fake_build_team),
+        patch("kodo.factory._build_team_full", _fake_build_team),
         patch(
             "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
         ),
@@ -216,7 +216,7 @@ class TestMockedResumeHappyPath:
                 "max_cycles": 1,
                 "team": ["worker_fast", "worker_smart"],
             },
-            {"event": "cli_args", "team": "saga"},
+            {"event": "cli_args", "team": "full"},
             {"event": "cycle_end", "summary": "partial work"},
         ]
         lines = [
@@ -229,7 +229,7 @@ class TestMockedResumeHappyPath:
         (run_root / "config.json").write_text(
             json.dumps(
                 {
-                    "team": "saga",
+                    "team": "full",
                     "orchestrator": "api",
                     "orchestrator_model": "opus",
                     "max_exchanges": 20,
@@ -330,7 +330,7 @@ class TestSubcommandTeams:
             with patch("sys.stdout", buf):
                 _cmd_teams()
         out = buf.getvalue()
-        assert "saga" in out or "mission" in out or "No teams found" in out
+        assert "full" in out or "quick" in out or "No teams found" in out
 
     def test_teams_add_requires_name(self):
         buf = StringIO()
@@ -450,7 +450,7 @@ class TestGoalMdOserror:
             patch("builtins.input", return_value="y"),
         ):
             mock_params.return_value = {
-                "team": "saga",
+                "team": "full",
                 "orchestrator": "api",
                 "orchestrator_model": "gemini-flash",
                 "max_exchanges": 30,

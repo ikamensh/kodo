@@ -19,13 +19,14 @@ from kodo.orchestrators.base import (
     build_cycle_prompt,
     build_mcp_server,
 )
+from kodo.models import CODEX_DEFAULT
 from kodo.summarizer import Summarizer
 
 
 class CodexOrchestrator(OrchestratorBase):
     """Orchestrator backed by Codex CLI with MCP tools for agents."""
 
-    def __init__(self, model: str = "o3", system_prompt: str | None = None):
+    def __init__(self, model: str = CODEX_DEFAULT, system_prompt: str | None = None):
         self.model = model
         self._orchestrator_name = "codex"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT

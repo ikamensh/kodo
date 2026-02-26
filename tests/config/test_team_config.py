@@ -50,26 +50,26 @@ class TestLoadTeamConfig:
         _write_team_json(project_team, {**MINIMAL_CONFIG, "name": "project"})
 
         with patch("kodo.team_config.Path.home", return_value=tmp_project / "fakehome"):
-            user_team = tmp_project / "fakehome" / ".kodo" / "teams" / "saga.json"
+            user_team = tmp_project / "fakehome" / ".kodo" / "teams" / "full.json"
             _write_team_json(user_team, {**MINIMAL_CONFIG, "name": "user"})
 
-            result = load_team_config("saga", tmp_project)
+            result = load_team_config("full", tmp_project)
             assert result is not None
             assert result["name"] == "project"
 
     def test_user_level_fallback(self, tmp_project: Path):
         home = tmp_project / "fakehome"
-        user_team = home / ".kodo" / "teams" / "saga.json"
-        _write_team_json(user_team, {**MINIMAL_CONFIG, "name": "user-saga"})
+        user_team = home / ".kodo" / "teams" / "full.json"
+        _write_team_json(user_team, {**MINIMAL_CONFIG, "name": "user-full"})
 
         with patch("kodo.team_config.Path.home", return_value=home):
-            result = load_team_config("saga", tmp_project)
+            result = load_team_config("full", tmp_project)
             assert result is not None
-            assert result["name"] == "user-saga"
+            assert result["name"] == "user-full"
 
     def test_returns_none_when_no_config(self, tmp_project: Path):
         with patch("kodo.team_config.Path.home", return_value=tmp_project / "fakehome"):
-            result = load_team_config("saga", tmp_project)
+            result = load_team_config("full", tmp_project)
             assert result is None
 
     def test_invalid_json_raises(self, tmp_project: Path):
@@ -78,14 +78,14 @@ class TestLoadTeamConfig:
         bad_file.write_text("not json {{{")
 
         with pytest.raises(ValueError, match="Invalid JSON"):
-            load_team_config("saga", tmp_project)
+            load_team_config("full", tmp_project)
 
     def test_missing_agents_key_raises(self, tmp_project: Path):
         bad_config = tmp_project / ".kodo" / "team.json"
         _write_team_json(bad_config, {"name": "bad"})
 
         with pytest.raises(ValueError, match="agents"):
-            load_team_config("saga", tmp_project)
+            load_team_config("full", tmp_project)
 
 
 # ---------------------------------------------------------------------------

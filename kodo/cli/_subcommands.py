@@ -9,6 +9,15 @@ from typing import Any
 import questionary
 
 from kodo import log
+from kodo.models import (
+    CLAUDE_OPUS,
+    CLAUDE_SONNET,
+    CODEX_DEFAULT,
+    CODEX_WORKER,
+    CURSOR_COMPOSER,
+    GEMINI_CLI_FLASH,
+    GEMINI_CLI_PRO,
+)
 
 
 def _truncate_word(text: str, width: int) -> str:
@@ -300,15 +309,15 @@ def _cmd_teams_auto(mode_name: str) -> None:
     # Priority for fast worker: cursor > codex > gemini-cli > claude
     # Priority for smart worker: claude > gemini-cli
     _FAST_FALLBACKS = [
-        ("cursor", "composer-1.5"),
-        ("codex", "gpt-5.2-codex"),
-        ("gemini-cli", "gemini-3-flash"),
-        ("claude", "sonnet"),
+        ("cursor", CURSOR_COMPOSER),
+        ("codex", CODEX_WORKER),
+        ("gemini-cli", GEMINI_CLI_FLASH),
+        ("claude", CLAUDE_SONNET),
     ]
     _SMART_FALLBACKS = [
-        ("claude", "opus"),
-        ("gemini-cli", "gemini-3-pro"),
-        ("cursor", "composer-1.5"),
+        ("claude", CLAUDE_OPUS),
+        ("gemini-cli", GEMINI_CLI_PRO),
+        ("cursor", CURSOR_COMPOSER),
     ]
 
     def _find_fallback(

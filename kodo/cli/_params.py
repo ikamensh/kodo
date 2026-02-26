@@ -17,6 +17,15 @@ from kodo.factory import (
     has_cursor,
     has_gemini_cli,
 )
+from kodo.models import (
+    CLAUDE_OPUS,
+    CLAUDE_SONNET,
+    CODEX_DEFAULT,
+    CURSOR_COMPOSER,
+    GEMINI_API_FLASH,
+    GEMINI_CLI_FLASH,
+    GEMINI_CLI_PRO,
+)
 from kodo.user_config import get_user_default
 
 # ---------------------------------------------------------------------------
@@ -128,23 +137,23 @@ def select_params() -> dict:
     if orchestrator == "gemini-cli":
         orch_model = _select_one(
             "Orchestrator model:",
-            ["gemini-3-flash", "gemini-3-pro"],
+            [GEMINI_CLI_FLASH, GEMINI_CLI_PRO],
         )
     elif orchestrator == "codex":
-        orch_model = _select_one("Orchestrator model:", ["o3", "o4-mini"])
+        orch_model = _select_one("Orchestrator model:", [CODEX_DEFAULT])
     elif orchestrator == "cursor":
         orch_model = _select_one(
             "Orchestrator model:",
-            ["sonnet-4", "sonnet-4-thinking", "gpt-5"],
+            [CURSOR_COMPOSER, "sonnet-4-thinking", "gpt-5"],
         )
     elif orchestrator == "api":
         orch_model = _select_one(
             "Orchestrator model:",
-            ["opus", "sonnet", "gemini-pro", "gemini-flash"],
+            [CLAUDE_OPUS, CLAUDE_SONNET, "gemini-pro", "gemini-flash"],
         )
     else:
         # claude-code
-        orch_model = _select_one("Orchestrator model:", ["opus", "sonnet"])
+        orch_model = _select_one("Orchestrator model:", [CLAUDE_OPUS, CLAUDE_SONNET])
 
     # Validate API key early
     key_err = check_api_key(orchestrator, orch_model)
@@ -273,13 +282,13 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     # Default model per orchestrator when not explicitly specified
     if not orch_model:
         _ORCH_DEFAULT_MODELS = {
-            "claude-code": "opus",
-            "gemini-cli": "gemini-3-flash",
-            "codex": "o3",
-            "cursor": "sonnet-4",
-            "api": "gemini-flash",
+            "claude-code": CLAUDE_OPUS,
+            "gemini-cli": GEMINI_CLI_FLASH,
+            "codex": CODEX_DEFAULT,
+            "cursor": CURSOR_COMPOSER,
+            "api": GEMINI_API_FLASH,
         }
-        orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, "gemini-flash")
+        orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, GEMINI_API_FLASH)
 
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:

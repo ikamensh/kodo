@@ -7,7 +7,7 @@ from pathlib import Path
 
 from kodo import log
 
-_CLI_ARGS = {"event": "cli_args", "team": "saga"}
+_CLI_ARGS = {"event": "cli_args", "team": "full"}
 
 
 def _write_events(log_file: Path, events: list[dict]) -> None:
@@ -151,7 +151,7 @@ def test_parse_run_corrupt_lines_tolerated(tmp_path: Path):
     content = (
         '{"ts":"t","t":0,"event":"run_start","goal":"g","orchestrator":"api",'
         '"model":"m","project_dir":"/p","max_exchanges":30,"max_cycles":5,"team":[]}\n'
-        '{"ts":"t","t":0,"event":"cli_args","team":"saga"}\n'
+        '{"ts":"t","t":0,"event":"cli_args","team":"full"}\n'
         "this is not json\n"
         '{"truncated\n'
         '{"ts":"t","t":0,"event":"cycle_end","summary":"ok"}\n'
@@ -286,10 +286,10 @@ def test_parse_run_with_cli_args(tmp_path: Path):
                 "max_cycles": 5,
                 "team": [],
             },
-            {"event": "cli_args", "team": "mission"},
+            {"event": "cli_args", "team": "quick"},
             {"event": "cycle_end", "summary": "done"},
         ],
     )
     state = log.parse_run(f)
     assert state is not None
-    assert state.team_preset == "mission"
+    assert state.team_preset == "quick"

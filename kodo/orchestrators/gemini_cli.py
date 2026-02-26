@@ -19,6 +19,7 @@ from kodo.orchestrators.base import (
     build_cycle_prompt,
     build_mcp_server,
 )
+from kodo.models import GEMINI_CLI_FLASH
 from kodo.summarizer import Summarizer
 
 
@@ -26,7 +27,7 @@ class GeminiCliOrchestrator(OrchestratorBase):
     """Orchestrator backed by Gemini CLI with MCP tools for agents."""
 
     def __init__(
-        self, model: str = "gemini-2.5-flash", system_prompt: str | None = None
+        self, model: str = GEMINI_CLI_FLASH, system_prompt: str | None = None
     ):
         self.model = model
         self._orchestrator_name = "gemini-cli"

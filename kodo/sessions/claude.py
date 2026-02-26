@@ -12,6 +12,7 @@ from typing import Any
 
 from kodo import log
 from kodo.env import anthropic_env_lock
+from kodo.models import CLAUDE_SONNET
 from kodo.sessions.base import QueryResult, SessionStats
 
 
@@ -27,7 +28,7 @@ def _extract_tokens(usage: dict | None) -> tuple[int | None, int | None]:
 class ClaudeSession:
     def __init__(
         self,
-        model: str = "sonnet",
+        model: str = CLAUDE_SONNET,
         system_prompt: str | None = None,
         chrome: bool = False,
         fallback_model: str | None = None,
