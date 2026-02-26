@@ -14,6 +14,25 @@ METHODOLOGY_LIBRARY = """\
 These are starting points — adapt, combine, or invent approaches that fit \
 the project. You are not limited to this list.
 
+### Test Tool Forge
+- **Test Infrastructure Audit**: Inventory the project's existing test tools — \
+fixtures, helpers, conftest plugins, test scripts, Docker test setups, \
+CI test jobs. Map what categories of bugs each tool can catch.
+- **Gap Analysis**: Identify the single highest-impact testing gap — a class of \
+bugs or failure modes that existing tools don't cover well. Consider: \
+integration contract violations, state machine invariants, configuration \
+drift, cross-module interaction bugs, data flow corruption, regression traps \
+in recently-changed code.
+- **Build or Enhance**: For mature projects with good test infrastructure, \
+prefer extending an existing tool to cover the gap (e.g. adding new test \
+cases to an existing module, enhancing a fixture, expanding a script's \
+scope). For projects with sparse testing, create a new reusable tool \
+(test module, script, conftest plugin, or fixture). Either way, the result \
+must be runnable standalone and produce clear pass/fail output.
+- **Immediate Application**: Run the new or enhanced tool against the codebase \
+and report any bugs discovered. These are findings that were previously \
+invisible or untested.
+
 ### Static Analysis & Baseline
 - **Lint & Type Check**: Run the project's configured linters and type checkers \
 (mypy, pyright, eslint, tsc --noEmit, clippy, golangci-lint, etc.)

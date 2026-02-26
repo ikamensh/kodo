@@ -586,7 +586,7 @@ class TestImproveFlag:
                 else None,
             )
             assert plan is not None
-            assert len(plan.stages) == 6
+            assert len(plan.stages) == 7
 
     def test_improve_plan_stage_order(self, project):
         """--improve stages should follow the right sequence."""
@@ -604,6 +604,7 @@ class TestImproveFlag:
             )
             names = [s.name for s in plan.stages]
             assert names == [
+                "Test Tool Forge",
                 "Baseline & Static Analysis",
                 "Happy Path Integration Testing",
                 "Exploratory & Adversarial Testing",
@@ -644,8 +645,8 @@ class TestImproveFlag:
         assert params["team"] == "saga"
         assert params["orchestrator"] == "api"
         assert plan is not None
-        assert len(plan.stages) == 6
-        assert plan.stages[0].name == "Baseline & Static Analysis"
+        assert len(plan.stages) == 7
+        assert plan.stages[0].name == "Test Tool Forge"
 
 
 # ---------------------------------------------------------------------------
@@ -656,13 +657,22 @@ class TestImproveFlag:
 class TestBuildFallbackPlan:
     """Tests for _build_fallback_plan() structure."""
 
-    def test_has_six_stages(self):
+    def test_has_seven_stages(self):
         plan = _build_fallback_plan("/tmp/report.md")
-        assert len(plan.stages) == 6
+        assert len(plan.stages) == 7
 
     def test_stages_have_sequential_indices(self):
         plan = _build_fallback_plan("/tmp/report.md")
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5, 6]
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5, 6, 7]
+
+    def test_first_stage_is_test_tool_forge(self):
+        """Stage 1 should be Test Tool Forge with persist_changes=True."""
+        plan = _build_fallback_plan("/tmp/report.md")
+        forge = plan.stages[0]
+        assert forge.name == "Test Tool Forge"
+        assert forge.persist_changes is True
+        assert forge.parallel_group is None
+        assert "findings-test-tool-forge.md" in forge.description
 
     def test_report_path_in_final_stage(self):
         plan = _build_fallback_plan("/tmp/my-report.md")
@@ -671,16 +681,17 @@ class TestBuildFallbackPlan:
         assert "/tmp/my-report.md" in last.acceptance_criteria
 
     def test_time_guidance_in_integration_stages(self):
-        """Stages 2 and 3 should include time efficiency guidance."""
+        """Stages 3 and 4 should include time efficiency guidance."""
         plan = _build_fallback_plan("/tmp/report.md")
-        for stage in plan.stages[1:3]:
+        for stage in plan.stages[2:4]:
             assert "Mock or stub" in stage.description
             assert "30 seconds" in stage.description
 
-    def test_time_guidance_not_in_static_stage(self):
-        """Stage 1 (static analysis) should not have time guidance."""
+    def test_time_guidance_not_in_forge_or_static_stage(self):
+        """Stage 1 (forge) and Stage 2 (static analysis) should not have time guidance."""
         plan = _build_fallback_plan("/tmp/report.md")
         assert "Mock or stub" not in plan.stages[0].description
+        assert "Mock or stub" not in plan.stages[1].description
 
     def test_all_stages_have_acceptance_criteria(self):
         plan = _build_fallback_plan("/tmp/report.md")
@@ -691,31 +702,33 @@ class TestBuildFallbackPlan:
         plan = _build_fallback_plan("/tmp/report.md")
         assert "RUNNING" in plan.context
 
-    def test_stages_2_3_4_are_parallel(self):
-        """Stages 2, 3, and 4 should share the same parallel_group."""
+    def test_stages_3_4_5_are_parallel(self):
+        """Stages 3, 4, and 5 should share the same parallel_group."""
         plan = _build_fallback_plan("/tmp/report.md")
-        assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
         assert plan.stages[3].parallel_group == 1
+        assert plan.stages[4].parallel_group == 1
 
-    def test_stages_1_5_and_6_are_sequential(self):
-        """Stages 1, 5, and 6 should have no parallel_group (sequential)."""
+    def test_stages_1_2_6_and_7_are_sequential(self):
+        """Stages 1, 2, 6, and 7 should have no parallel_group (sequential)."""
         plan = _build_fallback_plan("/tmp/report.md")
         assert plan.stages[0].parallel_group is None
-        assert plan.stages[4].parallel_group is None
+        assert plan.stages[1].parallel_group is None
         assert plan.stages[5].parallel_group is None
+        assert plan.stages[6].parallel_group is None
 
     def test_parallel_stage_descriptions_mention_findings_file(self):
         """Stage descriptions should tell agents where to write findings."""
         plan = _build_fallback_plan("/tmp/report.md")
-        assert "findings-happy-path.md" in plan.stages[1].description
-        assert "findings-adversarial.md" in plan.stages[2].description
-        assert "findings-architecture.md" in plan.stages[3].description
+        assert "findings-happy-path.md" in plan.stages[2].description
+        assert "findings-adversarial.md" in plan.stages[3].description
+        assert "findings-architecture.md" in plan.stages[4].description
 
     def test_fix_stage_references_all_findings_files(self):
         """Final stage should tell agents to read all findings files."""
         plan = _build_fallback_plan("/tmp/report.md")
-        fix_stage = plan.stages[5]
+        fix_stage = plan.stages[6]
+        assert "findings-test-tool-forge.md" in fix_stage.description
         assert "findings-happy-path.md" in fix_stage.description
         assert "findings-adversarial.md" in fix_stage.description
         assert "findings-architecture.md" in fix_stage.description
@@ -723,7 +736,7 @@ class TestBuildFallbackPlan:
     def test_parallel_stages_instruct_no_source_modification(self):
         """Read-only parallel stages should explicitly say not to modify code."""
         plan = _build_fallback_plan("/tmp/report.md")
-        for stage in plan.stages[1:4]:
+        for stage in plan.stages[2:5]:
             assert "Do NOT modify source code" in stage.description
 
 

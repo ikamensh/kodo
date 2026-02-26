@@ -342,6 +342,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
     architecture) → triage → fix & report.
     """
     run_dir = str(Path(report_path).parent)
+    forge_findings = f"{run_dir}/findings-test-tool-forge.md"
     happy_findings = f"{run_dir}/findings-happy-path.md"
     adversarial_findings = f"{run_dir}/findings-adversarial.md"
     architecture_findings = f"{run_dir}/findings-architecture.md"
@@ -356,6 +357,39 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
         stages=[
             GoalStage(
                 index=1,
+                name="Test Tool Forge",
+                persist_changes=True,
+                description=(
+                    "Audit the project's existing test infrastructure: fixtures, "
+                    "helpers, conftest plugins, test scripts, Docker test setups, "
+                    "CI test jobs. Map what categories of bugs each tool can catch.\n\n"
+                    "Identify the single highest-impact testing gap — a class of "
+                    "bugs or failure modes that existing tools don't cover well. "
+                    "Consider: integration contract violations, state machine "
+                    "invariants, configuration drift, cross-module interaction "
+                    "bugs, data flow corruption, regression traps in recently-"
+                    "changed code.\n\n"
+                    "For mature projects with good test infrastructure, prefer "
+                    "extending an existing tool to cover the gap (e.g. adding new "
+                    "test cases to an existing module, enhancing a fixture, "
+                    "expanding a script's scope). For projects with sparse testing, "
+                    "create a new reusable tool (test module, script, conftest "
+                    "plugin, or fixture). Either way, the result must be runnable "
+                    "standalone and produce clear pass/fail output.\n\n"
+                    "Run the new or enhanced tool against the codebase immediately. "
+                    "Report any bugs discovered — these are findings that were "
+                    "previously invisible or untested.\n\n"
+                    f"Write findings to `{forge_findings}`.\n\n"
+                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                ),
+                acceptance_criteria=(
+                    "Test tool created or enhanced, committed, and executed. "
+                    f"Findings file written to {forge_findings} with any "
+                    "discovered bugs."
+                ),
+            ),
+            GoalStage(
+                index=2,
                 name="Baseline & Static Analysis",
                 description=(
                     "Run test suite, linters, type-checkers. Flag obvious bugs, "
@@ -369,7 +403,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                 ),
             ),
             GoalStage(
-                index=2,
+                index=3,
                 name="Happy Path Integration Testing",
                 parallel_group=1,
                 description=(
@@ -389,7 +423,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                 ),
             ),
             GoalStage(
-                index=3,
+                index=4,
                 name="Exploratory & Adversarial Testing",
                 parallel_group=1,
                 description=(
@@ -407,7 +441,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                 ),
             ),
             GoalStage(
-                index=4,
+                index=5,
                 name="Architecture & Simplification Audit",
                 parallel_group=1,
                 description=(
@@ -427,27 +461,29 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                 ),
             ),
             GoalStage(
-                index=5,
+                index=6,
                 name="Triage & Verify",
                 description=_TRIAGE_STAGE_DESCRIPTION.format(
                     triage_path=triage_path,
                 )
                 + (
-                    f"\n\nFindings files: `{happy_findings}`, "
+                    f"\n\nFindings files: `{forge_findings}`, "
+                    f"`{happy_findings}`, "
                     f"`{adversarial_findings}`, "
                     f"`{architecture_findings}`. "
-                    "Also include Stage 1 findings from prior context."
+                    "Also include Stage 2 findings from prior context."
                 )
                 + prior_needs_decision,
                 acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
             ),
             GoalStage(
-                index=6,
+                index=7,
                 name="Fix & Report",
                 description=(
                     f"Act only on `fix` and `needs-decision` from `{triage_path}`. "
                     "Ignore `skip`.\n\n"
-                    f"Original findings: `{happy_findings}`, "
+                    f"Original findings: `{forge_findings}`, "
+                    f"`{happy_findings}`, "
                     f"`{adversarial_findings}`, "
                     f"`{architecture_findings}`.\n\n"
                     "Auto-fix safe issues, flag ambiguous ones. "
