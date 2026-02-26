@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from kodo.agent import Agent
-from kodo.orchestrators.base import VerificationState, verify_done
+from kodo.orchestrators.base import (
+    CycleConfig,
+    DoneSignal,
+    QuickCheck,
+    VerificationState,
+    handle_done,
+    verify_done,
+)
 from tests.conftest import FakeSession, make_agent
 
 GOAL = "Build a hello-world web server."
@@ -311,3 +318,153 @@ def test_browser_flag_false_skips_even_with_agent(tmp_project: Path) -> None:
     result = verify_done(GOAL, SUMMARY, team, tmp_project, browser_testing=False)
     assert result is None
     assert tester_browser.session.stats.queries == 0
+
+
+# --- handle_done verification modes ---
+
+
+class TestHandleDoneVerificationSkip:
+    """Tests for verification='skip' mode in handle_done."""
+
+    def test_skip_accepts_immediately(self, tmp_project: Path) -> None:
+        """verification='skip' accepts without running any verifiers."""
+        team = {"tester": make_agent("THIS SHOULD NOT RUN")}
+        done_signal = DoneSignal()
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification="skip"),
+        )
+        assert "Verified and accepted" in result
+        assert done_signal.called
+        assert done_signal.success
+
+    def test_skip_does_not_run_verifiers(self, tmp_project: Path) -> None:
+        """verification='skip' never queries the tester."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification="skip"),
+        )
+        assert tester.session.stats.queries == 0
+
+    def test_skip_still_rejects_on_failure(self, tmp_project: Path) -> None:
+        """verification='skip' still marks unsuccessful when success=False."""
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+        done_signal = DoneSignal()
+        result = handle_done(
+            SUMMARY, False, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification="skip"),
+        )
+        assert "unsuccessful" in result.lower()
+        assert done_signal.called
+        assert not done_signal.success
+
+
+class TestHandleDoneQuickCheck:
+    """Tests for verification=[QuickCheck(...)] mode in handle_done."""
+
+    def test_quick_check_passes_when_file_exists(self, tmp_project: Path) -> None:
+        """Quick check accepts when the expected file exists."""
+        check_file = tmp_project / "findings.md"
+        check_file.write_text("some findings")
+        team = {"tester": make_agent("THIS SHOULD NOT RUN")}
+        done_signal = DoneSignal()
+        checks = [
+            QuickCheck(
+                path=str(check_file),
+                description="Findings file",
+                error_message="Missing findings",
+            )
+        ]
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification=checks),
+        )
+        assert "Verified and accepted" in result
+        assert done_signal.called
+        assert done_signal.success
+
+    def test_quick_check_rejects_when_file_missing(self, tmp_project: Path) -> None:
+        """Quick check rejects when the expected file does not exist."""
+        missing = str(tmp_project / "nonexistent.md")
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+        done_signal = DoneSignal()
+        checks = [
+            QuickCheck(
+                path=missing,
+                description="Findings file",
+                error_message="Missing findings",
+            )
+        ]
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification=checks),
+        )
+        assert "Quick-check verification failed" in result
+        assert "Missing findings" in result
+        assert not done_signal.called
+
+    def test_quick_check_does_not_run_verifiers(self, tmp_project: Path) -> None:
+        """Quick check mode never queries agent verifiers."""
+        check_file = tmp_project / "findings.md"
+        check_file.write_text("data")
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        checks = [
+            QuickCheck(
+                path=str(check_file),
+                description="Findings file",
+                error_message="Missing",
+            )
+        ]
+        handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification=checks),
+        )
+        assert tester.session.stats.queries == 0
+
+    def test_multiple_quick_checks_all_must_pass(self, tmp_project: Path) -> None:
+        """All quick checks must pass; one missing file rejects."""
+        existing = tmp_project / "a.md"
+        existing.write_text("ok")
+        missing = str(tmp_project / "b.md")
+        team = {}
+        done_signal = DoneSignal()
+        checks = [
+            QuickCheck(path=str(existing), description="File A", error_message="A missing"),
+            QuickCheck(path=missing, description="File B", error_message="B missing"),
+        ]
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification=checks),
+        )
+        assert "Quick-check verification failed" in result
+        assert "B missing" in result
+        assert "A missing" not in result
+
+
+class TestHandleDoneFullVerification:
+    """Verify that verification='full' behaves as before."""
+
+    def test_full_runs_verifiers(self, tmp_project: Path) -> None:
+        """verification='full' runs agent-based verification."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification="full"),
+        )
+        assert "Verified and accepted" in result
+        assert tester.session.stats.queries == 1
+
+    def test_full_is_default(self, tmp_project: Path) -> None:
+        """When config is not specified, full verification runs."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        handle_done(SUMMARY, True, done_signal, GOAL, team, tmp_project)
+        assert tester.session.stats.queries == 1

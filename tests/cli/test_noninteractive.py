@@ -739,6 +739,26 @@ class TestBuildFallbackPlan:
         for stage in plan.stages[2:5]:
             assert "Do NOT modify source code" in stage.description
 
+    def test_stages_1_3_4_5_6_have_quick_check_verification(self):
+        """Analytical stages use quick-check verification (list of QuickCheck)."""
+        plan = _build_fallback_plan("/tmp/report.md")
+        for idx in [0, 2, 3, 4, 5]:  # stages 1, 3, 4, 5, 6
+            stage = plan.stages[idx]
+            assert isinstance(stage.verification, list), (
+                f"Stage {stage.index} ({stage.name}) should have quick-check verification"
+            )
+            assert len(stage.verification) == 1
+
+    def test_stage_2_has_skip_verification(self):
+        """Baseline & Static Analysis uses skip verification."""
+        plan = _build_fallback_plan("/tmp/report.md")
+        assert plan.stages[1].verification == "skip"
+
+    def test_stage_7_has_full_verification(self):
+        """Fix & Report stage uses full agent-based verification."""
+        plan = _build_fallback_plan("/tmp/report.md")
+        assert plan.stages[6].verification == "full"
+
 
 # ---------------------------------------------------------------------------
 # TestExtractSection

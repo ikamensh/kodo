@@ -120,9 +120,7 @@ class FakeOrchestrator(OrchestratorBase):
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config=None,
     ) -> CycleResult:
         self._cycle_calls.append(
             {
@@ -960,20 +958,16 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project):
             *,
             max_exchanges=30,
             prior_summary="",
-            browser_testing=False,
-            verifiers=None,
-            auto_commit=False,
+            config=None,
         ):
-            auto_commit_per_call.append(auto_commit)
+            auto_commit_per_call.append(config.auto_commit if config else False)
             return super().cycle(
                 goal,
                 project_dir,
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                browser_testing=browser_testing,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=config,
             )
 
     orch = TrackingOrchestrator(
@@ -1138,9 +1132,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
             *,
             max_exchanges=30,
             prior_summary="",
-            browser_testing=False,
-            verifiers=None,
-            auto_commit=False,
+            config=None,
         ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
@@ -1149,9 +1141,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                browser_testing=browser_testing,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=config,
             )
 
     orch = DirTrackingOrchestrator(
@@ -1202,9 +1192,7 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
             *,
             max_exchanges=30,
             prior_summary="",
-            browser_testing=False,
-            verifiers=None,
-            auto_commit=False,
+            config=None,
         ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
@@ -1213,9 +1201,7 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                browser_testing=browser_testing,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=config,
             )
 
     orch = DirTrackingOrchestrator(
@@ -1642,20 +1628,16 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
             *,
             max_exchanges=30,
             prior_summary="",
-            browser_testing=False,
-            verifiers=None,
-            auto_commit=False,
+            config=None,
         ):
-            auto_commit_per_call.append(auto_commit)
+            auto_commit_per_call.append(config.auto_commit if config else False)
             return super().cycle(
                 goal,
                 project_dir,
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                browser_testing=browser_testing,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=config,
             )
 
     orch = TrackingOrchestrator(

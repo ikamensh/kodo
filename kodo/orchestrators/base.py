@@ -12,12 +12,25 @@ import subprocess
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from kodo.agent import Agent
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
+
+
+@dataclass
+class QuickCheck:
+    """Lightweight scripted check that replaces agent-based verification.
+
+    Used for stages where a simple file-existence check is sufficient
+    (e.g. analytical stages that write a findings file).
+    """
+
+    path: str  # file that must exist (can use {run_dir} placeholder)
+    description: str  # shown to orchestrator as what we're verifying
+    error_message: str  # fed back to agent if check fails
 
 
 @dataclass
@@ -31,6 +44,22 @@ class GoalStage:
     browser_testing: bool = False  # whether this stage needs browser verification
     parallel_group: int | None = None  # stages with same group run concurrently
     persist_changes: bool = False  # merge worktree changes back after completion
+    verification: Literal["full", "skip"] | list[QuickCheck] = "full"
+
+
+@dataclass
+class CycleConfig:
+    """Pass-through configuration for a single cycle.
+
+    Bundles stage-level settings (browser_testing, verification) and
+    run-level settings (verifiers, auto_commit) so they don't have to be
+    threaded as individual keyword arguments through every layer.
+    """
+
+    browser_testing: bool = False
+    verifiers: dict | None = None
+    auto_commit: bool = False
+    verification: Literal["full", "skip"] | list[QuickCheck] = "full"
 
 
 @dataclass
@@ -253,6 +282,26 @@ def _auto_commit(
         log.tprint(f"📝 [auto-commit] {worker_name} failed: {exc}")
 
 
+def _run_quick_checks(
+    checks: list["QuickCheck"],
+) -> str | None:
+    """Run lightweight file-existence checks.
+
+    Returns None if all pass, or a combined error string if any fail.
+    """
+    failures: list[str] = []
+    for check in checks:
+        if not Path(check.path).exists():
+            failures.append(f"- {check.description}: {check.error_message}")
+    if failures:
+        return (
+            "Quick-check verification failed:\n"
+            + "\n".join(failures)
+            + "\n\nFix these issues and try calling done again."
+        )
+    return None
+
+
 def handle_done(
     summary: str,
     success: bool,
@@ -262,16 +311,17 @@ def handle_done(
     project_dir: Path,
     *,
     verification_state: "VerificationState | None" = None,
-    browser_testing: bool = False,
-    verifiers: dict | None = None,
     orchestrator_tag: str | None = None,
-    auto_commit: bool = False,
+    config: "CycleConfig | None" = None,
 ) -> str:
     """Shared done-handler logic for both orchestrators.
 
     Returns the string result to pass back to the orchestrator model.
     """
     from kodo import log
+
+    if config is None:
+        config = CycleConfig()
 
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
@@ -284,22 +334,35 @@ def handle_done(
         done_signal.success = False
         return "Acknowledged (marked as unsuccessful)."
 
-    rejection = verify_done(
-        goal,
-        summary,
-        team,
-        project_dir,
-        state=verification_state,
-        browser_testing=browser_testing,
-        verifiers=verifiers,
-    )
+    # Branch on verification mode
+    rejection: str | None = None
+    verification = config.verification
+    if verification == "skip":
+        log.tprint("⏩ [done] verification=skip — accepting immediately")
+    elif isinstance(verification, list):
+        log.tprint(
+            f"⚡ [done] running {len(verification)} quick check(s)..."
+        )
+        rejection = _run_quick_checks(verification)
+    else:
+        # "full" — current behavior
+        rejection = verify_done(
+            goal,
+            summary,
+            team,
+            project_dir,
+            state=verification_state,
+            browser_testing=config.browser_testing,
+            verifiers=config.verifiers,
+        )
+
     if rejection:
         log.emit("orchestrator_done_rejected", **tag, rejection=rejection[:5000])
         log.tprint("❌ [done] REJECTED — verification found issues")
         return rejection
 
     # Auto-commit after successful verification
-    if auto_commit:
+    if config.auto_commit:
         _auto_commit(team, project_dir, summary)
 
     done_signal.called = True
@@ -343,9 +406,7 @@ def build_mcp_server(
     goal: str,
     orchestrator_tag: str = "unknown",
     verification_state: "VerificationState | None" = None,
-    browser_testing: bool = False,
-    verifiers: dict | None = None,
-    auto_commit: bool = False,
+    config: "CycleConfig | None" = None,
 ):
     """Build a FastMCP server exposing each team agent as a tool.
 
@@ -391,10 +452,8 @@ if the tester or architect find issues, the call is rejected and you must fix th
             team,
             project_dir,
             verification_state=verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
             orchestrator_tag=orchestrator_tag,
-            auto_commit=auto_commit,
+            config=config,
         )
 
     mcp.add_tool(done)
@@ -1309,9 +1368,7 @@ class Orchestrator(Protocol):
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig | None = None,
     ) -> CycleResult:
         """Run one cycle of orchestrated work."""
         ...
@@ -1352,9 +1409,7 @@ class OrchestratorBase:
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig | None = None,
     ) -> CycleResult:
         raise NotImplementedError
 
@@ -1433,6 +1488,7 @@ class OrchestratorBase:
             num_stages=len(plan.stages) if plan else 0,
         )
         result = RunResult()
+        run_config = CycleConfig(verifiers=verifiers, auto_commit=auto_commit)
 
         try:
             if plan and plan.stages:
@@ -1445,8 +1501,7 @@ class OrchestratorBase:
                     max_exchanges=max_exchanges,
                     max_cycles=max_cycles,
                     resume=resume,
-                    verifiers=verifiers,
-                    auto_commit=auto_commit,
+                    config=run_config,
                 )
             else:
                 self._run_single(
@@ -1458,8 +1513,7 @@ class OrchestratorBase:
                     max_cycles=max_cycles,
                     start_cycle=start_cycle,
                     prior_summary=prior_summary,
-                    verifiers=verifiers,
-                    auto_commit=auto_commit,
+                    config=run_config,
                 )
         finally:
             self._summarizer.shutdown()
@@ -1498,8 +1552,7 @@ class OrchestratorBase:
         max_cycles: int,
         start_cycle: int,
         prior_summary: str,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig,
     ) -> None:
         """Original single-goal execution loop."""
         from kodo import log
@@ -1521,8 +1574,7 @@ class OrchestratorBase:
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=config,
             )
             result.cycles.append(cycle_result)
 
@@ -1542,8 +1594,7 @@ class OrchestratorBase:
         max_exchanges: int,
         max_cycles_for_stage: int,
         initial_prior_summary: str = "",
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig,
     ) -> StageResult:
         """Run a single stage through its cycle loop. Returns the StageResult.
 
@@ -1588,15 +1639,20 @@ class OrchestratorBase:
                 stage_index=stage.index,
             )
 
+            # Build stage-specific config: merge stage settings with run config
+            stage_config = CycleConfig(
+                browser_testing=stage.browser_testing,
+                verifiers=config.verifiers,
+                auto_commit=config.auto_commit,
+                verification=stage.verification,
+            )
             cycle_result = self.cycle(
                 stage_goal,
                 project_dir,
                 team,
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
-                browser_testing=stage.browser_testing,
-                verifiers=verifiers,
-                auto_commit=auto_commit,
+                config=stage_config,
             )
             cycle_result.stage_index = stage.index
             stage_res.cycles.append(cycle_result)
@@ -1649,8 +1705,7 @@ class OrchestratorBase:
         max_exchanges: int,
         max_cycles: int,
         resume: ResumeState | None = None,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig,
     ) -> None:
         """Staged execution: iterate over plan stages with a shared cycle limit.
 
@@ -1718,8 +1773,7 @@ class OrchestratorBase:
                         max_exchanges=max_exchanges,
                         max_cycles_for_stage=remaining_cycles,
                         initial_prior_summary=initial_prior,
-                        verifiers=verifiers,
-                        auto_commit=auto_commit,
+                        config=config,
                     )
                 except Exception as exc:
                     log.tprint(
@@ -1852,8 +1906,12 @@ class OrchestratorBase:
                                 max_exchanges=max_exchanges,
                                 max_cycles_for_stage=per_stage_cycles,
                                 initial_prior_summary=initial_prior,
-                                verifiers=verifiers,
-                                auto_commit=(stage.persist_changes and auto_commit),
+                                config=CycleConfig(
+                                    verifiers=config.verifiers,
+                                    auto_commit=(
+                                        stage.persist_changes and config.auto_commit
+                                    ),
+                                ),
                             )
                             futures_map[future] = stage
 

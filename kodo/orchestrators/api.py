@@ -21,6 +21,7 @@ from pydantic_ai_summarization import create_summarization_processor
 from kodo import log
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
+    CycleConfig,
     CycleResult,
     DoneSignal,
     OrchestratorBase,
@@ -58,9 +59,7 @@ def _build_tools(
     done_signal: DoneSignal,
     goal: str,
     verification_state: VerificationState | None = None,
-    browser_testing: bool = False,
-    verifiers: dict | None = None,
-    auto_commit: bool = False,
+    config: CycleConfig | None = None,
 ) -> list[Tool]:
     """Build pydantic-ai Tool objects for each team agent + the done tool."""
     tools: list[Tool] = []
@@ -101,9 +100,7 @@ def _build_tools(
             team,
             project_dir,
             verification_state=verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
-            auto_commit=auto_commit,
+            config=config,
         )
 
     tools.append(Tool(done, takes_ctx=False))
@@ -207,10 +204,10 @@ class ApiOrchestrator(OrchestratorBase):
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig | None = None,
     ) -> CycleResult:
+        if config is None:
+            config = CycleConfig()
         done_signal = DoneSignal()
         verification_state = VerificationState()
         tools = _build_tools(
@@ -220,9 +217,7 @@ class ApiOrchestrator(OrchestratorBase):
             done_signal,
             goal,
             verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
-            auto_commit=auto_commit,
+            config=config,
         )
         result = CycleResult()
 

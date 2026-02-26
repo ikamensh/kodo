@@ -9,6 +9,7 @@ from pathlib import Path
 from kodo import log
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
+    CycleConfig,
     CycleResult,
     DoneSignal,
     McpServerContext,
@@ -38,10 +39,10 @@ class CursorOrchestrator(OrchestratorBase):
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig | None = None,
     ) -> CycleResult:
+        if config is None:
+            config = CycleConfig()
         log.emit(
             "cycle_start",
             orchestrator="cursor",
@@ -63,9 +64,7 @@ class CursorOrchestrator(OrchestratorBase):
             goal,
             orchestrator_tag="cursor",
             verification_state=verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
-            auto_commit=auto_commit,
+            config=config,
         )
 
         result = CycleResult()

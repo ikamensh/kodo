@@ -13,6 +13,7 @@ from kodo.agent import Agent
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator
 from kodo.orchestrators.base import (
+    CycleConfig,
     DoneSignal,
     _auto_commit,
     handle_done,
@@ -163,7 +164,7 @@ def test_handle_done_calls_auto_commit_on_success(tmp_project: Path) -> None:
         GOAL,
         team,
         tmp_project,
-        auto_commit=True,
+        config=CycleConfig(auto_commit=True),
     )
 
     assert "Verified and accepted" in result
@@ -191,7 +192,7 @@ def test_handle_done_skips_auto_commit_when_disabled(tmp_project: Path) -> None:
         GOAL,
         team,
         tmp_project,
-        auto_commit=False,
+        config=CycleConfig(auto_commit=False),
     )
 
     assert "Verified and accepted" in result
@@ -216,7 +217,7 @@ def test_handle_done_skips_auto_commit_on_rejection(tmp_project: Path) -> None:
         GOAL,
         team,
         tmp_project,
-        auto_commit=True,
+        config=CycleConfig(auto_commit=True),
     )
 
     assert "DONE REJECTED" in result
@@ -237,7 +238,7 @@ def test_handle_done_skips_auto_commit_on_failure(tmp_project: Path) -> None:
         GOAL,
         team,
         tmp_project,
-        auto_commit=True,
+        config=CycleConfig(auto_commit=True),
     )
 
     assert "unsuccessful" in result.lower()
@@ -292,7 +293,7 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
             tmp_path,
             team,
             max_exchanges=10,
-            auto_commit=True,
+            config=CycleConfig(auto_commit=True),
         )
 
     assert result.finished is True
@@ -331,7 +332,7 @@ def test_cycle_no_auto_commit_when_disabled(tmp_path: Path) -> None:
             tmp_path,
             team,
             max_exchanges=10,
-            auto_commit=False,
+            config=CycleConfig(auto_commit=False),
         )
 
     assert result.finished is True
@@ -372,7 +373,7 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
             tmp_path,
             team,
             max_exchanges=10,
-            auto_commit=True,
+            config=CycleConfig(auto_commit=True),
         )
 
     # Orchestrator didn't finish (done was rejected, model stopped)
@@ -478,7 +479,7 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
             git_project,
             team,
             max_exchanges=10,
-            auto_commit=True,
+            config=CycleConfig(auto_commit=True),
         )
 
     assert result.finished is True
@@ -539,7 +540,7 @@ def test_no_commit_when_auto_commit_disabled_real_git(
             git_project,
             team,
             max_exchanges=10,
-            auto_commit=False,
+            config=CycleConfig(auto_commit=False),
         )
 
     assert result.finished is True

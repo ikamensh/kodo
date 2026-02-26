@@ -11,6 +11,7 @@ from kodo import log
 from kodo.env import anthropic_env_lock
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
+    CycleConfig,
     CycleResult,
     DoneSignal,
     OrchestratorBase,
@@ -39,10 +40,10 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
         *,
         max_exchanges: int = 30,
         prior_summary: str = "",
-        browser_testing: bool = False,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
+        config: CycleConfig | None = None,
     ) -> CycleResult:
+        if config is None:
+            config = CycleConfig()
         from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, ResultMessage
 
         log.emit(
@@ -66,9 +67,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             goal,
             orchestrator_tag="claude_code",
             verification_state=verification_state,
-            browser_testing=browser_testing,
-            verifiers=verifiers,
-            auto_commit=auto_commit,
+            config=config,
         )
 
         options = ClaudeAgentOptions(

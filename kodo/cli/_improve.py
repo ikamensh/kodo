@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from kodo.orchestrators.base import GoalPlan, GoalStage
+from kodo.orchestrators.base import GoalPlan, GoalStage, QuickCheck
 
 if TYPE_CHECKING:
     from kodo.log import RunDir
@@ -298,6 +298,7 @@ def _validate_improve_plan(
                 browser_testing=stage.browser_testing,
                 parallel_group=stage.parallel_group,
                 persist_changes=stage.persist_changes,
+                verification=stage.verification,
             )
         )
 
@@ -324,6 +325,7 @@ def _validate_improve_plan(
                 browser_testing=stage.browser_testing,
                 parallel_group=stage.parallel_group,
                 persist_changes=stage.persist_changes,
+                verification=stage.verification,
             )
         final.append(stage)
 
@@ -387,6 +389,13 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     f"Findings file written to {forge_findings} with any "
                     "discovered bugs."
                 ),
+                verification=[
+                    QuickCheck(
+                        path=forge_findings,
+                        description="Findings file exists",
+                        error_message=f"Expected findings file at {forge_findings}",
+                    )
+                ],
             ),
             GoalStage(
                 index=2,
@@ -401,6 +410,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Test/lint/type-check results documented. Issues listed with "
                     "file:line. Structured findings format used."
                 ),
+                verification="skip",
             ),
             GoalStage(
                 index=3,
@@ -421,6 +431,13 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Core workflows tested end-to-end. Bugs documented. "
                     f"Structured findings written to {happy_findings}."
                 ),
+                verification=[
+                    QuickCheck(
+                        path=happy_findings,
+                        description="Findings file exists",
+                        error_message=f"Expected findings file at {happy_findings}",
+                    )
+                ],
             ),
             GoalStage(
                 index=4,
@@ -439,6 +456,13 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Edge cases and error paths tested. Bugs documented with "
                     f"repro steps. Structured findings written to {adversarial_findings}."
                 ),
+                verification=[
+                    QuickCheck(
+                        path=adversarial_findings,
+                        description="Findings file exists",
+                        error_message=f"Expected findings file at {adversarial_findings}",
+                    )
+                ],
             ),
             GoalStage(
                 index=5,
@@ -459,6 +483,13 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Simplification opportunities identified with concrete "
                     f"proposals. Written to {architecture_findings}."
                 ),
+                verification=[
+                    QuickCheck(
+                        path=architecture_findings,
+                        description="Findings file exists",
+                        error_message=f"Expected findings file at {architecture_findings}",
+                    )
+                ],
             ),
             GoalStage(
                 index=6,
@@ -475,6 +506,13 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                 )
                 + prior_needs_decision,
                 acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
+                verification=[
+                    QuickCheck(
+                        path=triage_path,
+                        description="Triage results file exists",
+                        error_message=f"Expected triage file at {triage_path}",
+                    )
+                ],
             ),
             GoalStage(
                 index=7,
