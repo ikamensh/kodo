@@ -81,15 +81,20 @@ kodo lets you set a goal, go to bed, and wake up to working code that's been ind
 
 ## 📦 Install
 
+1. You need uv to install kodo.
+   
 **Linux / macOS:**
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv (skip if you have it)
-uv tool install git+https://github.com/ikamensh/kodo
 ```
 
 **Windows (PowerShell):**
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # install uv (skip if you have it)
+```
+
+2. Install kodo using uv
+```bash
 uv tool install git+https://github.com/ikamensh/kodo
 ```
 
