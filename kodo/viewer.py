@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import glob
 import json
 import os
 import shutil
 import sys
 import tempfile
+import time
 import webbrowser
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -38,11 +40,30 @@ def _build_html(log_path: Path | None) -> str:
     return template.replace(_EMBED_MARKER, "")
 
 
+def _cleanup_stale_viewer_files() -> None:
+    """Remove kodo_viewer_* temp files/dirs older than 1 hour."""
+    tmpdir = tempfile.gettempdir()
+    cutoff = time.time() - 3600
+    for pattern in ("kodo_viewer_*.html", "kodo_viewer_*/"):
+        for path in glob.glob(os.path.join(tmpdir, pattern)):
+            try:
+                if os.path.getmtime(path) < cutoff:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path, ignore_errors=True)
+                    else:
+                        os.unlink(path)
+            except OSError:
+                pass
+
+
 def open_viewer(log_path: Path | None = None) -> None:
     if os.environ.get("KODO_NO_VIEWER"):
         return
+    _cleanup_stale_viewer_files()
     html = _build_html(log_path)
-    with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".html", prefix="kodo_viewer_", delete=False
+    ) as f:
         f.write(html)
         tmp = f.name
     atexit.register(os.unlink, tmp)
@@ -52,8 +73,9 @@ def open_viewer(log_path: Path | None = None) -> None:
 
 
 def _serve(port: int, log_path: Path | None) -> None:
+    _cleanup_stale_viewer_files()
     html = _build_html(log_path)
-    tmpdir = tempfile.mkdtemp()
+    tmpdir = tempfile.mkdtemp(prefix="kodo_viewer_")
     atexit.register(shutil.rmtree, tmpdir, True)
     (Path(tmpdir) / "index.html").write_text(html)
 

@@ -84,8 +84,10 @@ class GeminiCliSession(SubprocessSession):
 
         proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=str(project_dir))
 
-        stdout_text = proc.stdout.read()
-        stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
+        try:
+            stdout_text = proc.stdout.read()
+        finally:
+            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
         elapsed = time.monotonic() - t0
 
         is_error = proc.returncode != 0

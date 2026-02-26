@@ -530,12 +530,12 @@ class McpServerContext:
                 from kodo import log
 
                 log.tprint("[mcp] server thread did not stop within 5s")
-        # Always close the event loop once the thread has exited to avoid
-        # leaking file descriptors / selector resources.
-        if self._loop and (not self._thread or not self._thread.is_alive()):
+        # Always close the event loop to avoid leaking file descriptors /
+        # selector resources — even if the thread is still alive.
+        if self._loop:
             try:
                 self._loop.close()
-            except Exception:
+            except (OSError, RuntimeError):
                 pass  # best-effort cleanup
 
 
@@ -797,7 +797,10 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
     worktree_dir = Path(tempfile.mkdtemp(prefix=f"kodo-{label}-"))
     # mkdtemp already created the dir; git worktree add wants a non-existing
     # target, so remove the empty dir first.
-    worktree_dir.rmdir()
+    try:
+        worktree_dir.rmdir()
+    except OSError:
+        shutil.rmtree(worktree_dir, ignore_errors=True)
     subprocess.run(
         ["git", "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
         cwd=project_dir,
@@ -1806,9 +1809,12 @@ class OrchestratorBase:
                     finally:
                         try:
                             loop.run_until_complete(orchestrator.close())
-                        except Exception:
-                            pass  # best-effort cleanup
-                        loop.close()
+                        except (OSError, RuntimeError) as e:
+                            from kodo import log
+
+                            log.emit("orchestrator_close_error", error=str(e))
+                        finally:
+                            loop.close()
 
                 parallel_results: list[StageResult] = []
                 try:

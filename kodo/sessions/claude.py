@@ -125,6 +125,9 @@ class ClaudeSession:
         if self.chrome:
             extra_args["--chrome"] = None
 
+        # Hold the env lock only for env mutation and option/client construction.
+        # The actual connect() I/O happens outside the lock to avoid blocking
+        # other threads that need anthropic_env_lock.
         with anthropic_env_lock:
             # The SDK always starts with os.environ, so we must remove CLAUDECODE
             # from the actual environment to prevent nested-session detection.
@@ -154,11 +157,14 @@ class ClaudeSession:
                 **({"system_prompt": self.system_prompt} if self.system_prompt else {}),
             )
             self._client = ClaudeSDKClient(options=options)
-            try:
-                self._run(self._client.connect())
-            finally:
-                # Restore the key so the orchestrator's own API calls still work,
-                # even if connect() failed.
+
+        # connect() spawns the subprocess and does I/O — run outside the lock.
+        try:
+            self._run(self._client.connect())
+        finally:
+            # Restore the key so the orchestrator's own API calls still work,
+            # even if connect() failed.
+            with anthropic_env_lock:
                 if saved_api_key is not None:
                     os.environ["ANTHROPIC_API_KEY"] = saved_api_key
 
@@ -201,7 +207,7 @@ class ClaudeSession:
 
         try:
             self._disconnect()
-        except Exception:
+        except (OSError, RuntimeError):
             pass  # best-effort; ensure stop/join/close always run
         try:
             self._loop.call_soon_threadsafe(self._loop.stop)
@@ -226,11 +232,10 @@ class ClaudeSession:
             # Fallback when subprocess_pid was None (SDK transport changed,
             # connect failed partway): give the thread 2s more to exit on its own.
             self._thread.join(timeout=2)
-        if not self._thread.is_alive():
-            try:
-                self._loop.close()
-            except Exception:
-                pass  # best-effort cleanup
+        try:
+            self._loop.close()
+        except (OSError, RuntimeError):
+            pass  # best-effort cleanup
 
     def terminate(self) -> None:
         """Forcefully disconnect the SDK client.
@@ -303,67 +308,83 @@ class ClaudeSession:
         )
 
         t0 = time.monotonic()
-        self._run(self._client.query(prompt))
 
-        result = QueryResult(text="", elapsed_s=0.0)
-        # Collect text from AssistantMessage blocks as fallback when
-        # ResultMessage.result is None (e.g. tool-use-heavy turns).
-        assistant_texts: list[str] = []
+        try:
+            self._run(self._client.query(prompt))
 
-        async def _collect():
-            nonlocal result
-            async for message in self._client.receive_response():
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            assistant_texts.append(block.text)
-                elif isinstance(message, ResultMessage):
-                    inp, out = _extract_tokens(message.usage)
-                    result = QueryResult(
-                        text=message.result or "",
-                        elapsed_s=time.monotonic() - t0,
-                        turns=message.num_turns,
-                        cost_usd=message.total_cost_usd,
-                        is_error=message.is_error,
-                        input_tokens=inp,
-                        output_tokens=out,
-                        usage_raw=message.usage,
-                    )
-                    if hasattr(message, "session_id") and message.session_id:
-                        self._session_id = message.session_id
-                    self._stats.queries += 1
-                    self._stats.total_input_tokens += inp or 0
-                    self._stats.total_output_tokens += out or 0
-                    self._stats.total_cost_usd += message.total_cost_usd or 0.0
+            result = QueryResult(text="", elapsed_s=0.0)
+            # Collect text from AssistantMessage blocks as fallback when
+            # ResultMessage.result is None (e.g. tool-use-heavy turns).
+            assistant_texts: list[str] = []
 
-        self._run(_collect())
+            async def _collect():
+                nonlocal result
+                async for message in self._client.receive_response():
+                    if isinstance(message, AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, TextBlock):
+                                assistant_texts.append(block.text)
+                    elif isinstance(message, ResultMessage):
+                        inp, out = _extract_tokens(message.usage)
+                        result = QueryResult(
+                            text=message.result or "",
+                            elapsed_s=time.monotonic() - t0,
+                            turns=message.num_turns,
+                            cost_usd=message.total_cost_usd,
+                            is_error=message.is_error,
+                            input_tokens=inp,
+                            output_tokens=out,
+                            usage_raw=message.usage,
+                        )
+                        if hasattr(message, "session_id") and message.session_id:
+                            self._session_id = message.session_id
+                        self._stats.queries += 1
+                        self._stats.total_input_tokens += inp or 0
+                        self._stats.total_output_tokens += out or 0
+                        self._stats.total_cost_usd += message.total_cost_usd or 0.0
 
-        # If ResultMessage had no text, use collected AssistantMessage texts.
-        if not result.text and assistant_texts:
-            result = QueryResult(
-                text="\n\n".join(assistant_texts),
-                elapsed_s=result.elapsed_s,
-                turns=result.turns,
-                cost_usd=result.cost_usd,
-                is_error=result.is_error,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                usage_raw=result.usage_raw,
+            self._run(_collect())
+
+            # If ResultMessage had no text, use collected AssistantMessage texts.
+            if not result.text and assistant_texts:
+                result = QueryResult(
+                    text="\n\n".join(assistant_texts),
+                    elapsed_s=result.elapsed_s,
+                    turns=result.turns,
+                    cost_usd=result.cost_usd,
+                    is_error=result.is_error,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    usage_raw=result.usage_raw,
+                )
+
+            # If a plan was captured during this query, prepend it to the result
+            # so the orchestrator can see and review it.
+            if self._pending_plan:
+                result = QueryResult(
+                    text=f"[PROPOSED PLAN]\n{self._pending_plan}\n\n"
+                    f"[Agent is in plan mode, awaiting review]\n{result.text}",
+                    elapsed_s=result.elapsed_s,
+                    turns=result.turns,
+                    cost_usd=result.cost_usd,
+                    is_error=False,  # Not an error — plan review is expected
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    usage_raw=result.usage_raw,
+                )
+        except Exception as exc:
+            elapsed = time.monotonic() - t0
+            exc_name = type(exc).__name__
+            log.emit(
+                "session_query_error",
+                session="claude",
+                model=self.model,
+                error=f"{exc_name}: {exc}",
             )
-
-        # If a plan was captured during this query, prepend it to the result
-        # so the orchestrator can see and review it.
-        if self._pending_plan:
-            result = QueryResult(
-                text=f"[PROPOSED PLAN]\n{self._pending_plan}\n\n"
-                f"[Agent is in plan mode, awaiting review]\n{result.text}",
-                elapsed_s=result.elapsed_s,
-                turns=result.turns,
-                cost_usd=result.cost_usd,
-                is_error=False,  # Not an error — plan review is expected
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                usage_raw=result.usage_raw,
+            return QueryResult(
+                text=f"Claude session error during query: {exc_name}: {exc}",
+                elapsed_s=elapsed,
+                is_error=True,
             )
 
         log.emit(

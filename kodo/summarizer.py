@@ -32,7 +32,7 @@ def _probe_ollama() -> str | None:
         models = data.get("models", [])
         if models:
             return models[0].get("name") or models[0].get("model")
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError, TimeoutError):
         pass
     return None
 

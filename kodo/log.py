@@ -134,21 +134,31 @@ class RunStats:
             self.orchestrator_cost_usd += cost_usd
             self.orchestrator_bucket = bucket
 
+    def snapshot(self) -> tuple[dict[str, "_AgentStats"], float, str]:
+        """Return a consistent (agents_copy, orch_cost, orch_bucket) under lock.
+
+        Callers that iterate agent data from other threads should use this
+        to avoid ``RuntimeError: dictionary changed size during iteration``.
+        """
+        with _lock:
+            return dict(self.agents), self.orchestrator_cost_usd, self.orchestrator_bucket
+
     @property
     def total_exchanges(self) -> int:
-        return sum(s.calls for s in self.agents.values())
+        agents, _, _ = self.snapshot()
+        return sum(s.calls for s in agents.values())
 
     def cost_by_bucket(self) -> dict[str, float]:
+        agents, orch_cost, orch_bucket = self.snapshot()
         buckets: dict[str, float] = defaultdict(float)
-        for s in self.agents.values():
+        for s in agents.values():
             buckets[s.cost_bucket] += s.cost_usd
-        buckets[self.orchestrator_bucket] += self.orchestrator_cost_usd
+        buckets[orch_bucket] += orch_cost
         return dict(buckets)
 
     def total_cost(self) -> float:
-        return (
-            sum(s.cost_usd for s in self.agents.values()) + self.orchestrator_cost_usd
-        )
+        agents, orch_cost, _ = self.snapshot()
+        return sum(s.cost_usd for s in agents.values()) + orch_cost
 
 
 _run_stats = RunStats()
@@ -229,12 +239,14 @@ def init(run_dir: RunDir) -> Path:
 
 def get_run_stats() -> RunStats:
     """Return the live run statistics accumulator."""
-    return _run_stats
+    with _lock:
+        return _run_stats
 
 
 def get_log_file() -> Path | None:
     """Return the current log file path, or None if not initialized."""
-    return _log_file
+    with _lock:
+        return _log_file
 
 
 def emit(event: str, **data: Any) -> None:
@@ -259,8 +271,10 @@ def emit(event: str, **data: Any) -> None:
 
 def tprint(msg: str) -> None:
     """Print with elapsed time prefix, e.g. '[  12.3s] ...'."""
-    if _start_time is not None:
-        elapsed = time.monotonic() - _start_time
+    with _lock:
+        st = _start_time
+    if st is not None:
+        elapsed = time.monotonic() - st
         print(f"  [{elapsed:7.1f}s] {msg}", flush=True)
     else:
         print(f"  {msg}", flush=True)
@@ -314,13 +328,20 @@ def print_stats_table(final: bool = False) -> None:
     """Print a compact stats table to the terminal.
 
     Called periodically during a run and once at termination.
+    Uses a snapshot of RunStats to avoid races with concurrent record_agent().
     """
     global _virtual_cost_note_shown
-    stats = _run_stats
-    if not stats.agents:
+    with _lock:
+        stats = _run_stats
+        start = _start_time
+
+    # Take a consistent snapshot of agent data to avoid RuntimeError from
+    # concurrent dict modification during parallel stages.
+    agents, orch_cost, orch_bucket = stats.snapshot()
+    if not agents:
         return
 
-    elapsed = time.monotonic() - (_start_time or time.monotonic())
+    elapsed = time.monotonic() - (start or time.monotonic())
 
     # Header
     sep = "-" * 70
@@ -333,7 +354,7 @@ def print_stats_table(final: bool = False) -> None:
     )
     print(f"  |{sep[1:-1]}|")
 
-    for agent, s in sorted(stats.agents.items()):
+    for agent, s in sorted(agents.items()):
         has_tokens = s.cost_bucket not in ("cursor_subscription",)
         in_tok = _fmt_tokens(s.input_tokens) if has_tokens else "-"
         out_tok = _fmt_tokens(s.output_tokens) if has_tokens else "-"
@@ -345,22 +366,26 @@ def print_stats_table(final: bool = False) -> None:
         )
 
     # Orchestrator row
-    if stats.orchestrator_cost_usd > 0:
+    if orch_cost > 0:
         print(
-            f"  | {'orchestrator':<20} {_trunc(_bucket_label(stats.orchestrator_bucket), 10):<10}"
-            f" {'':>3} {_fmt_cost(stats.orchestrator_cost_usd):>7}"
+            f"  | {'orchestrator':<20} {_trunc(_bucket_label(orch_bucket), 10):<10}"
+            f" {'':>3} {_fmt_cost(orch_cost):>7}"
             f" {'':>5} {'':>5} {'':>6} {'':>3} |"
         )
 
     print(f"  |{sep[1:-1]}|")
 
-    # Totals by bucket
-    buckets = stats.cost_by_bucket()
+    # Totals by bucket — compute from the snapshot
+    total_exch = sum(s.calls for s in agents.values())
+    buckets: dict[str, float] = defaultdict(float)
+    for s in agents.values():
+        buckets[s.cost_bucket] += s.cost_usd
+    buckets[orch_bucket] += orch_cost
     api = buckets.get("api", 0)
     sub = sum(v for k, v in buckets.items() if k != "api")
-    total = stats.total_cost()
+    total = sum(s.cost_usd for s in agents.values()) + orch_cost
     print(
-        f"  | {'Total':<20} {'':10} {stats.total_exchanges:>3}"
+        f"  | {'Total':<20} {'':10} {total_exch:>3}"
         f" {_fmt_cost(total):>7} {'':>5} {'':>5}"
         f" {_fmt_time(elapsed):>6} {'':>3} |"
     )

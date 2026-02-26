@@ -322,6 +322,27 @@ class ApiOrchestrator(OrchestratorBase):
                     time.sleep(wait)
                 else:
                     raise
+            except (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+            ) as exc:
+                if attempt < max_retries - 1:
+                    wait = 30 * (attempt + 1)
+                    log.tprint(
+                        f"[orchestrator] Network error: {type(exc).__name__}, "
+                        f"retrying in {wait}s "
+                        f"(attempt {attempt + 1}/{max_retries})..."
+                    )
+                    log.emit(
+                        "orchestrator_retry",
+                        error=f"{type(exc).__name__}: {exc}",
+                        attempt=attempt + 1,
+                        wait_s=wait,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
 
         if run_result is not None:
             usage = run_result.usage()

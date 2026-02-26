@@ -85,29 +85,30 @@ class CursorSession(SubprocessSession):
 
         proc, stderr_chunks, stderr_thread = self._spawn(cmd)
 
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        try:
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-            raw_messages.append(msg)
+                raw_messages.append(msg)
 
-            if msg.get("type") == "result":
-                r = msg.get("result", "")
-                result_text = str(r) if r is not None else ""
-            # Capture chat ID from any message that reports it
-            if "chatId" in msg:
-                self._chat_id = msg["chatId"]
-            elif "chat_id" in msg:
-                self._chat_id = msg["chat_id"]
-            elif "session_id" in msg:
-                self._chat_id = msg["session_id"]
-
-        stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
+                if msg.get("type") == "result":
+                    r = msg.get("result", "")
+                    result_text = str(r) if r is not None else ""
+                # Capture chat ID from any message that reports it
+                if "chatId" in msg:
+                    self._chat_id = msg["chatId"]
+                elif "chat_id" in msg:
+                    self._chat_id = msg["chat_id"]
+                elif "session_id" in msg:
+                    self._chat_id = msg["session_id"]
+        finally:
+            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
         elapsed = time.monotonic() - t0
 
         is_error = proc.returncode != 0

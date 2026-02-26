@@ -170,15 +170,28 @@ class SubprocessSession:
         thread: threading.Thread,
     ) -> str:
         """Wait for process and join drain thread.  Returns stderr text."""
+        from kodo import log
+
         try:
             proc.wait(timeout=self._timeout_s)
         except subprocess.TimeoutExpired:
             self._did_timeout = True
-            proc.terminate()
+            log.emit(
+                "session_timeout",
+                session=getattr(self, "_session_label", "subprocess"),
+                timeout_s=self._timeout_s,
+            )
+            try:
+                proc.terminate()
+            except OSError:
+                pass  # process already exited
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                try:
+                    proc.kill()
+                except OSError:
+                    pass  # process already exited
                 proc.wait()
         # Allow up to 30s for drain to finish; process has exited so stderr
         # should close soon. Increase from 5s to avoid truncating long output.
@@ -210,7 +223,7 @@ class SubprocessSession:
             except (OSError, subprocess.TimeoutExpired):
                 try:
                     proc.wait(0)  # reap if process already exited
-                except Exception:
+                except (OSError, subprocess.TimeoutExpired):
                     pass
         self._process = None
 

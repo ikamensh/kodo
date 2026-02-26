@@ -184,18 +184,23 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         log.tprint(f"[orchestrator] disconnect error: {exc}")
                         raise
 
-        # Use a dedicated thread so we never collide with a caller's loop
-        loop = asyncio.new_event_loop()
-        thread = threading.Thread(target=loop.run_forever, daemon=True)
-        thread.start()
+        # Use a dedicated thread so we never collide with a caller's loop.
+        # The outer try/finally guarantees ANTHROPIC_API_KEY is restored even
+        # if asyncio.new_event_loop() or thread.start() raises before the
+        # inner try block.
         try:
-            future = asyncio.run_coroutine_threadsafe(_run_cycle(), loop)
-            future.result()  # blocks until cycle completes
+            loop = asyncio.new_event_loop()
+            thread = threading.Thread(target=loop.run_forever, daemon=True)
+            thread.start()
+            try:
+                future = asyncio.run_coroutine_threadsafe(_run_cycle(), loop)
+                future.result()  # blocks until cycle completes
+            finally:
+                loop.call_soon_threadsafe(loop.stop)
+                thread.join(timeout=5)
+                if not thread.is_alive():
+                    loop.close()
         finally:
-            loop.call_soon_threadsafe(loop.stop)
-            thread.join(timeout=5)
-            if not thread.is_alive():
-                loop.close()
             # Restore ANTHROPIC_API_KEY so the orchestrator's own API calls
             # (summarizer, etc.) continue to work.
             with anthropic_env_lock:

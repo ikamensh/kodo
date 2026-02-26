@@ -101,72 +101,73 @@ class CodexSession(SubprocessSession):
 
         proc, stderr_chunks, stderr_thread = self._spawn(cmd)
 
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+        try:
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-            raw_messages.append(msg)
+                raw_messages.append(msg)
 
-            # Codex emits two shapes:
-            #   top-level: {"type": "...", ...}
-            #   nested:    {"id": "0", "msg": {"type": "...", ...}}
-            raw_inner = msg.get("msg", {}) if "msg" in msg else {}
-            inner = raw_inner if isinstance(raw_inner, dict) else {}
-            event_type = msg.get("type", "") or inner.get("type", "")
+                # Codex emits two shapes:
+                #   top-level: {"type": "...", ...}
+                #   nested:    {"id": "0", "msg": {"type": "...", ...}}
+                raw_inner = msg.get("msg", {}) if "msg" in msg else {}
+                inner = raw_inner if isinstance(raw_inner, dict) else {}
+                event_type = msg.get("type", "") or inner.get("type", "")
 
-            # Capture session/thread ID
-            if event_type == "thread.started":
-                tid = msg.get("thread_id") or msg.get("session_id")
-                if tid:
-                    self._session_id = tid
+                # Capture session/thread ID
+                if event_type == "thread.started":
+                    tid = msg.get("thread_id") or msg.get("session_id")
+                    if tid:
+                        self._session_id = tid
 
-            # Agent text response (current codex format)
-            elif event_type == "agent_message":
-                src = inner if inner else msg
-                text = src.get("message", "")
-                if text:
-                    result_text = text
+                # Agent text response (current codex format)
+                elif event_type == "agent_message":
+                    src = inner if inner else msg
+                    text = src.get("message", "")
+                    if text:
+                        result_text = text
 
-            # Token counts (current codex format)
-            elif event_type == "token_count":
-                src = inner if inner else msg
-                input_tokens += src.get("input_tokens", 0)
-                output_tokens += src.get("output_tokens", 0)
+                # Token counts (current codex format)
+                elif event_type == "token_count":
+                    src = inner if inner else msg
+                    input_tokens += src.get("input_tokens", 0)
+                    output_tokens += src.get("output_tokens", 0)
 
-            # Legacy: accumulate token usage from completed turns
-            elif event_type == "turn.completed":
-                usage = msg.get("usage", {})
-                input_tokens += usage.get("input_tokens", 0)
-                output_tokens += usage.get("output_tokens", 0)
+                # Legacy: accumulate token usage from completed turns
+                elif event_type == "turn.completed":
+                    usage = msg.get("usage", {})
+                    input_tokens += usage.get("input_tokens", 0)
+                    output_tokens += usage.get("output_tokens", 0)
 
-            # Legacy: capture assistant message text
-            elif event_type == "item.completed":
-                item = msg.get("item", {})
-                if item.get("role") == "assistant":
-                    for content in item.get("content", []):
-                        if content.get("type") == "text":
-                            result_text = content.get("text", "")
+                # Legacy: capture assistant message text
+                elif event_type == "item.completed":
+                    item = msg.get("item", {})
+                    if item.get("role") == "assistant":
+                        for content in item.get("content", []):
+                            if content.get("type") == "text":
+                                result_text = content.get("text", "")
 
-            # Capture errors (top-level or nested)
-            elif event_type == "error":
-                src = inner if inner else msg
-                error_msg = src.get("message", src.get("error", ""))
-                if error_msg:
-                    error_messages.append(error_msg)
+                # Capture errors (top-level or nested)
+                elif event_type == "error":
+                    src = inner if inner else msg
+                    error_msg = src.get("message", src.get("error", ""))
+                    if error_msg:
+                        error_messages.append(error_msg)
 
-            # Capture background_event errors (retries, API failures)
-            elif event_type == "background_event":
-                src = inner if inner else msg
-                bg_msg = src.get("message", "")
-                if "error" in bg_msg.lower() or "status 4" in bg_msg:
-                    error_messages.append(bg_msg)
-
-        stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
+                # Capture background_event errors (retries, API failures)
+                elif event_type == "background_event":
+                    src = inner if inner else msg
+                    bg_msg = src.get("message", "")
+                    if "error" in bg_msg.lower() or "status 4" in bg_msg:
+                        error_messages.append(bg_msg)
+        finally:
+            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
         elapsed = time.monotonic() - t0
 
         is_error = proc.returncode != 0
