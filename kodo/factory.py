@@ -220,6 +220,142 @@ _WORKER_SMART_SAGA_EXTRA = (
 # Team builders
 # ---------------------------------------------------------------------------
 
+_ARCHITECT_DESC = (
+    "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
+    "Does not implement features."
+)
+_TESTER_DESC = (
+    "Verifies features end-to-end. Give it a user-experience description to check.\n"
+    "Reports what works and what's broken. Does not fix anything."
+)
+_TESTER_BROWSER_DESC = (
+    "Tester with real browser access — use for web UI verification.\n"
+    "Reports issues but does not fix anything."
+)
+
+
+def _build_team_core(
+    *,
+    worker_fast_desc: str,
+    worker_smart_desc: str,
+    worker_timeout_s: float = 1800,
+    architect_desc: str | None = None,
+    architect_timeout_s: float = 600,
+    tester_desc: str | None = None,
+    tester_timeout_s: float = 1800,
+    tester_browser_desc: str | None = None,
+) -> TeamConfig:
+    """Build team from available backends. Optional architect/tester roles."""
+    _has_cursor = has_cursor()
+    _has_codex = has_codex()
+    _has_gemini_cli = has_gemini_cli()
+    _has_claude = has_claude()
+    if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
+        raise RuntimeError(
+            "No worker backends available. Install at least one of: "
+            "claude, cursor, codex, or gemini-cli."
+        )
+
+    team: TeamConfig = {}
+
+    if _gemini_only():
+        team["worker_fast"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-flash"),
+            worker_fast_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        team["worker_smart"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-pro"),
+            worker_smart_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        if architect_desc:
+            team["architect"] = Agent(
+                make_session(
+                    "gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT
+                ),
+                architect_desc,
+                max_turns=10,
+                timeout_s=architect_timeout_s,
+            )
+        if tester_desc:
+            team["tester"] = Agent(
+                make_session(
+                    "gemini-cli", "gemini-2.5-flash", system_prompt=TESTER_PROMPT
+                ),
+                tester_desc,
+                max_turns=20,
+                timeout_s=tester_timeout_s,
+            )
+        return team
+
+    if _has_cursor:
+        team["worker_fast"] = Agent(
+            make_session("cursor", "composer-1.5"),
+            worker_fast_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        if tester_desc:
+            team["tester"] = Agent(
+                make_session("cursor", "composer-1.5", system_prompt=TESTER_PROMPT),
+                tester_desc,
+                max_turns=20,
+                timeout_s=tester_timeout_s,
+            )
+        if tester_browser_desc:
+            team["tester_browser"] = Agent(
+                make_session(
+                    "cursor",
+                    "composer-1.5",
+                    system_prompt=TESTER_BROWSER_PROMPT,
+                    chrome=True,
+                ),
+                tester_browser_desc,
+                max_turns=20,
+                timeout_s=tester_timeout_s,
+            )
+
+    if _has_codex and "worker_fast" not in team:
+        team["worker_fast"] = Agent(
+            make_session("codex", "gpt-5.2-codex"),
+            worker_fast_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+
+    if _has_gemini_cli and "worker_fast" not in team:
+        team["worker_fast"] = Agent(
+            make_session("gemini-cli", "gemini-2.5-flash"),
+            worker_fast_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+
+    if _has_claude:
+        team["worker_smart"] = Agent(
+            make_session("claude", "opus", fallback_model="sonnet"),
+            worker_smart_desc,
+            max_turns=30,
+            timeout_s=worker_timeout_s,
+        )
+        if architect_desc:
+            team["architect"] = Agent(
+                make_session(
+                    "claude",
+                    "opus",
+                    system_prompt=ARCHITECT_PROMPT,
+                    fallback_model="sonnet",
+                ),
+                architect_desc,
+                max_turns=10,
+                timeout_s=architect_timeout_s,
+            )
+
+    return team
+
 
 def _build_team_saga(
     *,
@@ -228,199 +364,24 @@ def _build_team_saga(
     architect_timeout_s: float | None = 600,
 ) -> TeamConfig:
     """Create the saga team, skipping workers whose backends are unavailable."""
-    _has_cursor = has_cursor()
-    _has_codex = has_codex()
-    _has_gemini_cli = has_gemini_cli()
-    _has_claude = has_claude()
-    if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
-        raise RuntimeError(
-            "No worker backends available. Install at least one of: "
-            "claude, cursor, codex, or gemini-cli."
-        )
-
-    team: TeamConfig = {}
-
-    # Gemini-only: build a full team using gemini-cli with model tiers
-    if _gemini_only():
-        team["worker_fast"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-flash"),
-            _WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        team["worker_smart"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-pro"),
-            _WORKER_SMART_DESC + _WORKER_SMART_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        team["architect"] = Agent(
-            make_session(
-                "gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT
-            ),
-            "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
-            "Does not implement features.",
-            max_turns=10,
-            timeout_s=architect_timeout_s,
-        )
-        team["tester"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-flash", system_prompt=TESTER_PROMPT),
-            "Verifies features end-to-end. Give it a user-experience description to check.\n"
-            "Reports what works and what's broken. Does not fix anything.",
-            max_turns=20,
-            timeout_s=tester_timeout_s,
-        )
-        return team
-
-    if _has_cursor:
-        worker_fast_session = make_session("cursor", "composer-1.5")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-        tester_session = make_session(
-            "cursor", "composer-1.5", system_prompt=TESTER_PROMPT
-        )
-        team["tester"] = Agent(
-            tester_session,
-            "Verifies features end-to-end. Give it a user-experience description to check.\n"
-            "Reports what works and what's broken. Does not fix anything.",
-            max_turns=20,
-            timeout_s=tester_timeout_s,
-        )
-
-        tester_browser_session = make_session(
-            "cursor",
-            "composer-1.5",
-            system_prompt=TESTER_BROWSER_PROMPT,
-            chrome=True,
-        )
-        team["tester_browser"] = Agent(
-            tester_browser_session,
-            "Tester with real browser access — use for web UI verification.\n"
-            "Reports issues but does not fix anything.",
-            max_turns=20,
-            timeout_s=tester_timeout_s,
-        )
-
-    if _has_codex and "worker_fast" not in team:
-        worker_fast_session = make_session("codex", "gpt-5.2-codex")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-    if _has_gemini_cli and "worker_fast" not in team:
-        worker_fast_session = make_session("gemini-cli", "gemini-2.5-flash")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-    if _has_claude:
-        worker_smart_session = make_session("claude", "opus", fallback_model="sonnet")
-        team["worker_smart"] = Agent(
-            worker_smart_session,
-            _WORKER_SMART_DESC + _WORKER_SMART_SAGA_EXTRA,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-        architect_session = make_session(
-            "claude",
-            "opus",
-            system_prompt=ARCHITECT_PROMPT,
-            fallback_model="sonnet",
-        )
-        team["architect"] = Agent(
-            architect_session,
-            "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
-            "Does not implement features.",
-            max_turns=10,
-            timeout_s=architect_timeout_s,
-        )
-
-    return team
+    return _build_team_core(
+        worker_fast_desc=_WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
+        worker_smart_desc=_WORKER_SMART_DESC + _WORKER_SMART_SAGA_EXTRA,
+        worker_timeout_s=worker_timeout_s or 1800,
+        architect_desc=_ARCHITECT_DESC,
+        architect_timeout_s=architect_timeout_s or 600,
+        tester_desc=_TESTER_DESC,
+        tester_timeout_s=tester_timeout_s or 1800,
+        tester_browser_desc=_TESTER_BROWSER_DESC,
+    )
 
 
 def _build_team_mission() -> TeamConfig:
     """Create a mission team, skipping workers whose backends are unavailable."""
-    _has_cursor = has_cursor()
-    _has_codex = has_codex()
-    _has_gemini_cli = has_gemini_cli()
-    _has_claude = has_claude()
-    if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
-        raise RuntimeError(
-            "No worker backends available. Install at least one of: "
-            "claude, cursor, codex, or gemini-cli."
-        )
-
-    team: TeamConfig = {}
-
-    # Gemini-only: build both workers using gemini-cli with model tiers
-    if _gemini_only():
-        team["worker_fast"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-flash"),
-            _WORKER_FAST_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-        team["worker_smart"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-pro"),
-            _WORKER_SMART_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-        return team
-
-    if _has_cursor:
-        worker_fast_session = make_session("cursor", "composer-1.5")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-
-    if _has_codex and "worker_fast" not in team:
-        worker_fast_session = make_session("codex", "gpt-5.2-codex")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-
-    if _has_gemini_cli and "worker_fast" not in team:
-        worker_fast_session = make_session("gemini-cli", "gemini-2.5-flash")
-        team["worker_fast"] = Agent(
-            worker_fast_session,
-            _WORKER_FAST_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-
-    if _has_claude:
-        worker_smart_session = make_session(
-            "claude",
-            "opus",
-            fallback_model="sonnet",
-        )
-        team["worker_smart"] = Agent(
-            worker_smart_session,
-            _WORKER_SMART_DESC,
-            max_turns=30,
-            timeout_s=1800,
-        )
-
-    return team
+    return _build_team_core(
+        worker_fast_desc=_WORKER_FAST_DESC,
+        worker_smart_desc=_WORKER_SMART_DESC,
+    )
 
 
 # ---------------------------------------------------------------------------

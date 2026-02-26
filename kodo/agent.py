@@ -15,7 +15,8 @@ Usage::
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
@@ -178,24 +179,27 @@ class Agent:
     def _run_timed(self, goal: str, project_dir: Path, label: str) -> QueryResult:
         """Execute a query with a timeout.
 
-        On timeout: calls session.terminate(), waits briefly for the worker
-        to finish, then shuts down the executor. If the worker still hasn't
-        finished, logs a warning and proceeds without blocking.
+        Uses a daemon thread so that even if session.terminate() fails to
+        unblock the worker, the thread won't prevent process exit.
         """
-        pool = ThreadPoolExecutor(max_workers=1)
-        future = pool.submit(
-            self.session.query,
-            goal,
-            project_dir,
-            max_turns=self.max_turns,
-        )
+        future: Future[QueryResult] = Future()
+
+        def worker() -> None:
+            try:
+                result = self.session.query(
+                    goal, project_dir, max_turns=self.max_turns
+                )
+                future.set_result(result)
+            except BaseException as e:
+                future.set_exception(e)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
         try:
             return future.result(timeout=self.timeout_s)
         except FuturesTimeoutError:
             log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
             self.session.terminate()
-            # Wait briefly for the worker to finish (terminate() kills
-            # subprocess/SDK, so the worker should return).
             try:
                 future.result(timeout=0.5)
             except FuturesTimeoutError:
@@ -213,11 +217,6 @@ class Agent:
                 elapsed_s=self.timeout_s,
                 is_error=True,
             )
-        finally:
-            if future.done():
-                pool.shutdown(wait=True)
-            else:
-                pool.shutdown(wait=False, cancel_futures=True)
 
     def clone(self) -> "Agent":
         """Create a new Agent with a fresh session copy (no shared state)."""

@@ -11,10 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from kodo import log
+from kodo.env import anthropic_env_lock
 from kodo.sessions.base import QueryResult, SessionStats
-
-# Guards os.environ mutations in _ensure_client across concurrent sessions.
-_env_lock = threading.Lock()
 
 
 def _extract_tokens(usage: dict | None) -> tuple[int | None, int | None]:
@@ -127,7 +125,7 @@ class ClaudeSession:
         if self.chrome:
             extra_args["--chrome"] = None
 
-        with _env_lock:
+        with anthropic_env_lock:
             # The SDK always starts with os.environ, so we must remove CLAUDECODE
             # from the actual environment to prevent nested-session detection.
             os.environ.pop("CLAUDECODE", None)

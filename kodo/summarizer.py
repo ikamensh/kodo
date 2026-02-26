@@ -128,7 +128,8 @@ class Summarizer:
 
     def summarize(self, agent_name: str, task: str, report: str) -> None:
         """Submit a summary job (fire-and-forget)."""
-        self._executor.submit(self._do_summarize, agent_name, task, report)
+        with self._lock:
+            self._executor.submit(self._do_summarize, agent_name, task, report)
 
     def _do_summarize(self, agent_name: str, task: str, report: str) -> None:
         task = task or ""
@@ -159,10 +160,11 @@ class Summarizer:
 
     def get_accumulated_summary(self) -> str:
         """Drain pending work and return all summaries collected."""
-        # Wait for in-flight tasks to finish before reading
-        self._executor.shutdown(wait=True)
-        # Restart executor for future use
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        with self._lock:
+            old_executor = self._executor
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        # Shutdown outside lock so _do_summarize can acquire it to append
+        old_executor.shutdown(wait=True)
         with self._lock:
             return "\n".join(self._summaries)
 

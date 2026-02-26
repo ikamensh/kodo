@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 
 from kodo import log
+from kodo.env import anthropic_env_lock
 from kodo.orchestrators.base import (
     ORCHESTRATOR_SYSTEM_PROMPT,
     CycleResult,
@@ -99,7 +100,8 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
 
         # Strip ANTHROPIC_API_KEY so the SDK subprocess uses the Claude.ai
         # subscription instead of API billing.  Mirrors ClaudeSession logic.
-        saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
+        with anthropic_env_lock:
+            saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
 
         async def _run_cycle():
             client = ClaudeSDKClient(options=options)
@@ -196,8 +198,9 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                 loop.close()
             # Restore ANTHROPIC_API_KEY so the orchestrator's own API calls
             # (summarizer, etc.) continue to work.
-            if saved_api_key is not None:
-                os.environ["ANTHROPIC_API_KEY"] = saved_api_key
+            with anthropic_env_lock:
+                if saved_api_key is not None:
+                    os.environ["ANTHROPIC_API_KEY"] = saved_api_key
 
         # If we ran out of turns without calling done, build a summary from
         # the summarizer's accumulated agent reports so the next cycle has context.

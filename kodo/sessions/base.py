@@ -67,6 +67,10 @@ class Session(Protocol):
         """
         ...
 
+    def clone(self) -> Session:
+        """Return a fresh session with the same config but no state."""
+        ...
+
 
 class SubprocessSession:
     """Base for subprocess-backed sessions (Cursor, Codex, Gemini CLI).

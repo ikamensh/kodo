@@ -89,11 +89,8 @@ def test_agent_run_returns_on_hanging_session(tmp_path: Path):
 
     # --- Thread leak check ---
     threads_created = threads_after - threads_before
-    if threads_created > 0:
-        pytest.xfail(
-            f"Boundary Condition 2 LEAK: Agent.run() returned promptly ({elapsed:.2f}s) "
-            f"but left {threads_created} extra thread(s) alive. "
-            "The ThreadPoolExecutor worker thread remains blocked in session.query() "
-            "after shutdown(wait=False). It is daemon=False by default, so it persists "
-            "until the hung call returns or process exits."
-        )
+    assert threads_created == 0, (
+        f"Boundary Condition 2 LEAK: Agent.run() returned promptly ({elapsed:.2f}s) "
+        f"but left {threads_created} extra thread(s) alive. "
+        "Worker thread must be daemon so it does not block process exit."
+    )
