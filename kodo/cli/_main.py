@@ -16,6 +16,7 @@ from kodo.cli._improve import (  # noqa: E402
     _IMPROVE_GOAL,
     _IMPROVE_REPORT_FORMAT,
     _build_fallback_plan,
+    _collect_prior_needs_decision,
     _extract_section,
     run_improve_discovery,
 )
@@ -315,17 +316,20 @@ def _main_inner() -> None:
 
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
+        prior = _collect_prior_needs_decision(run_dir)
         goal_text = _IMPROVE_GOAL.format(
             report_path=report_path,
             report_format=_IMPROVE_REPORT_FORMAT,
         )
         if not args.json:
+            if prior:
+                print("  Carrying forward prior 'Needs decision' items.")
             print("  Running improve discovery...")
-        plan = run_improve_discovery(run_dir, str(report_path))
+        plan = run_improve_discovery(run_dir, str(report_path), prior)
         if plan is None:
             if not args.json:
                 print("  Discovery unavailable; using default plan.")
-            plan = _build_fallback_plan(str(report_path))
+            plan = _build_fallback_plan(str(report_path), prior)
     elif non_interactive:
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:

@@ -2,8 +2,12 @@
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kodo.orchestrators.base import GoalPlan, GoalStage
+
+if TYPE_CHECKING:
+    from kodo.log import RunDir
 
 _IMPROVE_REPORT_FORMAT = """\
 ```markdown
@@ -144,7 +148,9 @@ make reasonable assumptions, and write the JSON file immediately."""
 # ---------------------------------------------------------------------------
 
 
-def run_improve_discovery(run_dir, report_path: str) -> GoalPlan | None:
+def run_improve_discovery(
+    run_dir, report_path: str, prior_needs_decision: str = ""
+) -> GoalPlan | None:
     """Run AI discovery to build a dynamic improve plan for --improve.
 
     Uses the shared single-turn plan mechanism from intake to inspect the
@@ -188,7 +194,9 @@ def run_improve_discovery(run_dir, report_path: str) -> GoalPlan | None:
     )
 
     if isinstance(plan, GoalPlan) and plan.stages:
-        return _validate_improve_plan(plan, report_path, run_dir_str)
+        return _validate_improve_plan(
+            plan, report_path, run_dir_str, prior_needs_decision
+        )
     return None
 
 
@@ -213,7 +221,9 @@ def _is_fix_stage(name: str) -> bool:
     return "fix" in n or "report" in n
 
 
-def _validate_improve_plan(plan: GoalPlan, report_path: str, run_dir: str) -> GoalPlan:
+def _validate_improve_plan(
+    plan: GoalPlan, report_path: str, run_dir: str, prior_needs_decision: str = ""
+) -> GoalPlan:
     """Post-process an AI-generated plan to ensure correctness.
 
     1. Append triage and fix/report stages if the AI omitted them.
@@ -291,28 +301,31 @@ def _validate_improve_plan(plan: GoalPlan, report_path: str, run_dir: str) -> Go
             )
         )
 
-    # --- 3. Wire findings paths into triage and fix stages ---
+    # --- 3. Wire findings paths and prior items into triage and fix stages ---
 
-    if findings_paths:
-        findings_list = ", ".join(f"`{p}`" for p in findings_paths)
-        findings_ref = f"\n\nFindings files: {findings_list}."
+    findings_list = ", ".join(f"`{p}`" for p in findings_paths) if findings_paths else ""
+    findings_ref = f"\n\nFindings files: {findings_list}." if findings_list else ""
 
-        final: list[GoalStage] = []
-        for stage in augmented:
-            if _is_triage_stage(stage.name) or _is_fix_stage(stage.name):
-                stage = GoalStage(
-                    index=stage.index,
-                    name=stage.name,
-                    description=stage.description + findings_ref,
-                    acceptance_criteria=stage.acceptance_criteria,
-                    browser_testing=stage.browser_testing,
-                    parallel_group=stage.parallel_group,
-                    persist_changes=stage.persist_changes,
-                )
-            final.append(stage)
-        augmented = final
+    final: list[GoalStage] = []
+    for stage in augmented:
+        extra = ""
+        if _is_triage_stage(stage.name):
+            extra = findings_ref + prior_needs_decision
+        elif _is_fix_stage(stage.name):
+            extra = findings_ref
+        if extra:
+            stage = GoalStage(
+                index=stage.index,
+                name=stage.name,
+                description=stage.description + extra,
+                acceptance_criteria=stage.acceptance_criteria,
+                browser_testing=stage.browser_testing,
+                parallel_group=stage.parallel_group,
+                persist_changes=stage.persist_changes,
+            )
+        final.append(stage)
 
-    return GoalPlan(context=plan.context, stages=augmented)
+    return GoalPlan(context=plan.context, stages=final)
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +333,9 @@ def _validate_improve_plan(plan: GoalPlan, report_path: str, run_dir: str) -> Go
 # ---------------------------------------------------------------------------
 
 
-def _build_fallback_plan(report_path: str) -> GoalPlan:
+def _build_fallback_plan(
+    report_path: str, prior_needs_decision: str = ""
+) -> GoalPlan:
     """Build a generic hardcoded improve plan (fallback when discovery fails).
 
     Baseline → three parallel explorations (happy path, adversarial,
@@ -422,7 +437,8 @@ def _build_fallback_plan(report_path: str) -> GoalPlan:
                     f"`{adversarial_findings}`, "
                     f"`{architecture_findings}`. "
                     "Also include Stage 1 findings from prior context."
-                ),
+                )
+                + prior_needs_decision,
                 acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
             ),
             GoalStage(
@@ -455,3 +471,47 @@ def _extract_section(text: str, heading: str) -> str:
     pattern = rf"^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)"
     m = re.search(pattern, text, re.MULTILINE | re.DOTALL)
     return m.group(1) if m else ""
+
+
+def _collect_prior_needs_decision(current_run_dir: "RunDir") -> str:
+    """Collect 'Needs decision' items from previous improve reports.
+
+    Scans all ``~/.kodo/runs/*/improve-report.md`` files except the current
+    run and returns a prompt fragment listing unresolved items.
+    """
+    from kodo.log import _runs_root
+
+    runs_dir = _runs_root()
+    if not runs_dir.exists():
+        return ""
+
+    current_id = current_run_dir.run_id
+    items: list[str] = []
+
+    for report_file in sorted(runs_dir.glob("*/improve-report.md")):
+        run_id = report_file.parent.name
+        if run_id == current_id:
+            continue
+        try:
+            content = report_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        section = _extract_section(content, "Needs decision")
+        for line in section.strip().splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                items.append(line)
+
+    if not items:
+        return ""
+
+    block = "\n".join(items)
+    return (
+        f"\n## Prior unresolved items\n"
+        f"Previous --improve runs flagged these as 'Needs decision'. "
+        f"Re-evaluate each one:\n"
+        f"- If the code has been fixed or the concern is no longer valid, drop it.\n"
+        f"- If you can now auto-fix it safely without human input, fix it and "
+        f"list it under 'Auto-fixed'.\n"
+        f"- Otherwise carry it forward into 'Needs decision'.\n\n{block}\n"
+    )

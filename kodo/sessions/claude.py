@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 import threading
 import time
 from pathlib import Path
@@ -181,11 +182,25 @@ class ClaudeSession:
             use_api_key=self.use_api_key,
         )
 
+    def _get_subprocess_pid(self) -> int | None:
+        """Extract the PID of the SDK subprocess, if available."""
+        try:
+            transport = self._client._transport  # type: ignore[union-attr]
+            if transport and transport._process:
+                return transport._process.pid
+        except (AttributeError, TypeError):
+            pass
+        return None
+
     def close(self) -> None:
         """Stop the event loop and join the background thread. Idempotent."""
         if self._closed:
             return
         self._closed = True
+
+        # Grab subprocess PID before disconnect so we can force-kill if needed.
+        subprocess_pid = self._get_subprocess_pid()
+
         try:
             self._disconnect()
         except Exception:
@@ -195,6 +210,20 @@ class ClaudeSession:
         except RuntimeError:
             pass  # loop already closed/stopped
         self._thread.join(timeout=5)
+        if self._thread.is_alive() and subprocess_pid:
+            # The SDK subprocess didn't exit in time — force-kill it so the
+            # event-loop thread (blocked reading its stdout) can unblock.
+            try:
+                os.kill(subprocess_pid, signal.SIGTERM)
+            except OSError:
+                pass
+            self._thread.join(timeout=3)
+            if self._thread.is_alive():
+                try:
+                    os.kill(subprocess_pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                self._thread.join(timeout=2)
         if not self._thread.is_alive():
             try:
                 self._loop.close()
