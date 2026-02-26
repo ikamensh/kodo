@@ -224,6 +224,10 @@ class ClaudeSession:
                 except OSError:
                     pass
                 self._thread.join(timeout=2)
+        if self._thread.is_alive():
+            # Fallback when subprocess_pid was None (SDK transport changed,
+            # connect failed partway): give the thread 2s more to exit on its own.
+            self._thread.join(timeout=2)
         if not self._thread.is_alive():
             try:
                 self._loop.close()

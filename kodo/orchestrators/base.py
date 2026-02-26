@@ -554,8 +554,11 @@ class VerificationState:
 def _check_passed(report: str) -> bool:
     """Return True if a verifier report signals acceptance.
 
-    Uses word-boundary matching to avoid substring false positives
-    (e.g. "NOT ALL CHECKS PASS" or "The user said ALL CHECKS PASS").
+    Rejects reports containing "NOT ALL CHECKS PASS" or "NOT MINOR ISSUES FIXED".
+    Otherwise returns True if the report contains "ALL CHECKS PASS" or
+    "MINOR ISSUES FIXED" as whole words (\\b). Does not distinguish quoted or
+    attributed mentions (e.g. "The user said ALL CHECKS PASS") from direct
+    affirmations.
     """
     upper = report.upper()
     if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:

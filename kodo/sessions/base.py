@@ -115,7 +115,8 @@ class SubprocessSession:
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=cwd,
         )
         self._process = proc
@@ -203,7 +204,10 @@ class SubprocessSession:
                 proc.kill()
                 proc.wait(timeout=2)  # reap zombie after kill
             except (OSError, subprocess.TimeoutExpired):
-                pass
+                try:
+                    proc.wait(0)  # reap if process already exited
+                except Exception:
+                    pass
         self._process = None
 
     def reset(self) -> None:

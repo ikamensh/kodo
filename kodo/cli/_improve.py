@@ -303,7 +303,9 @@ def _validate_improve_plan(
 
     # --- 3. Wire findings paths and prior items into triage and fix stages ---
 
-    findings_list = ", ".join(f"`{p}`" for p in findings_paths) if findings_paths else ""
+    findings_list = (
+        ", ".join(f"`{p}`" for p in findings_paths) if findings_paths else ""
+    )
     findings_ref = f"\n\nFindings files: {findings_list}." if findings_list else ""
 
     final: list[GoalStage] = []
@@ -333,9 +335,7 @@ def _validate_improve_plan(
 # ---------------------------------------------------------------------------
 
 
-def _build_fallback_plan(
-    report_path: str, prior_needs_decision: str = ""
-) -> GoalPlan:
+def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> GoalPlan:
     """Build a generic hardcoded improve plan (fallback when discovery fails).
 
     Baseline → three parallel explorations (happy path, adversarial,

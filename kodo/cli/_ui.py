@@ -1,7 +1,6 @@
 """UI helpers: ANSI formatting, spinner, banner, atomic file writes."""
 
 import os
-import shutil
 import tempfile
 import threading
 import time
@@ -70,6 +69,14 @@ def _print_separator() -> None:
     print(f"  {_DIM}{'─' * 60}{_RESET}")
 
 
+def _terminal_columns() -> int:
+    """Terminal width in columns, or 80 if not a TTY."""
+    try:
+        return os.get_terminal_size().columns
+    except OSError:
+        return 80
+
+
 class _Spinner:
     """Simple elapsed-time spinner for long-running operations."""
 
@@ -91,7 +98,7 @@ class _Spinner:
         if self._thread:
             self._thread.join()
         # Clear the spinner line (use terminal width so wrapped lines are covered)
-        cols = shutil.get_terminal_size().columns
+        cols = _terminal_columns()
         print(f"\r{' ' * cols}\r", end="", flush=True)
 
     def _run(self):
@@ -102,7 +109,7 @@ class _Spinner:
             frame = self.FRAMES[i % len(self.FRAMES)]
             line = f"\r  {frame} {self._message}... {elapsed}s"
             # Truncate to terminal width to prevent wrapping/reprint artifacts
-            cols = shutil.get_terminal_size().columns
+            cols = _terminal_columns()
             if len(line) > cols:
                 line = line[: cols - 1]
             print(line, end="", flush=True)
