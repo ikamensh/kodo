@@ -539,7 +539,11 @@ def list_runs(project_dir: Path | None = None) -> list[RunState]:
     resolved = str(project_dir.resolve()) if project_dir else None
     runs: list[RunState] = []
     for f in candidates:
-        state = parse_run(f)
+        try:
+            state = parse_run(f)
+        except OSError as exc:
+            tprint(f"  Warning: cannot read {f}: {exc}")
+            continue
         if state is None:
             continue
         if resolved and state.project_dir != resolved:

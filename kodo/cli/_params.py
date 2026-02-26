@@ -243,18 +243,23 @@ def _load_or_select_params(project_dir: Path) -> dict:
         if isinstance(prev, dict) and "mode" in prev and "team" not in prev:
             prev["team"] = prev.pop("mode")
         if isinstance(prev, dict) and required_keys <= prev.keys():
-            team_preset = get_team(prev["team"])
-            print("\n  Previous config found:")
-            print(f"    Team:         {team_preset.name} — {team_preset.description}")
-            print(
-                f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})"
-            )
-            print(
-                f"    Exchanges:    {prev['max_exchanges']}/cycle, {prev['max_cycles']} cycles"
-            )
-            reuse = input("\n  Reuse this config? [Y/n] ").strip().lower()
-            if not reuse or reuse == "y":
-                return prev
+            try:
+                team_preset = get_team(prev["team"])
+            except KeyError:
+                print(f"\n  Previous config has unknown team {prev['team']!r}, ignoring.")
+                prev = None
+            else:
+                print("\n  Previous config found:")
+                print(f"    Team:         {team_preset.name} — {team_preset.description}")
+                print(
+                    f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})"
+                )
+                print(
+                    f"    Exchanges:    {prev['max_exchanges']}/cycle, {prev['max_cycles']} cycles"
+                )
+                reuse = input("\n  Reuse this config? [Y/n] ").strip().lower()
+                if not reuse or reuse == "y":
+                    return prev
 
     params = select_params()
     try:
