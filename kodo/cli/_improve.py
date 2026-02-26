@@ -190,7 +190,7 @@ def run_improve_discovery(
         run_dir,
         system_prompt=prompt,
         initial_message="Analyze this project and create an improvement plan.",
-        spinner_text="Discovering project and building improve plan",
+        spinner_text="Planning improvements",
     )
 
     if isinstance(plan, GoalPlan) and plan.stages:

@@ -1,6 +1,7 @@
 """UI helpers: ANSI formatting, spinner, banner, atomic file writes."""
 
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -89,8 +90,9 @@ class _Spinner:
         self._stop.set()
         if self._thread:
             self._thread.join()
-        # Clear the spinner line
-        print(f"\r{' ' * 60}\r", end="", flush=True)
+        # Clear the spinner line (use terminal width so wrapped lines are covered)
+        cols = shutil.get_terminal_size().columns
+        print(f"\r{' ' * cols}\r", end="", flush=True)
 
     def _run(self):
         start = time.monotonic()
@@ -98,5 +100,10 @@ class _Spinner:
         while not self._stop.wait(0.1):
             elapsed = int(time.monotonic() - start)
             frame = self.FRAMES[i % len(self.FRAMES)]
-            print(f"\r  {frame} {self._message}... {elapsed}s", end="", flush=True)
+            line = f"\r  {frame} {self._message}... {elapsed}s"
+            # Truncate to terminal width to prevent wrapping/reprint artifacts
+            cols = shutil.get_terminal_size().columns
+            if len(line) > cols:
+                line = line[: cols - 1]
+            print(line, end="", flush=True)
             i += 1

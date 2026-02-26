@@ -1,6 +1,6 @@
 [project]
 name = "kodo"
-version = "0.4.78"
+version = "0.4.79"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
