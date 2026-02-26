@@ -26,7 +26,7 @@ def test_very_long_goal_preserved(tmp_path: Path):
     long_goal = "x" * 10000
 
     with (
-        patch("kodo.cli._params.has_claude", return_value=True),
+        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.cli._main.launch_run") as mock_launch,
     ):
@@ -53,7 +53,7 @@ def test_unicode_and_special_chars_in_goal(tmp_path: Path):
     )
 
     with (
-        patch("kodo.cli._params.has_claude", return_value=True),
+        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.cli._main.launch_run") as mock_launch,
     ):
@@ -89,7 +89,7 @@ def test_unreadable_goal_file_no_traceback(tmp_path: Path, capsys):
 
     try:
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             sys.argv = [

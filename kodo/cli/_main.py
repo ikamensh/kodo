@@ -337,11 +337,7 @@ def _main_inner() -> None:
             plan = existing_plan
             print(f"Using existing goal plan ({len(plan.stages)} stages)")
         elif args.auto_refine:
-            backend = (
-                "claude"
-                if has_claude()
-                else ("cursor" if has_cursor() else "gemini-cli")
-            )
+            backend = preferred_backend() or "gemini-cli"
             refined = run_intake_auto(backend, run_dir, goal_text)
             if refined:
                 goal_text = refined
@@ -364,11 +360,7 @@ def _main_inner() -> None:
 
         if plan is None and not args.skip_intake:
             if args.auto_refine:
-                backend = (
-                    "claude"
-                    if has_claude()
-                    else ("cursor" if has_cursor() else "gemini-cli")
-                )
+                backend = preferred_backend() or "gemini-cli"
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined

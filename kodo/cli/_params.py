@@ -12,10 +12,7 @@ from kodo.factory import (
     TEAMS,
     check_api_key,
     get_team,
-    has_claude,
-    has_codex,
-    has_cursor,
-    has_gemini_cli,
+    preferred_orchestrator,
 )
 from kodo.models import (
     CLAUDE_OPUS,
@@ -89,10 +86,11 @@ def select_params() -> dict:
     print("\n--- Configuration ---\n")
 
     # Show available backends
-    _claude = has_claude()
-    _cursor = has_cursor()
-    _gemini = has_gemini_cli()
-    if not _claude and not _cursor and not _gemini:
+    from kodo.factory import available_backends as _avail_backends
+
+    _avail_backends.cache_clear()
+    _backends = _avail_backends()
+    if not any(_backends.values()):
         print("Error: no worker backends found.", file=sys.stderr)
         print("  Install at least one of:", file=sys.stderr)
         print(
@@ -101,14 +99,24 @@ def select_params() -> dict:
         )
         print("    Cursor CLI       — https://docs.cursor.com/agent", file=sys.stderr)
         print(
+            "    Codex CLI        — https://github.com/openai/codex",
+            file=sys.stderr,
+        )
+        print(
             "    Gemini CLI       — https://github.com/google-gemini/gemini-cli",
             file=sys.stderr,
         )
         sys.exit(1)
-    parts = []
-    parts.append(f"Claude Code: {'yes' if _claude else 'not found'}")
-    parts.append(f"Cursor: {'yes' if _cursor else 'not found'}")
-    parts.append(f"Gemini CLI: {'yes' if _gemini else 'not found'}")
+    _BACKEND_LABELS = {
+        "claude": "Claude Code",
+        "codex": "Codex",
+        "cursor": "Cursor",
+        "gemini-cli": "Gemini CLI",
+    }
+    parts = [
+        f"{label}: {'yes' if _backends.get(key) else 'not found'}"
+        for key, label in _BACKEND_LABELS.items()
+    ]
     print(f"  Backends: {' | '.join(parts)}\n")
 
     # Team selection
@@ -120,16 +128,17 @@ def select_params() -> dict:
     # Build orchestrator choices based on available backends.
     # API is recommended: CLI tools tend to solve problems themselves instead
     # of purely delegating, which makes them worse orchestrators.
+    _ORCH_OPTIONS = [
+        ("claude", "claude-code (free on Max subscription)"),
+        ("gemini-cli", "gemini-cli (free with Google account)"),
+        ("codex", "codex (free on Codex subscription)"),
+        ("cursor", "cursor (free on Cursor subscription)"),
+    ]
     orch_options: list[str] = []
     orch_options.append("api (recommended — delegates cleanly, pay-per-token)")
-    if _claude:
-        orch_options.append("claude-code (free on Max subscription)")
-    if _gemini:
-        orch_options.append("gemini-cli (free with Google account)")
-    if has_codex():
-        orch_options.append("codex (free on Codex subscription)")
-    if _cursor:
-        orch_options.append("cursor (free on Cursor subscription)")
+    for backend_key, label in _ORCH_OPTIONS:
+        if _backends.get(backend_key):
+            orch_options.append(label)
 
     orchestrator = _select_one("Orchestrator:", orch_options).split(" (")[0]
 
@@ -268,16 +277,8 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         orchestrator = args.orchestrator
     elif _has_gemini_key:
         orchestrator = "api"
-    elif has_claude():
-        orchestrator = "claude-code"
-    elif has_gemini_cli():
-        orchestrator = "gemini-cli"
-    elif has_codex():
-        orchestrator = "codex"
-    elif has_cursor():
-        orchestrator = "cursor"
     else:
-        orchestrator = "api"
+        orchestrator = preferred_orchestrator()
 
     # Default model per orchestrator when not explicitly specified
     if not orch_model:

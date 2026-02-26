@@ -60,7 +60,7 @@ class TestJsonOutput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -226,7 +226,7 @@ class TestImproveJsonOutput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
             patch("kodo.cli._main.run_improve_discovery", return_value=None),
         ):

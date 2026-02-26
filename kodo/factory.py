@@ -123,6 +123,26 @@ def smart_model_for_backend(backend: str) -> str:
     return _BACKEND_SMART_MODEL[backend]
 
 
+# Maps backend key → orchestrator name for CLI-based orchestrators.
+_BACKEND_TO_ORCHESTRATOR: dict[str, str] = {
+    "claude": "claude-code",
+    "cursor": "cursor",
+    "codex": "codex",
+    "gemini-cli": "gemini-cli",
+}
+
+
+def preferred_orchestrator() -> str:
+    """Return the best CLI orchestrator for the current environment.
+
+    Falls back to 'api' if no CLI backends are installed.
+    """
+    backend = preferred_backend()
+    if backend:
+        return _BACKEND_TO_ORCHESTRATOR[backend]
+    return "api"
+
+
 # CLI-based orchestrators that don't need API keys
 _CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor"}
 

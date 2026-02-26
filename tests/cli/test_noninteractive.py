@@ -57,7 +57,7 @@ class TestBuildParamsFromFlags:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -184,7 +184,7 @@ class TestNonInteractiveGoalInput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -273,7 +273,7 @@ class TestRunIntakeNoninteractive:
 
         with (
             patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.has_claude", return_value=True),
+            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Build something")
 
@@ -311,7 +311,7 @@ class TestRunIntakeNoninteractive:
 
         with (
             patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.has_claude", return_value=True),
+            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Build something")
 
@@ -325,7 +325,7 @@ class TestRunIntakeNoninteractive:
 
         with (
             patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.has_claude", return_value=True),
+            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Vague goal")
 
@@ -333,11 +333,7 @@ class TestRunIntakeNoninteractive:
 
     def test_returns_none_when_no_backend(self, project):
         run_dir = RunDir.create(project, "test")
-        with (
-            patch("kodo.cli._intake.has_claude", return_value=False),
-            patch("kodo.cli._intake.has_cursor", return_value=False),
-            patch("kodo.cli._intake.has_gemini_cli", return_value=False),
-        ):
+        with patch("kodo.cli._intake.preferred_backend", return_value=None):
             result = run_intake_noninteractive(run_dir, "Build something")
 
         assert result is None
@@ -349,7 +345,7 @@ class TestRunIntakeNoninteractive:
 
         with (
             patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.has_claude", return_value=True),
+            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
             patch("builtins.input", side_effect=AssertionError("input() called")),
         ):
             run_intake_noninteractive(run_dir, "Build something")
@@ -364,7 +360,7 @@ class TestNonInteractiveEndToEnd:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -487,7 +483,7 @@ class TestImproveFlag:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
             patch("kodo.cli._main.run_improve_discovery", return_value=None),
         ):
@@ -624,7 +620,7 @@ class TestImproveFlag:
         with (
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_improve_discovery", return_value=None),
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
@@ -914,7 +910,7 @@ class TestInputValidation:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -993,7 +989,7 @@ class TestTeamConfigErrors:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -1040,7 +1036,7 @@ class TestPermissionErrors:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield
@@ -1115,7 +1111,7 @@ class TestInvalidModeDefensiveCheck:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             yield

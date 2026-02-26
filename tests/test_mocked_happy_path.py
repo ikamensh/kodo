@@ -126,8 +126,7 @@ def _mocked_patches():
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.cli._params.has_claude", return_value=True),
-        patch("kodo.cli._params.has_cursor", return_value=True),
+        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_quick", _fake_build_team),
         patch("kodo.factory._build_team_full", _fake_build_team),
@@ -484,7 +483,7 @@ class TestGetTeamKeyError:
             patch(
                 "kodo.cli._main._build_params_from_flags", side_effect=fake_build_params
             ),
-            patch("kodo.cli._params.has_claude", return_value=True),
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
             patch("kodo.cli._params.check_api_key", return_value=None),
         ):
             sys.argv = [
