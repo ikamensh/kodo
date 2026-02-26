@@ -1,6 +1,6 @@
 """Smoke test: run kodo --improve with mocked orchestrator and sessions.
 
-Verifies discovery fallback to default 5-stage plan and a successful cycle.
+Verifies discovery fallback to default 6-stage plan and a successful cycle.
 All external deps mocked. No API keys or real backends required.
 
 Usage:
@@ -145,9 +145,9 @@ def main() -> int:
         return 1
 
     plan = plan_captured[0]
-    if len(plan.stages) != 5:
+    if len(plan.stages) != 6:
         print(
-            f"FAIL: Expected 5-stage improve plan, got {len(plan.stages)}",
+            f"FAIL: Expected 6-stage improve plan, got {len(plan.stages)}",
             file=sys.stderr,
         )
         return 1

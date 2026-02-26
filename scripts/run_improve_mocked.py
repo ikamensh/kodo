@@ -5,7 +5,7 @@ Usage:
 
 Verifies:
 - Discovery falls back to default plan when mocked
-- Fallback plan has 5 stages
+- Fallback plan has 6 stages
 - Saga mode and API orchestrator are used
 - launch_run is invoked with correct goal and plan
 """
