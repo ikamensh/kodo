@@ -172,8 +172,11 @@ def _cmd_teams() -> None:
             sys.exit(1)
         _cmd_teams_edit(args[1])
     elif subcmd == "auto":
-        mode_name = args[1] if len(args) >= 2 else "saga"
-        _cmd_teams_auto(mode_name)
+        mode_name = args[1] if len(args) >= 2 else None
+        if mode_name:
+            _cmd_teams_auto(mode_name)
+        else:
+            _cmd_teams_auto_all()
     else:
         print(f"Unknown teams subcommand: {subcmd}")
         print("Usage: kodo teams [add <name> | edit <name> | auto [mode]]")
@@ -193,6 +196,7 @@ def _cmd_teams_list() -> None:
         print("No teams found.")
         return
 
+    has_missing = False
     for name, source, cfg in teams:
         desc = cfg.get("description", "")
         agents = cfg.get("agents", {})
@@ -222,7 +226,32 @@ def _cmd_teams_list() -> None:
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
             status = "ok" if ok else "missing"
+            if not ok:
+                has_missing = True
             print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]  {adesc}")
+        print()
+
+    # Hint if any agents have missing backends
+    if has_missing:
+        print(
+            "Hint: Run 'kodo teams auto' to generate teams adapted to your installed backends."
+        )
+        print()
+
+
+def _cmd_teams_auto_all() -> None:
+    """Generate configs for all built-in team templates."""
+    from kodo.team_config import list_available_teams
+
+    built_in_names = [
+        name for name, source, _ in list_available_teams() if source == "built-in"
+    ]
+    if not built_in_names:
+        print("No built-in team templates found.")
+        sys.exit(1)
+
+    for name in built_in_names:
+        _cmd_teams_auto(name)
         print()
 
 
@@ -273,12 +302,12 @@ def _cmd_teams_auto(mode_name: str) -> None:
     _FAST_FALLBACKS = [
         ("cursor", "composer-1.5"),
         ("codex", "gpt-5.2-codex"),
-        ("gemini-cli", "gemini-2.5-flash"),
+        ("gemini-cli", "gemini-3-flash"),
         ("claude", "sonnet"),
     ]
     _SMART_FALLBACKS = [
         ("claude", "opus"),
-        ("gemini-cli", "gemini-2.5-pro"),
+        ("gemini-cli", "gemini-3-pro"),
         ("cursor", "composer-1.5"),
     ]
 

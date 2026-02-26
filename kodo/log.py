@@ -517,7 +517,7 @@ def parse_run(log_file: Path) -> RunState | None:
         last_summary=last_summary,
         finished=finished,
         agent_session_ids=agent_session_ids,
-        team_preset=cli_args.get("team", cli_args.get("mode", "saga")),
+        team_preset=cli_args.get("team", cli_args.get("mode", "full")),
         has_stages=has_stages,
         completed_stages=completed_stages,
         stage_summaries=stage_summaries,

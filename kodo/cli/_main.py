@@ -117,8 +117,8 @@ def _main_inner() -> None:
         "--team",
         type=str,
         default=None,
-        choices=["saga", "mission", "quick"],
-        help="Team preset (default: saga).",
+        choices=["full", "quick", "saga", "mission"],
+        help="Team preset (default: full).",
     )
     parser.add_argument(
         "--exchanges", type=int, default=None, help="Max exchanges per cycle."
@@ -191,12 +191,12 @@ def _main_inner() -> None:
     if args.json or args.auto_refine:
         args.yes = True
 
-    # --improve forces non-interactive, skip-intake, yes, and defaults mode to saga
+    # --improve forces non-interactive, skip-intake, yes, and defaults mode to full
     if args.improve:
         args.skip_intake = True
         args.yes = True
         if args.team is None:
-            args.team = "saga"
+            args.team = "full"
 
     non_interactive = (
         args.goal is not None or args.goal_file is not None or args.improve

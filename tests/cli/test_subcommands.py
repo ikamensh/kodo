@@ -47,7 +47,7 @@ class TestCmdRuns:
             stage_summaries={},
             current_stage_cycles=0,
             pending_exchanges=[],
-            team_preset="saga",
+            team_preset="full",
         )
 
         with (
@@ -84,7 +84,7 @@ class TestCmdRuns:
             stage_summaries={},
             current_stage_cycles=0,
             pending_exchanges=[],
-            team_preset="saga",
+            team_preset="full",
         )
 
         with (
@@ -119,7 +119,7 @@ class TestCmdRuns:
             stage_summaries={},
             current_stage_cycles=0,
             pending_exchanges=[],
-            team_preset="saga",
+            team_preset="full",
         )
 
         with (
@@ -231,7 +231,7 @@ class TestCmdTeams:
             patch("sys.argv", ["kodo", "teams"]),
             patch(
                 "kodo.team_config.list_available_teams",
-                return_value=[("saga", "built-in", team_cfg)],
+                return_value=[("full", "built-in", team_cfg)],
             ),
             patch(
                 "kodo.factory.available_backends",
@@ -246,7 +246,7 @@ class TestCmdTeams:
             _cmd_teams()
 
         out = capsys.readouterr().out
-        assert "saga" in out
+        assert "full" in out
         assert "(built-in)" in out
         assert "2 agents" in out
         assert "worker_fast" in out

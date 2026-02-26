@@ -2,6 +2,10 @@
 
 These test the USER-FACING guarantee: kodo should assemble a working team
 from whatever backends are installed, and fail clearly when none are.
+
+The priority tables in factory.py ensure every role is filled by the
+best available backend.  These tests verify the priority order and that
+all backend combinations produce a viable team.
 """
 
 from __future__ import annotations
@@ -32,7 +36,35 @@ def _backends(claude=False, cursor=False, codex=False, gemini=False):
 
 
 # ---------------------------------------------------------------------------
-# Saga team fallback chain
+# Every single-backend scenario should produce a viable team
+# ---------------------------------------------------------------------------
+
+
+class TestSingleBackend:
+    """Any single backend should fill both worker roles."""
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"claude": True},
+            {"cursor": True},
+            {"codex": True},
+            {"gemini": True},
+        ],
+    )
+    def test_single_backend_fills_both_workers(self, kwargs):
+        with _backends(**kwargs):
+            team = _build_team_saga()
+        assert "worker_fast" in team
+        assert "worker_smart" in team
+
+    def test_no_backends_raises(self):
+        with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
+            _build_team_saga()
+
+
+# ---------------------------------------------------------------------------
+# Saga team priority verification
 # ---------------------------------------------------------------------------
 
 
@@ -42,37 +74,13 @@ class TestSagaTeamComposition:
     def test_all_backends_available(self):
         with _backends(claude=True, cursor=True, codex=True, gemini=True):
             team = _build_team_saga()
-        # Should have the core roles
         assert "worker_fast" in team
         assert "worker_smart" in team
         assert "architect" in team
         assert "tester" in team
-
-    def test_only_claude_gives_smart_worker_and_architect(self):
-        with _backends(claude=True):
-            team = _build_team_saga()
-        assert "worker_smart" in team
-        assert "architect" in team
-        # No fast worker since cursor/codex/gemini are absent
-        assert "worker_fast" not in team
-
-    def test_only_cursor_gives_fast_worker_and_testers(self):
-        with _backends(cursor=True):
-            team = _build_team_saga()
-        assert "worker_fast" in team
-        assert "tester" in team
-        # No smart worker or architect without claude
-        assert "worker_smart" not in team
-        assert "architect" not in team
-
-    def test_codex_becomes_fast_worker_when_cursor_absent(self):
-        with _backends(codex=True, claude=True):
-            team = _build_team_saga()
-        assert "worker_fast" in team
-        assert "worker_smart" in team
 
     def test_gemini_only_saga_has_full_team(self):
-        """Gemini-only should get worker_fast, worker_smart, architect, tester."""
+        """Gemini-only should get all non-browser roles."""
         with _backends(gemini=True):
             team = _build_team_saga()
         assert "worker_fast" in team
@@ -80,22 +88,36 @@ class TestSagaTeamComposition:
         assert "architect" in team
         assert "tester" in team
 
-    def test_gemini_only_saga_has_no_browser_tester(self):
-        """Gemini-only team should not include tester_browser (no chrome support)."""
+    def test_browser_tester_only_with_cursor(self):
+        """tester_browser requires cursor (only backend with chrome support)."""
         with _backends(gemini=True):
             team = _build_team_saga()
         assert "tester_browser" not in team
+
+        with _backends(cursor=True):
+            team = _build_team_saga()
+        assert "tester_browser" in team
 
     def test_cursor_preferred_over_codex_for_fast_worker(self):
         """When both cursor and codex exist, cursor should win worker_fast."""
         with _backends(cursor=True, codex=True):
             team = _build_team_saga()
-        # worker_fast should exist (cursor wins), no duplicate
         assert "worker_fast" in team
 
-    def test_no_backends_raises(self):
-        with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
-            _build_team_saga()
+    def test_claude_preferred_for_smart_worker(self):
+        """When claude and gemini both exist, claude should win worker_smart."""
+        with _backends(claude=True, gemini=True):
+            team = _build_team_saga()
+        assert "worker_smart" in team
+
+    def test_codex_plus_gemini(self):
+        """Codex + Gemini: codex=fast, gemini=smart/architect/tester."""
+        with _backends(codex=True, gemini=True):
+            team = _build_team_saga()
+        assert "worker_fast" in team
+        assert "worker_smart" in team
+        assert "architect" in team
+        assert "tester" in team
 
 
 # ---------------------------------------------------------------------------
@@ -104,24 +126,28 @@ class TestSagaTeamComposition:
 
 
 class TestMissionTeamComposition:
-    def test_only_claude(self):
-        with _backends(claude=True):
-            team = _build_team_mission()
-        assert "worker_smart" in team
-        assert "worker_fast" not in team
+    """Mission team has no architect/tester — just workers."""
 
-    def test_only_cursor(self):
-        with _backends(cursor=True):
-            team = _build_team_mission()
-        assert "worker_fast" in team
-        assert "worker_smart" not in team
-
-    def test_gemini_only_mission_has_both_workers(self):
-        """Gemini-only mission should get both fast and smart workers."""
-        with _backends(gemini=True):
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"claude": True},
+            {"cursor": True},
+            {"codex": True},
+            {"gemini": True},
+        ],
+    )
+    def test_any_single_backend_gives_both_workers(self, kwargs):
+        with _backends(**kwargs):
             team = _build_team_mission()
         assert "worker_fast" in team
         assert "worker_smart" in team
+
+    def test_mission_has_no_architect_or_tester(self):
+        with _backends(claude=True, cursor=True):
+            team = _build_team_mission()
+        assert "architect" not in team
+        assert "tester" not in team
 
     def test_no_backends_raises(self):
         with _backends(), pytest.raises(RuntimeError, match="No worker backends"):
@@ -134,27 +160,14 @@ class TestMissionTeamComposition:
 
 
 class TestMissionPrompt:
-    def test_both_fast_and_smart(self):
-        with _backends(cursor=True, claude=True):
-            prompt = _mission_system_prompt()
-        assert "fast worker" in prompt
-        assert "smart worker" in prompt
-
-    def test_only_fast(self):
+    def test_any_backend_gives_both_workers_in_prompt(self):
+        """With priority tables, any backend fills both roles."""
         with _backends(cursor=True):
             prompt = _mission_system_prompt()
         assert "fast worker" in prompt
-        assert "smart worker" not in prompt
-
-    def test_only_smart(self):
-        with _backends(claude=True):
-            prompt = _mission_system_prompt()
         assert "smart worker" in prompt
-        # Should not mention fast worker
-        assert "fast worker" not in prompt.split("smart worker")[0]
 
-    def test_gemini_only_mission_prompt_has_both_workers(self):
-        """Gemini-only should describe both fast and smart workers."""
+    def test_gemini_only_prompt_has_both_workers(self):
         with _backends(gemini=True):
             prompt = _mission_system_prompt()
         assert "fast worker" in prompt

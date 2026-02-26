@@ -189,7 +189,7 @@ class TeamPreset:
 
 
 # ---------------------------------------------------------------------------
-# Shared agent descriptions (used by both saga and mission team builders)
+# Shared agent descriptions (used by both full and quick team builders)
 # ---------------------------------------------------------------------------
 
 _WORKER_COMMON = (
@@ -207,12 +207,12 @@ _WORKER_SMART_DESC = (
     + _WORKER_COMMON
 )
 
-_SAGA_EXTRA = "\nEach task: ONE independently testable feature or change."
+_FULL_EXTRA = "\nEach task: ONE independently testable feature or change."
 
-_WORKER_FAST_SAGA_EXTRA = _SAGA_EXTRA
+_WORKER_FAST_FULL_EXTRA = _FULL_EXTRA
 
-_WORKER_SMART_SAGA_EXTRA = (
-    _SAGA_EXTRA + "\nIf result contains [PROPOSED PLAN], approve or request changes."
+_WORKER_SMART_FULL_EXTRA = (
+    _FULL_EXTRA + "\nIf result contains [PROPOSED PLAN], approve or request changes."
 )
 
 
@@ -234,6 +234,75 @@ _TESTER_BROWSER_DESC = (
 )
 
 
+@dataclass(frozen=True)
+class _BackendOption:
+    """One candidate backend+model for a team role."""
+
+    backend: str
+    model: str
+    session_kwargs: dict | None = None  # extra kwargs for make_session
+
+
+# Priority tables: first available backend wins for each role.
+# Order = preference (best first).
+_ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
+    "worker_fast": [
+        _BackendOption("cursor", "composer-1.5"),
+        _BackendOption("codex", "gpt-5.2-codex"),
+        _BackendOption("gemini-cli", "gemini-3-flash"),
+        _BackendOption("claude", "sonnet"),
+    ],
+    "worker_smart": [
+        _BackendOption("claude", "opus", {"fallback_model": "sonnet"}),
+        _BackendOption("gemini-cli", "gemini-3-pro"),
+        _BackendOption("codex", "o3"),
+        _BackendOption("cursor", "composer-1.5"),
+    ],
+    "architect": [
+        _BackendOption("claude", "opus", {"fallback_model": "sonnet"}),
+        _BackendOption("gemini-cli", "gemini-3-pro"),
+    ],
+    "tester": [
+        _BackendOption("cursor", "composer-1.5"),
+        _BackendOption("gemini-cli", "gemini-3-flash"),
+        _BackendOption("claude", "sonnet"),
+        _BackendOption("codex", "o3"),
+    ],
+    "tester_browser": [
+        _BackendOption("cursor", "composer-1.5"),
+    ],
+}
+
+# Role-specific config: (system_prompt, max_turns)
+_ROLE_CONFIG: dict[str, tuple[str | None, int]] = {
+    "worker_fast": (None, 30),
+    "worker_smart": (None, 30),
+    "architect": (ARCHITECT_PROMPT, 10),
+    "tester": (TESTER_PROMPT, 20),
+    "tester_browser": (TESTER_BROWSER_PROMPT, 20),
+}
+
+def _is_available(backend: str) -> bool:
+    """Check backend availability via has_* functions (respects test patching)."""
+    import kodo.factory as _mod
+
+    _checkers = {
+        "claude": _mod.has_claude,
+        "codex": _mod.has_codex,
+        "cursor": _mod.has_cursor,
+        "gemini-cli": _mod.has_gemini_cli,
+    }
+    return _checkers[backend]()
+
+
+def _pick_backend(role: str) -> _BackendOption | None:
+    """Return the highest-priority available backend for *role*, or None."""
+    for opt in _ROLE_PRIORITIES.get(role, []):
+        if _is_available(opt.backend):
+            return opt
+    return None
+
+
 def _build_team_core(
     *,
     worker_fast_desc: str,
@@ -245,128 +314,56 @@ def _build_team_core(
     tester_timeout_s: float = 1800,
     tester_browser_desc: str | None = None,
 ) -> TeamConfig:
-    """Build team from available backends. Optional architect/tester roles."""
-    _has_cursor = has_cursor()
-    _has_codex = has_codex()
-    _has_gemini_cli = has_gemini_cli()
-    _has_claude = has_claude()
-    if not _has_cursor and not _has_codex and not _has_gemini_cli and not _has_claude:
+    """Build team from available backends using priority tables.
+
+    For each role, the first available backend in its priority list is chosen.
+    Roles without a description (architect, tester, tester_browser) are skipped.
+    """
+    if not any(_is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli")):
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
             "claude, cursor, codex, or gemini-cli."
         )
 
+    # Map role name → (description, timeout)
+    role_descs: dict[str, tuple[str, float]] = {
+        "worker_fast": (worker_fast_desc, worker_timeout_s),
+        "worker_smart": (worker_smart_desc, worker_timeout_s),
+    }
+    if architect_desc:
+        role_descs["architect"] = (architect_desc, architect_timeout_s)
+    if tester_desc:
+        role_descs["tester"] = (tester_desc, tester_timeout_s)
+    if tester_browser_desc:
+        role_descs["tester_browser"] = (tester_browser_desc, tester_timeout_s)
+
     team: TeamConfig = {}
-
-    if _gemini_only():
-        team["worker_fast"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-flash"),
-            worker_fast_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        team["worker_smart"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-pro"),
-            worker_smart_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        if architect_desc:
-            team["architect"] = Agent(
-                make_session(
-                    "gemini-cli", "gemini-2.5-pro", system_prompt=ARCHITECT_PROMPT
-                ),
-                architect_desc,
-                max_turns=10,
-                timeout_s=architect_timeout_s,
-            )
-        if tester_desc:
-            team["tester"] = Agent(
-                make_session(
-                    "gemini-cli", "gemini-2.5-flash", system_prompt=TESTER_PROMPT
-                ),
-                tester_desc,
-                max_turns=20,
-                timeout_s=tester_timeout_s,
-            )
-        return team
-
-    if _has_cursor:
-        team["worker_fast"] = Agent(
-            make_session("cursor", "composer-1.5"),
-            worker_fast_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        if tester_desc:
-            team["tester"] = Agent(
-                make_session("cursor", "composer-1.5", system_prompt=TESTER_PROMPT),
-                tester_desc,
-                max_turns=20,
-                timeout_s=tester_timeout_s,
-            )
-        if tester_browser_desc:
-            team["tester_browser"] = Agent(
-                make_session(
-                    "cursor",
-                    "composer-1.5",
-                    system_prompt=TESTER_BROWSER_PROMPT,
-                    chrome=True,
-                ),
-                tester_browser_desc,
-                max_turns=20,
-                timeout_s=tester_timeout_s,
-            )
-
-    if _has_codex and "worker_fast" not in team:
-        team["worker_fast"] = Agent(
-            make_session("codex", "gpt-5.2-codex"),
-            worker_fast_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-    if _has_gemini_cli and "worker_fast" not in team:
-        team["worker_fast"] = Agent(
-            make_session("gemini-cli", "gemini-2.5-flash"),
-            worker_fast_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-
-    if _has_claude:
-        team["worker_smart"] = Agent(
-            make_session("claude", "opus", fallback_model="sonnet"),
-            worker_smart_desc,
-            max_turns=30,
-            timeout_s=worker_timeout_s,
-        )
-        if architect_desc:
-            team["architect"] = Agent(
-                make_session(
-                    "claude",
-                    "opus",
-                    system_prompt=ARCHITECT_PROMPT,
-                    fallback_model="sonnet",
-                ),
-                architect_desc,
-                max_turns=10,
-                timeout_s=architect_timeout_s,
-            )
+    for role, (desc, timeout) in role_descs.items():
+        pick = _pick_backend(role)
+        if pick is None:
+            continue
+        sys_prompt, max_turns = _ROLE_CONFIG[role]
+        session_kwargs = dict(pick.session_kwargs) if pick.session_kwargs else {}
+        if sys_prompt:
+            session_kwargs["system_prompt"] = sys_prompt
+        if role == "tester_browser":
+            session_kwargs["chrome"] = True
+        session = make_session(pick.backend, pick.model, **session_kwargs)
+        team[role] = Agent(session, desc, max_turns=max_turns, timeout_s=timeout)
 
     return team
 
 
-def _build_team_saga(
+def _build_team_full(
     *,
     worker_timeout_s: float | None = 1800,
     tester_timeout_s: float | None = 1800,
     architect_timeout_s: float | None = 600,
 ) -> TeamConfig:
-    """Create the saga team, skipping workers whose backends are unavailable."""
+    """Create the full team, skipping workers whose backends are unavailable."""
     return _build_team_core(
-        worker_fast_desc=_WORKER_FAST_DESC + _WORKER_FAST_SAGA_EXTRA,
-        worker_smart_desc=_WORKER_SMART_DESC + _WORKER_SMART_SAGA_EXTRA,
+        worker_fast_desc=_WORKER_FAST_DESC + _WORKER_FAST_FULL_EXTRA,
+        worker_smart_desc=_WORKER_SMART_DESC + _WORKER_SMART_FULL_EXTRA,
         worker_timeout_s=worker_timeout_s or 1800,
         architect_desc=_ARCHITECT_DESC,
         architect_timeout_s=architect_timeout_s or 600,
@@ -376,23 +373,31 @@ def _build_team_saga(
     )
 
 
-def _build_team_mission() -> TeamConfig:
-    """Create a mission team, skipping workers whose backends are unavailable."""
+# Backward-compat alias
+_build_team_saga = _build_team_full
+
+
+def _build_team_quick() -> TeamConfig:
+    """Create a quick team, skipping workers whose backends are unavailable."""
     return _build_team_core(
         worker_fast_desc=_WORKER_FAST_DESC,
         worker_smart_desc=_WORKER_SMART_DESC,
     )
 
 
+# Backward-compat alias
+_build_team_mission = _build_team_quick
+
+
 # ---------------------------------------------------------------------------
-# Mission orchestrator prompt
+# Quick orchestrator prompt
 # ---------------------------------------------------------------------------
 
 
-def _mission_system_prompt() -> str:
-    """Build the mission system prompt based on available backends."""
-    _has_fast = has_cursor() or has_codex() or has_gemini_cli()
-    _has_smart = has_claude() or _gemini_only()
+def _quick_system_prompt() -> str:
+    """Build the quick system prompt based on available backends."""
+    _has_fast = _pick_backend("worker_fast") is not None
+    _has_smart = _pick_backend("worker_smart") is not None
 
     if _has_fast and _has_smart:
         workers_desc = (
@@ -431,52 +436,60 @@ def _describe_backends() -> str:
     return " + ".join(parts) if parts else "none"
 
 
-def _saga_description() -> str:
+def _full_description() -> str:
     agents = []
-    if has_cursor() or has_codex() or has_gemini_cli():
-        agents.append("fast worker")
-    if has_claude() or _gemini_only():
-        agents.append("smart worker")
-    if has_cursor() or _gemini_only():
-        agents.append("tester")
-    if has_cursor():
-        agents.append("browser tester")
-    if has_claude() or _gemini_only():
-        agents.append("architect")
+    for role in ("worker_fast", "worker_smart", "tester", "tester_browser", "architect"):
+        if _pick_backend(role) is not None:
+            agents.append(role.replace("_", " "))
     return f"Full team ({_describe_backends()}): {', '.join(agents)}"
 
 
-def _mission_description() -> str:
+def _quick_description() -> str:
     workers = []
-    if has_cursor() or has_codex() or has_gemini_cli():
+    if _pick_backend("worker_fast"):
         workers.append("fast")
-    if has_claude() or _gemini_only():
+    if _pick_backend("worker_smart"):
         workers.append("smart")
     label = " + ".join(workers) if workers else "no"
     return f"{label.title()} worker(s) ({_describe_backends()}) solving one issue, orchestrator as quality gate"
 
 
+# Backward-compat aliases
+_saga_description = _full_description
+_mission_description = _quick_description
+_mission_system_prompt = _quick_system_prompt
+
+
 def get_team_presets() -> dict[str, TeamPreset]:
     """Build the team preset registry based on available backends."""
-    mission = TeamPreset(
-        name="mission",
-        description=_mission_description(),
-        system_prompt=_mission_system_prompt(),
-        build_team=_build_team_mission,
+    quick = TeamPreset(
+        name="quick",
+        description=_quick_description(),
+        system_prompt=_quick_system_prompt(),
+        build_team=_build_team_quick,
         default_max_exchanges=20,
         default_max_cycles=1,
     )
     return {
-        "saga": TeamPreset(
-            name="saga",
-            description=_saga_description(),
+        "full": TeamPreset(
+            name="full",
+            description=_full_description(),
             system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
-            build_team=_build_team_saga,
+            build_team=_build_team_full,
             default_max_exchanges=30,
             default_max_cycles=5,
         ),
-        "mission": mission,
-        "quick": mission,  # alias for mission
+        "quick": quick,
+        # Backward-compat aliases
+        "saga": TeamPreset(
+            name="full",
+            description=_full_description(),
+            system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
+            build_team=_build_team_full,
+            default_max_exchanges=30,
+            default_max_cycles=5,
+        ),
+        "mission": quick,
     }
 
 
@@ -532,7 +545,7 @@ def build_orchestrator(
     if name == "gemini-cli":
         from kodo.orchestrators.gemini_cli import GeminiCliOrchestrator
 
-        orch_model = model or "gemini-2.5-flash"
+        orch_model = model or "gemini-3-flash"
         return GeminiCliOrchestrator(model=orch_model, system_prompt=system_prompt)
 
     if name == "codex":

@@ -29,6 +29,38 @@ EXIT_SUCCESS = 0
 EXIT_ERROR = 1
 EXIT_PARTIAL = 2
 
+
+def _try_auto_fix_team(team_name: str, project_dir: Path, exc: Exception):
+    """Offer to run 'kodo teams auto' when team build fails."""
+    print(f"\n  Team {team_name!r} could not be built: {exc}", file=sys.stderr)
+    print(
+        "  This usually means some backends in the team config aren't installed.",
+        file=sys.stderr,
+    )
+    try:
+        answer = input("\n  Run 'kodo teams auto' to generate a working config? [Y/n] ")
+    except (EOFError, KeyboardInterrupt):
+        answer = "n"
+    if answer.strip().lower() in ("", "y"):
+        from kodo.cli._subcommands import _cmd_teams_auto_all
+
+        _cmd_teams_auto_all()
+        # Retry loading after auto-fix
+        team_config = load_team_config(team_name, project_dir)
+        team_preset = get_team(team_name)
+        if team_config:
+            team = build_team_from_json(team_config)
+            system_prompt = (
+                team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            )
+            verifiers = team_config.get("verifiers")
+            return team, system_prompt, verifiers
+        else:
+            team = team_preset.build_team()
+            return team, team_preset.system_prompt, None
+    else:
+        _fail(f"Team {team_name!r} could not be built: {exc}")
+
 # Will be set to the real stdout when --json redirects sys.stdout to stderr
 _original_stdout = None
 
@@ -142,7 +174,10 @@ def launch_run(
             max_exchanges = params["max_exchanges"]
             max_cycles = params["max_cycles"]
     except (ValueError, KeyError, RuntimeError, OSError) as exc:
-        _fail(f"Invalid team config: {exc}")
+        result = _try_auto_fix_team(params["team"], project_dir, exc)
+        team, system_prompt, verifiers = result
+        max_exchanges = params["max_exchanges"]
+        max_cycles = params["max_cycles"]
 
     orchestrator = build_orchestrator(
         params["orchestrator"],
@@ -245,7 +280,7 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
             pass
     if not params:
         params = {
-            "team": state.team_preset or "saga",
+            "team": state.team_preset or "full",
             "orchestrator": "api" if state.orchestrator == "api" else "claude-code",
             "orchestrator_model": state.model,
             "max_exchanges": state.max_exchanges,
@@ -267,7 +302,8 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
             team = team_preset.build_team()
             system_prompt = team_preset.system_prompt
     except (ValueError, KeyError, RuntimeError, OSError) as exc:
-        _fail(f"Invalid team config: {exc}")
+        result = _try_auto_fix_team(params["team"], project_dir, exc)
+        team, system_prompt, verifiers = result
 
     orchestrator = build_orchestrator(
         params["orchestrator"],

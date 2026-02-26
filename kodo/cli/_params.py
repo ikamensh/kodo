@@ -128,7 +128,7 @@ def select_params() -> dict:
     if orchestrator == "gemini-cli":
         orch_model = _select_one(
             "Orchestrator model:",
-            ["gemini-2.5-flash", "gemini-2.5-pro"],
+            ["gemini-3-flash", "gemini-3-pro"],
         )
     elif orchestrator == "codex":
         orch_model = _select_one("Orchestrator model:", ["o3", "o4-mini"])
@@ -246,7 +246,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
 
 def _build_params_from_flags(args, project_dir: Path) -> dict:
     """Build config dict from CLI flags, falling back to team defaults."""
-    team_name = args.team or "saga"
+    team_name = args.team or "full"
     team_preset = get_team(team_name)
 
     orch_model = args.orchestrator_model  # may be None
@@ -274,7 +274,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     if not orch_model:
         _ORCH_DEFAULT_MODELS = {
             "claude-code": "opus",
-            "gemini-cli": "gemini-2.5-flash",
+            "gemini-cli": "gemini-3-flash",
             "codex": "o3",
             "cursor": "sonnet-4",
             "api": "gemini-flash",

@@ -74,7 +74,7 @@ class TestBugM4MissingSummaryKey:
                 "ts": "2025-01-01T00:01:00Z",
                 "t": 60,
                 "event": "cli_args",
-                "team": "saga",
+                "team": "full",
             },
             # Missing "summary" key:
             {"ts": "2025-01-01T00:02:00Z", "t": 120, "event": "cycle_end"},
