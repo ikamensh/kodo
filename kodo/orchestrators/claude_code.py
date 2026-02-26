@@ -98,12 +98,13 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
         # the same task throughout.
         _MAX_NUDGES = 3
 
-        # Strip ANTHROPIC_API_KEY so the SDK subprocess uses the Claude.ai
-        # subscription instead of API billing.  Mirrors ClaudeSession logic.
-        with anthropic_env_lock:
-            saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
-
         async def _run_cycle():
+            # Strip ANTHROPIC_API_KEY so the SDK subprocess uses the Claude.ai
+            # subscription instead of API billing.  Mirrors ClaudeSession logic.
+            # Done inside the async function to minimize the window where other
+            # threads (e.g. API summarizer) see the key missing.
+            with anthropic_env_lock:
+                saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
             client = ClaudeSDKClient(options=options)
             try:
                 await client.connect()
@@ -112,6 +113,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
 
                 nudges = 0
                 while True:
+                    message = None
                     async for message in client.receive_response():
                         if isinstance(message, ResultMessage):
                             result.exchanges = result.exchanges + (
@@ -151,6 +153,12 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         )
                         break
 
+                    if message is None:
+                        log.tprint(
+                            "⚠️  [orchestrator] No messages received from Claude Code"
+                        )
+                        break
+
                     if message.is_error:
                         log.tprint(
                             f"⚠️  [orchestrator] Claude Code error: {message.result}"
@@ -183,29 +191,25 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                     else:
                         log.tprint(f"[orchestrator] disconnect error: {exc}")
                         raise
+                finally:
+                    # Restore ANTHROPIC_API_KEY as soon as the SDK subprocess is
+                    # done so other threads (summarizer, etc.) can use it.
+                    with anthropic_env_lock:
+                        if saved_api_key is not None:
+                            os.environ["ANTHROPIC_API_KEY"] = saved_api_key
 
         # Use a dedicated thread so we never collide with a caller's loop.
-        # The outer try/finally guarantees ANTHROPIC_API_KEY is restored even
-        # if asyncio.new_event_loop() or thread.start() raises before the
-        # inner try block.
+        loop = asyncio.new_event_loop()
+        thread = threading.Thread(target=loop.run_forever, daemon=True)
+        thread.start()
         try:
-            loop = asyncio.new_event_loop()
-            thread = threading.Thread(target=loop.run_forever, daemon=True)
-            thread.start()
-            try:
-                future = asyncio.run_coroutine_threadsafe(_run_cycle(), loop)
-                future.result()  # blocks until cycle completes
-            finally:
-                loop.call_soon_threadsafe(loop.stop)
-                thread.join(timeout=5)
-                if not thread.is_alive():
-                    loop.close()
+            future = asyncio.run_coroutine_threadsafe(_run_cycle(), loop)
+            future.result()  # blocks until cycle completes
         finally:
-            # Restore ANTHROPIC_API_KEY so the orchestrator's own API calls
-            # (summarizer, etc.) continue to work.
-            with anthropic_env_lock:
-                if saved_api_key is not None:
-                    os.environ["ANTHROPIC_API_KEY"] = saved_api_key
+            loop.call_soon_threadsafe(loop.stop)
+            thread.join(timeout=5)
+            if not thread.is_alive():
+                loop.close()
 
         # If we ran out of turns without calling done, build a summary from
         # the summarizer's accumulated agent reports so the next cycle has context.

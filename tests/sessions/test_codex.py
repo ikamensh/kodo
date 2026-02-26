@@ -47,7 +47,7 @@ def test_session_id_captured_for_resume(tmp_path: Path):
 
     assert session.session_id == "thread-xyz"
 
-    # Second query should use resume subcommand
+    # Second query should pass the new prompt (codex CLI has no resume subcommand)
     calls = []
     original_factory = _make_popen_factory(result_text="ok2", session_id="thread-xyz")
 
@@ -58,8 +58,8 @@ def test_session_id_captured_for_resume(tmp_path: Path):
     with patch("kodo.sessions.base.subprocess.Popen", capturing_factory):
         session.query("second", tmp_path, max_turns=10)
 
-    assert "resume" in calls[0]
-    assert "thread-xyz" in calls[0]
+    assert "second" in calls[0]
+    assert "resume" not in calls[0]
 
 
 def test_system_prompt_prepended_once(tmp_path: Path):
@@ -81,8 +81,10 @@ def test_system_prompt_prepended_once(tmp_path: Path):
     assert procs[0].prompt is not None
     assert "Be helpful." in procs[0].prompt
 
-    # Second query uses resume (session ID captured), no prompt in command
-    assert procs[1].resume_id is not None
+    # Second query: system prompt NOT prepended again, just the new prompt
+    assert procs[1].prompt is not None
+    assert "Be helpful." not in procs[1].prompt
+    assert "task2" in procs[1].prompt
 
 
 def test_error_on_nonzero_returncode(tmp_path: Path):

@@ -117,7 +117,7 @@ def available_backend_names() -> list[str]:
 _BACKEND_SMART_MODEL: dict[str, str] = {
     "claude": CLAUDE_OPUS,
     "cursor": CURSOR_COMPOSER,
-    "codex": CODEX_O3,
+    "codex": CODEX_WORKER,
     "gemini-cli": GEMINI_CLI_FLASH_V3,
 }
 
@@ -334,7 +334,7 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "worker_smart": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
-        _BackendOption("codex", CODEX_DEFAULT),
+        _BackendOption("codex", CODEX_WORKER),
         _BackendOption("cursor", CURSOR_COMPOSER),
     ],
     "architect": [
@@ -345,7 +345,7 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
         _BackendOption("cursor", CURSOR_COMPOSER),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
         _BackendOption("claude", CLAUDE_SONNET),
-        _BackendOption("codex", CODEX_DEFAULT),
+        _BackendOption("codex", CODEX_WORKER),
     ],
     "tester_browser": [
         _BackendOption("cursor", CURSOR_COMPOSER),

@@ -115,6 +115,7 @@ class SubprocessSession:
 
         Returns ``(proc, stderr_chunks, thread)``.
         """
+        self._did_timeout = False
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,

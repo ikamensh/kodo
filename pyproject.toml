@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.96"
+version = "0.4.97"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",

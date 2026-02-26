@@ -1874,6 +1874,7 @@ class OrchestratorBase:
 
                 parallel_results: list[StageResult] = []
                 try:
+                    worktree_failed = False
                     for stage in group:
                         try:
                             wt_dir, branch = create_worktree(
@@ -1885,9 +1886,49 @@ class OrchestratorBase:
                             )
                         except (subprocess.CalledProcessError, OSError) as exc:
                             log.tprint(
-                                f"[orchestrator] Worktree creation failed for "
-                                f"stage {stage.index}, using project dir: {exc}"
+                                f"⚠️  [orchestrator] Worktree creation failed for "
+                                f"stage {stage.index}: {exc}"
                             )
+                            worktree_failed = True
+                    # If any worktree failed, clean up the ones that succeeded
+                    # and fall back to running stages sequentially to avoid
+                    # multiple agents writing to the same project_dir.
+                    if worktree_failed:
+                        log.tprint(
+                            "⚠️  [orchestrator] Cannot isolate parallel stages — "
+                            "running sequentially instead"
+                        )
+                        for idx, (wt_dir, branch) in list(worktrees.items()):
+                            try:
+                                remove_worktree(project_dir, wt_dir, branch)
+                            except Exception:
+                                pass
+                        worktrees.clear()
+                        for stage in group:
+                            stage_res = self._run_one_stage(
+                                stage,
+                                plan,
+                                project_dir,
+                                stage_teams[stage.index],
+                                stage_summaries,
+                                max_exchanges=max_exchanges,
+                                max_cycles_for_stage=per_stage_cycles,
+                                initial_prior_summary=initial_prior,
+                                config=CycleConfig(
+                                    verifiers=config.verifiers,
+                                    auto_commit=(
+                                        stage.persist_changes and config.auto_commit
+                                    ),
+                                ),
+                            )
+                            parallel_results.append(stage_res)
+                            result.cycles.extend(stage_res.cycles)
+                            result.stage_results.append(stage_res)
+                            stage_summaries.append(stage_res.summary)
+                        remaining_cycles -= max(
+                            (len(r.cycles) for r in parallel_results), default=0
+                        )
+                        continue  # skip the parallel execution below
                     max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
                     workers = min(len(group), max_parallel)
                     with ThreadPoolExecutor(max_workers=workers) as pool:

@@ -99,7 +99,7 @@ def _format_json_output(
         return {"status": "error", "error": error}
     if result.finished:
         status = "completed"
-    elif result.cycles is not None:
+    elif result.cycles:
         status = "partial"
     else:
         status = "failed"
@@ -107,7 +107,7 @@ def _format_json_output(
     output = {
         "status": status,
         "finished": result.finished,
-        "cycles": len(result.cycles),
+        "cycles": len(result.cycles) if result.cycles else 0,
         "exchanges": result.total_exchanges,
         "cost_usd": round(result.total_cost_usd, 4),
         "summary": result.summary,

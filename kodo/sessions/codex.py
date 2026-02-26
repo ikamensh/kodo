@@ -57,32 +57,19 @@ class CodexSession(SubprocessSession):
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         prompt = self._prepend_system_prompt(prompt)
 
-        if self._session_id:
-            # Resume an existing session
-            cmd = [
-                "codex",
-                "exec",
-                "resume",
-                self._session_id,
-                "--full-auto",
-                "--json",
-                "--cd",
-                str(project_dir),
-            ]
-        else:
-            cmd = [
-                "codex",
-                "exec",
-                prompt,
-                "--full-auto",
-                "--json",
-                "--cd",
-                str(project_dir),
-                "--sandbox",
-                self._sandbox,
-                "-m",
-                self.model,
-            ]
+        cmd = [
+            "codex",
+            "exec",
+            prompt,
+            "--full-auto",
+            "--json",
+            "--cd",
+            str(project_dir),
+            "--sandbox",
+            self._sandbox,
+            "-m",
+            self.model,
+        ]
 
         log.emit(
             "session_query_start",

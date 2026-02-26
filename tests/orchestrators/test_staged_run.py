@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -25,6 +26,35 @@ from kodo.orchestrators.base import (
     remove_worktree,
 )
 from tests.conftest import make_agent
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def mock_worktrees():
+    """Patch create/remove_worktree so parallel stage tests work without git."""
+    _dirs: list[Path] = []
+
+    def _fake_create(project_dir, label):
+        d = Path(tempfile.mkdtemp(prefix=f"kodo-{label}-"))
+        branch = f"kodo-{label}-fake"
+        _dirs.append(d)
+        return d, branch
+
+    def _fake_remove(project_dir, wt_dir, branch):
+        pass  # cleanup handled by tmp
+
+    with (
+        patch("kodo.orchestrators.base.create_worktree", side_effect=_fake_create),
+        patch("kodo.orchestrators.base.remove_worktree", side_effect=_fake_remove),
+    ):
+        yield
+    import shutil
+
+    for d in _dirs:
+        shutil.rmtree(d, ignore_errors=True)
+
 
 # ── compose_stage_goal tests ─────────────────────────────────────────────
 
@@ -846,7 +876,7 @@ def _make_parallel_plan() -> GoalPlan:
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_stages_both_run(mock_viewer, tmp_project):
+def test_parallel_stages_both_run(mock_viewer, tmp_project, mock_worktrees):
     """Both parallel stages should execute and produce stage results."""
     plan = _make_parallel_plan()
     orch = FakeOrchestrator(
@@ -869,7 +899,7 @@ def test_parallel_stages_both_run(mock_viewer, tmp_project):
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project):
+def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project, mock_worktrees):
     """After parallel group, subsequent stage should see both summaries."""
     plan = _make_parallel_plan()
     orch = FakeOrchestrator(
@@ -892,7 +922,7 @@ def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project):
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_stages_share_snapshot(mock_viewer, tmp_project):
+def test_parallel_stages_share_snapshot(mock_viewer, tmp_project, mock_worktrees):
     """Parallel stages should see the same prior summaries, not each other's."""
     plan = _make_parallel_plan()
     orch = FakeOrchestrator(
@@ -916,7 +946,7 @@ def test_parallel_stages_share_snapshot(mock_viewer, tmp_project):
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_orchestrator_close_called(mock_viewer, tmp_project):
+def test_parallel_orchestrator_close_called(mock_viewer, tmp_project, mock_worktrees):
     """_run_in_own_loop should call close() on each parallel orchestrator copy."""
     plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
     close_calls: list[bool] = []
@@ -943,7 +973,7 @@ def test_parallel_orchestrator_close_called(mock_viewer, tmp_project):
 
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project):
+def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_worktrees):
     """Parallel stages should not auto-commit (changes are discarded anyway)."""
     plan = _make_parallel_plan()
 
