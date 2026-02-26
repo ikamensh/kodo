@@ -19,6 +19,8 @@ from kodo.models import (
     CLAUDE_SONNET,
     CODEX_DEFAULT,
     CURSOR_COMPOSER,
+    GEMINI_ALIAS_FLASH,
+    GEMINI_ALIAS_PRO,
     GEMINI_API_FLASH,
     GEMINI_CLI_FLASH,
     GEMINI_CLI_PRO,
@@ -158,7 +160,7 @@ def select_params() -> dict:
     elif orchestrator == "api":
         orch_model = _select_one(
             "Orchestrator model:",
-            [CLAUDE_OPUS, CLAUDE_SONNET, "gemini-pro", "gemini-flash"],
+            [CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH],
         )
     else:
         # claude-code

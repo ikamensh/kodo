@@ -24,12 +24,16 @@ from kodo.models import (
     CLAUDE_SONNET,
     CLAUDE_SONNET_FULL,
     CODEX_DEFAULT,
+    CODEX_O3,
     CODEX_WORKER,
     CURSOR_COMPOSER,
+    GEMINI_ALIAS_FLASH,
+    GEMINI_ALIAS_PRO,
     GEMINI_API_FLASH,
     GEMINI_API_PRO,
     GEMINI_API_PRO_V3,
     GEMINI_CLI_FLASH,
+    GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
 )
 from kodo.orchestrators.base import ORCHESTRATOR_SYSTEM_PROMPT, TeamConfig
@@ -111,10 +115,10 @@ def available_backend_names() -> list[str]:
 
 # Default "smart" model per backend — used for intake, refine, plan generation.
 _BACKEND_SMART_MODEL: dict[str, str] = {
-    "claude": "opus",
-    "cursor": "composer-1.5",
-    "codex": "o3",
-    "gemini-cli": "gemini-3-flash",
+    "claude": CLAUDE_OPUS,
+    "cursor": CURSOR_COMPOSER,
+    "codex": CODEX_O3,
+    "gemini-cli": GEMINI_CLI_FLASH_V3,
 }
 
 
@@ -155,8 +159,8 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
         return None
 
     _GEMINI_ALIASES = {
-        "gemini-pro",
-        "gemini-flash",
+        GEMINI_ALIAS_PRO,
+        GEMINI_ALIAS_FLASH,
         GEMINI_API_PRO_V3,
         GEMINI_API_PRO,
         GEMINI_API_FLASH,
@@ -584,8 +588,8 @@ def get_team(name: str) -> TeamPreset:
 _MODEL_ALIASES: dict[str, str] = {
     CLAUDE_OPUS: CLAUDE_OPUS_FULL,
     CLAUDE_SONNET: CLAUDE_SONNET_FULL,
-    "gemini-pro": GEMINI_API_PRO,
-    "gemini-flash": GEMINI_API_FLASH,
+    GEMINI_ALIAS_PRO: GEMINI_API_PRO,
+    GEMINI_ALIAS_FLASH: GEMINI_API_FLASH,
 }
 
 

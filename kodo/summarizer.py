@@ -64,9 +64,11 @@ def _summarize_ollama(model: str, task: str, report: str) -> str:
 
 def _summarize_gemini(api_key: str, task: str, report: str) -> str:
     prompt = _PROMPT_TEMPLATE.format(task=task[:200], report=report[:2000])
+    from kodo.models import GEMINI_SUMMARIZER
+
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-2.5-flash-lite:generateContent"
+        f"{GEMINI_SUMMARIZER}:generateContent"
     )
     payload = json.dumps(
         {

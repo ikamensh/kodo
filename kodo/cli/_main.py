@@ -41,7 +41,7 @@ from kodo.cli._params import (  # noqa: E402
 from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
-from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET  # noqa: E402
+from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_FLASH, GEMINI_ALIAS_PRO  # noqa: E402
 from kodo.log import RunDir  # noqa: E402
 from kodo.orchestrators.base import GoalPlan  # noqa: E402
 
@@ -136,7 +136,7 @@ def _main_inner() -> None:
         "--orchestrator-model",
         type=str,
         default=None,
-        choices=[CLAUDE_OPUS, CLAUDE_SONNET, "gemini-pro", "gemini-flash"],
+        choices=[CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH],
         help="Model for the orchestrator LLM.",
     )
     parser.add_argument(
@@ -337,7 +337,7 @@ def _main_inner() -> None:
             plan = existing_plan
             print(f"Using existing goal plan ({len(plan.stages)} stages)")
         elif args.auto_refine:
-            backend = preferred_backend() or "gemini-cli"
+            backend = preferred_backend()
             refined = run_intake_auto(backend, run_dir, goal_text)
             if refined:
                 goal_text = refined
@@ -360,7 +360,7 @@ def _main_inner() -> None:
 
         if plan is None and not args.skip_intake:
             if args.auto_refine:
-                backend = preferred_backend() or "gemini-cli"
+                backend = preferred_backend()
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined
