@@ -74,8 +74,8 @@ def _defaults_dir() -> Path:
     return Path(__file__).parent / "defaults"
 
 
-def list_available_teams() -> list[tuple[str, str, dict]]:
-    """Return ``(name, source, config)`` for all discoverable teams.
+def list_available_teams() -> list[tuple[str, str, dict, Path]]:
+    """Return ``(name, source, config, path)`` for all discoverable teams.
 
     Sources:
     - ``"built-in"`` — from ``kodo/defaults/team-*.json``
@@ -83,7 +83,7 @@ def list_available_teams() -> list[tuple[str, str, dict]]:
 
     User teams override built-in teams with the same name.
     """
-    teams: dict[str, tuple[str, dict]] = {}
+    teams: dict[str, tuple[str, dict, Path]] = {}
 
     # Built-in defaults
     for path in sorted(_defaults_dir().glob("team-*.json")):
@@ -92,7 +92,7 @@ def list_available_teams() -> list[tuple[str, str, dict]]:
             cfg = _load_json(path)
         except (ValueError, OSError):
             continue
-        teams[name] = ("built-in", cfg)
+        teams[name] = ("built-in", cfg, path)
 
     # User-level teams
     user_dir = Path.home() / ".kodo" / "teams"
@@ -103,9 +103,9 @@ def list_available_teams() -> list[tuple[str, str, dict]]:
                 cfg = _load_json(path)
             except (ValueError, OSError):
                 continue
-            teams[name] = ("user", cfg)
+            teams[name] = ("user", cfg, path)
 
-    return [(name, source, cfg) for name, (source, cfg) in teams.items()]
+    return [(name, source, cfg, path) for name, (source, cfg, path) in teams.items()]
 
 
 def build_team_from_json(config: dict) -> TeamConfig:

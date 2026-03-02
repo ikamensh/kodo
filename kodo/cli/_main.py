@@ -113,12 +113,15 @@ def _main_inner() -> None:
         help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
     )
 
-    # Non-interactive config flags
+    # Non-interactive config flags — discover available teams dynamically
+    from kodo.team_config import list_available_teams
+
+    _team_names = [name for name, *_ in list_available_teams()]
     parser.add_argument(
         "--team",
         type=str,
         default=None,
-        choices=["full", "quick", "saga", "mission"],
+        choices=_team_names or None,
         help="Team preset (default: full).",
     )
     parser.add_argument(

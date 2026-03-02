@@ -235,7 +235,7 @@ def _cmd_teams_list() -> None:
         return
 
     has_missing = False
-    for name, source, cfg in teams:
+    for name, source, cfg, path in teams:
         desc = cfg.get("description", "")
         agents = cfg.get("agents", {})
         exchanges = cfg.get("max_exchanges", "?")
@@ -256,6 +256,7 @@ def _cmd_teams_list() -> None:
         print(
             f"  {len(agents)} agents ({avail_str}), {exchanges} exchanges, {cycles} cycles"
         )
+        print(f"  {path}")
 
         for akey, acfg in agents.items():
             backend = acfg.get("backend", "?")
@@ -282,7 +283,7 @@ def _cmd_teams_auto_all() -> None:
     from kodo.team_config import list_available_teams
 
     built_in_names = [
-        name for name, source, _ in list_available_teams() if source == "built-in"
+        name for name, source, *_ in list_available_teams() if source == "built-in"
     ]
     if not built_in_names:
         print("No built-in team templates found.")
@@ -312,7 +313,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
 
     # Find the base template (built-in or user team matching mode_name)
     base_config = None
-    for tname, _tsource, tcfg in list_available_teams():
+    for tname, _tsource, tcfg, _tpath in list_available_teams():
         if tname == mode_name:
             base_config = tcfg
             break
@@ -445,19 +446,51 @@ def _ask_agent_fields(
     d = defaults or {}
     backends = list(_BACKEND_MAP.keys())
 
+    # Place the default backend first so the pointer and highlight are in sync
+    # (questionary.select has a visual glitch when default != first item).
+    default_backend = d.get("backend", backends[0])
+    if default_backend in backends:
+        backends = [default_backend] + [b for b in backends if b != default_backend]
+
     backend = questionary.select(
         "Backend:",
         choices=backends,
-        default=d.get("backend", backends[0]),
     ).ask()
     if backend is None:
         print("Cancelled.")
         sys.exit(1)
 
-    model = questionary.text("Model:", default=d.get("model", "")).ask()
-    if model is None:
-        print("Cancelled.")
-        sys.exit(1)
+    # Suggest common models for the chosen backend
+    _BACKEND_MODELS: dict[str, list[str]] = {
+        "claude": ["sonnet", "opus"],
+        "cursor": ["composer-1.5"],
+        "codex": ["gpt-5.3-codex", "gpt-5.2-codex", "o3"],
+        "gemini-cli": ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-pro"],
+    }
+    model_suggestions = _BACKEND_MODELS.get(backend, [])
+    prev_model = d.get("model", "")
+
+    if model_suggestions:
+        # Build choices: previous value first (if editing), then suggestions, then custom
+        model_choices = []
+        if prev_model and prev_model not in model_suggestions:
+            model_choices.append(prev_model)
+        model_choices.extend(model_suggestions)
+        model_choices.append("(custom)")
+        model = questionary.select("Model:", choices=model_choices).ask()
+        if model is None:
+            print("Cancelled.")
+            sys.exit(1)
+        if model == "(custom)":
+            model = questionary.text("Model name:", default=prev_model).ask()
+            if model is None:
+                print("Cancelled.")
+                sys.exit(1)
+    else:
+        model = questionary.text("Model:", default=prev_model).ask()
+        if model is None:
+            print("Cancelled.")
+            sys.exit(1)
 
     description = questionary.text(
         "Description (tool description for orchestrator):",
@@ -627,7 +660,7 @@ def _cmd_teams_edit(name: str) -> None:
     # Find the team
     config = None
     source = None
-    for tname, tsource, tcfg in list_available_teams():
+    for tname, tsource, tcfg, _tpath in list_available_teams():
         if tname == name:
             config = tcfg
             source = tsource
@@ -636,7 +669,7 @@ def _cmd_teams_edit(name: str) -> None:
     if config is None:
         print(f"Team {name!r} not found.")
         print("Available teams:")
-        for tname, tsource, _ in list_available_teams():
+        for tname, tsource, *_ in list_available_teams():
             print(f"  {tname} ({tsource})")
         sys.exit(1)
 

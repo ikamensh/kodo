@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -231,7 +232,7 @@ class TestCmdTeams:
             patch("sys.argv", ["kodo", "teams"]),
             patch(
                 "kodo.team_config.list_available_teams",
-                return_value=[("full", "built-in", team_cfg)],
+                return_value=[("full", "built-in", team_cfg, Path("/fake/defaults/team-full.json"))],
             ),
             patch(
                 "kodo.factory.available_backends",
