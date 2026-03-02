@@ -49,7 +49,7 @@ def _summarize_ollama(model: str, task: str, report: str) -> str:
             "model": model,
             "prompt": prompt,
             "stream": False,
-        }
+        },
     ).encode()
     req = urllib.request.Request(
         "http://localhost:11434/api/generate",
@@ -73,7 +73,7 @@ def _summarize_gemini(api_key: str, task: str, report: str) -> str:
     payload = json.dumps(
         {
             "contents": [{"parts": [{"text": prompt}]}],
-        }
+        },
     ).encode()
     req = urllib.request.Request(
         url,

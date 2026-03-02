@@ -181,6 +181,15 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         description = s.get("description")
         acceptance_criteria = s.get("acceptance_criteria")
         if index is None or not name or not description or acceptance_criteria is None:
+            if index is not None and name:
+                from kodo import log
+
+                log.emit(
+                    "intake_stage_skipped",
+                    index=index,
+                    name=name,
+                    reason="missing description or acceptance_criteria",
+                )
             continue
         try:
             idx = int(index)
@@ -209,7 +218,7 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
                 browser_testing=bool(s.get("browser_testing", False)),
                 parallel_group=pg,
                 persist_changes=bool(s.get("persist_changes", False)),
-            )
+            ),
         )
     return GoalPlan(context=context, stages=stages)
 
@@ -259,7 +268,7 @@ def run_intake_chat(
 
     try:
         print(
-            f"\n  {_DIM}Intake interview — type {_BOLD}/done{_RESET}{_DIM} or empty line to finish{_RESET}"
+            f"\n  {_DIM}Intake interview — type {_BOLD}/done{_RESET}{_DIM} or empty line to finish{_RESET}",
         )
         _print_separator()
 

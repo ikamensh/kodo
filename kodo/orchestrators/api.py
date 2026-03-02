@@ -92,7 +92,7 @@ def _build_tools(
                 name=f"ask_{name}",
                 description=f"Delegate a task to the {name} agent.\n{agent.description.strip()}",
                 takes_ctx=False,
-            )
+            ),
         )
 
     def done(summary: str, success: bool) -> str:
@@ -124,7 +124,7 @@ def _messages_to_text(messages: list) -> str:
                     parts.append(f"[user] {part.content[:500]}")
                 elif isinstance(part, ToolReturnPart):
                     parts.append(
-                        f"[user] tool_result({part.tool_name}): {str(part.content)[:300]}"
+                        f"[user] tool_result({part.tool_name}): {str(part.content)[:300]}",
                     )
         elif isinstance(msg, ModelResponse):
             for part in msg.parts:
@@ -189,7 +189,7 @@ class ApiOrchestrator(OrchestratorBase):
             provider = GoogleProvider(http_client=http_client)
             type_of_model = type(base_model)
             copy._pydantic_model = type_of_model(
-                base_model._model_name, provider=provider
+                base_model._model_name, provider=provider,
             )
         else:
             # Anthropic/other models — infer_model already creates a new
@@ -248,7 +248,7 @@ class ApiOrchestrator(OrchestratorBase):
                     trigger=("tokens", self.max_context_tokens),
                     keep=("tokens", self.max_context_tokens // 2),
                     model=self._pydantic_model,
-                )
+                ),
             )
 
         agent = Agent(
@@ -259,7 +259,7 @@ class ApiOrchestrator(OrchestratorBase):
         )
 
         log.tprint(
-            f"\n🚀 [orchestrator] starting cycle (max {max_exchanges} requests)..."
+            f"\n🚀 [orchestrator] starting cycle (max {max_exchanges} requests)...",
         )
 
         max_retries = 3
@@ -281,7 +281,7 @@ class ApiOrchestrator(OrchestratorBase):
                     provider = "Gemini" if "gemini" in self.model else "Anthropic"
                     log.tprint(
                         f"[orchestrator] Authentication failed (HTTP {status}). "
-                        f"Check your API key for {provider}."
+                        f"Check your API key for {provider}.",
                     )
                     log.emit(
                         "orchestrator_auth_error",
@@ -292,7 +292,7 @@ class ApiOrchestrator(OrchestratorBase):
                 elif status == 529 and self._fallback_pydantic and attempt == 0:
                     log.tprint(
                         f"[orchestrator] 529 on {self.model}, "
-                        f"falling back to {self._fallback_model}"
+                        f"falling back to {self._fallback_model}",
                     )
                     log.emit(
                         "orchestrator_fallback",
@@ -305,6 +305,7 @@ class ApiOrchestrator(OrchestratorBase):
                         tools=tools,
                         history_processors=history_processors or None,
                     )
+                    continue
                 elif (
                     status in (408, 429, 500, 502, 503, 504, 529)
                     and attempt < max_retries - 1
@@ -313,7 +314,7 @@ class ApiOrchestrator(OrchestratorBase):
                     log.tprint(
                         f"[orchestrator] {status} from model API, "
                         f"retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{max_retries})..."
+                        f"(attempt {attempt + 1}/{max_retries})...",
                     )
                     log.emit(
                         "orchestrator_retry",
@@ -334,7 +335,7 @@ class ApiOrchestrator(OrchestratorBase):
                     log.tprint(
                         f"[orchestrator] Network error: {type(exc).__name__}, "
                         f"retrying in {wait}s "
-                        f"(attempt {attempt + 1}/{max_retries})..."
+                        f"(attempt {attempt + 1}/{max_retries})...",
                     )
                     log.emit(
                         "orchestrator_retry",

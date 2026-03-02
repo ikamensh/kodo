@@ -157,7 +157,7 @@ class CodexOrchestrator(OrchestratorBase):
 
                 if done_signal.called:
                     log.tprint(
-                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}",
                     )
                 elif proc.returncode != 0:
                     log.tprint(f"⚠️  [orchestrator] codex error: {response_text[:200]}")

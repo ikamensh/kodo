@@ -149,7 +149,7 @@ make reasonable assumptions, and write the JSON file immediately."""
 
 
 def run_improve_discovery(
-    run_dir, report_path: str, prior_needs_decision: str = ""
+    run_dir, report_path: str, prior_needs_decision: str = "",
 ) -> GoalPlan | None:
     """Run AI discovery to build a dynamic improve plan for --improve.
 
@@ -168,7 +168,7 @@ def run_improve_discovery(
     if _detect_docker():
         env_lines.append(
             "- **Docker**: available. You can build/run containers for isolated "
-            "testing if the project has a Dockerfile or you want a clean environment."
+            "testing if the project has a Dockerfile or you want a clean environment.",
         )
     else:
         env_lines.append("- **Docker**: not available.")
@@ -195,7 +195,7 @@ def run_improve_discovery(
 
     if isinstance(plan, GoalPlan) and plan.stages:
         return _validate_improve_plan(
-            plan, report_path, run_dir_str, prior_needs_decision
+            plan, report_path, run_dir_str, prior_needs_decision,
         )
     return None
 
@@ -222,7 +222,7 @@ def _is_fix_stage(name: str) -> bool:
 
 
 def _validate_improve_plan(
-    plan: GoalPlan, report_path: str, run_dir: str, prior_needs_decision: str = ""
+    plan: GoalPlan, report_path: str, run_dir: str, prior_needs_decision: str = "",
 ) -> GoalPlan:
     """Post-process an AI-generated plan to ensure correctness.
 
@@ -246,7 +246,7 @@ def _validate_improve_plan(
                 name="Triage & Verify",
                 description=_TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
                 acceptance_criteria=f"Every finding has a verdict in {triage_path}.",
-            )
+            ),
         )
 
     if not has_fix:
@@ -267,7 +267,7 @@ def _validate_improve_plan(
                     f"Report at {report_path}. Auto-fixes committed. "
                     "Only triage-approved findings acted on."
                 ),
-            )
+            ),
         )
 
     # --- 2. Assign findings paths and inject instructions ---
@@ -299,7 +299,7 @@ def _validate_improve_plan(
                 parallel_group=stage.parallel_group,
                 persist_changes=stage.persist_changes,
                 verification=stage.verification,
-            )
+            ),
         )
 
     # --- 3. Wire findings paths and prior items into triage and fix stages ---
@@ -394,7 +394,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                         path=forge_findings,
                         description="Findings file exists",
                         error_message=f"Expected findings file at {forge_findings}",
-                    )
+                    ),
                 ],
             ),
             GoalStage(
@@ -436,7 +436,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                         path=happy_findings,
                         description="Findings file exists",
                         error_message=f"Expected findings file at {happy_findings}",
-                    )
+                    ),
                 ],
             ),
             GoalStage(
@@ -461,7 +461,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                         path=adversarial_findings,
                         description="Findings file exists",
                         error_message=f"Expected findings file at {adversarial_findings}",
-                    )
+                    ),
                 ],
             ),
             GoalStage(
@@ -488,7 +488,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                         path=architecture_findings,
                         description="Findings file exists",
                         error_message=f"Expected findings file at {architecture_findings}",
-                    )
+                    ),
                 ],
             ),
             GoalStage(
@@ -511,7 +511,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                         path=triage_path,
                         description="Triage results file exists",
                         error_message=f"Expected triage file at {triage_path}",
-                    )
+                    ),
                 ],
             ),
             GoalStage(

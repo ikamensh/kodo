@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.109"
+__version__ = "0.4.110"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
@@ -70,15 +70,15 @@ def make_session(
 
     if backend == "gemini-cli":
         return GeminiCliSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
         )
     if backend == "codex":
         return CodexSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
         )
     if backend == "cursor":
         return CursorSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s
+            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
         )
     return ClaudeSession(
         model=model,

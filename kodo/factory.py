@@ -167,7 +167,7 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
     }
     if model in _GEMINI_ALIASES or model.startswith("gemini"):
         if not os.environ.get("GEMINI_API_KEY") and not os.environ.get(
-            "GOOGLE_API_KEY"
+            "GOOGLE_API_KEY",
         ):
             return "GEMINI_API_KEY (or GOOGLE_API_KEY) not set — required for Gemini models"
     else:
@@ -401,7 +401,7 @@ def _build_team_core(
     if not any(_is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli")):
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
-            "claude, cursor, codex, or gemini-cli."
+            "claude, cursor, codex, or gemini-cli.",
         )
 
     # Map role name → (description, timeout)
@@ -601,7 +601,7 @@ def get_team(name: str) -> TeamPreset:
 
         def _no_build(**_kw):
             raise RuntimeError(
-                f"Team {name!r} is a JSON team — should be loaded via build_team_from_json"
+                f"Team {name!r} is a JSON team — should be loaded via build_team_from_json",
             )
 
         return TeamPreset(

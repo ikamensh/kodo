@@ -85,7 +85,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                     "type": "sdk",
                     "name": "team",
                     "instance": mcp._mcp_server,
-                }
+                },
             },
         )
 
@@ -149,19 +149,19 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         result.success = done_signal.success
                         log.tprint(
                             f"✅ [orchestrator] cycle done (done tool called): "
-                            f"{done_signal.summary[:200]}"
+                            f"{done_signal.summary[:200]}",
                         )
                         break
 
                     if message is None:
                         log.tprint(
-                            "⚠️  [orchestrator] No messages received from Claude Code"
+                            "⚠️  [orchestrator] No messages received from Claude Code",
                         )
                         break
 
                     if message.is_error:
                         log.tprint(
-                            f"⚠️  [orchestrator] Claude Code error: {message.result}"
+                            f"⚠️  [orchestrator] Claude Code error: {message.result}",
                         )
                         break
 
@@ -169,17 +169,17 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                     if nudges > _MAX_NUDGES:
                         log.tprint(
                             "⏱️  [orchestrator] cycle ended without calling "
-                            f"done after {_MAX_NUDGES} nudges"
+                            f"done after {_MAX_NUDGES} nudges",
                         )
                         break
 
                     log.tprint(
                         f"🔄 [orchestrator] nudging to call done() "
-                        f"(attempt {nudges}/{_MAX_NUDGES})..."
+                        f"(attempt {nudges}/{_MAX_NUDGES})...",
                     )
                     await client.query(
                         "You must call the done() tool to complete this cycle. "
-                        "Summarize what you've accomplished and call done()."
+                        "Summarize what you've accomplished and call done().",
                     )
             finally:
                 try:

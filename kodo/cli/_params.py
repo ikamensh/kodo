@@ -33,7 +33,7 @@ from kodo.user_config import get_user_default
 
 
 def _labeled_choices(
-    options: list[str], default_index: int
+    options: list[str], default_index: int,
 ) -> list[questionary.Choice]:
     """Build Choice objects, appending '(default)' to the default item's label."""
     choices = []
@@ -54,7 +54,7 @@ def _select_one(title: str, options: list[str], default_index: int = 0) -> str:
 
 
 def _select_numeric(
-    title: str, presets: list[str], default_index: int = 0, type_fn: type = int
+    title: str, presets: list[str], default_index: int = 0, type_fn: type = int,
 ) -> str:
     """Arrow-key selection with a 'Custom...' option for numeric values."""
     all_options = presets + ["Custom..."]
@@ -181,7 +181,7 @@ def select_params() -> dict:
         sys.exit(1)
 
     print(
-        "\n  An exchange = one orchestrator turn: think, delegate to agent, read result."
+        "\n  An exchange = one orchestrator turn: think, delegate to agent, read result.",
     )
     exchange_presets = ["20", "30", "50"]
     default_ex = str(team_preset.default_max_exchanges)
@@ -189,7 +189,7 @@ def select_params() -> dict:
         exchange_presets.index(default_ex) if default_ex in exchange_presets else 1
     )
     max_exchanges = _select_numeric(
-        "Max exchanges per cycle:", exchange_presets, default_index=ex_default_idx
+        "Max exchanges per cycle:", exchange_presets, default_index=ex_default_idx,
     )
 
     print("\n  A cycle = one full orchestrator session. If it doesn't finish,")
@@ -200,7 +200,7 @@ def select_params() -> dict:
         cycle_presets.index(default_cy) if default_cy in cycle_presets else 2
     )
     max_cycles = _select_numeric(
-        "Max cycles:", cycle_presets, default_index=cy_default_idx
+        "Max cycles:", cycle_presets, default_index=cy_default_idx,
     )
 
     return {
@@ -259,10 +259,10 @@ def _load_or_select_params(project_dir: Path) -> dict:
                 print("\n  Previous config found:")
                 print(f"    Team:         {team_preset.name} — {team_preset.description}")
                 print(
-                    f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})"
+                    f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})",
                 )
                 print(
-                    f"    Exchanges:    {prev['max_exchanges']}/cycle, {prev['max_cycles']} cycles"
+                    f"    Exchanges:    {prev['max_exchanges']}/cycle, {prev['max_cycles']} cycles",
                 )
                 reuse = input("\n  Reuse this config? [Y/n] ").strip().lower()
                 if not reuse or reuse == "y":
@@ -292,7 +292,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
             orch_model = CLAUDE_OPUS
     else:
         _has_gemini_key = bool(
-            os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
         )
 
         if args.orchestrator:

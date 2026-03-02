@@ -97,7 +97,7 @@ class CursorOrchestrator(OrchestratorBase):
                 }
                 existing["mcpServers"] = servers
                 mcp_config_path.write_text(
-                    json.dumps(existing, indent=2), encoding="utf-8"
+                    json.dumps(existing, indent=2), encoding="utf-8",
                 )
             except OSError as exc:
                 raise RuntimeError(f"Failed to write Cursor MCP config: {exc}") from exc
@@ -174,7 +174,7 @@ class CursorOrchestrator(OrchestratorBase):
 
                 if done_signal.called:
                     log.tprint(
-                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                        f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}",
                     )
                 elif proc.returncode != 0:
                     log.tprint(f"⚠️  [orchestrator] cursor error: {response_text[:200]}")
@@ -192,14 +192,14 @@ class CursorOrchestrator(OrchestratorBase):
                     elif mcp_config_path.exists():
                         try:
                             current = json.loads(
-                                mcp_config_path.read_text(encoding="utf-8")
+                                mcp_config_path.read_text(encoding="utf-8"),
                             )
                             servers = current.get("mcpServers", {})
                             servers.pop("kodo_team", None)
                             if servers:
                                 current["mcpServers"] = servers
                                 mcp_config_path.write_text(
-                                    json.dumps(current, indent=2), encoding="utf-8"
+                                    json.dumps(current, indent=2), encoding="utf-8",
                                 )
                             else:
                                 mcp_config_path.unlink(missing_ok=True)

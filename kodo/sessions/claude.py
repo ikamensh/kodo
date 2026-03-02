@@ -58,6 +58,12 @@ class ClaudeSession:
         self._thread.start()
         self._closed = False
 
+    def __enter__(self) -> "ClaudeSession":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
     async def _can_use_tool(
         self,
         tool_name: str,
@@ -91,13 +97,13 @@ class ClaudeSession:
 
         return PermissionResultAllow()
 
-    def _run(self, coro):
+    def _run(self, coro, *, timeout: float | None = None):
         """Submit a coroutine to our background loop and block until it completes.
         If coro is None (sync client, e.g. mock), return immediately."""
         if coro is None:
             return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result()
+        return future.result(timeout=timeout)
 
     @property
     def stats(self) -> SessionStats:
@@ -172,9 +178,9 @@ class ClaudeSession:
     def _disconnect(self) -> None:
         if self._client is not None:
             try:
-                self._run(self._client.disconnect())
-            except RuntimeError:
-                pass  # anyio cancel scope mismatch on cleanup — harmless
+                self._run(self._client.disconnect(), timeout=10)
+            except (RuntimeError, TimeoutError):
+                pass  # cancel scope mismatch or disconnect hung — harmless
             self._client = None
 
     def clone(self) -> "ClaudeSession":

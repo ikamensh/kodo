@@ -125,7 +125,7 @@ def _main_inner() -> None:
         help="Team preset (default: full).",
     )
     parser.add_argument(
-        "--exchanges", type=int, default=None, help="Max exchanges per cycle."
+        "--exchanges", type=int, default=None, help="Max exchanges per cycle.",
     )
     parser.add_argument("--cycles", type=int, default=None, help="Max cycles.")
     parser.add_argument(
@@ -281,7 +281,7 @@ def _main_inner() -> None:
                 _fail(
                     f"Goal file not found or not a file: {goal_path}"
                     if goal_path.exists()
-                    else f"Goal file not found: {goal_path}"
+                    else f"Goal file not found: {goal_path}",
                 )
             try:
                 goal_text = goal_path.read_text(encoding="utf-8").strip()
@@ -293,7 +293,7 @@ def _main_inner() -> None:
             _fail("No goal provided. Use --goal, --goal-file, or --improve.")
     else:
         goal_file = next(
-            (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None
+            (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None,
         )
         if goal_file is not None:
             try:
@@ -400,10 +400,10 @@ def _main_inner() -> None:
                 print(f"                  {s.index}. {s.name}")
         print(f"  Team:         {team_preset.name} — {team_preset.description}")
         print(
-            f"  Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})"
+            f"  Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})",
         )
         print(
-            f"  Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles"
+            f"  Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",
         )
         if args.debug:
             print("  Mode:         DEBUG (all backends mocked)")
@@ -423,7 +423,7 @@ def _main_inner() -> None:
 
     # 6. Launch
     result = launch_run(
-        run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug
+        run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug,
     )
 
     # 7. --improve post-run: report summary
@@ -439,14 +439,14 @@ def _main_inner() -> None:
                     r"^- .+$",
                     _extract_section(report_content, "Auto-fixed"),
                     re.MULTILINE,
-                )
+                ),
             )
             needs_decision = len(
                 re.findall(
                     r"^- .+$",
                     _extract_section(report_content, "Needs decision"),
                     re.MULTILINE,
-                )
+                ),
             )
             print(f"\n{'=' * 50}")
             print(f"Improve report: {report_path}")

@@ -6,6 +6,7 @@ Each run gets its own directory under ~/.kodo/runs/<run_id>/.
 
 from __future__ import annotations
 
+import copy
 import json
 import threading
 import time
@@ -141,7 +142,7 @@ class RunStats:
         to avoid ``RuntimeError: dictionary changed size during iteration``.
         """
         with _lock:
-            return dict(self.agents), self.orchestrator_cost_usd, self.orchestrator_bucket
+            return copy.deepcopy(self.agents), self.orchestrator_cost_usd, self.orchestrator_bucket
 
     @property
     def total_exchanges(self) -> int:
@@ -360,7 +361,7 @@ def print_stats_table(final: bool = False) -> None:
     print(f"  | {label:<66} |")
     print(
         f"  | {'Agent':<20} {'Bucket':<10} {'#':>3} {'Cost':>7}"
-        f" {'In':>5} {'Out':>5} {'Time':>6} {'Err':>3} |"
+        f" {'In':>5} {'Out':>5} {'Time':>6} {'Err':>3} |",
     )
     print(f"  |{sep[1:-1]}|")
 
@@ -372,7 +373,7 @@ def print_stats_table(final: bool = False) -> None:
             f"  | {_trunc(agent, 20):<20} {_trunc(_bucket_label(s.cost_bucket), 10):<10}"
             f" {s.calls:>3} {_fmt_cost(s.cost_usd):>7}"
             f" {in_tok:>5} {out_tok:>5}"
-            f" {_fmt_time(s.elapsed_s):>6} {s.errors:>3} |"
+            f" {_fmt_time(s.elapsed_s):>6} {s.errors:>3} |",
         )
 
     # Orchestrator row
@@ -380,7 +381,7 @@ def print_stats_table(final: bool = False) -> None:
         print(
             f"  | {'orchestrator':<20} {_trunc(_bucket_label(orch_bucket), 10):<10}"
             f" {'':>3} {_fmt_cost(orch_cost):>7}"
-            f" {'':>5} {'':>5} {'':>6} {'':>3} |"
+            f" {'':>5} {'':>5} {'':>6} {'':>3} |",
         )
 
     print(f"  |{sep[1:-1]}|")
@@ -397,18 +398,18 @@ def print_stats_table(final: bool = False) -> None:
     print(
         f"  | {'Total':<20} {'':10} {total_exch:>3}"
         f" {_fmt_cost(total):>7} {'':>5} {'':>5}"
-        f" {_fmt_time(elapsed):>6} {'':>3} |"
+        f" {_fmt_time(elapsed):>6} {'':>3} |",
     )
     print(
         f"  |   API: {_fmt_cost(api):<7}"
         f"  Virtual: {_fmt_cost(sub):<7}"
-        f"  Wall: {_fmt_time(elapsed):<27}|"
+        f"  Wall: {_fmt_time(elapsed):<27}|",
     )
     print(f"  {sep}")
     if not _virtual_cost_note_shown and sub > 0:
         print(
             "    Virtual = Claude Code's API cost estimate."
-            " Not charged on Max/Pro subscriptions."
+            " Not charged on Max/Pro subscriptions.",
         )
         _virtual_cost_note_shown = True
     print()

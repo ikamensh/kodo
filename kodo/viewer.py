@@ -96,7 +96,7 @@ def open_viewer(log_path: Path | None = None) -> None:
     # Include run index when no specific log is given
     html = _build_html(log_path, include_index=(log_path is None))
     with tempfile.NamedTemporaryFile(
-        "w", suffix=".html", prefix="kodo_viewer_", delete=False
+        "w", suffix=".html", prefix="kodo_viewer_", delete=False,
     ) as f:
         f.write(html)
         tmp = f.name
@@ -156,10 +156,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="kodo log viewer")
     parser.add_argument("logfile", nargs="?", help="Path to .jsonl log file")
     parser.add_argument(
-        "--serve", action="store_true", help="Serve on HTTP port instead of file://"
+        "--serve", action="store_true", help="Serve on HTTP port instead of file://",
     )
     parser.add_argument(
-        "--port", type=int, default=8080, help="Port for --serve (default: 8080)"
+        "--port", type=int, default=8080, help="Port for --serve (default: 8080)",
     )
     args = parser.parse_args()
 

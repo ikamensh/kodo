@@ -62,7 +62,7 @@ def _load_json(path: Path) -> dict:
         raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError(
-            f"Team config must be a JSON object, got {type(data).__name__} in {path}"
+            f"Team config must be a JSON object, got {type(data).__name__} in {path}",
         )
     if "agents" not in data or not isinstance(data["agents"], dict):
         raise ValueError(f"Team config must have an 'agents' dict in {path}")
@@ -126,7 +126,7 @@ def build_team_from_json(config: dict) -> TeamConfig:
         model = agent_cfg.get("model")
         if not backend or not model:
             raise ValueError(
-                f"Agent {agent_key!r} must have 'backend' and 'model' fields"
+                f"Agent {agent_key!r} must have 'backend' and 'model' fields",
             )
 
         # Check backend availability
@@ -134,11 +134,11 @@ def build_team_from_json(config: dict) -> TeamConfig:
         if backend_key is None:
             raise ValueError(
                 f"Agent {agent_key!r} has unknown backend {backend!r}. "
-                f"Valid backends: {', '.join(_BACKEND_MAP.keys())}"
+                f"Valid backends: {', '.join(_BACKEND_MAP.keys())}",
             )
         if not backends.get(backend_key, False):
             logger.warning(
-                "Skipping agent %r: backend %r not available", agent_key, backend
+                "Skipping agent %r: backend %r not available", agent_key, backend,
             )
             continue
 
@@ -149,10 +149,10 @@ def build_team_from_json(config: dict) -> TeamConfig:
         timeout_s = agent_cfg.get("timeout_s", _AGENT_DEFAULTS["timeout_s"])
         chrome = agent_cfg.get("chrome", _AGENT_DEFAULTS["chrome"])
         fallback_model = agent_cfg.get(
-            "fallback_model", _AGENT_DEFAULTS["fallback_model"]
+            "fallback_model", _AGENT_DEFAULTS["fallback_model"],
         )
         session_timeout_s = agent_cfg.get(
-            "session_timeout_s", _AGENT_DEFAULTS["session_timeout_s"]
+            "session_timeout_s", _AGENT_DEFAULTS["session_timeout_s"],
         )
 
         session = make_session(
@@ -174,7 +174,7 @@ def build_team_from_json(config: dict) -> TeamConfig:
     if not team:
         raise RuntimeError(
             "No agents available after checking backends. "
-            "Install at least one of: claude, cursor, codex, or gemini-cli."
+            "Install at least one of: claude, cursor, codex, or gemini-cli.",
         )
 
     return team

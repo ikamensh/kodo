@@ -19,6 +19,8 @@ from kodo.agent import Agent
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
 
+_GIT_TIMEOUT = 60  # seconds; prevents indefinite block on git commands
+
 
 @dataclass
 class QuickCheck:
@@ -220,7 +222,7 @@ def handle_agent_call(
         log.tprint(f"⚠️  [{agent_name}] reported error")
     if agent_result.context_reset:
         log.tprint(
-            f"🔄 [{agent_name}] context reset: {agent_result.context_reset_reason}"
+            f"🔄 [{agent_name}] context reset: {agent_result.context_reset_reason}",
         )
 
     log.print_stats_table()
@@ -341,7 +343,7 @@ def handle_done(
         log.tprint("⏩ [done] verification=skip — accepting immediately")
     elif isinstance(verification, list):
         log.tprint(
-            f"⚡ [done] running {len(verification)} quick check(s)..."
+            f"⚡ [done] running {len(verification)} quick check(s)...",
         )
         rejection = _run_quick_checks(verification)
     else:
@@ -438,7 +440,7 @@ def build_mcp_server(
             return handler
 
         mcp.add_tool(
-            _make_handler(name, agent, agent.description.strip()), name=f"ask_{name}"
+            _make_handler(name, agent, agent.description.strip()), name=f"ask_{name}",
         )
 
     def done(summary: str, success: bool) -> str:
@@ -583,15 +585,21 @@ class McpServerContext:
     def __exit__(self, *exc) -> None:
         if hasattr(self, "_server"):
             self._server.should_exit = True
+        # Ask the event loop to stop so run_until_complete() returns
+        # and the thread can exit naturally.
+        if self._loop:
+            try:
+                self._loop.call_soon_threadsafe(self._loop.stop)
+            except RuntimeError:
+                pass  # loop already closed/stopped
         if self._thread:
             self._thread.join(timeout=5)
             if self._thread.is_alive():
                 from kodo import log
 
                 log.tprint("[mcp] server thread did not stop within 5s")
-        # Always close the event loop to avoid leaking file descriptors /
-        # selector resources — even if the thread is still alive.
-        if self._loop:
+        # Only close the loop once the thread is no longer using it.
+        if self._loop and (not self._thread or not self._thread.is_alive()):
             try:
                 self._loop.close()
             except (OSError, RuntimeError):
@@ -614,15 +622,20 @@ def _check_passed(report: str) -> bool:
     """Return True if a verifier report signals acceptance.
 
     Rejects reports containing "NOT ALL CHECKS PASS" or "NOT MINOR ISSUES FIXED".
-    Otherwise returns True if the report contains "ALL CHECKS PASS" or
-    "MINOR ISSUES FIXED" as whole words (\\b). Does not distinguish quoted or
-    attributed mentions (e.g. "The user said ALL CHECKS PASS") from direct
-    affirmations.
+    The signal phrase must appear as the verifier's own assertion — at the start
+    of a line/sentence — not inside a quotation or attribution like
+    ``The agent said 'ALL CHECKS PASS' but tests fail``.
     """
     upper = report.upper()
     if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:
         return False
-    pattern = re.compile(r"\bALL CHECKS PASS\b|\bMINOR ISSUES FIXED\b")
+    # Accept the signal at: start of text, start of line, or after sentence-ending
+    # punctuation (.!?).  Reject mid-sentence mentions that follow attribution
+    # words (said, say, cannot, etc.) or appear inside quotes.
+    pattern = re.compile(
+        r"(?:^|(?<=\.)|(?<=!)|(?<=\?))\s*(?:ALL CHECKS PASS|MINOR ISSUES FIXED)\b",
+        re.MULTILINE,
+    )
     return bool(pattern.search(upper))
 
 
@@ -684,7 +697,7 @@ def verify_done(
     for tester_name, tester_agent in tester_agents:
         try:
             log.tprint(
-                f"[done] running {tester_name} verification (attempt {attempt})..."
+                f"[done] running {tester_name} verification (attempt {attempt})...",
             )
             tester_result = tester_agent.run(
                 verification_prompt
@@ -696,11 +709,11 @@ def verify_done(
             )
             tester_report = tester_result.text or ""
             log.emit(
-                "done_verification", agent=tester_name, report=tester_report[:5000]
+                "done_verification", agent=tester_name, report=tester_report[:5000],
             )
             if not _check_passed(tester_report):
                 issues.append(
-                    f"**{tester_name} found issues:**\n{tester_report[:3000]}"
+                    f"**{tester_name} found issues:**\n{tester_report[:3000]}",
                 )
         except Exception as exc:
             log.emit("done_verification_error", agent=tester_name, error=str(exc))
@@ -713,7 +726,7 @@ def verify_done(
             continue
         try:
             log.tprint(
-                f"[done] running {reviewer_key} verification (attempt {attempt})..."
+                f"[done] running {reviewer_key} verification (attempt {attempt})...",
             )
             reviewer_result = reviewer_agent.run(
                 verification_prompt
@@ -726,7 +739,7 @@ def verify_done(
             )
             reviewer_report = reviewer_result.text or ""
             log.emit(
-                "done_verification", agent=reviewer_key, report=reviewer_report[:5000]
+                "done_verification", agent=reviewer_key, report=reviewer_report[:5000],
             )
             if not _check_passed(reviewer_report):
                 label = reviewer_key.replace("_", " ").title()
@@ -740,7 +753,7 @@ def verify_done(
     has_dedicated_verifiers = (
         bool(tester_agents)
         or bool(
-            browser_tester_keys
+            browser_tester_keys,
         )  # exist even if skipped due to browser_testing=False
         or bool(reviewer_keys)
     )
@@ -753,11 +766,11 @@ def verify_done(
         )
         if verifier:
             verifier_name = next(
-                (n for n, a in team.items() if a is verifier), "worker"
+                (n for n, a in team.items() if a is verifier), "worker",
             )
             try:
                 log.tprint(
-                    f"[done] running {verifier_name} as verifier (fresh session)..."
+                    f"[done] running {verifier_name} as verifier (fresh session)...",
                 )
                 verify_result = verifier.run(
                     verification_prompt
@@ -778,7 +791,7 @@ def verify_done(
                 )
                 if not _check_passed(verify_report):
                     issues.append(
-                        f"**{verifier_name} (verifier) found issues:**\n{verify_report[:3000]}"
+                        f"**{verifier_name} (verifier) found issues:**\n{verify_report[:3000]}",
                     )
             except Exception as exc:
                 log.emit("done_verification_error", agent=verifier_name, error=str(exc))
@@ -819,7 +832,7 @@ def compose_stage_goal(
 
     # Current stage
     parts.append(
-        f"# Current Stage ({stage.index}/{total}): {stage.name}\n{stage.description}"
+        f"# Current Stage ({stage.index}/{total}): {stage.name}\n{stage.description}",
     )
     if stage.acceptance_criteria:
         parts.append(f"## Acceptance Criteria\n{stage.acceptance_criteria}")
@@ -830,7 +843,7 @@ def compose_stage_goal(
         parts.append(
             f"## Next Stage Preview\n"
             f"After this stage, the next stage will be: "
-            f"**{next_stage.name}** — {next_stage.description[:200]}"
+            f"**{next_stage.name}** — {next_stage.description[:200]}",
         )
 
     return "\n\n".join(parts)
@@ -865,6 +878,7 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
         cwd=project_dir,
         capture_output=True,
         check=True,
+        timeout=_GIT_TIMEOUT,
     )
     return worktree_dir, branch_name
 
@@ -879,11 +893,12 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if result.returncode != 0 and worktree_dir.exists():
         log.tprint(
             f"[worktree] git worktree remove failed ({result.stderr or result.stdout}), "
-            "removing directory directly"
+            "removing directory directly",
         )
         shutil.rmtree(worktree_dir, ignore_errors=True)
 
@@ -892,6 +907,7 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         ["git", "branch", "-D", branch_name],
         cwd=project_dir,
         capture_output=True,
+        timeout=_GIT_TIMEOUT,
     )
 
     # 3. Ensure directory is gone
@@ -903,6 +919,7 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         ["git", "worktree", "prune"],
         cwd=project_dir,
         capture_output=True,
+        timeout=_GIT_TIMEOUT,
     )
 
 
@@ -935,6 +952,7 @@ def _strip_pycache_from_index(repo_dir: Path) -> None:
         cwd=repo_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     pycache_files = [
         f
@@ -946,6 +964,7 @@ def _strip_pycache_from_index(repo_dir: Path) -> None:
             ["git", "rm", "-r", "--cached", "--quiet", "--"] + pycache_files,
             cwd=repo_dir,
             capture_output=True,
+            timeout=_GIT_TIMEOUT,
         )
 
 
@@ -962,6 +981,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         cwd=worktree_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if not status.stdout.strip():
         log.tprint(f"[persist] Stage '{stage_name}': no uncommitted changes")
@@ -972,6 +992,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         cwd=worktree_dir,
         capture_output=True,
         check=True,
+        timeout=_GIT_TIMEOUT,
     )
     _strip_pycache_from_index(worktree_dir)
     result = subprocess.run(
@@ -980,6 +1001,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         capture_output=True,
         text=True,
         env={**os.environ, **_KODO_GIT_ENV},
+        timeout=_GIT_TIMEOUT,
     )
     if result.returncode != 0:
         log.tprint(f"[persist] Stage '{stage_name}': commit failed: {result.stderr}")
@@ -996,6 +1018,7 @@ def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if result.returncode != 0 and worktree_dir.exists():
         shutil.rmtree(worktree_dir, ignore_errors=True)
@@ -1003,11 +1026,12 @@ def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
         ["git", "worktree", "prune"],
         cwd=project_dir,
         capture_output=True,
+        timeout=_GIT_TIMEOUT,
     )
 
 
 def _resolve_conflicts_with_agent(
-    project_dir: Path, branch_name: str, stage_name: str
+    project_dir: Path, branch_name: str, stage_name: str,
 ) -> bool:
     """Spin up a Claude Code agent to resolve merge conflicts.
 
@@ -1020,6 +1044,7 @@ def _resolve_conflicts_with_agent(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     files = conflict_files.stdout.strip()
     if not files:
@@ -1062,6 +1087,7 @@ def _resolve_conflicts_with_agent(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if remaining.stdout.strip():
         log.tprint("[persist] Agent failed to resolve all conflicts")
@@ -1079,6 +1105,7 @@ def _resolve_conflicts_with_agent(
         capture_output=True,
         text=True,
         env={**os.environ, **_KODO_GIT_ENV},
+        timeout=_GIT_TIMEOUT,
     )
     if commit.returncode != 0:
         log.tprint(f"[persist] Merge commit failed: {commit.stderr}")
@@ -1090,7 +1117,7 @@ def _resolve_conflicts_with_agent(
 
 
 def merge_worktree_branch(
-    project_dir: Path, branch_name: str, stage_name: str
+    project_dir: Path, branch_name: str, stage_name: str,
 ) -> MergeResult:
     """Merge a worktree branch into the current branch at *project_dir*.
 
@@ -1108,6 +1135,7 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if preflight.stdout.strip():
         dirty_msg = (
@@ -1124,11 +1152,12 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if diff_check.returncode != 0:
         log.tprint(f"[persist] Stage '{stage_name}': branch '{branch_name}' not found")
         return MergeResult(
-            success=False, had_changes=False, error=diff_check.stderr or ""
+            success=False, had_changes=False, error=diff_check.stderr or "",
         )
     if not diff_check.stdout.strip():
         log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
@@ -1141,10 +1170,11 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if rev_parse.returncode != 0:
         return MergeResult(
-            success=False, had_changes=False, error=rev_parse.stderr or ""
+            success=False, had_changes=False, error=rev_parse.stderr or "",
         )
     current_branch = rev_parse.stdout.strip()
 
@@ -1155,10 +1185,11 @@ def merge_worktree_branch(
             capture_output=True,
             text=True,
             check=True,
+            timeout=_GIT_TIMEOUT,
         )
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {e.stderr}"
+            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {e.stderr}",
         )
         return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
 
@@ -1168,6 +1199,7 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if status_before.stdout.strip():
         subprocess.run(
@@ -1181,6 +1213,7 @@ def merge_worktree_branch(
             capture_output=True,
             check=True,
             env={**os.environ, **_KODO_GIT_ENV},
+            timeout=_GIT_TIMEOUT,
         )
 
     try:
@@ -1190,10 +1223,11 @@ def merge_worktree_branch(
             capture_output=True,
             text=True,
             check=True,
+            timeout=_GIT_TIMEOUT,
         )
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {e.stderr}"
+            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {e.stderr}",
         )
         return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
 
@@ -1205,6 +1239,7 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if status_main.stdout.strip():
         subprocess.run(
@@ -1218,6 +1253,7 @@ def merge_worktree_branch(
             capture_output=True,
             check=True,
             env={**os.environ, **_KODO_GIT_ENV},
+            timeout=_GIT_TIMEOUT,
         )
 
     # Clean untracked files and dirty state that would block merge.
@@ -1227,11 +1263,12 @@ def merge_worktree_branch(
         cwd=project_dir,
         capture_output=True,
         text=True,
+        timeout=_GIT_TIMEOUT,
     )
     if status_clean.stdout.strip():
         log.tprint(
             f"[persist] Stage '{stage_name}': skipping checkout/clean — "
-            "untracked or modified files would be lost"
+            "untracked or modified files would be lost",
         )
     else:
         co = subprocess.run(
@@ -1239,16 +1276,18 @@ def merge_worktree_branch(
             cwd=project_dir,
             capture_output=True,
             text=True,
+            timeout=_GIT_TIMEOUT,
         )
         if co.returncode != 0:
             log.tprint(
-                f"[persist] Stage '{stage_name}': checkout -- . failed: {co.stderr}"
+                f"[persist] Stage '{stage_name}': checkout -- . failed: {co.stderr}",
             )
         cl = subprocess.run(
             ["git", "clean", "-fd"],
             cwd=project_dir,
             capture_output=True,
             text=True,
+            timeout=_GIT_TIMEOUT,
         )
         if cl.returncode != 0:
             log.tprint(f"[persist] Stage '{stage_name}': clean -fd failed: {cl.stderr}")
@@ -1266,6 +1305,7 @@ def merge_worktree_branch(
         capture_output=True,
         text=True,
         env={**os.environ, **_KODO_GIT_ENV},
+        timeout=_GIT_TIMEOUT,
     )
 
     if result.returncode != 0:
@@ -1273,35 +1313,36 @@ def merge_worktree_branch(
 
         if is_conflict:
             log.tprint(
-                f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution"
+                f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution",
             )
             resolved = _resolve_conflicts_with_agent(
-                project_dir, branch_name, stage_name
+                project_dir, branch_name, stage_name,
             )
             if resolved:
                 log.tprint(
-                    f"[persist] Stage '{stage_name}': conflicts resolved by agent"
+                    f"[persist] Stage '{stage_name}': conflicts resolved by agent",
                 )
                 log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
                 return MergeResult(success=True, had_changes=True)
             # Agent failed — abort the merge
             log.tprint(
-                f"[persist] Stage '{stage_name}': agent could not resolve conflicts"
+                f"[persist] Stage '{stage_name}': agent could not resolve conflicts",
             )
 
         abort = subprocess.run(
             ["git", "merge", "--abort"],
             cwd=project_dir,
             capture_output=True,
+            timeout=_GIT_TIMEOUT,
         )
         if abort.returncode != 0:
             log.tprint(
-                f"[persist] Stage '{stage_name}': merge --abort failed: {abort.stderr}"
+                f"[persist] Stage '{stage_name}': merge --abort failed: {abort.stderr}",
             )
         merge_output = result.stdout + result.stderr
         log.tprint(
             f"[persist] Stage '{stage_name}': "
-            f"merge {'conflict' if is_conflict else 'failed'}"
+            f"merge {'conflict' if is_conflict else 'failed'}",
         )
         log.emit(
             "persist_merge_failed",
@@ -1614,7 +1655,7 @@ class OrchestratorBase:
         print()
         log.tprint(
             f"[orchestrator] === STAGE {stage.index}/{len(plan.stages)}: "
-            f"{stage.name} ==="
+            f"{stage.name} ===",
         )
 
         stage_goal = compose_stage_goal(plan, stage.index, stage_summaries)
@@ -1631,7 +1672,7 @@ class OrchestratorBase:
             print()
             log.tprint(
                 f"[orchestrator] === CYCLE {cycles_used}/{max_cycles_for_stage} "
-                f"(stage {stage.index}) ==="
+                f"(stage {stage.index}) ===",
             )
             log.emit(
                 "run_cycle",
@@ -1672,7 +1713,7 @@ class OrchestratorBase:
                 )
                 log.tprint(
                     f"[orchestrator] Stage {stage.index} ({stage.name}) "
-                    f"completed in {len(stage_res.cycles)} cycle(s)"
+                    f"completed in {len(stage_res.cycles)} cycle(s)",
                 )
                 break
 
@@ -1691,7 +1732,7 @@ class OrchestratorBase:
             )
             log.tprint(
                 f"[orchestrator] Stage {stage.index} ({stage.name}) "
-                f"— cycle limit reached after {len(stage_res.cycles)} cycle(s)"
+                f"— cycle limit reached after {len(stage_res.cycles)} cycle(s)",
             )
 
         return stage_res
@@ -1750,7 +1791,7 @@ class OrchestratorBase:
                 )
                 log.tprint(
                     f"[orchestrator] Stopping run — all {max_cycles} cycle(s) used, "
-                    f"{skipped} stage(s) remaining"
+                    f"{skipped} stage(s) remaining",
                 )
                 break
 
@@ -1780,7 +1821,7 @@ class OrchestratorBase:
                 except Exception as exc:
                     log.tprint(
                         f"[orchestrator] Stage {stage.index} "
-                        f"({stage.name}) crashed: {exc}"
+                        f"({stage.name}) crashed: {exc}",
                     )
                     log.emit(
                         "stage_error",
@@ -1878,16 +1919,16 @@ class OrchestratorBase:
                     for stage in group:
                         try:
                             wt_dir, branch = create_worktree(
-                                project_dir, f"stage-{stage.index}"
+                                project_dir, f"stage-{stage.index}",
                             )
                             worktrees[stage.index] = (wt_dir, branch)
                             log.tprint(
-                                f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}"
+                                f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
                             )
-                        except (subprocess.CalledProcessError, OSError) as exc:
+                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
                             log.tprint(
                                 f"⚠️  [orchestrator] Worktree creation failed for "
-                                f"stage {stage.index}: {exc}"
+                                f"stage {stage.index}: {exc}",
                             )
                             worktree_failed = True
                     # If any worktree failed, clean up the ones that succeeded
@@ -1896,7 +1937,7 @@ class OrchestratorBase:
                     if worktree_failed:
                         log.tprint(
                             "⚠️  [orchestrator] Cannot isolate parallel stages — "
-                            "running sequentially instead"
+                            "running sequentially instead",
                         )
                         for idx, (wt_dir, branch) in list(worktrees.items()):
                             try:
@@ -1926,7 +1967,7 @@ class OrchestratorBase:
                             result.stage_results.append(stage_res)
                             stage_summaries.append(stage_res.summary)
                         remaining_cycles -= max(
-                            (len(r.cycles) for r in parallel_results), default=0
+                            (len(r.cycles) for r in parallel_results), default=0,
                         )
                         continue  # skip the parallel execution below
                     max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
@@ -1966,7 +2007,7 @@ class OrchestratorBase:
                             except Exception as exc:
                                 log.tprint(
                                     f"[orchestrator] Stage {stage.index} "
-                                    f"({stage.name}) crashed: {exc}"
+                                    f"({stage.name}) crashed: {exc}",
                                 )
                                 log.emit(
                                     "stage_error",
@@ -2009,7 +2050,7 @@ class OrchestratorBase:
                             except Exception as exc:
                                 log.tprint(
                                     f"[persist] Commit failed for "
-                                    f"stage {stage_idx}: {exc}"
+                                    f"stage {stage_idx}: {exc}",
                                 )
 
                     # 2. Close cloned sessions
@@ -2028,7 +2069,7 @@ class OrchestratorBase:
                         except Exception as exc:
                             log.tprint(
                                 f"[orchestrator] Worktree cleanup failed for "
-                                f"stage {stage_idx}: {exc}"
+                                f"stage {stage_idx}: {exc}",
                             )
 
                     # 4. Merge persist_changes branches sequentially
@@ -2036,7 +2077,7 @@ class OrchestratorBase:
                     for branch, stage_name, stage_idx in branches_to_merge:
                         try:
                             merge_result = merge_worktree_branch(
-                                project_dir, branch, stage_name
+                                project_dir, branch, stage_name,
                             )
                             log.emit(
                                 "persist_stage_merge",
@@ -2047,7 +2088,7 @@ class OrchestratorBase:
                             )
                         except Exception as exc:
                             log.tprint(
-                                f"[persist] Merge failed for stage {stage_idx}: {exc}"
+                                f"[persist] Merge failed for stage {stage_idx}: {exc}",
                             )
                         finally:
                             # Always clean up the branch after merge attempt
@@ -2055,13 +2096,14 @@ class OrchestratorBase:
                                 ["git", "branch", "-D", branch],
                                 cwd=project_dir,
                                 capture_output=True,
+                                timeout=_GIT_TIMEOUT,
                             )
 
                 # Sort summaries by stage index for deterministic ordering
                 parallel_results.sort(key=lambda r: r.stage_index)
                 # For parallel work, count the max branch (wall-clock)
                 remaining_cycles -= max(
-                    (len(r.cycles) for r in parallel_results), default=0
+                    (len(r.cycles) for r in parallel_results), default=0,
                 )
 
                 # Add all parallel summaries to context for subsequent stages

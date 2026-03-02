@@ -63,7 +63,7 @@ def _cmd_runs() -> None:
         status = "done" if r.finished else f"cycle {r.completed_cycles}/{r.max_cycles}"
         goal_snippet = _truncate_word(r.goal.replace("\n", " "), 60)
         print(
-            f"  {r.run_id:<{id_w}}  {status:<10}  {r.project_dir:<{dir_w}}  {goal_snippet}"
+            f"  {r.run_id:<{id_w}}  {status:<10}  {r.project_dir:<{dir_w}}  {goal_snippet}",
         )
 
 
@@ -80,7 +80,7 @@ def _cmd_logs() -> None:
     )
     parser.add_argument("logfile", nargs="?", help="Path to a specific .jsonl log file")
     parser.add_argument(
-        "--port", type=int, default=8080, help="HTTP port (default: 8080)"
+        "--port", type=int, default=8080, help="HTTP port (default: 8080)",
     )
     args = parser.parse_args(sys.argv[2:])
 
@@ -172,7 +172,7 @@ def _cmd_backends() -> None:
         print(f"  ANTHROPIC_API_KEY       set ({_masked(anthropic_key)})")
     else:
         print(
-            "  ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys"
+            "  ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys",
         )
 
     # GEMINI_API_KEY and GOOGLE_API_KEY are interchangeable for Gemini
@@ -253,7 +253,7 @@ def _cmd_teams_list() -> None:
         if desc:
             print(f"  {desc}")
         print(
-            f"  {len(agents)} agents ({avail_str}), {exchanges} exchanges, {cycles} cycles"
+            f"  {len(agents)} agents ({avail_str}), {exchanges} exchanges, {cycles} cycles",
         )
         print(f"  {path}")
 
@@ -272,7 +272,7 @@ def _cmd_teams_list() -> None:
     # Hint if any agents have missing backends
     if has_missing:
         print(
-            "Hint: Run 'kodo teams auto' to generate teams adapted to your installed backends."
+            "Hint: Run 'kodo teams auto' to generate teams adapted to your installed backends.",
         )
         print()
 
@@ -421,7 +421,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
         print(f"  {akey:<20}  {acfg['backend']:<12}  {acfg['model']}")
     if skipped:
         print(
-            f"\n  Skipped (backend missing): {', '.join(f'{a} ({b})' for a, b in skipped)}"
+            f"\n  Skipped (backend missing): {', '.join(f'{a} ({b})' for a, b in skipped)}",
         )
     print()
 
@@ -508,7 +508,7 @@ def _ask_agent_fields(
         sys.exit(1)
 
     max_turns = questionary.text(
-        "Max turns:", default=str(d.get("max_turns", _AGENT_DEFAULTS["max_turns"]))
+        "Max turns:", default=str(d.get("max_turns", _AGENT_DEFAULTS["max_turns"])),
     ).ask()
     if max_turns is None:
         print("Cancelled.")
@@ -586,7 +586,7 @@ def _cmd_teams_add(name: str) -> None:
         sys.exit(1)
 
     orch_prompt = questionary.text(
-        "Orchestrator prompt (Enter to use default):", default=""
+        "Orchestrator prompt (Enter to use default):", default="",
     ).ask()
     if orch_prompt is None:
         print("Cancelled.")
@@ -621,19 +621,19 @@ def _cmd_teams_add(name: str) -> None:
     if len(agent_keys) > 1:
         print("\n--- Verifier assignment ---")
         testers = questionary.checkbox(
-            "Select testers (non-browser):", choices=agent_keys
+            "Select testers (non-browser):", choices=agent_keys,
         ).ask()
         if testers is not None:
             verifiers["testers"] = testers
 
         browser_testers = questionary.checkbox(
-            "Select browser testers:", choices=agent_keys
+            "Select browser testers:", choices=agent_keys,
         ).ask()
         if browser_testers is not None:
             verifiers["browser_testers"] = browser_testers
 
         reviewers = questionary.checkbox(
-            "Select reviewers (architects):", choices=agent_keys
+            "Select reviewers (architects):", choices=agent_keys,
         ).ask()
         if reviewers is not None:
             verifiers["reviewers"] = reviewers
@@ -677,7 +677,7 @@ def _cmd_teams_edit(name: str) -> None:
 
     agents = config.get("agents", {})
     verifiers = config.get(
-        "verifiers", {"testers": [], "browser_testers": [], "reviewers": []}
+        "verifiers", {"testers": [], "browser_testers": [], "reviewers": []},
     )
 
     while True:
@@ -724,7 +724,7 @@ def _cmd_teams_edit(name: str) -> None:
                 print("No agents to edit.")
                 continue
             agent_key = questionary.select(
-                "Which agent?", choices=list(agents.keys())
+                "Which agent?", choices=list(agents.keys()),
             ).ask()
             if agent_key:
                 print(f"\nEditing {agent_key} (Enter to keep current value)")
@@ -735,11 +735,11 @@ def _cmd_teams_edit(name: str) -> None:
                 print("No agents to remove.")
                 continue
             agent_key = questionary.select(
-                "Remove which agent?", choices=list(agents.keys())
+                "Remove which agent?", choices=list(agents.keys()),
             ).ask()
             if agent_key:
                 confirm = questionary.confirm(
-                    f"Remove {agent_key}?", default=False
+                    f"Remove {agent_key}?", default=False,
                 ).ask()
                 if confirm:
                     del agents[agent_key]
@@ -750,7 +750,7 @@ def _cmd_teams_edit(name: str) -> None:
 
         elif action == "Edit team settings":
             desc = questionary.text(
-                "Description:", default=config.get("description", "")
+                "Description:", default=config.get("description", ""),
             ).ask()
             if desc is not None:
                 config["description"] = desc

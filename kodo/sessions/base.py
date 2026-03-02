@@ -54,7 +54,7 @@ class Session(Protocol):
         return None
 
     def query(
-        self, prompt: str, project_dir: Path, *, max_turns: int
+        self, prompt: str, project_dir: Path, *, max_turns: int,
     ) -> QueryResult: ...
 
     def reset(self) -> None: ...
@@ -109,7 +109,7 @@ class SubprocessSession:
         return prompt
 
     def _spawn(
-        self, cmd: list[str], *, cwd: str | None = None
+        self, cmd: list[str], *, cwd: str | None = None,
     ) -> tuple[subprocess.Popen, list[str], threading.Thread]:
         """Spawn subprocess with a stderr-drain thread.
 
@@ -142,7 +142,7 @@ class SubprocessSession:
                                 "\n[... truncated ...]\n"
                                 if len(buf) > _STDERR_MAX_LINE
                                 else "\n"
-                            )
+                            ),
                         )
                     break
                 buf += chunk
@@ -193,7 +193,10 @@ class SubprocessSession:
                     proc.kill()
                 except OSError:
                     pass  # process already exited
-                proc.wait()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass  # zombie; will be reaped at process exit
         # Allow up to 30s for drain to finish; process has exited so stderr
         # should close soon. Increase from 5s to avoid truncating long output.
         thread.join(timeout=30)

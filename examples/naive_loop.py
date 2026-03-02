@@ -85,22 +85,26 @@ def main() -> None:
     else:
         session = ClaudeSession(model=args.model)
 
-    planner = Agent(session, PLAN_PROMPT, max_turns=15)
-    executor = Agent(session, EXECUTE_PROMPT, max_turns=30)
+    try:
+        planner = Agent(session, PLAN_PROMPT, max_turns=15)
+        executor = Agent(session, EXECUTE_PROMPT, max_turns=30)
 
-    for iteration in range(1, args.iters + 1):
-        print(f"\n{'=' * 50}")
-        print(f"ITERATION {iteration}/{args.iters}")
-        print(f"{'=' * 50}")
+        for iteration in range(1, args.iters + 1):
+            print(f"\n{'=' * 50}")
+            print(f"ITERATION {iteration}/{args.iters}")
+            print(f"{'=' * 50}")
 
-        print("\n=== PLAN PHASE ===")
-        print_result(planner.run(goal_text, project_dir))
+            print("\n=== PLAN PHASE ===")
+            print_result(planner.run(goal_text, project_dir))
 
-        for step in range(1, args.steps + 1):
-            print(f"\n--- EXECUTE STEP {step}/{args.steps} ---")
-            print_result(executor.run(goal_text, project_dir))
+            for step in range(1, args.steps + 1):
+                print(f"\n--- EXECUTE STEP {step}/{args.steps} ---")
+                print_result(executor.run(goal_text, project_dir))
 
-    print("\nAll iterations complete.")
+        print("\nAll iterations complete.")
+    finally:
+        if hasattr(session, "close"):
+            session.close()
 
 
 if __name__ == "__main__":

@@ -86,13 +86,13 @@ def _emit_json_and_exit(args, result, improve_report: str | None = None) -> None
         return
     sys.stdout = _original_stdout
     print(
-        json.dumps(_format_json_output(result, improve_report=improve_report), indent=2)
+        json.dumps(_format_json_output(result, improve_report=improve_report), indent=2),
     )
     sys.exit(EXIT_SUCCESS if result.finished else EXIT_PARTIAL)
 
 
 def _format_json_output(
-    result=None, error: str | None = None, improve_report: str | None = None
+    result=None, error: str | None = None, improve_report: str | None = None,
 ) -> dict:
     """Build the structured JSON output dict."""
     if error is not None:
@@ -170,7 +170,7 @@ def launch_run(
         team, debug_sessions = build_debug_team(params["team"])
         system_prompt = team_preset.system_prompt
         orchestrator, orch_session = build_mock_orchestrator(
-            orch_letter, team, system_prompt=system_prompt
+            orch_letter, team, system_prompt=system_prompt,
         )
         debug_sessions["orchestrator"] = orch_session
 
@@ -224,7 +224,7 @@ def launch_run(
                 _fail(
                     "All backends failed preflight checks:\n"
                     + "\n".join(preflight_warnings)
-                    + "\nFix the issues above or install a working backend."
+                    + "\nFix the issues above or install a working backend.",
                 )
             if not json_mode:
                 print("\n  Backend preflight warnings:")
@@ -267,11 +267,11 @@ def launch_run(
             print(
                 f"Done: {completed}/{len(result.stage_results)} stage(s) completed, "
                 f"{len(result.cycles)} cycle(s), {result.total_exchanges} exchanges, "
-                f"${result.total_cost_usd:.4f}"
+                f"${result.total_cost_usd:.4f}",
             )
         else:
             print(
-                f"Done: {len(result.cycles)} cycle(s), {result.total_exchanges} exchanges, ${result.total_cost_usd:.4f}"
+                f"Done: {len(result.cycles)} cycle(s), {result.total_exchanges} exchanges, ${result.total_cost_usd:.4f}",
             )
         if result.summary:
             print(f"  {result.summary[:300]}")
@@ -294,7 +294,7 @@ def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
         print(
             f"  {session.letter} ({role}): "
             f"generated {session.generated_tokens}, "
-            f"saw {session.seen_tokens}"
+            f"saw {session.seen_tokens}",
         )
     print()
 
@@ -381,26 +381,27 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
         if plan is None:
             _fail("Cannot resume: staged run but goal-plan.json not found or invalid.")
 
-    print(f"\nResuming run: {state.run_id}")
-    print(f"Team: {team_preset.name} — {team_preset.description}")
-    print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
-    print("Team:")
-    for k, a in team.items():
-        print(f"  {k} ({_backend_label(a)} / {a.session.model})")
-    print(f"Completed cycles: {state.completed_cycles}/{state.max_cycles}")
-    if state.has_stages:
-        print(
-            f"Completed stages: {len(state.completed_stages)}"
-            + (f"/{plan and len(plan.stages)}" if plan else "")
-        )
-    if state.agent_session_ids:
-        print(f"Resuming sessions: {', '.join(state.agent_session_ids.keys())}")
-    if state.pending_exchanges:
-        print(
-            f"Resuming mid-cycle: {len(state.pending_exchanges)} exchange(s) to restore"
-        )
-    print(f"Log: {state.log_file}")
-    print()
+    if _original_stdout is None:
+        print(f"\nResuming run: {state.run_id}")
+        print(f"Team: {team_preset.name} — {team_preset.description}")
+        print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
+        print("Team:")
+        for k, a in team.items():
+            print(f"  {k} ({_backend_label(a)} / {a.session.model})")
+        print(f"Completed cycles: {state.completed_cycles}/{state.max_cycles}")
+        if state.has_stages:
+            print(
+                f"Completed stages: {len(state.completed_stages)}"
+                + (f"/{plan and len(plan.stages)}" if plan else ""),
+            )
+        if state.agent_session_ids:
+            print(f"Resuming sessions: {', '.join(state.agent_session_ids.keys())}")
+        if state.pending_exchanges:
+            print(
+                f"Resuming mid-cycle: {len(state.pending_exchanges)} exchange(s) to restore",
+            )
+        print(f"Log: {state.log_file}")
+        print()
 
     result = orchestrator.run(
         state.goal,
@@ -415,12 +416,13 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     )
 
     total_cycles = state.completed_cycles + len(result.cycles)
-    print(f"\n{'=' * 50}")
-    print(
-        f"Done: {total_cycles} total cycle(s), {result.total_exchanges} exchanges (this session), "
-        f"${result.total_cost_usd:.4f}"
-    )
-    if result.summary:
-        print(f"  {result.summary[:300]}")
+    if _original_stdout is None:
+        print(f"\n{'=' * 50}")
+        print(
+            f"Done: {total_cycles} total cycle(s), {result.total_exchanges} exchanges (this session), "
+            f"${result.total_cost_usd:.4f}",
+        )
+        if result.summary:
+            print(f"  {result.summary[:300]}")
 
     return result

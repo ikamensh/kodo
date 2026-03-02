@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel>=0.46.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.109"
+version = "0.4.110"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -15,6 +15,8 @@ dependencies = [
     "pydantic-ai>=1.0",
     "summarization-pydantic-ai>=0.0.3",
     "uvicorn>=0.40",
+    "pillow>=12.1.1",
+    "pypdf>=6.7.4",
 ]
 
 [project.optional-dependencies]

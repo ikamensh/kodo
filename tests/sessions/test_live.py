@@ -158,7 +158,8 @@ class TestClaudeSession:
 
         session = ClaudeSession(model="sonnet")
         result = session.query(SIMPLE_PROMPT, project_dir, max_turns=5)
-        return result, session
+        yield result, session
+        session.close()
 
     def test_returns_nonempty(self, result_and_session) -> None:
         result, session = result_and_session

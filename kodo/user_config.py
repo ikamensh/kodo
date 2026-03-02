@@ -7,16 +7,22 @@ import json
 from pathlib import Path
 
 
-def _user_config_path() -> Path:
-    """Lazy path to avoid Path.home() at import time."""
-    return Path.home() / ".kodo" / "config.json"
+def _user_config_path() -> Path | None:
+    """Lazy path to avoid Path.home() at import time.
+
+    Returns None in headless/minimal environments where $HOME is unset.
+    """
+    try:
+        return Path.home() / ".kodo" / "config.json"
+    except RuntimeError:
+        return None
 
 
 @functools.lru_cache(maxsize=1)
 def load_user_config() -> dict:
     """Load ~/.kodo/config.json. Returns empty dict if missing or invalid."""
     path = _user_config_path()
-    if not path.is_file():
+    if path is None or not path.is_file():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))

@@ -27,7 +27,7 @@ class GeminiCliOrchestrator(OrchestratorBase):
     """Orchestrator backed by Gemini CLI with MCP tools for agents."""
 
     def __init__(
-        self, model: str = GEMINI_CLI_FLASH, system_prompt: str | None = None
+        self, model: str = GEMINI_CLI_FLASH, system_prompt: str | None = None,
     ):
         self.model = model
         self._orchestrator_name = "gemini-cli"
@@ -96,11 +96,12 @@ class GeminiCliOrchestrator(OrchestratorBase):
                     text=True,
                     check=True,
                     cwd=str(project_dir),
+                    timeout=30,
                 )
-            except subprocess.CalledProcessError as exc:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
                 log.tprint(f"⚠️  [gemini-cli] failed to register MCP: {exc.stderr}")
                 raise RuntimeError(
-                    f"Failed to register MCP server: {exc.stderr}"
+                    f"Failed to register MCP server: {exc.stderr}",
                 ) from exc
 
             try:
@@ -191,23 +192,27 @@ class GeminiCliOrchestrator(OrchestratorBase):
 
                     if done_signal.called:
                         log.tprint(
-                            f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}"
+                            f"✅ [orchestrator] cycle done (done tool called): {done_signal.summary[:200]}",
                         )
                     elif proc.returncode != 0:
                         log.tprint(
-                            f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}"
+                            f"⚠️  [orchestrator] gemini-cli error: {response_text[:200]}",
                         )
                     else:
                         log.tprint("⏱️  [orchestrator] cycle ended without calling done")
 
             finally:
                 # Always clean up MCP registration
-                subprocess.run(
-                    ["gemini", "mcp", "remove", mcp_name, "--scope", "project"],
-                    capture_output=True,
-                    text=True,
-                    cwd=str(project_dir),
-                )
+                try:
+                    subprocess.run(
+                        ["gemini", "mcp", "remove", mcp_name, "--scope", "project"],
+                        capture_output=True,
+                        text=True,
+                        cwd=str(project_dir),
+                        timeout=30,
+                    )
+                except subprocess.TimeoutExpired:
+                    pass  # best-effort cleanup
 
         # Fallback summary from accumulated agent reports
         if not result.finished and not result.summary:
