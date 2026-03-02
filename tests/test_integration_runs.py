@@ -171,7 +171,7 @@ class TestResumeById:
             patch.object(
                 sys,
                 "argv",
-                ["kodo", "--resume", "20250315_120000", "--yes", str(project)],
+                ["kodo", "--resume", "20250315_120000", "--yes", "--project", str(project)],
             ),
         ):
             _main_inner()
@@ -188,7 +188,7 @@ class TestResumeById:
 
         with (
             patch.object(
-                sys, "argv", ["kodo", "--resume", "nonexistent", str(project)]
+                sys, "argv", ["kodo", "--resume", "nonexistent", "--project", str(project)]
             ),
             pytest.raises(SystemExit),
         ):

@@ -66,32 +66,16 @@ def main() -> None:
 
 
 def _main_inner() -> None:
-    # Handle subcommands before argparse
-    if len(sys.argv) > 1 and sys.argv[1] == "runs":
-        _cmd_runs()
+    # Handle subcommands before argparse (accept singular and plural forms)
+    _SUBCOMMAND_MAP = {
+        "run": _cmd_runs, "runs": _cmd_runs,
+        "backend": _cmd_backends, "backends": _cmd_backends,
+        "team": _cmd_teams, "teams": _cmd_teams,
+        "log": _cmd_logs, "logs": _cmd_logs,
+    }
+    if len(sys.argv) > 1 and sys.argv[1] in _SUBCOMMAND_MAP:
+        _SUBCOMMAND_MAP[sys.argv[1]]()
         return
-    if len(sys.argv) > 1 and sys.argv[1] == "backends":
-        _cmd_backends()
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "teams":
-        _cmd_teams()
-        return
-    if len(sys.argv) > 1 and sys.argv[1] == "logs":
-        _cmd_logs()
-        return
-
-    # Catch unknown subcommand-like args before argparse swallows them as project_dir
-    _KNOWN_SUBCOMMANDS = {"runs", "backends", "teams", "logs"}
-    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
-        arg = sys.argv[1]
-        # Check for close misspellings of known subcommands
-        for cmd in _KNOWN_SUBCOMMANDS:
-            if arg != cmd and (
-                arg in cmd or cmd in arg  # substring match
-                or sum(a != b for a, b in zip(arg, cmd)) <= 1  # 1-char diff, same length
-            ):
-                print(f"Unknown command '{arg}'. Did you mean 'kodo {cmd}'?", file=sys.stderr)
-                sys.exit(1)
 
     parser = argparse.ArgumentParser(
         description="kodo — autonomous multi-agent coding",

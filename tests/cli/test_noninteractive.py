@@ -1104,7 +1104,7 @@ class TestGoalMdOSErrorWarning:
                 },
             ),
         ):
-            sys.argv = ["kodo", "--yes", str(project)]
+            sys.argv = ["kodo", "--yes", "--project", str(project)]
             _main_inner()
 
         captured = capsys.readouterr()
@@ -1141,7 +1141,7 @@ class TestInvalidModeDefensiveCheck:
             patch("kodo.cli._launch._original_stdout", None),
             pytest.raises(SystemExit),
         ):
-            sys.argv = ["kodo", "--goal", "Build something", str(project)]
+            sys.argv = ["kodo", "--goal", "Build something", "--project", str(project)]
             _main_inner()
 
     def test_missing_team_key_in_params_exits(self, project):
@@ -1158,5 +1158,5 @@ class TestInvalidModeDefensiveCheck:
             patch("kodo.cli._launch._original_stdout", None),
             pytest.raises(SystemExit),
         ):
-            sys.argv = ["kodo", "--goal", "Build something", str(project)]
+            sys.argv = ["kodo", "--goal", "Build something", "--project", str(project)]
             _main_inner()
