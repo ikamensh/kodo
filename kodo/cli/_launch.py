@@ -163,12 +163,16 @@ def launch_run(
 
     if debug:
         # --- Debug mode: mock everything ---
-        from kodo.debug import build_debug_team, MockOrchestrator, _allocator
+        from kodo.debug import build_debug_team, build_mock_orchestrator, _allocator
 
         _allocator.reset()
         orch_letter = _allocator.next("orchestrator")
         team, debug_sessions = build_debug_team(params["team"])
-        orchestrator = MockOrchestrator(orch_letter)
+        system_prompt = team_preset.system_prompt
+        orchestrator, orch_session = build_mock_orchestrator(
+            orch_letter, team, system_prompt=system_prompt
+        )
+        debug_sessions["orchestrator"] = orch_session
 
         log.emit(
             "debug_run_start",
@@ -281,20 +285,10 @@ def launch_run(
 
 def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
     """Print the debug token flow summary after a mock run."""
-    from kodo.debug import MockOrchestrator
-
     print()
     print("=" * 60)
     print("  DEBUG SUMMARY")
     print("=" * 60)
-
-    if isinstance(orchestrator, MockOrchestrator):
-        s = orchestrator._session
-        print(
-            f"  {s.letter} (orchestrator): "
-            f"generated {s.generated_tokens}, "
-            f"saw {s.seen_tokens}"
-        )
 
     for role, session in sorted(debug_sessions.items(), key=lambda x: x[1].letter):
         print(
