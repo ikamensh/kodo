@@ -23,69 +23,123 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #
 .stat-value { font-size: 14px; font-weight: 600; color: #e6edf3; }
 
 /* Timeline */
-#timeline { max-width: 900px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
-
-/* Dividers */
-.divider { text-align: center; padding: 12px 0 4px; }
-.divider span { background: #21262d; color: #8b949e; font-size: 11px; padding: 4px 12px;
-  border-radius: 10px; border: 1px solid #30363d; }
+#timeline { max-width: 1100px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 4px; }
 
 /* Header card */
 .header-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px; margin-bottom: 8px; }
 .header-card h3 { color: #58a6ff; margin-bottom: 8px; font-size: 14px; }
 .header-card pre { font-size: 11px; color: #8b949e; white-space: pre-wrap; word-break: break-all; }
 
-/* Bubbles */
-.bubble { max-width: 75%; padding: 10px 14px; border-radius: 12px; position: relative; }
-.bubble-wrap { display: flex; flex-direction: column; }
-.bubble-wrap.left { align-items: flex-start; }
-.bubble-wrap.right { align-items: flex-end; }
+/* Cycle section */
+.cycle-section { margin: 4px 0; }
+.cycle-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px; cursor: pointer;
+  user-select: none; transition: background 0.15s; }
+.cycle-header:hover { background: #1c2128; }
+.cycle-header .toggle { color: #8b949e; font-size: 10px; width: 12px; transition: transform 0.15s; }
+.cycle-header.expanded .toggle { transform: rotate(90deg); }
+.cycle-header .cycle-title { font-size: 13px; font-weight: 600; color: #e6edf3; }
+.cycle-header .cycle-meta { font-size: 11px; color: #8b949e; margin-left: auto; display: flex; gap: 10px; }
+.cycle-body { display: none; border-left: 2px solid #30363d; margin-left: 16px; padding-left: 12px; padding-top: 4px; }
+.cycle-body.visible { display: block; }
+.cycle-summary { font-size: 12px; color: #8b949e; padding: 6px 10px; margin: 4px 0;
+  background: #0d1117; border-radius: 6px; white-space: pre-wrap; word-break: break-word;
+  max-height: 80px; overflow: hidden; position: relative; }
 
-.bubble-header { font-size: 11px; margin-bottom: 2px; padding: 0 4px; display: flex; gap: 8px; align-items: center; }
-.bubble-header .agent-name { font-weight: 600; }
-.bubble-header .time-mark { color: #8b949e; }
-
-/* Orchestrator (left) */
-.bubble-wrap.left .bubble { background: #1c1e3a; border: 1px solid #363b6b; }
-.bubble-wrap.left .agent-name { color: #d2a8ff; }
-
-/* Agent colors */
-.bubble-wrap.right .bubble { border: 1px solid #30363d; }
-.bubble-wrap.right.planner .bubble { background: #0d2137; border-color: #1f4a6e; }
-.bubble-wrap.right.planner .agent-name { color: #58a6ff; }
-.bubble-wrap.right.worker .bubble { background: #0d2d1a; border-color: #1a5e30; }
-.bubble-wrap.right.worker .agent-name { color: #3fb950; }
-.bubble-wrap.right.architect .bubble { background: #2d1d0d; border-color: #5e3a1a; }
-.bubble-wrap.right.architect .agent-name { color: #d29922; }
-/* fallback */
-.bubble-wrap.right .agent-name { color: #79c0ff; }
-
-/* Done bubble */
-.bubble-wrap.done .bubble { background: #0d2d1a; border-color: #1a5e30; }
-
-/* Content */
-.bubble-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.bubble-text.collapsed { max-height: 200px; overflow: hidden; position: relative; }
-.bubble-text.collapsed::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-  height: 40px; background: linear-gradient(transparent, var(--bubble-bg, #161b22)); pointer-events: none; }
-.expand-btn { font-size: 11px; color: #58a6ff; cursor: pointer; margin-top: 4px; background: none;
-  border: none; font-family: inherit; }
-.expand-btn:hover { text-decoration: underline; }
+/* Exchange group */
+.exchange-group { margin: 6px 0; }
+.exchange-header { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px;
+  background: #0d1117; border: 1px solid #21262d; border-radius: 8px; cursor: pointer;
+  user-select: none; transition: background 0.15s; }
+.exchange-header:hover { background: #161b22; }
+.exchange-header .toggle { color: #8b949e; font-size: 10px; width: 12px; flex-shrink: 0; margin-top: 3px; transition: transform 0.15s; }
+.exchange-header.expanded .toggle { transform: rotate(90deg); }
+.exchange-content { flex: 1; min-width: 0; }
+.exchange-task { font-size: 12px; color: #c9d1d9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exchange-task .agent-label { font-weight: 600; }
+.exchange-task .agent-label.planner { color: #58a6ff; }
+.exchange-task .agent-label.worker { color: #3fb950; }
+.exchange-task .agent-label.architect { color: #d29922; }
+.exchange-task .agent-label.orchestrator { color: #d2a8ff; }
+.exchange-response-preview { font-size: 11px; color: #8b949e; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 700px; }
+.exchange-badges { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.exchange-body { display: none; border-left: 2px solid #21262d; margin-left: 16px;
+  padding-left: 12px; padding-top: 4px; }
+.exchange-body.visible { display: block; }
 
 /* Badges */
-.badges { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.06);
-  color: #8b949e; border: 1px solid rgba(255,255,255,0.06); }
+  color: #8b949e; border: 1px solid rgba(255,255,255,0.06); white-space: nowrap; }
 .badge.cost { color: #3fb950; }
 .badge.tokens { color: #d2a8ff; }
 .badge.time { color: #d29922; }
 .badge.turns { color: #58a6ff; }
 .badge.error { color: #f85149; background: rgba(248,81,73,0.1); }
+.badge.files { color: #d29922; background: rgba(210,153,34,0.1); }
+.badge.new-conv { color: #79c0ff; }
+.badge.ctx-reset { color: #f0883e; }
+
+/* Session query detail */
+.session-detail { margin: 6px 0; }
+.session-header { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  background: rgba(255,255,255,0.02); border: 1px solid #1c2128; border-radius: 6px;
+  cursor: pointer; user-select: none; font-size: 11px; color: #8b949e; transition: background 0.15s; }
+.session-header:hover { background: rgba(255,255,255,0.04); }
+.session-header .toggle { font-size: 9px; width: 10px; transition: transform 0.15s; }
+.session-header.expanded .toggle { transform: rotate(90deg); }
+.session-body { display: none; margin-top: 4px; }
+.session-body.visible { display: block; }
+
+/* Prompt / response panes */
+.llm-pane { margin: 4px 0; border-radius: 6px; overflow: hidden; }
+.llm-pane-header { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 4px 8px; font-weight: 600; cursor: pointer; user-select: none; }
+.llm-pane-header.prompt { background: rgba(210,168,255,0.1); color: #d2a8ff; border-left: 3px solid #d2a8ff; }
+.llm-pane-header.response { background: rgba(63,185,80,0.1); color: #3fb950; border-left: 3px solid #3fb950; }
+.llm-pane-body { display: none; max-height: 500px; overflow-y: auto; padding: 8px;
+  background: #0d1117; border: 1px solid #1c2128; border-top: none; font-size: 12px;
+  line-height: 1.5; white-space: pre-wrap; word-break: break-word; color: #c9d1d9; }
+.llm-pane-body.visible { display: block; }
+
+/* Tool use list */
+.tool-use-list { margin: 4px 0; padding: 6px 8px; background: rgba(210,153,34,0.05);
+  border: 1px solid #21262d; border-radius: 6px; }
+.tool-use-list h4 { font-size: 10px; color: #d29922; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.tool-use-item { font-size: 11px; color: #8b949e; padding: 1px 0; }
+.tool-use-item .tool-name { color: #79c0ff; }
+.tool-use-item .file-path { color: #d29922; }
+
+/* Full text panels in exchange body */
+.full-text-section { margin: 6px 0; }
+.full-text-section h4 { font-size: 11px; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.full-text-content { font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  max-height: 300px; overflow-y: auto; padding: 8px; background: #0d1117;
+  border: 1px solid #1c2128; border-radius: 6px; }
+
+/* Side events (done, commits, errors) */
+.side-event { padding: 6px 10px; margin: 4px 0; border-radius: 6px; font-size: 11px; }
+.side-event.done-accepted { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.2); color: #3fb950; }
+.side-event.done-rejected { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.2); color: #f85149; }
+.side-event.commit { background: rgba(88,166,255,0.05); border: 1px solid rgba(88,166,255,0.15); color: #58a6ff; }
+.side-event.error-event { background: rgba(248,81,73,0.05); border: 1px solid rgba(248,81,73,0.15); color: #f85149; }
+.side-event.info-event { background: rgba(139,148,158,0.05); border: 1px solid rgba(139,148,158,0.15); color: #8b949e; }
+.side-event .side-event-label { font-weight: 600; margin-right: 6px; }
+.side-event-detail { font-size: 11px; color: #8b949e; white-space: pre-wrap; word-break: break-word;
+  max-height: 100px; overflow-y: auto; margin-top: 4px; }
 
 /* Final result */
 .result-card { background: #161b22; border: 2px solid #1f6feb; border-radius: 12px; padding: 16px; margin-top: 8px; }
 .result-card h3 { color: #58a6ff; margin-bottom: 8px; font-size: 14px; }
-.result-card .bubble-text { font-size: 13px; }
+.result-card .result-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  max-height: 400px; overflow-y: auto; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
 </style>
 </head>
 <body>
@@ -101,16 +155,18 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #
 </div>
 
 <script>
-// If data is pre-embedded by viewer.py, this will be set
 let EMBEDDED_DATA = null;
 /*__EMBED_MARKER__*/
 
+// -- Helpers --
 function formatTime(s) {
+  if (s == null) return '';
   if (s < 60) return s.toFixed(1) + 's';
   return Math.floor(s / 60) + 'm ' + (s % 60).toFixed(0) + 's';
 }
-function formatCost(c) { return '$' + c.toFixed(4); }
-function formatTokens(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n); }
+function formatCost(c) { return c != null ? '$' + c.toFixed(4) : ''; }
+function formatTokens(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n || 0); }
+function truncate(s, len) { return s && s.length > len ? s.slice(0, len) + '...' : (s || ''); }
 
 function agentRole(name) {
   if (!name) return '';
@@ -121,36 +177,249 @@ function agentRole(name) {
   return '';
 }
 
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// -- Build tree from flat events --
+function buildTree(events) {
+  const tree = { header: null, cycles: [], result: null, preEvents: [] };
+
+  // Collect header info
+  const init = events.find(e => e.event === 'run_init');
+  const args = events.find(e => e.event === 'cli_args');
+  const start = events.find(e => e.event === 'run_start');
+  tree.header = { init, args, start };
+
+  let currentCycle = null;
+  let currentExchange = null;
+
+  for (const e of events) {
+    // Skip header events
+    if (['run_init', 'cli_args', 'run_start', 'run_end'].includes(e.event)) continue;
+
+    // Cycle start
+    if (e.event === 'run_cycle' || e.event === 'cycle_start') {
+      currentCycle = {
+        num: e.cycle || (tree.cycles.length + 1),
+        maxCycles: e.max_cycles,
+        goal: e.goal,
+        priorSummary: e.prior_summary,
+        startTime: e.t,
+        exchanges: [],
+        sideEvents: [],
+        end: null,
+      };
+      tree.cycles.push(currentCycle);
+      currentExchange = null;
+      continue;
+    }
+
+    // Ensure we have a cycle (for runs without explicit cycle events)
+    if (!currentCycle) {
+      currentCycle = { num: 1, exchanges: [], sideEvents: [], end: null };
+      tree.cycles.push(currentCycle);
+    }
+
+    // Exchange start: orchestrator delegates to agent
+    if (e.event === 'orchestrator_tool_call') {
+      currentExchange = {
+        toolCall: e,
+        agentRunStart: null,
+        agentRunEnd: null,
+        toolResult: null,
+        sessions: [],
+        sideEvents: [],
+      };
+      currentCycle.exchanges.push(currentExchange);
+      continue;
+    }
+
+    if (e.event === 'agent_run_start' && currentExchange) {
+      currentExchange.agentRunStart = e;
+      continue;
+    }
+
+    if (e.event === 'session_query_start' && currentExchange) {
+      currentExchange.sessions.push({ start: e, end: null });
+      continue;
+    }
+
+    if (e.event === 'session_query_end' && currentExchange) {
+      // Match to the last unfinished session query
+      for (let i = currentExchange.sessions.length - 1; i >= 0; i--) {
+        if (!currentExchange.sessions[i].end) {
+          currentExchange.sessions[i].end = e;
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (e.event === 'agent_run_end') {
+      if (currentExchange) currentExchange.agentRunEnd = e;
+      continue;
+    }
+
+    if (e.event === 'orchestrator_tool_result') {
+      if (currentExchange) currentExchange.toolResult = e;
+      currentExchange = null;
+      continue;
+    }
+
+    // Cycle end
+    if (e.event === 'cycle_end') {
+      if (currentCycle) {
+        currentCycle.end = e;
+        // Carry forward maxCycles from run_start
+        if (!currentCycle.maxCycles && start) currentCycle.maxCycles = start.max_cycles;
+      }
+      currentExchange = null;
+      continue;
+    }
+
+    // Final result
+    if (e.event === 'orchestrator_response') {
+      tree.result = e;
+      continue;
+    }
+
+    // Side events — attach to current exchange if active, else to cycle
+    const sideEvent = categorizeSideEvent(e);
+    if (sideEvent) {
+      if (currentExchange) currentExchange.sideEvents.push(sideEvent);
+      else if (currentCycle) currentCycle.sideEvents.push(sideEvent);
+      else tree.preEvents.push(sideEvent);
+    }
+  }
+
+  return tree;
+}
+
+function categorizeSideEvent(e) {
+  switch (e.event) {
+    case 'orchestrator_done':
+    case 'orchestrator_done_attempt':
+      return { type: 'info-event', label: 'Done attempt', text: e.summary || '', event: e };
+    case 'orchestrator_done_accepted':
+      return { type: 'done-accepted', label: 'Accepted', text: e.summary || '', event: e };
+    case 'orchestrator_done_rejected':
+      return { type: 'done-rejected', label: 'Rejected', text: e.rejection || '', event: e };
+    case 'done_verification_error':
+      return { type: 'error-event', label: 'Verify error', text: `${e.agent}: ${e.error || ''}`, event: e };
+    case 'auto_commit_start':
+      return { type: 'commit', label: 'Auto-commit', text: `worker: ${e.worker || ''}`, event: e };
+    case 'auto_commit_done':
+      return { type: 'commit', label: 'Committed', text: e.report || '', event: e };
+    case 'auto_commit_error':
+      return { type: 'error-event', label: 'Commit error', text: e.error || '', event: e };
+    case 'summarize_end':
+      return { type: 'info-event', label: 'Summary', text: truncate(e.summary, 200), event: e };
+    case 'summarize_error':
+      return { type: 'error-event', label: 'Summary error', text: e.error || '', event: e };
+    case 'orchestrator_auth_error':
+      return { type: 'error-event', label: 'Auth error', text: `${e.provider}: ${e.status_code}`, event: e };
+    case 'orchestrator_retry':
+      return { type: 'info-event', label: 'Retry', text: `attempt ${e.attempt}, wait ${e.wait_s}s`, event: e };
+    case 'orchestrator_fallback':
+      return { type: 'info-event', label: 'Fallback', text: `${e.primary} → ${e.fallback}`, event: e };
+    case 'agent_crash':
+      return { type: 'error-event', label: 'Agent crash', text: `${e.agent}: ${e.error || ''}`, event: e };
+    case 'agent_timeout':
+      return { type: 'error-event', label: 'Timeout', text: `${e.agent}: ${e.timeout_s}s`, event: e };
+    case 'session_reset':
+    case 'agent_session_reset':
+      return { type: 'info-event', label: 'Context reset', text: e.reason || `${e.session || e.agent}`, event: e };
+    case 'stage_start':
+      return { type: 'info-event', label: 'Stage', text: `${e.stage_name}: ${e.description || ''}`, event: e };
+    case 'stage_end':
+      return { type: e.finished ? 'done-accepted' : 'error-event', label: 'Stage end', text: e.summary || e.error || '', event: e };
+    default:
+      return null;
+  }
+}
+
+// -- Extract file edits from exchange --
+function extractFileEdits(exchange) {
+  const edits = [];
+  const seen = new Set();
+  for (const sq of exchange.sessions) {
+    if (!sq.end) continue;
+    // Claude tool_uses
+    if (sq.end.tool_uses) {
+      for (const tu of sq.end.tool_uses) {
+        if (['Write', 'Edit', 'MultiEdit'].includes(tu.name) && tu.input && tu.input.file_path) {
+          const key = tu.name + ':' + tu.input.file_path;
+          if (!seen.has(key)) { seen.add(key); edits.push({ op: tu.name, path: tu.input.file_path }); }
+        }
+      }
+    }
+    // Codex/Cursor raw_messages — look for file edits
+    if (sq.end.raw_messages) {
+      for (const msg of sq.end.raw_messages) {
+        // Codex: item.completed with tool outputs
+        if (msg.type === 'item.completed' && msg.item) {
+          const item = msg.item;
+          if (item.type === 'function_call' && item.name) {
+            const fp = item.arguments && (item.arguments.file_path || item.arguments.path);
+            if (fp) {
+              const key = item.name + ':' + fp;
+              if (!seen.has(key)) { seen.add(key); edits.push({ op: item.name, path: fp }); }
+            }
+          }
+        }
+      }
+    }
+  }
+  return edits;
+}
+
+// -- Extract all tool uses from exchange for display --
+function extractAllToolUses(exchange) {
+  const tools = [];
+  for (const sq of exchange.sessions) {
+    if (sq.end && sq.end.tool_uses) {
+      for (const tu of sq.end.tool_uses) {
+        tools.push(tu);
+      }
+    }
+  }
+  return tools;
+}
+
+// -- Render Stats --
 function renderStats(events) {
   const bar = document.getElementById('stats-bar');
   const last = events[events.length - 1];
   const totalTime = last ? last.t : 0;
-  let totalCost = 0, exchanges = 0, agents = new Set();
+  let totalCost = 0, exchanges = 0, agents = new Set(), sessionQueries = 0, cycles = 0;
   let apiCost = 0, subCost = 0;
   for (const e of events) {
     if (e.event === 'agent_run_end') {
-      const c = e.cost_usd || 0;
-      totalCost += c;
+      totalCost += e.cost_usd || 0;
       exchanges++;
       agents.add(e.agent);
-      if (e.cost_bucket === 'api') apiCost += c;
-      else subCost += c;
+      if (e.cost_bucket === 'api') apiCost += (e.cost_usd || 0);
+      else subCost += (e.cost_usd || 0);
     }
-    if (e.event === 'orchestrator_response') {
-      totalCost += e.cost_usd || 0;
-    }
+    if (e.event === 'orchestrator_response') totalCost += e.cost_usd || 0;
     if (e.event === 'cycle_end') {
+      cycles++;
       const c = e.cost_usd || 0;
-      if (e.cost_bucket === 'api') apiCost += c;
-      else subCost += c;
+      if (e.cost_bucket === 'api') apiCost += c; else subCost += c;
     }
+    if (e.event === 'session_query_end') sessionQueries++;
   }
   const stats = [
-    ['Total Time', formatTime(totalTime)],
-    ['Total Cost', formatCost(totalCost)],
-    ['API Cost', formatCost(apiCost)],
+    ['Time', formatTime(totalTime)],
+    ['Cost', formatCost(totalCost)],
+    ['API', formatCost(apiCost)],
     ['Subscription', formatCost(subCost)],
+    ['Cycles', String(cycles || '-')],
     ['Exchanges', String(exchanges)],
+    ['LLM Queries', String(sessionQueries)],
     ['Agents', Array.from(agents).join(', ') || 'n/a'],
   ];
   bar.innerHTML = stats.map(([l, v]) =>
@@ -158,60 +427,46 @@ function renderStats(events) {
   ).join('');
 }
 
-function makeBubbleText(text, bgColor) {
-  const div = document.createElement('div');
-  div.className = 'bubble-text';
-  div.textContent = text || '';
-  if (text && text.length > 600) {
-    div.classList.add('collapsed');
-    div.style.setProperty('--bubble-bg', bgColor || '#161b22');
-    const btn = document.createElement('button');
-    btn.className = 'expand-btn';
-    btn.textContent = 'Show more';
-    btn.onclick = () => {
-      const collapsed = div.classList.toggle('collapsed');
-      btn.textContent = collapsed ? 'Show more' : 'Show less';
-    };
-    const wrap = document.createElement('div');
-    wrap.appendChild(div);
-    wrap.appendChild(btn);
-    return wrap;
-  }
-  return div;
+// -- Toggle helper --
+function makeToggleable(header, body) {
+  header.addEventListener('click', () => {
+    const expanded = body.classList.toggle('visible');
+    header.classList.toggle('expanded', expanded);
+  });
 }
 
-function renderTimeline(events) {
+// -- Lazy text: only populate on first expand --
+function lazyText(el, getText) {
+  let loaded = false;
+  return () => {
+    if (!loaded) { el.textContent = getText(); loaded = true; }
+  };
+}
+
+// -- Render Timeline --
+function renderTimeline(tree) {
   const tl = document.getElementById('timeline');
   tl.innerHTML = '';
 
-  // Header card from run_init + cli_args + run_start
-  const init = events.find(e => e.event === 'run_init');
-  const args = events.find(e => e.event === 'cli_args');
-  const start = events.find(e => e.event === 'run_start');
-  if (init || args || start) {
+  // Header card
+  const h = tree.header;
+  if (h.init || h.args || h.start) {
     const card = document.createElement('div');
     card.className = 'header-card';
     let info = '';
-    if (start) {
-      info += `Orchestrator: ${start.orchestrator || '?'}  Model: ${start.model || '?'}\n`;
-      info += `Project: ${start.project_dir || init?.project_dir || '?'}\n`;
-      info += `Max exchanges: ${start.max_exchanges || '?'}  Max cycles: ${start.max_cycles || '?'}\n`;
-      if (start.team) {
-        if (typeof start.team === 'object' && !Array.isArray(start.team)) {
-          const _labels = {ClaudeSession:'claude code', CursorSession:'cursor', CodexSession:'codex', GeminiCliSession:'gemini cli'};
-          info += `Team:\n`;
-          for (const [name, d] of Object.entries(start.team)) {
-            const backend = _labels[d.backend] || d.backend || '?';
-            info += `  ${name} (${backend} / ${d.model || '?'})\n`;
-          }
-        } else {
-          info += `Team: ${JSON.stringify(start.team)}\n`;
+    if (h.start) {
+      info += `Orchestrator: ${h.start.orchestrator || '?'}  Model: ${h.start.model || '?'}\n`;
+      info += `Project: ${h.start.project_dir || h.init?.project_dir || '?'}\n`;
+      info += `Max exchanges: ${h.start.max_exchanges || '?'}  Max cycles: ${h.start.max_cycles || '?'}\n`;
+      if (h.start.team && typeof h.start.team === 'object' && !Array.isArray(h.start.team)) {
+        const labels = {ClaudeSession:'claude code', CursorSession:'cursor', CodexSession:'codex', GeminiCliSession:'gemini cli'};
+        info += `Team:\n`;
+        for (const [name, d] of Object.entries(h.start.team)) {
+          info += `  ${name} (${labels[d.backend] || d.backend || '?'} / ${d.model || '?'})\n`;
         }
       }
     }
-    if (args?.goal_text) {
-      info += `\n--- Goal ---\n${args.goal_text}`;
-    }
+    if (h.args?.goal_text) info += `\n--- Goal ---\n${h.args.goal_text}`;
     card.innerHTML = `<h3>Run Configuration</h3>`;
     const pre = document.createElement('pre');
     pre.textContent = info.trim();
@@ -219,143 +474,331 @@ function renderTimeline(events) {
     tl.appendChild(card);
   }
 
-  let prevTime = 0;
-  for (const e of events) {
-    // Skip events handled elsewhere
-    if (['run_init', 'cli_args', 'run_start', 'agent_run_start', 'agent_query',
-         'session_query_start', 'session_query_end', 'session_reset',
-         'agent_session_reset', 'orchestrator_tool_result'].includes(e.event)) continue;
+  // Pre-cycle side events
+  for (const se of tree.preEvents) tl.appendChild(renderSideEvent(se));
 
-    // Cycle dividers
-    if (e.event === 'run_cycle' || e.event === 'cycle_start') {
-      if (e.event === 'run_cycle') {
-        const div = document.createElement('div');
-        div.className = 'divider';
-        div.innerHTML = `<span>Cycle ${e.cycle || '?'} / ${e.max_cycles || '?'}</span>`;
-        tl.appendChild(div);
-      }
-      continue;
-    }
+  // Cycles
+  for (const cycle of tree.cycles) {
+    tl.appendChild(renderCycle(cycle));
+  }
 
-    // Cycle end (summary, finished or not)
-    if (e.event === 'cycle_end') {
-      const runStart = events.find(x => x.event === 'run_start');
-      const cycleNum = e.cycle ?? (tl.querySelectorAll('.cycle-end-card').length + 1);
-      const maxCycles = e.max_cycles ?? runStart?.max_cycles ?? '?';
-      const div = document.createElement('div');
-      div.className = 'cycle-end-card header-card';
-      div.innerHTML = `<h3>Cycle ${cycleNum} / ${maxCycles} ${e.finished ? '✓' : '(incomplete)'}</h3>`;
-      const pre = document.createElement('pre');
-      pre.textContent = e.summary || '(no summary)';
-      div.appendChild(pre);
-      tl.appendChild(div);
-      prevTime = e.t;
-      continue;
-    }
-
-    // Orchestrator tool call (left bubble)
-    if (e.event === 'orchestrator_tool_call') {
-      const wrap = document.createElement('div');
-      wrap.className = 'bubble-wrap left';
-      const gap = e.t - prevTime;
-      wrap.innerHTML = `<div class="bubble-header">
-        <span class="agent-name">Orchestrator</span>
-        <span class="time-mark">${formatTime(e.t)}${gap > 1 ? ' (+' + formatTime(gap) + ')' : ''}</span>
-      </div>`;
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      const taskText = `→ ${e.agent}: ${e.task || ''}`;
-      bubble.appendChild(makeBubbleText(taskText, '#1c1e3a'));
-      if (e.new_conversation) {
-        const badges = document.createElement('div');
-        badges.className = 'badges';
-        badges.innerHTML = '<span class="badge">new conversation</span>';
-        bubble.appendChild(badges);
-      }
-      wrap.appendChild(bubble);
-      tl.appendChild(wrap);
-      prevTime = e.t;
-      continue;
-    }
-
-    // Agent response (right bubble)
-    if (e.event === 'agent_run_end') {
-      const role = agentRole(e.agent);
-      const wrap = document.createElement('div');
-      wrap.className = `bubble-wrap right ${role}`;
-      wrap.innerHTML = `<div class="bubble-header">
-        <span class="agent-name">${e.agent || 'agent'}</span>
-        <span class="time-mark">${formatTime(e.t)}</span>
-      </div>`;
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      const bgMap = { planner: '#0d2137', worker: '#0d2d1a', architect: '#2d1d0d' };
-      bubble.appendChild(makeBubbleText(e.response_text || '', bgMap[role] || '#161b22'));
-      const badges = document.createElement('div');
-      badges.className = 'badges';
-      let badgeHtml = '';
-      if (e.elapsed_s) badgeHtml += `<span class="badge time">${formatTime(e.elapsed_s)}</span>`;
-      if (e.cost_usd) badgeHtml += `<span class="badge cost">${formatCost(e.cost_usd)}</span>`;
-      if (e.input_tokens || e.output_tokens)
-        badgeHtml += `<span class="badge tokens">in:${formatTokens(e.input_tokens||0)} out:${formatTokens(e.output_tokens||0)}</span>`;
-      if (e.turns) badgeHtml += `<span class="badge turns">${e.turns} turns</span>`;
-      if (e.cost_bucket) badgeHtml += `<span class="badge">${e.cost_bucket.replace('_', ' ')}</span>`;
-      if (e.is_error) badgeHtml += `<span class="badge error">ERROR</span>`;
-      if (e.context_reset) badgeHtml += `<span class="badge">ctx reset: ${e.context_reset_reason||'?'}</span>`;
-      badges.innerHTML = badgeHtml;
-      bubble.appendChild(badges);
-      wrap.appendChild(bubble);
-      tl.appendChild(wrap);
-      prevTime = e.t;
-      continue;
-    }
-
-    // Orchestrator done
-    if (e.event === 'orchestrator_done') {
-      const wrap = document.createElement('div');
-      wrap.className = 'bubble-wrap left done';
-      wrap.innerHTML = `<div class="bubble-header">
-        <span class="agent-name">Orchestrator</span>
-        <span class="time-mark">${formatTime(e.t)}</span>
-      </div>`;
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.appendChild(makeBubbleText(`Done: ${e.summary || ''}`, '#0d2d1a'));
-      const badges = document.createElement('div');
-      badges.className = 'badges';
-      badges.innerHTML = `<span class="badge">${e.success ? 'success' : 'failed'}</span>`;
-      bubble.appendChild(badges);
-      wrap.appendChild(bubble);
-      tl.appendChild(wrap);
-      prevTime = e.t;
-      continue;
-    }
-
-    // Final result
-    if (e.event === 'orchestrator_response') {
-      const card = document.createElement('div');
-      card.className = 'result-card';
-      card.innerHTML = `<h3>Final Result</h3>`;
-      card.appendChild(makeBubbleText(e.result_text || '', '#161b22'));
-      const badges = document.createElement('div');
-      badges.className = 'badges';
-      let bh = '';
-      if (e.cost_usd) bh += `<span class="badge cost">orchestrator ${formatCost(e.cost_usd)}</span>`;
-      if (e.num_turns) bh += `<span class="badge turns">${e.num_turns} turns</span>`;
-      if (e.is_error) bh += `<span class="badge error">ERROR</span>`;
-      badges.innerHTML = bh;
-      card.appendChild(badges);
-      tl.appendChild(card);
-      continue;
-    }
+  // Final result
+  if (tree.result) {
+    const e = tree.result;
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.innerHTML = `<h3>Final Result</h3>`;
+    const text = document.createElement('div');
+    text.className = 'result-text';
+    text.textContent = e.result_text || '';
+    card.appendChild(text);
+    const badges = document.createElement('div');
+    badges.className = 'badges';
+    badges.style.marginTop = '6px';
+    let bh = '';
+    if (e.cost_usd) bh += `<span class="badge cost">orchestrator ${formatCost(e.cost_usd)}</span>`;
+    if (e.num_turns) bh += `<span class="badge turns">${e.num_turns} turns</span>`;
+    if (e.is_error) bh += `<span class="badge error">ERROR</span>`;
+    badges.innerHTML = bh;
+    card.appendChild(badges);
+    tl.appendChild(card);
   }
 }
 
+function renderCycle(cycle) {
+  const section = document.createElement('div');
+  section.className = 'cycle-section';
+
+  // Compute cycle stats
+  let cycleCost = 0, cycleTime = 0, exchangeCount = cycle.exchanges.length;
+  for (const ex of cycle.exchanges) {
+    if (ex.agentRunEnd) {
+      cycleCost += ex.agentRunEnd.cost_usd || 0;
+      cycleTime += ex.agentRunEnd.elapsed_s || 0;
+    }
+  }
+  if (cycle.end) cycleCost += cycle.end.cost_usd || 0;
+
+  const maxCycles = cycle.maxCycles || cycle.end?.max_cycles || '?';
+  const finished = cycle.end?.finished;
+
+  const header = document.createElement('div');
+  header.className = 'cycle-header';
+  header.innerHTML = `<span class="toggle">▶</span>
+    <span class="cycle-title">Cycle ${cycle.num}${maxCycles !== '?' ? ' / ' + maxCycles : ''} ${finished ? '✓' : finished === false ? '✗' : ''}</span>
+    <span class="cycle-meta">
+      <span>${exchangeCount} exchange${exchangeCount !== 1 ? 's' : ''}</span>
+      ${cycleCost ? '<span class="badge cost">' + formatCost(cycleCost) + '</span>' : ''}
+      ${cycleTime ? '<span class="badge time">' + formatTime(cycleTime) + '</span>' : ''}
+    </span>`;
+
+  const body = document.createElement('div');
+  body.className = 'cycle-body';
+
+  // Cycle summary
+  if (cycle.end?.summary) {
+    const sum = document.createElement('div');
+    sum.className = 'cycle-summary';
+    sum.textContent = cycle.end.summary;
+    body.appendChild(sum);
+  }
+
+  // Exchanges
+  for (const ex of cycle.exchanges) {
+    body.appendChild(renderExchange(ex));
+  }
+
+  // Side events (done attempts, commits, etc.)
+  for (const se of cycle.sideEvents) {
+    body.appendChild(renderSideEvent(se));
+  }
+
+  makeToggleable(header, body);
+  section.appendChild(header);
+  section.appendChild(body);
+
+  // Auto-expand if only 1 cycle
+  if (true) { // Always start expanded for usability
+    body.classList.add('visible');
+    header.classList.add('expanded');
+  }
+
+  return section;
+}
+
+function renderExchange(exchange) {
+  const group = document.createElement('div');
+  group.className = 'exchange-group';
+
+  const tc = exchange.toolCall;
+  const are = exchange.agentRunEnd;
+  const role = agentRole(tc?.agent);
+  const fileEdits = extractFileEdits(exchange);
+
+  const header = document.createElement('div');
+  header.className = 'exchange-header';
+
+  const taskText = tc?.task || '';
+  const responsePreview = truncate((are?.response_text || '').replace(/\n/g, ' '), 120);
+
+  let badgesHtml = '';
+  if (are?.elapsed_s) badgesHtml += `<span class="badge time">${formatTime(are.elapsed_s)}</span>`;
+  if (are?.cost_usd) badgesHtml += `<span class="badge cost">${formatCost(are.cost_usd)}</span>`;
+  if (are?.turns) badgesHtml += `<span class="badge turns">${are.turns} turns</span>`;
+  if (are?.input_tokens || are?.output_tokens)
+    badgesHtml += `<span class="badge tokens">in:${formatTokens(are.input_tokens)} out:${formatTokens(are.output_tokens)}</span>`;
+  if (fileEdits.length) badgesHtml += `<span class="badge files">${fileEdits.length} file${fileEdits.length > 1 ? 's' : ''}</span>`;
+  if (tc?.new_conversation) badgesHtml += `<span class="badge new-conv">new conv</span>`;
+  if (are?.cost_bucket) badgesHtml += `<span class="badge">${are.cost_bucket.replace(/_/g, ' ')}</span>`;
+  if (are?.is_error) badgesHtml += `<span class="badge error">ERROR</span>`;
+  if (are?.context_reset) badgesHtml += `<span class="badge ctx-reset">ctx reset</span>`;
+
+  header.innerHTML = `<span class="toggle">▶</span>
+    <div class="exchange-content">
+      <div class="exchange-task"><span class="agent-label ${role}">${escapeHtml(tc?.agent || 'agent')}</span>: ${escapeHtml(truncate(taskText, 120))}</div>
+      <div class="exchange-response-preview">${escapeHtml(responsePreview)}</div>
+      <div class="exchange-badges badges">${badgesHtml}</div>
+    </div>`;
+
+  const body = document.createElement('div');
+  body.className = 'exchange-body';
+
+  // Lazy-populate body
+  let bodyPopulated = false;
+  const originalToggle = () => {
+    if (!bodyPopulated) {
+      bodyPopulated = true;
+      populateExchangeBody(body, exchange, fileEdits);
+    }
+    const expanded = body.classList.toggle('visible');
+    header.classList.toggle('expanded', expanded);
+  };
+  header.addEventListener('click', originalToggle);
+
+  group.appendChild(header);
+  group.appendChild(body);
+
+  // Exchange-level side events
+  for (const se of exchange.sideEvents) {
+    group.appendChild(renderSideEvent(se));
+  }
+
+  return group;
+}
+
+function populateExchangeBody(body, exchange, fileEdits) {
+  // Full task
+  if (exchange.toolCall?.task) {
+    const sec = document.createElement('div');
+    sec.className = 'full-text-section';
+    sec.innerHTML = '<h4>Task</h4>';
+    const content = document.createElement('div');
+    content.className = 'full-text-content';
+    content.textContent = exchange.toolCall.task;
+    sec.appendChild(content);
+    body.appendChild(sec);
+  }
+
+  // Full agent response
+  if (exchange.agentRunEnd?.response_text) {
+    const sec = document.createElement('div');
+    sec.className = 'full-text-section';
+    sec.innerHTML = '<h4>Agent Response</h4>';
+    const content = document.createElement('div');
+    content.className = 'full-text-content';
+    content.textContent = exchange.agentRunEnd.response_text;
+    sec.appendChild(content);
+    body.appendChild(sec);
+  }
+
+  // Tool result report (orchestrator_tool_result.report)
+  if (exchange.toolResult?.report) {
+    const sec = document.createElement('div');
+    sec.className = 'full-text-section';
+    sec.innerHTML = '<h4>Report to Orchestrator</h4>';
+    const content = document.createElement('div');
+    content.className = 'full-text-content';
+    content.textContent = exchange.toolResult.report;
+    sec.appendChild(content);
+    body.appendChild(sec);
+  }
+
+  // File edits
+  if (fileEdits.length) {
+    const list = document.createElement('div');
+    list.className = 'tool-use-list';
+    list.innerHTML = '<h4>Files Edited</h4>' +
+      fileEdits.map(f => `<div class="tool-use-item"><span class="file-path">${escapeHtml(f.path)}</span> <span class="tool-name">(${escapeHtml(f.op)})</span></div>`).join('');
+    body.appendChild(list);
+  }
+
+  // Session queries — the deepest drill-down level
+  if (exchange.sessions.length) {
+    const sqSec = document.createElement('div');
+    sqSec.className = 'full-text-section';
+    sqSec.innerHTML = `<h4>LLM Queries (${exchange.sessions.length})</h4>`;
+    for (let i = 0; i < exchange.sessions.length; i++) {
+      sqSec.appendChild(renderSessionQuery(exchange.sessions[i], i, exchange.sessions.length));
+    }
+    body.appendChild(sqSec);
+  }
+}
+
+function renderSessionQuery(sq, index, total) {
+  const detail = document.createElement('div');
+  detail.className = 'session-detail';
+
+  const s = sq.start;
+  const e = sq.end;
+
+  let meta = `Query ${index + 1}/${total}`;
+  if (s?.session) meta += ` — ${s.session}`;
+  if (s?.model) meta += ` (${s.model})`;
+  if (e?.elapsed_s) meta += `  ${formatTime(e.elapsed_s)}`;
+  if (e?.input_tokens || e?.output_tokens) meta += `  in:${formatTokens(e?.input_tokens)} out:${formatTokens(e?.output_tokens)}`;
+  if (e?.cost_usd) meta += `  ${formatCost(e.cost_usd)}`;
+
+  const header = document.createElement('div');
+  header.className = 'session-header';
+  header.innerHTML = `<span class="toggle">▶</span><span>${escapeHtml(meta)}</span>`;
+
+  const body = document.createElement('div');
+  body.className = 'session-body';
+
+  // Lazy populate
+  let populated = false;
+  header.addEventListener('click', () => {
+    if (!populated) {
+      populated = true;
+
+      // Prompt pane
+      if (s?.prompt) {
+        const pane = document.createElement('div');
+        pane.className = 'llm-pane';
+        const ph = document.createElement('div');
+        ph.className = 'llm-pane-header prompt';
+        ph.textContent = `▶ Prompt (${(s.prompt.length / 1024).toFixed(1)}k chars)`;
+        const pb = document.createElement('div');
+        pb.className = 'llm-pane-body';
+        ph.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const vis = pb.classList.toggle('visible');
+          ph.textContent = `${vis ? '▼' : '▶'} Prompt (${(s.prompt.length / 1024).toFixed(1)}k chars)`;
+          if (vis && !pb.textContent) pb.textContent = s.prompt;
+        });
+        pane.appendChild(ph);
+        pane.appendChild(pb);
+        body.appendChild(pane);
+      }
+
+      // Response pane
+      const respText = e?.response_text || '';
+      if (respText) {
+        const pane = document.createElement('div');
+        pane.className = 'llm-pane';
+        const rh = document.createElement('div');
+        rh.className = 'llm-pane-header response';
+        rh.textContent = `▶ Response (${(respText.length / 1024).toFixed(1)}k chars)`;
+        const rb = document.createElement('div');
+        rb.className = 'llm-pane-body';
+        rh.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const vis = rb.classList.toggle('visible');
+          rh.textContent = `${vis ? '▼' : '▶'} Response (${(respText.length / 1024).toFixed(1)}k chars)`;
+          if (vis && !rb.textContent) rb.textContent = respText;
+        });
+        pane.appendChild(rh);
+        pane.appendChild(rb);
+        body.appendChild(pane);
+      }
+
+      // Tool uses from this session query
+      if (e?.tool_uses && e.tool_uses.length) {
+        const list = document.createElement('div');
+        list.className = 'tool-use-list';
+        list.innerHTML = '<h4>Tool Uses</h4>' +
+          e.tool_uses.map(tu => {
+            const fp = tu.input?.file_path ? ` <span class="file-path">${escapeHtml(tu.input.file_path)}</span>` : '';
+            return `<div class="tool-use-item"><span class="tool-name">${escapeHtml(tu.name)}</span>${fp}</div>`;
+          }).join('');
+        body.appendChild(list);
+      }
+    }
+
+    const expanded = body.classList.toggle('visible');
+    header.classList.toggle('expanded', expanded);
+  });
+
+  detail.appendChild(header);
+  detail.appendChild(body);
+  return detail;
+}
+
+function renderSideEvent(se) {
+  const el = document.createElement('div');
+  el.className = `side-event ${se.type}`;
+  el.innerHTML = `<span class="side-event-label">${escapeHtml(se.label)}</span>${escapeHtml(truncate(se.text, 200))}`;
+  if (se.text && se.text.length > 200) {
+    const detail = document.createElement('div');
+    detail.className = 'side-event-detail';
+    detail.textContent = se.text;
+    detail.style.display = 'none';
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+    });
+    el.appendChild(detail);
+  }
+  return el;
+}
+
+// -- Load --
 function loadEvents(events) {
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   renderStats(events);
-  renderTimeline(events);
+  const tree = buildTree(events);
+  renderTimeline(tree);
 }
 
 // Drag and drop
@@ -377,7 +820,7 @@ dz.addEventListener('drop', e => {
   reader.readAsText(file);
 });
 
-// Also support click to select file
+// Click to select file
 dz.addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file';

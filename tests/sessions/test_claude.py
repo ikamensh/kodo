@@ -19,6 +19,7 @@ from tests.mocks.claude_sdk import (
     MockPermissionResultDeny,
     MockResultMessage,
     MockTextBlock,
+    MockToolUseBlock,
 )
 
 
@@ -36,6 +37,7 @@ def _install_mock_sdk(responses=None):
     fake_types.PermissionResultAllow = MockPermissionResultAllow
     fake_types.PermissionResultDeny = MockPermissionResultDeny
     fake_types.TextBlock = MockTextBlock
+    fake_types.ToolUseBlock = MockToolUseBlock
 
     return mock_client, {
         "claude_agent_sdk": fake_mod,
@@ -104,6 +106,7 @@ def test_stats_accumulate(tmp_path: Path):
     fake_types.PermissionResultAllow = MockPermissionResultAllow
     fake_types.PermissionResultDeny = MockPermissionResultDeny
     fake_types.TextBlock = MockTextBlock
+    fake_types.ToolUseBlock = MockToolUseBlock
 
     with patch.dict(
         sys.modules,
@@ -167,6 +170,7 @@ def test_api_key_stripped_by_default(tmp_path: Path, monkeypatch):
     fake_types.PermissionResultAllow = MockPermissionResultAllow
     fake_types.PermissionResultDeny = MockPermissionResultDeny
     fake_types.TextBlock = MockTextBlock
+    fake_types.ToolUseBlock = MockToolUseBlock
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-secret")
 
@@ -209,6 +213,7 @@ def test_api_key_kept_when_explicit(tmp_path: Path, monkeypatch):
     fake_types.PermissionResultAllow = MockPermissionResultAllow
     fake_types.PermissionResultDeny = MockPermissionResultDeny
     fake_types.TextBlock = MockTextBlock
+    fake_types.ToolUseBlock = MockToolUseBlock
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-secret")
 

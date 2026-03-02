@@ -20,6 +20,7 @@ from tests.mocks.claude_sdk import (
     MockPermissionResultDeny,
     MockResultMessage,
     MockTextBlock,
+    MockToolUseBlock,
 )
 
 
@@ -44,6 +45,7 @@ def _fake_modules(responses=None, client_factory=None):
     fake_types.PermissionResultAllow = MockPermissionResultAllow
     fake_types.PermissionResultDeny = MockPermissionResultDeny
     fake_types.TextBlock = MockTextBlock
+    fake_types.ToolUseBlock = MockToolUseBlock
 
     return mock_client, {
         "claude_agent_sdk": fake_mod,

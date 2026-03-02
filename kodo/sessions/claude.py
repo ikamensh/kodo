@@ -259,7 +259,7 @@ class ClaudeSession:
 
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         from claude_agent_sdk import AssistantMessage, ResultMessage
-        from claude_agent_sdk.types import TextBlock
+        from claude_agent_sdk.types import TextBlock, ToolUseBlock
 
         if self._loop.is_closed():
             raise RuntimeError("Session is closed")
@@ -317,6 +317,7 @@ class ClaudeSession:
             # Collect text from AssistantMessage blocks as fallback when
             # ResultMessage.result is None (e.g. tool-use-heavy turns).
             assistant_texts: list[str] = []
+            tool_uses: list[dict[str, Any]] = []
 
             async def _collect():
                 nonlocal result
@@ -325,6 +326,14 @@ class ClaudeSession:
                         for block in message.content:
                             if isinstance(block, TextBlock):
                                 assistant_texts.append(block.text)
+                            elif isinstance(block, ToolUseBlock):
+                                # Log tool name + input (file_path etc), not full content
+                                tu_input = dict(block.input) if block.input else {}
+                                # Strip large content fields to avoid JSONL bloat
+                                for key in ("content", "new_string", "old_string", "new_source"):
+                                    if key in tu_input and isinstance(tu_input[key], str) and len(tu_input[key]) > 200:
+                                        tu_input[key] = tu_input[key][:200] + "...(truncated)"
+                                tool_uses.append({"name": block.name, "input": tu_input})
                     elif isinstance(message, ResultMessage):
                         inp, out = _extract_tokens(message.usage)
                         result = QueryResult(
@@ -401,5 +410,6 @@ class ClaudeSession:
             response_text=result.text,
             usage_raw=result.usage_raw,
             session_id=self._session_id,
+            tool_uses=tool_uses if tool_uses else None,
         )
         return result

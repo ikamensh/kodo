@@ -14,6 +14,15 @@ class MockTextBlock:
 
 
 @dataclass
+class MockToolUseBlock:
+    """Mimics claude_agent_sdk.types.ToolUseBlock."""
+
+    id: str = ""
+    name: str = ""
+    input: dict = field(default_factory=dict)
+
+
+@dataclass
 class MockAssistantMessage:
     """Mimics claude_agent_sdk.AssistantMessage."""
 
