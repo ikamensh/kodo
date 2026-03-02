@@ -8,6 +8,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from functools import lru_cache
 from typing import Callable
 
@@ -576,8 +577,45 @@ TEAMS = get_team_presets()
 
 
 def get_team(name: str) -> TeamPreset:
-    """Look up a team preset by name. Raises KeyError if not found."""
-    return TEAMS[name]
+    """Look up a team preset by name.
+
+    For user-defined JSON teams (``~/.kodo/teams/*.json``) that don't match
+    a built-in preset, returns a lightweight fallback preset whose
+    ``build_team`` always raises — the caller is expected to use
+    ``build_team_from_json`` instead.
+    """
+    if name in TEAMS:
+        return TEAMS[name]
+
+    # Check if a user JSON team exists for this name
+    from kodo.team_config import load_team_config
+
+    # We can't resolve project_dir here, but user-level teams live at
+    # ~/.kodo/teams/{name}.json which load_team_config checks anyway.
+    user_json = Path.home() / ".kodo" / "teams" / f"{name}.json"
+    if user_json.is_file():
+        import json
+
+        try:
+            cfg = json.loads(user_json.read_text())
+        except (json.JSONDecodeError, OSError):
+            cfg = {}
+
+        def _no_build(**_kw):
+            raise RuntimeError(
+                f"Team {name!r} is a JSON team — should be loaded via build_team_from_json"
+            )
+
+        return TeamPreset(
+            name=name,
+            description=cfg.get("description", f"User team: {name}"),
+            system_prompt=cfg.get("orchestrator_prompt", ORCHESTRATOR_SYSTEM_PROMPT),
+            build_team=_no_build,
+            default_max_exchanges=cfg.get("max_exchanges", 30),
+            default_max_cycles=cfg.get("max_cycles", 5),
+        )
+
+    raise KeyError(name)
 
 
 # ---------------------------------------------------------------------------

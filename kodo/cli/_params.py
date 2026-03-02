@@ -121,8 +121,15 @@ def select_params() -> dict:
     ]
     print(f"  Backends: {' | '.join(parts)}\n")
 
-    # Team selection
+    # Team selection — built-in presets + user JSON teams
     team_options = [f"{name} — {m.description}" for name, m in TEAMS.items()]
+    from kodo.team_config import list_available_teams
+
+    _builtin_names = set(TEAMS.keys())
+    for tname, _tsource, tcfg, _tpath in list_available_teams():
+        if tname not in _builtin_names:
+            desc = tcfg.get("description", "user team")
+            team_options.append(f"{tname} — {desc}")
     team_choice = _select_one("Team:", team_options)
     team_name = team_choice.split(" — ")[0]
     team_preset = get_team(team_name)
