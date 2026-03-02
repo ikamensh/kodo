@@ -12,7 +12,6 @@ from kodo import log
 from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
-    CODEX_DEFAULT,
     CODEX_WORKER,
     CURSOR_COMPOSER,
     GEMINI_CLI_FLASH,
@@ -85,7 +84,7 @@ def _cmd_logs() -> None:
     )
     args = parser.parse_args(sys.argv[2:])
 
-    from kodo.viewer import _serve, open_viewer
+    from kodo.viewer import _serve
 
     log_path = None
     if args.logfile:

@@ -25,7 +25,6 @@ from kodo.models import (
     CLAUDE_SONNET,
     CLAUDE_SONNET_FULL,
     CODEX_DEFAULT,
-    CODEX_O3,
     CODEX_WORKER,
     CURSOR_COMPOSER,
     GEMINI_ALIAS_FLASH,
@@ -588,7 +587,6 @@ def get_team(name: str) -> TeamPreset:
         return TEAMS[name]
 
     # Check if a user JSON team exists for this name
-    from kodo.team_config import load_team_config
 
     # We can't resolve project_dir here, but user-level teams live at
     # ~/.kodo/teams/{name}.json which load_team_config checks anyway.

@@ -5,7 +5,7 @@ Usage:
 
 Verifies:
 - Discovery falls back to default plan when mocked
-- Fallback plan has 6 stages
+- Fallback plan has 7 stages
 - Saga mode and API orchestrator are used
 - launch_run is invoked with correct goal and plan
 """
@@ -115,8 +115,6 @@ def main():
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.cli._params.has_claude", return_value=True),
-        patch("kodo.cli._params.has_cursor", return_value=True),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_mission", _fake_build_team),
         patch("kodo.factory._build_team_saga", _fake_build_team),
@@ -130,6 +128,7 @@ def main():
             "kodo",
             "--improve",
             "--yes",
+            "--project",
             str(project_dir),
         ]
         _main_inner()

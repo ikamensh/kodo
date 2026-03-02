@@ -406,7 +406,7 @@ def _main_inner() -> None:
             f"  Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles"
         )
         if args.debug:
-            print(f"  Mode:         DEBUG (all backends mocked)")
+            print("  Mode:         DEBUG (all backends mocked)")
         print()
 
     if not skip_prompts:

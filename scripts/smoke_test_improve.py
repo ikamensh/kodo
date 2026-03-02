@@ -1,6 +1,6 @@
 """Smoke test: run kodo --improve with mocked orchestrator and sessions.
 
-Verifies discovery fallback to default 6-stage plan and a successful cycle.
+Verifies discovery fallback to default 7-stage plan and a successful cycle.
 All external deps mocked. No API keys or real backends required.
 
 Usage:
@@ -110,8 +110,6 @@ def main() -> int:
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.cli._params.has_claude", return_value=True),
-        patch("kodo.cli._params.has_cursor", return_value=True),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_mission", _fake_build_team),
         patch("kodo.factory._build_team_saga", _fake_build_team),
@@ -124,6 +122,7 @@ def main() -> int:
             "--improve",
             "--yes",
             "--json",
+            "--project",
             str(project_dir),
         ]
         try:
@@ -145,16 +144,16 @@ def main() -> int:
         return 1
 
     plan = plan_captured[0]
-    if len(plan.stages) != 6:
+    if len(plan.stages) != 7:
         print(
-            f"FAIL: Expected 6-stage improve plan, got {len(plan.stages)}",
+            f"FAIL: Expected 7-stage improve plan, got {len(plan.stages)}",
             file=sys.stderr,
         )
         return 1
 
-    if plan.stages[0].name != "Baseline & Static Analysis":
+    if plan.stages[0].name != "Test Tool Forge":
         print(
-            f"FAIL: Expected first stage 'Baseline & Static Analysis', got {plan.stages[0].name!r}",
+            f"FAIL: Expected first stage 'Test Tool Forge', got {plan.stages[0].name!r}",
             file=sys.stderr,
         )
         return 1
