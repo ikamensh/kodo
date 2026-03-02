@@ -271,7 +271,7 @@ function buildTree(events) {
 
   for (const e of events) {
     // Skip header events
-    if (['run_init', 'cli_args', 'run_start', 'run_end'].includes(e.event)) continue;
+    if (['run_init', 'cli_args', 'run_start', 'run_end', 'run_resumed', 'debug_run_start'].includes(e.event)) continue;
 
     // Cycle start — run_cycle and cycle_start are emitted back-to-back for
     // the same cycle.  run_cycle carries metadata (cycle number, max_cycles,
@@ -298,8 +298,12 @@ function buildTree(events) {
       continue;
     }
 
-    // Ensure we have a cycle (for runs without explicit cycle events)
+    // Lazy-init a cycle for runs without explicit cycle events
     if (!currentCycle) {
+      // Only create on events that belong inside a cycle; skip metadata
+      if (!e.event.startsWith('orchestrator_') && !e.event.startsWith('agent_') &&
+          !e.event.startsWith('session_') && !e.event.startsWith('done_') &&
+          e.event !== 'cycle_end') continue;
       currentCycle = { num: 1, exchanges: [], sideEvents: [], end: null };
       tree.cycles.push(currentCycle);
     }
