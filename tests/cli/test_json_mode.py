@@ -71,7 +71,7 @@ class TestJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_fake_launch),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -83,7 +83,7 @@ class TestJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_fake_launch),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -101,7 +101,7 @@ class TestJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_fake_launch_partial),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -122,7 +122,7 @@ class TestJsonOutput:
                 side_effect=AssertionError("input() called in --json mode"),
             ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -135,6 +135,7 @@ class TestJsonOutput:
             "--goal-file",
             str(project / "nonexistent.md"),
             "--json",
+            "--project",
             str(project),
         ]
         try:
@@ -153,7 +154,7 @@ class TestJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_fake_launch),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -261,7 +262,7 @@ class TestImproveJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_launch_with_report),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", "--json", str(project)]
+            sys.argv = ["kodo", "--improve", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:
@@ -278,7 +279,7 @@ class TestImproveJsonOutput:
             patch("kodo.cli._main.launch_run", side_effect=_fake_launch),
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", "--json", str(project)]
+            sys.argv = ["kodo", "--improve", "--json", "--project", str(project)]
             try:
                 _main_inner()
             except SystemExit:

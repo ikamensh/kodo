@@ -57,7 +57,7 @@ class TestConfigCorruption:
         (run_root / "config.json").write_text("not valid json {{{")
 
         with patch("kodo.cli._main.launch_resume") as mock_resume:
-            sys.argv = ["kodo", "--resume", run_id, "--yes", str(project)]
+            sys.argv = ["kodo", "--resume", run_id, "--yes", "--project", str(project)]
             _main_inner()
 
         mock_resume.assert_called_once()
@@ -98,6 +98,7 @@ class TestGoalFileCorruption:
                 "--goal-file",
                 str(tmp_path / "nonexistent.md"),
                 "--yes",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -230,7 +231,7 @@ class TestSigint:
             patch("kodo.cli._main._main_inner", side_effect=KeyboardInterrupt),
             pytest.raises(SystemExit) as exc_info,
         ):
-            sys.argv = ["kodo", "--json", "--goal", "x", "."]
+            sys.argv = ["kodo", "--json", "--goal", "x", "--project", "."]
             main()
         assert exc_info.value.code == 130
         out = capsys.readouterr().out

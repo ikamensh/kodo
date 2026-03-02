@@ -111,14 +111,14 @@ class TestFlagConflicts:
 
     def test_resume_with_goal_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--resume", "--goal", "X", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--resume", "--goal", "X", "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
 
     def test_empty_goal_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--goal", "   ", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--goal", "   ", "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -126,7 +126,7 @@ class TestFlagConflicts:
     def test_negative_exchanges_fails(self, tmp_path):
         with (
             patch(
-                "sys.argv", ["kodo", "--goal", "X", "--exchanges", "-1", str(tmp_path)]
+                "sys.argv", ["kodo", "--goal", "X", "--exchanges", "-1", "--project", str(tmp_path)]
             ),
             pytest.raises(SystemExit),
         ):
@@ -134,7 +134,7 @@ class TestFlagConflicts:
 
     def test_zero_cycles_fails(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--cycles", "0", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--goal", "X", "--cycles", "0", "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -143,7 +143,7 @@ class TestFlagConflicts:
         with (
             patch(
                 "sys.argv",
-                ["kodo", "--goal", "X", "--team", "nonexistent", str(tmp_path)],
+                ["kodo", "--goal", "X", "--team", "nonexistent", "--project", str(tmp_path)],
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
@@ -154,7 +154,7 @@ class TestFlagConflicts:
         with (
             patch(
                 "sys.argv",
-                ["kodo", "--goal-file", str(tmp_path / "nope.md"), str(tmp_path)],
+                ["kodo", "--goal-file", str(tmp_path / "nope.md"), "--project", str(tmp_path)],
             ),
             pytest.raises(SystemExit),
         ):
@@ -164,7 +164,7 @@ class TestFlagConflicts:
         goal_file = tmp_path / "empty.md"
         goal_file.write_text("")
         with (
-            patch("sys.argv", ["kodo", "--goal-file", str(goal_file), str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--goal-file", str(goal_file), "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -210,6 +210,7 @@ class TestNoAutoCommit:
                     "--yes",
                     "--skip-intake",
                     "--no-auto-commit",
+                    "--project",
                     str(tmp_path),
                 ],
             ),
@@ -228,7 +229,7 @@ class TestNoAutoCommit:
 class TestResumeCLI:
     def test_resume_no_incomplete_runs(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--resume", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--resume", "--project", str(tmp_path)]),
             patch("kodo.cli._main.log.find_incomplete_runs", return_value=[]),
             pytest.raises(SystemExit),
         ):
@@ -236,7 +237,7 @@ class TestResumeCLI:
 
     def test_resume_specific_run_not_found(self, tmp_path):
         with (
-            patch("sys.argv", ["kodo", "--resume", "bogus_run_id", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--resume", "bogus_run_id", "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -277,7 +278,7 @@ class TestResumeCLI:
 
         # --resume (no value) uses __latest__ path; project_dir is positional
         with (
-            patch("sys.argv", ["kodo", "--resume", "--yes", str(tmp_path)]),
+            patch("sys.argv", ["kodo", "--resume", "--yes", "--project", str(tmp_path)]),
             patch("kodo.cli._main.log.find_incomplete_runs", return_value=[fake_state]),
             patch(
                 "kodo.cli._main.launch_resume", return_value=fake_result

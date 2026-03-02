@@ -69,6 +69,35 @@ def _cmd_runs() -> None:
 
 
 # ---------------------------------------------------------------------------
+# kodo logs
+# ---------------------------------------------------------------------------
+
+
+def _cmd_logs() -> None:
+    """Open the log viewer in a browser. Serves logs on a local HTTP port."""
+    parser = argparse.ArgumentParser(
+        prog="kodo logs",
+        description="Open log viewer in browser",
+    )
+    parser.add_argument("logfile", nargs="?", help="Path to a specific .jsonl log file")
+    parser.add_argument(
+        "--port", type=int, default=8080, help="HTTP port (default: 8080)"
+    )
+    args = parser.parse_args(sys.argv[2:])
+
+    from kodo.viewer import _serve, open_viewer
+
+    log_path = None
+    if args.logfile:
+        log_path = Path(args.logfile)
+        if not log_path.exists():
+            print(f"File not found: {log_path}", file=sys.stderr)
+            sys.exit(1)
+
+    _serve(args.port, log_path)
+
+
+# ---------------------------------------------------------------------------
 # kodo backends
 # ---------------------------------------------------------------------------
 

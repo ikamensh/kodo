@@ -38,7 +38,7 @@ from kodo.cli._params import (  # noqa: E402
     _build_params_from_flags,
     _load_or_select_params,
 )
-from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams  # noqa: E402
+from kodo.cli._subcommands import _cmd_backends, _cmd_logs, _cmd_runs, _cmd_teams  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
 from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_FLASH, GEMINI_ALIAS_PRO  # noqa: E402
@@ -76,10 +76,26 @@ def _main_inner() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "teams":
         _cmd_teams()
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "logs":
+        _cmd_logs()
+        return
+
+    # Catch unknown subcommand-like args before argparse swallows them as project_dir
+    _KNOWN_SUBCOMMANDS = {"runs", "backends", "teams", "logs"}
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+        arg = sys.argv[1]
+        # Check for close misspellings of known subcommands
+        for cmd in _KNOWN_SUBCOMMANDS:
+            if arg != cmd and (
+                arg in cmd or cmd in arg  # substring match
+                or sum(a != b for a, b in zip(arg, cmd)) <= 1  # 1-char diff, same length
+            ):
+                print(f"Unknown command '{arg}'. Did you mean 'kodo {cmd}'?", file=sys.stderr)
+                sys.exit(1)
 
     parser = argparse.ArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo runs [PROJECT_DIR]  List all known runs\n  kodo backends            List available backends and API keys\n  kodo teams               List, add, or edit team configurations",
+        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
@@ -180,10 +196,10 @@ def _main_inner() -> None:
     )
 
     parser.add_argument(
-        "project_dir",
-        nargs="?",
+        "--project",
+        type=str,
         default=".",
-        help="Project directory (default: current dir)",
+        help="Project directory (default: current directory).",
     )
     args = parser.parse_args()
 
@@ -226,9 +242,7 @@ def _main_inner() -> None:
     if non_interactive and args.resume is not None:
         _fail("--resume cannot be used with --goal/--goal-file/--improve")
 
-    project_dir = Path(args.project_dir)
-    project_dir.mkdir(parents=True, exist_ok=True)
-    project_dir = project_dir.resolve()
+    project_dir = Path(args.project).resolve()
     if not args.json:
         print(f"  Project: {project_dir}")
 

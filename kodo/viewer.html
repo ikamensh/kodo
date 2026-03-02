@@ -135,6 +135,32 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #
 .result-card .result-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
   max-height: 400px; overflow-y: auto; }
 
+/* Log picker */
+#picker { max-width: 900px; margin: 0 auto; padding: 20px; }
+#picker h2 { color: #58a6ff; margin-bottom: 16px; font-size: 16px; }
+#picker .day-group { margin-bottom: 16px; }
+#picker .day-label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 4px 0; margin-bottom: 4px; border-bottom: 1px solid #21262d; }
+#picker .run-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: #0d1117; border: 1px solid #21262d; border-radius: 8px; margin: 4px 0;
+  cursor: pointer; transition: background 0.15s; font-size: 12px; }
+#picker .run-row:hover { background: #161b22; border-color: #30363d; }
+#picker .run-id { color: #8b949e; min-width: 80px; flex-shrink: 0; }
+#picker .run-project { color: #d29922; min-width: 100px; max-width: 160px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+#picker .run-goal { color: #c9d1d9; flex: 1; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+#picker .run-status { font-size: 11px; flex-shrink: 0; min-width: 70px; text-align: right; }
+#picker .run-status.done { color: #3fb950; }
+#picker .run-status.partial { color: #d29922; }
+#picker .run-status.failed { color: #f85149; }
+#picker .run-model { color: #8b949e; font-size: 11px; min-width: 60px; flex-shrink: 0; text-align: right; }
+#picker .picker-note { font-size: 11px; color: #484f58; margin-top: 8px; }
+#back-btn { position: fixed; top: 12px; right: 20px; z-index: 200; background: #21262d; color: #c9d1d9;
+  border: 1px solid #30363d; border-radius: 6px; padding: 6px 14px; font-size: 12px;
+  cursor: pointer; font-family: inherit; display: none; }
+#back-btn:hover { background: #30363d; }
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -149,6 +175,10 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #
   <p>Drag &amp; drop a .jsonl log file here</p>
 </div>
 
+<div id="picker" style="display:none;"></div>
+
+<button id="back-btn">All runs</button>
+
 <div id="app" style="display:none;">
   <div id="stats-bar"></div>
   <div id="timeline"></div>
@@ -157,6 +187,9 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #
 <script>
 let EMBEDDED_DATA = null;
 /*__EMBED_MARKER__*/
+
+let EMBEDDED_INDEX = null;
+/*__INDEX_MARKER__*/
 
 // -- Helpers --
 function formatTime(s) {
@@ -794,18 +827,14 @@ function renderSideEvent(se) {
 
 // -- Load --
 function loadEvents(events) {
-  document.getElementById('drop-zone').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  renderStats(events);
-  const tree = buildTree(events);
-  renderTimeline(tree);
+  showLogView(events);
 }
 
-// Drag and drop
+// Drag and drop (works from any view)
 const dz = document.getElementById('drop-zone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('active'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('active'));
-dz.addEventListener('drop', e => {
+document.body.addEventListener('dragover', e => { e.preventDefault(); if (dz.style.display !== 'none') dz.classList.add('active'); });
+document.body.addEventListener('dragleave', e => { if (!e.relatedTarget || e.relatedTarget === document.documentElement) dz.classList.remove('active'); });
+document.body.addEventListener('drop', e => {
   e.preventDefault();
   dz.classList.remove('active');
   const file = e.dataTransfer.files[0];
@@ -813,14 +842,15 @@ dz.addEventListener('drop', e => {
   const reader = new FileReader();
   reader.onload = ev => {
     const lines = ev.target.result.trim().split('\n');
-    const events = lines.map(l => JSON.parse(l));
+    const events = [];
+    for (const l of lines) { try { events.push(JSON.parse(l)); } catch(e) {} }
     document.title = 'kodo: ' + file.name;
     loadEvents(events);
   };
   reader.readAsText(file);
 });
 
-// Click to select file
+// Click to select file (only on drop zone)
 dz.addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file';
@@ -831,7 +861,8 @@ dz.addEventListener('click', () => {
     const reader = new FileReader();
     reader.onload = ev => {
       const lines = ev.target.result.trim().split('\n');
-      const events = lines.map(l => JSON.parse(l));
+      const events = [];
+      for (const l of lines) { try { events.push(JSON.parse(l)); } catch(e) {} }
       document.title = 'kodo: ' + file.name;
       loadEvents(events);
     };
@@ -840,7 +871,114 @@ dz.addEventListener('click', () => {
   input.click();
 });
 
-// Auto-load embedded data
+// -- Log Picker --
+function renderPicker(runs) {
+  const picker = document.getElementById('picker');
+  picker.style.display = 'block';
+  document.getElementById('drop-zone').style.display = 'none';
+
+  // Group by day
+  const groups = {};
+  for (const r of runs) {
+    // run_id format: YYYYMMDD_HHMMSS
+    const day = formatRunDay(r.run_id);
+    if (!groups[day]) groups[day] = [];
+    groups[day].push(r);
+  }
+
+  let html = '<h2>kodo Log Viewer</h2>';
+  for (const [day, dayRuns] of Object.entries(groups)) {
+    html += `<div class="day-group">`;
+    html += `<div class="day-label">${escapeHtml(day)}</div>`;
+    for (const r of dayRuns) {
+      const time = formatRunTime(r.run_id);
+      const status = r.finished ? 'done' : (r.completed_cycles > 0 ? 'partial' : 'failed');
+      const statusText = r.finished ? 'done' : `cycle ${r.completed_cycles}/${r.max_cycles}`;
+      const goalSnippet = (r.goal || '').replace(/\n/g, ' ').slice(0, 100);
+      const modelShort = (r.model || '').replace(/^(claude-|gemini-)/, '').split('-').slice(0, 2).join('-');
+      html += `<div class="run-row" data-run-id="${escapeHtml(r.run_id)}" data-log-file="${escapeHtml(r.log_file || '')}">`;
+      html += `<span class="run-id">${escapeHtml(time)}</span>`;
+      html += `<span class="run-project">${escapeHtml(r.project_name || '?')}</span>`;
+      html += `<span class="run-goal">${escapeHtml(goalSnippet)}</span>`;
+      html += `<span class="run-status ${status}">${escapeHtml(statusText)}</span>`;
+      html += `<span class="run-model">${escapeHtml(modelShort)}</span>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<p class="picker-note">Drag &amp; drop a .jsonl file anywhere to open it directly</p>`;
+  picker.innerHTML = html;
+
+  // Click handlers
+  picker.querySelectorAll('.run-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const runId = row.dataset.runId;
+      loadRunById(runId);
+    });
+  });
+}
+
+function formatRunDay(runId) {
+  // YYYYMMDD_HHMMSS → "Feb 23, 2026"
+  if (!runId || runId.length < 8) return runId || 'Unknown';
+  const y = runId.slice(0, 4), m = runId.slice(4, 6), d = runId.slice(6, 8);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const mi = parseInt(m, 10) - 1;
+  return `${months[mi] || m} ${parseInt(d, 10)}, ${y}`;
+}
+
+function formatRunTime(runId) {
+  // YYYYMMDD_HHMMSS → "17:26"
+  if (!runId || runId.length < 15) return runId || '?';
+  return runId.slice(9, 11) + ':' + runId.slice(11, 13);
+}
+
+function loadRunById(runId) {
+  // Try fetching via API (works in --serve mode)
+  fetch('/api/log/' + encodeURIComponent(runId))
+    .then(resp => {
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.text();
+    })
+    .then(text => {
+      const lines = text.trim().split('\n');
+      const events = [];
+      for (const line of lines) {
+        try { events.push(JSON.parse(line)); } catch (e) {}
+      }
+      document.title = 'kodo: ' + runId;
+      showLogView(events);
+    })
+    .catch(() => {
+      // file:// mode — can't fetch. Rebuild with this log embedded.
+      // Show the log file path so user can open it manually.
+      const run = EMBEDDED_INDEX && EMBEDDED_INDEX.find(r => r.run_id === runId);
+      if (run && run.log_file) {
+        alert('To view this log, run:\n\npython -m kodo.viewer "' + run.log_file + '"\n\nOr use --serve mode for in-browser browsing:\npython -m kodo.viewer --serve');
+      }
+    });
+}
+
+function showLogView(events) {
+  document.getElementById('picker').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  if (EMBEDDED_INDEX) document.getElementById('back-btn').style.display = 'block';
+  renderStats(events);
+  const tree = buildTree(events);
+  renderTimeline(tree);
+}
+
+function showPicker() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('back-btn').style.display = 'none';
+  document.getElementById('picker').style.display = 'block';
+}
+
+// Back button
+document.getElementById('back-btn').addEventListener('click', showPicker);
+
+// Auto-load embedded data or show picker
 if (EMBEDDED_DATA) {
   try {
     loadEvents(EMBEDDED_DATA);
@@ -850,6 +988,8 @@ if (EMBEDDED_DATA) {
     document.getElementById('stats-bar').innerHTML = '<div class="stat"><span class="stat-label">Error</span><span class="stat-value" style="color:#f85149">' + String(err).replace(/</g, '&lt;') + '</span></div>';
     document.getElementById('timeline').innerHTML = '<div class="header-card"><h3>Parse Error</h3><pre>' + String(err).replace(/</g, '&lt;') + '</pre></div>';
   }
+} else if (EMBEDDED_INDEX && EMBEDDED_INDEX.length > 0) {
+  renderPicker(EMBEDDED_INDEX);
 }
 </script>
 </body>

@@ -195,7 +195,7 @@ class TestNonInteractiveGoalInput:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal", "Build a web app", str(project)]
+            sys.argv = ["kodo", "--goal", "Build a web app", "--project", str(project)]
             _main_inner()
             goal_arg = mock_launch.call_args[0][1]
             assert goal_arg == "Build a web app"
@@ -209,7 +209,7 @@ class TestNonInteractiveGoalInput:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--goal-file", str(goal_file), str(project)]
+            sys.argv = ["kodo", "--goal-file", str(goal_file), "--project", str(project)]
             _main_inner()
             goal_arg = mock_launch.call_args[0][1]
             assert goal_arg == "Build an API server"
@@ -220,6 +220,7 @@ class TestNonInteractiveGoalInput:
                 "kodo",
                 "--goal-file",
                 str(project / "nonexistent.md"),
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -229,7 +230,7 @@ class TestNonInteractiveGoalInput:
         goal_file.write_text("   ")
 
         with pytest.raises(SystemExit):
-            sys.argv = ["kodo", "--goal-file", str(goal_file), str(project)]
+            sys.argv = ["kodo", "--goal-file", str(goal_file), "--project", str(project)]
             _main_inner()
 
     def test_goal_and_goal_file_mutually_exclusive(self):
@@ -379,7 +380,7 @@ class TestNonInteractiveEndToEnd:
                 side_effect=AssertionError("questionary should not be called"),
             ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--project", str(project)]
             _main_inner()
             mock_launch.assert_called_once()
 
@@ -403,6 +404,7 @@ class TestNonInteractiveEndToEnd:
                 "api",
                 "--orchestrator-model",
                 "gemini-pro",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -425,6 +427,7 @@ class TestNonInteractiveEndToEnd:
                 "--goal",
                 "Simple fix",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -464,7 +467,7 @@ class TestNonInteractiveEndToEnd:
             patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
             patch("kodo.cli._main.RunDir.create", side_effect=create_with_plan),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", str(project)]
+            sys.argv = ["kodo", "--goal", "Build X", "--project", str(project)]
             _main_inner()
             # Should use existing plan, not run intake
             mock_intake.assert_not_called()
@@ -495,7 +498,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
             goal_arg = mock_launch.call_args[0][1]
             assert (
@@ -510,7 +513,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run"),
             patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
             mock_intake.assert_not_called()
 
@@ -520,7 +523,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
             assert params["team"] == "full"
@@ -531,7 +534,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", "--team", "quick", str(project)]
+            sys.argv = ["kodo", "--improve", "--team", "quick", "--project", str(project)]
             _main_inner()
             params = mock_launch.call_args[0][2]
             assert params["team"] == "quick"
@@ -550,7 +553,7 @@ class TestImproveFlag:
                 side_effect=AssertionError("questionary should not be called"),
             ),
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
 
     def test_improve_mutually_exclusive_with_goal(self):
@@ -573,7 +576,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
             plan = mock_launch.call_args.kwargs.get(
                 "plan",
@@ -590,7 +593,7 @@ class TestImproveFlag:
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
         ):
-            sys.argv = ["kodo", "--improve", str(project)]
+            sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
             plan = mock_launch.call_args.kwargs.get(
                 "plan",
@@ -624,7 +627,7 @@ class TestImproveFlag:
             patch("kodo.cli._params.check_api_key", return_value=None),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
-            sys.argv = ["kodo", "--improve", str(buggy_project)]
+            sys.argv = ["kodo", "--improve", "--project", str(buggy_project)]
             _main_inner()
 
         mock_launch.assert_called_once()
@@ -918,13 +921,13 @@ class TestInputValidation:
     def test_empty_goal_rejected(self, project):
         """--goal '' should fail with a clear error."""
         with pytest.raises(SystemExit):
-            sys.argv = ["kodo", "--goal", "", str(project)]
+            sys.argv = ["kodo", "--goal", "", "--project", str(project)]
             _main_inner()
 
     def test_whitespace_only_goal_rejected(self, project):
         """--goal '   ' should fail with a clear error."""
         with pytest.raises(SystemExit):
-            sys.argv = ["kodo", "--goal", "   \t\n  ", str(project)]
+            sys.argv = ["kodo", "--goal", "   \t\n  ", "--project", str(project)]
             _main_inner()
 
     def test_negative_exchanges_rejected(self, project):
@@ -936,6 +939,7 @@ class TestInputValidation:
                 "Build X",
                 "--exchanges",
                 "-5",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -949,6 +953,7 @@ class TestInputValidation:
                 "Build X",
                 "--exchanges",
                 "0",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -962,6 +967,7 @@ class TestInputValidation:
                 "Build X",
                 "--cycles",
                 "-1",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -975,6 +981,7 @@ class TestInputValidation:
                 "Build X",
                 "--cycles",
                 "0",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -1006,6 +1013,7 @@ class TestTeamConfigErrors:
                 "--goal",
                 "Build X",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -1022,6 +1030,7 @@ class TestTeamConfigErrors:
                 "--goal",
                 "Build X",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -1055,6 +1064,7 @@ class TestPermissionErrors:
                 "--goal",
                 "Build X",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             _main_inner()

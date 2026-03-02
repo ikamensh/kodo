@@ -160,6 +160,7 @@ class TestMockedRunHappyPath:
                 "api",
                 "--orchestrator-model",
                 "opus",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -185,6 +186,7 @@ class TestMockedRunHappyPath:
                 "--team",
                 "quick",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -254,6 +256,7 @@ class TestMockedResumeHappyPath:
                 "--resume",
                 run_id,
                 "--yes",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -381,6 +384,7 @@ class TestGoalFile:
                 "--skip-intake",
                 "--team",
                 "quick",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -406,6 +410,7 @@ class TestImprove:
                 "kodo",
                 "--improve",
                 "--yes",
+                "--project",
                 str(project),
             ]
             _main_inner()
@@ -455,7 +460,7 @@ class TestGoalMdOserror:
                 "max_exchanges": 30,
                 "max_cycles": 5,
             }
-            sys.argv = ["kodo", str(project)]
+            sys.argv = ["kodo", "--project", str(project)]
             _main_inner()
 
         mock_launch.assert_called_once()
@@ -492,6 +497,7 @@ class TestGetTeamKeyError:
                 "Build X",
                 "--yes",
                 "--skip-intake",
+                "--project",
                 str(project),
             ]
             with pytest.raises(SystemExit):

@@ -1,7 +1,7 @@
 """Open a JSONL log file in the chat-style HTML viewer.
 
 Usage: python -m kodo.viewer <logfile.jsonl>
-   or: python -m kodo.viewer  (opens drag-and-drop page)
+   or: python -m kodo.viewer  (opens log picker / drag-and-drop page)
    or: python -m kodo.viewer --serve [--port 8080] [logfile.jsonl]
 """
 
@@ -22,10 +22,43 @@ from pathlib import Path
 
 _VIEWER_HTML = Path(__file__).parent / "viewer.html"
 _EMBED_MARKER = "/*__EMBED_MARKER__*/"
+_INDEX_MARKER = "/*__INDEX_MARKER__*/"
 
 
-def _build_html(log_path: Path | None) -> str:
+def _build_run_index() -> list[dict]:
+    """Build lightweight metadata for all runs (no log content)."""
+    from kodo.log import list_runs
+
+    index = []
+    for r in list_runs():
+        project_name = Path(r.project_dir).name if r.project_dir else "?"
+        index.append({
+            "run_id": r.run_id,
+            "log_file": str(r.log_file),
+            "goal": r.goal[:200],
+            "project_dir": r.project_dir,
+            "project_name": project_name,
+            "orchestrator": r.orchestrator,
+            "model": r.model,
+            "finished": r.finished,
+            "completed_cycles": r.completed_cycles,
+            "max_cycles": r.max_cycles,
+        })
+    return index
+
+
+def _build_html(log_path: Path | None, include_index: bool = False) -> str:
     template = _VIEWER_HTML.read_text()
+
+    # Embed run index if requested
+    if include_index:
+        index = _build_run_index()
+        idx_js = f"EMBEDDED_INDEX = {json.dumps(index)};"
+        idx_js = idx_js.replace("</script>", "<\\/script>")
+        template = template.replace(_INDEX_MARKER, idx_js)
+    else:
+        template = template.replace(_INDEX_MARKER, "")
+
     if log_path is not None:
         lines = log_path.read_text().strip().splitlines()
         events = []
@@ -60,7 +93,8 @@ def open_viewer(log_path: Path | None = None) -> None:
     if os.environ.get("KODO_NO_VIEWER"):
         return
     _cleanup_stale_viewer_files()
-    html = _build_html(log_path)
+    # Include run index when no specific log is given
+    html = _build_html(log_path, include_index=(log_path is None))
     with tempfile.NamedTemporaryFile(
         "w", suffix=".html", prefix="kodo_viewer_", delete=False
     ) as f:
@@ -74,7 +108,7 @@ def open_viewer(log_path: Path | None = None) -> None:
 
 def _serve(port: int, log_path: Path | None) -> None:
     _cleanup_stale_viewer_files()
-    html = _build_html(log_path)
+    html = _build_html(log_path, include_index=True)
     tmpdir = tempfile.mkdtemp(prefix="kodo_viewer_")
     atexit.register(shutil.rmtree, tmpdir, True)
     (Path(tmpdir) / "index.html").write_text(html)
@@ -82,6 +116,31 @@ def _serve(port: int, log_path: Path | None) -> None:
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=tmpdir, **k)
+
+        def do_GET(self):
+            # API endpoint: serve individual log files by run_id
+            if self.path.startswith("/api/log/"):
+                run_id = self.path[len("/api/log/"):]
+                self._serve_log(run_id)
+                return
+            super().do_GET()
+
+        def _serve_log(self, run_id: str):
+            from kodo.log import _runs_root
+            log_file = _runs_root() / run_id / "run.jsonl"
+            if not log_file.exists():
+                self.send_error(404, f"Run not found: {run_id}")
+                return
+            try:
+                data = log_file.read_bytes()
+            except OSError as exc:
+                self.send_error(500, str(exc))
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
 
     server = HTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"

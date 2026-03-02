@@ -37,6 +37,7 @@ def test_very_long_goal_preserved(tmp_path: Path):
             long_goal,
             "--skip-intake",
             "--yes",
+            "--project",
             str(tmp_path),
         ]
         _main_inner()
@@ -64,6 +65,7 @@ def test_unicode_and_special_chars_in_goal(tmp_path: Path):
             special_goal,
             "--skip-intake",
             "--yes",
+            "--project",
             str(tmp_path),
         ]
         _main_inner()
@@ -98,6 +100,7 @@ def test_unreadable_goal_file_no_traceback(tmp_path: Path, capsys):
                 str(goal_file),
                 "--skip-intake",
                 "--yes",
+                "--project",
                 str(tmp_path),
             ]
             with pytest.raises(SystemExit):
