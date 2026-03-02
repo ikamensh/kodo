@@ -171,6 +171,13 @@ def _main_inner() -> None:
         default=False,
         help="Disable auto-commit after completed stages/goals.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Run with fully mocked backends (no real LLM calls). "
+        "Each mock session gets a letter (A, B, C...) and responds deterministically.",
+    )
 
     parser.add_argument(
         "project_dir",
@@ -224,6 +231,10 @@ def _main_inner() -> None:
     project_dir = project_dir.resolve()
     if not args.json:
         print(f"  Project: {project_dir}")
+
+    # --debug: skip intake, let normal flow handle the rest
+    if args.debug:
+        args.skip_intake = True
 
     # Handle --resume
     if args.resume is not None:
@@ -393,6 +404,8 @@ def _main_inner() -> None:
         print(
             f"  Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles"
         )
+        if args.debug:
+            print(f"  Mode:         DEBUG (all backends mocked)")
         print()
 
     if not skip_prompts:
@@ -408,7 +421,9 @@ def _main_inner() -> None:
             sys.exit(0)
 
     # 6. Launch
-    result = launch_run(run_dir, goal_text, params, plan=plan, json_mode=args.json)
+    result = launch_run(
+        run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug
+    )
 
     # 7. --improve post-run: report summary
     if args.improve:

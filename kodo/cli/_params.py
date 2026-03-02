@@ -271,36 +271,45 @@ def _load_or_select_params(project_dir: Path) -> dict:
 
 def _build_params_from_flags(args, project_dir: Path) -> dict:
     """Build config dict from CLI flags, falling back to team defaults."""
+    debug = getattr(args, "debug", False)
     team_name = args.team or "full"
     team_preset = get_team(team_name)
 
     orch_model = args.orchestrator_model  # may be None
 
-    _has_gemini_key = bool(
-        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    )
-
-    if args.orchestrator:
-        orchestrator = args.orchestrator
-    elif _has_gemini_key:
-        orchestrator = "api"
+    if debug:
+        # Debug mode: use whatever was specified, or sensible defaults.
+        # No real backends needed — everything gets mocked at launch time.
+        orchestrator = args.orchestrator or "api"
+        if not orch_model:
+            orch_model = CLAUDE_OPUS
     else:
-        orchestrator = preferred_orchestrator()
+        _has_gemini_key = bool(
+            os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        )
 
-    # Default model per orchestrator when not explicitly specified
-    if not orch_model:
-        _ORCH_DEFAULT_MODELS = {
-            "claude-code": CLAUDE_OPUS,
-            "gemini-cli": GEMINI_CLI_FLASH,
-            "codex": CODEX_DEFAULT,
-            "cursor": CURSOR_COMPOSER,
-            "api": GEMINI_API_FLASH,
-        }
-        orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, GEMINI_API_FLASH)
+        if args.orchestrator:
+            orchestrator = args.orchestrator
+        elif _has_gemini_key:
+            orchestrator = "api"
+        else:
+            orchestrator = preferred_orchestrator()
 
-    key_err = check_api_key(orchestrator, orch_model)
-    if key_err:
-        _fail(key_err)
+        # Default model per orchestrator when not explicitly specified
+        if not orch_model:
+            _ORCH_DEFAULT_MODELS = {
+                "claude-code": CLAUDE_OPUS,
+                "gemini-cli": GEMINI_CLI_FLASH,
+                "codex": CODEX_DEFAULT,
+                "cursor": CURSOR_COMPOSER,
+                "api": GEMINI_API_FLASH,
+            }
+            orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, GEMINI_API_FLASH)
+
+    if not debug:
+        key_err = check_api_key(orchestrator, orch_model)
+        if key_err:
+            _fail(key_err)
 
     params = {
         "team": team_name,

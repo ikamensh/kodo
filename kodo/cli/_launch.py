@@ -142,6 +142,7 @@ def launch_run(
     params: dict,
     plan: GoalPlan | None = None,
     json_mode: bool = False,
+    debug: bool = False,
 ):
     """Build team + orchestrator and run. Returns the RunResult."""
     # Snapshot config and goal into the run directory
@@ -150,59 +151,83 @@ def launch_run(
         _atomic_write(run_dir.goal_file, goal_text)
 
     log_path = log.init(run_dir)
-    log.emit("cli_args", **params, goal_text=goal_text, has_plan=plan is not None)
+    log.emit("cli_args", **params, goal_text=goal_text, has_plan=plan is not None, debug=debug)
 
     project_dir = run_dir.project_dir
+    max_exchanges = params["max_exchanges"]
+    max_cycles = params["max_cycles"]
 
     team_preset = get_team(params["team"])
     verifiers = None
+    team_config = None
 
-    # Try loading a team JSON config; fall back to built-in preset
-    try:
-        team_config = load_team_config(params["team"], project_dir)
-        if team_config:
-            team = build_team_from_json(team_config)
-            system_prompt = (
-                team_config.get("orchestrator_prompt") or team_preset.system_prompt
-            )
-            verifiers = team_config.get("verifiers")
-            max_exchanges = team_config.get("max_exchanges", params["max_exchanges"])
-            max_cycles = team_config.get("max_cycles", params["max_cycles"])
-        else:
-            team = team_preset.build_team()
-            system_prompt = team_preset.system_prompt
-            max_exchanges = params["max_exchanges"]
-            max_cycles = params["max_cycles"]
-    except RuntimeError as exc:
-        result = _try_auto_fix_team(params["team"], project_dir, exc)
-        team, system_prompt, verifiers = result
-        max_exchanges = params["max_exchanges"]
-        max_cycles = params["max_cycles"]
-    except (ValueError, KeyError, OSError) as exc:
-        _fail(f"Invalid team config: {exc}")
+    if debug:
+        # --- Debug mode: mock everything ---
+        from kodo.debug import build_debug_team, MockOrchestrator, _allocator
 
-    orchestrator = build_orchestrator(
-        params["orchestrator"],
-        params["orchestrator_model"],
-        system_prompt=system_prompt,
-    )
+        _allocator.reset()
+        orch_letter = _allocator.next("orchestrator")
+        team, debug_sessions = build_debug_team(params["team"])
+        orchestrator = MockOrchestrator(orch_letter)
 
-    # Preflight: smoke-test backends before committing to a long run
-    preflight_warnings = preflight_check_backends(team)
-    if preflight_warnings:
-        if len(preflight_warnings) == len(team):
-            # ALL backends failed — abort
-            _fail(
-                "All backends failed preflight checks:\n"
-                + "\n".join(preflight_warnings)
-                + "\nFix the issues above or install a working backend."
-            )
+        log.emit(
+            "debug_run_start",
+            mode="debug",
+            goal=goal_text,
+            letter_assignments=_allocator.assignments,
+        )
+
         if not json_mode:
-            print("\n⚠ Backend preflight warnings:")
-            for w in preflight_warnings:
-                print(w)
-            print("  (Continuing — some backends may fail at runtime)\n")
-        log.emit("preflight_warnings", warnings=preflight_warnings)
+            print("\n  [DEBUG MODE — mocked backends]")
+            print("  Letter assignments:")
+            for letter, role in _allocator.assignments:
+                print(f"    {letter} = {role}")
+    else:
+        # --- Normal mode: real backends ---
+        debug_sessions = None
+
+        # Try loading a team JSON config; fall back to built-in preset
+        try:
+            team_config = load_team_config(params["team"], project_dir)
+            if team_config:
+                team = build_team_from_json(team_config)
+                system_prompt = (
+                    team_config.get("orchestrator_prompt") or team_preset.system_prompt
+                )
+                verifiers = team_config.get("verifiers")
+                max_exchanges = team_config.get("max_exchanges", max_exchanges)
+                max_cycles = team_config.get("max_cycles", max_cycles)
+            else:
+                team = team_preset.build_team()
+                system_prompt = team_preset.system_prompt
+        except RuntimeError as exc:
+            result = _try_auto_fix_team(params["team"], project_dir, exc)
+            team, system_prompt, verifiers = result
+        except (ValueError, KeyError, OSError) as exc:
+            _fail(f"Invalid team config: {exc}")
+
+        orchestrator = build_orchestrator(
+            params["orchestrator"],
+            params["orchestrator_model"],
+            system_prompt=system_prompt,
+        )
+
+        # Preflight: smoke-test backends before committing to a long run
+        preflight_warnings = preflight_check_backends(team)
+        if preflight_warnings:
+            if len(preflight_warnings) == len(team):
+                # ALL backends failed — abort
+                _fail(
+                    "All backends failed preflight checks:\n"
+                    + "\n".join(preflight_warnings)
+                    + "\nFix the issues above or install a working backend."
+                )
+            if not json_mode:
+                print("\n  Backend preflight warnings:")
+                for w in preflight_warnings:
+                    print(w)
+                print("  (Continuing — some backends may fail at runtime)\n")
+            log.emit("preflight_warnings", warnings=preflight_warnings)
 
     if not json_mode:
         print(f"\nTeam: {team_preset.name} — {team_preset.description}")
@@ -247,7 +272,37 @@ def launch_run(
         if result.summary:
             print(f"  {result.summary[:300]}")
 
+    # Debug mode: print token flow summary
+    if debug and debug_sessions is not None:
+        _print_debug_summary(orchestrator, debug_sessions)
+
     return result
+
+
+def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
+    """Print the debug token flow summary after a mock run."""
+    from kodo.debug import MockOrchestrator
+
+    print()
+    print("=" * 60)
+    print("  DEBUG SUMMARY")
+    print("=" * 60)
+
+    if isinstance(orchestrator, MockOrchestrator):
+        s = orchestrator._session
+        print(
+            f"  {s.letter} (orchestrator): "
+            f"generated {s.generated_tokens}, "
+            f"saw {s.seen_tokens}"
+        )
+
+    for role, session in sorted(debug_sessions.items(), key=lambda x: x[1].letter):
+        print(
+            f"  {session.letter} ({role}): "
+            f"generated {session.generated_tokens}, "
+            f"saw {session.seen_tokens}"
+        )
+    print()
 
 
 # ---------------------------------------------------------------------------

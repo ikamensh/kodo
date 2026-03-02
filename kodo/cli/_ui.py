@@ -23,6 +23,7 @@ _BACKEND_LABELS = {
     "CursorSession": "cursor",
     "CodexSession": "codex",
     "GeminiCliSession": "gemini cli",
+    "MockSession": "mock",
 }
 
 
