@@ -216,7 +216,7 @@ def init(run_dir: RunDir) -> Path:
     Safe to call multiple times for the same run — only resets on the first
     call or when the run_id changes.
     """
-    global _log_file, _run_id, _start_time, _run_stats, _virtual_cost_note_shown
+    global _log_file, _run_id, _start_time, _run_stats, _virtual_cost_note_shown, _last_table_time
 
     from kodo import __version__
 
@@ -228,6 +228,7 @@ def init(run_dir: RunDir) -> Path:
         _start_time = time.monotonic()
         _run_stats = RunStats()
         _virtual_cost_note_shown = False
+        _last_table_time = 0.0
 
         run_dir.root.mkdir(parents=True, exist_ok=True)
         run_dir.root.chmod(0o700)
@@ -322,15 +323,24 @@ def _trunc(s: str, width: int) -> str:
 
 
 _virtual_cost_note_shown = False
+_last_table_time: float = 0.0
+_TABLE_MIN_INTERVAL: float = 10.0  # seconds between progress tables
 
 
 def print_stats_table(final: bool = False) -> None:
     """Print a compact stats table to the terminal.
 
     Called periodically during a run and once at termination.
+    Non-final tables are throttled to at most once per 10 seconds.
     Uses a snapshot of RunStats to avoid races with concurrent record_agent().
     """
-    global _virtual_cost_note_shown
+    global _virtual_cost_note_shown, _last_table_time
+
+    if not final:
+        now = time.monotonic()
+        if now - _last_table_time < _TABLE_MIN_INTERVAL:
+            return
+        _last_table_time = now
     with _lock:
         stats = _run_stats
         start = _start_time
@@ -564,13 +574,14 @@ def find_incomplete_runs(project_dir: Path) -> list[RunState]:
 
 def init_append(log_file: Path) -> Path:
     """Set module globals to append to an existing log file. Emits run_resumed marker."""
-    global _log_file, _run_id, _start_time, _run_stats
+    global _log_file, _run_id, _start_time, _run_stats, _last_table_time
 
     with _lock:
         _log_file = log_file
         _run_id = _extract_run_id(log_file)
         _start_time = time.monotonic()
         _run_stats = RunStats()
+        _last_table_time = 0.0
 
     emit("run_resumed", log_file=str(log_file))
     return log_file
