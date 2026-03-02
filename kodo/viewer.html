@@ -273,8 +273,16 @@ function buildTree(events) {
     // Skip header events
     if (['run_init', 'cli_args', 'run_start', 'run_end'].includes(e.event)) continue;
 
-    // Cycle start
+    // Cycle start — run_cycle and cycle_start are emitted back-to-back for
+    // the same cycle.  run_cycle carries metadata (cycle number, max_cycles,
+    // goal); cycle_start is the inner orchestrator event.  Only create a new
+    // cycle object on the first of the pair.
     if (e.event === 'run_cycle' || e.event === 'cycle_start') {
+      if (e.event === 'cycle_start' && currentCycle && currentCycle.exchanges.length === 0 && !currentCycle.end) {
+        // Already created by the preceding run_cycle — just merge any extra fields
+        if (e.t != null && !currentCycle.startTime) currentCycle.startTime = e.t;
+        continue;
+      }
       currentCycle = {
         num: e.cycle || (tree.cycles.length + 1),
         maxCycles: e.max_cycles,
