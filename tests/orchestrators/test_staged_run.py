@@ -1025,30 +1025,7 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
 # ── Worktree helper tests ───────────────────────────────────────────────
 
 
-@pytest.fixture
-def git_project(tmp_path: Path) -> Path:
-    """Create a real git repo for worktree tests."""
-    import subprocess
-
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env={
-            **os.environ,
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-        },
-    )
-    return project
-
-
+@pytest.mark.slow
 class TestWorktreeHelpers:
     def test_create_worktree(self, git_project):
         wt, branch = create_worktree(git_project, "test-label")
@@ -1126,29 +1103,11 @@ class TestWorktreeHelpers:
 # ── Parallel stages with worktree isolation tests ────────────────────────
 
 
+@pytest.mark.slow
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
+def test_parallel_stages_use_worktrees(mock_viewer, git_project, tmp_path):
     """Parallel stages should receive worktree paths, not the main project dir."""
-    # Set up a real git repo so worktrees can be created
-    import subprocess
-
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env={
-            **os.environ,
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-        },
-    )
-
+    project = git_project
     log.init(RunDir.create(tmp_path))
     plan = _make_parallel_plan()
 
@@ -1327,6 +1286,7 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
 # ── Worktree cleanup on interrupt ────────────────────────────────────────
 
 
+@pytest.mark.slow
 @patch("kodo.orchestrators.base.open_viewer", create=True)
 def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
     """If KeyboardInterrupt fires during worktree creation, already-created
@@ -1407,6 +1367,7 @@ def _git(project, *args):
     )
 
 
+@pytest.mark.slow
 class TestCommitWorktreeChanges:
     def test_commits_unstaged_files(self, git_project):
         wt, branch = create_worktree(git_project, "commit-test")
@@ -1423,6 +1384,7 @@ class TestCommitWorktreeChanges:
         remove_worktree(git_project, wt, branch)
 
 
+@pytest.mark.slow
 class TestRemoveWorktreeKeepBranch:
     def test_dir_removed_branch_survives(self, git_project):
         import subprocess
@@ -1444,6 +1406,43 @@ class TestRemoveWorktreeKeepBranch:
         )
 
 
+@pytest.fixture(scope="session")
+def _conflict_repo_template(_git_repo_template: Path, tmp_path_factory) -> tuple[Path, str]:
+    """Pre-build a repo with a conflict branch (session-scoped, copied per test)."""
+    import shutil
+
+    tpl = tmp_path_factory.mktemp("conflict_tpl") / "repo"
+    shutil.copytree(_git_repo_template, tpl)
+
+    (tpl / "shared.py").write_text("original")
+    _git(tpl, "add", "-A")
+    _git(tpl, "commit", "-m", "add shared")
+
+    wt, branch = create_worktree(tpl, "merge-conflict")
+    (wt / "shared.py").write_text("worktree version")
+    _git(wt, "add", "-A")
+    _git(wt, "commit", "-m", "worktree change")
+    _remove_worktree_keep_branch(tpl, wt)
+
+    (tpl / "shared.py").write_text("main version")
+    _git(tpl, "add", "-A")
+    _git(tpl, "commit", "-m", "main change")
+
+    return tpl, branch
+
+
+@pytest.fixture
+def conflict_project(_conflict_repo_template: tuple[Path, str], tmp_path: Path) -> tuple[Path, str]:
+    """Per-test copy of the conflict repo template."""
+    import shutil
+
+    tpl, branch = _conflict_repo_template
+    dest = tmp_path / "conflict_repo"
+    shutil.copytree(tpl, dest)
+    return dest, branch
+
+
+@pytest.mark.slow
 class TestMergeWorktreeBranch:
     def test_clean_merge(self, git_project):
         wt, branch = create_worktree(git_project, "merge-clean")
@@ -1470,21 +1469,9 @@ class TestMergeWorktreeBranch:
         assert not result.had_changes
         _git(git_project, "branch", "-D", branch)
 
-    def test_conflict_resolved_by_agent(self, git_project):
+    def test_conflict_resolved_by_agent(self, conflict_project):
         """When merge conflicts occur, an agent resolves them."""
-        (git_project / "shared.py").write_text("original")
-        _git(git_project, "add", "-A")
-        _git(git_project, "commit", "-m", "add shared")
-
-        wt, branch = create_worktree(git_project, "merge-conflict")
-        (wt / "shared.py").write_text("worktree version")
-        _git(wt, "add", "-A")
-        _git(wt, "commit", "-m", "worktree change")
-        _remove_worktree_keep_branch(git_project, wt)
-
-        (git_project / "shared.py").write_text("main version")
-        _git(git_project, "add", "-A")
-        _git(git_project, "commit", "-m", "main change")
+        project, branch = conflict_project
 
         def _fake_resolve(project_dir, branch_name, stage_name):
             """Simulate agent resolving conflicts: pick a side, add, commit."""
@@ -1497,49 +1484,33 @@ class TestMergeWorktreeBranch:
             "kodo.orchestrators.base._resolve_conflicts_with_agent",
             side_effect=_fake_resolve,
         ):
-            result = merge_worktree_branch(git_project, branch, "ConflictStage")
+            result = merge_worktree_branch(project, branch, "ConflictStage")
 
         # Agent resolves the conflict
         assert result.success
         assert result.had_changes
 
-        content = (git_project / "shared.py").read_text()
+        content = (project / "shared.py").read_text()
         assert "<<<<<<<" not in content
 
-        _git(git_project, "branch", "-D", branch)
-
-    def test_conflict_aborts_when_agent_fails(self, git_project):
+    def test_conflict_aborts_when_agent_fails(self, conflict_project):
         """If agent can't resolve conflicts, merge aborts cleanly."""
         from unittest.mock import patch
 
-        (git_project / "shared.py").write_text("original")
-        _git(git_project, "add", "-A")
-        _git(git_project, "commit", "-m", "add shared")
-
-        wt, branch = create_worktree(git_project, "merge-conflict2")
-        (wt / "shared.py").write_text("worktree version")
-        _git(wt, "add", "-A")
-        _git(wt, "commit", "-m", "worktree change")
-        _remove_worktree_keep_branch(git_project, wt)
-
-        (git_project / "shared.py").write_text("main version")
-        _git(git_project, "add", "-A")
-        _git(git_project, "commit", "-m", "main change")
+        project, branch = conflict_project
 
         with patch(
             "kodo.orchestrators.base._resolve_conflicts_with_agent",
             return_value=False,
         ):
-            result = merge_worktree_branch(git_project, branch, "ConflictStage")
+            result = merge_worktree_branch(project, branch, "ConflictStage")
 
         assert not result.success
         assert result.had_changes
         assert result.conflict
 
-        status = _git(git_project, "status", "--porcelain")
+        status = _git(project, "status", "--porcelain")
         assert not status.stdout.strip()
-
-        _git(git_project, "branch", "-D", branch)
 
 
 # ── persist_changes integration tests ─────────────────────────────────────
@@ -1576,21 +1547,11 @@ def _make_persist_plan(persist_a=False, persist_b=False) -> GoalPlan:
     )
 
 
+@pytest.mark.slow
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_persist_changes_merges_to_main(mock_viewer, tmp_path):
+def test_persist_changes_merges_to_main(mock_viewer, git_project, tmp_path):
     """Parallel stage with persist_changes=True should merge files back."""
-    import subprocess
-
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    project = git_project
     log.init(RunDir.create(tmp_path))
 
     plan = _make_persist_plan(persist_a=True, persist_b=False)
@@ -1620,21 +1581,11 @@ def test_persist_changes_merges_to_main(mock_viewer, tmp_path):
     )
 
 
+@pytest.mark.slow
 @patch("kodo.orchestrators.base.open_viewer", create=True)
-def test_persist_changes_false_discards(mock_viewer, tmp_path):
+def test_persist_changes_false_discards(mock_viewer, git_project, tmp_path):
     """Default persist_changes=False should discard worktree changes (regression)."""
-    import subprocess
-
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    project = git_project
     log.init(RunDir.create(tmp_path))
 
     plan = _make_persist_plan(persist_a=False, persist_b=False)

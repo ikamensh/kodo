@@ -54,6 +54,7 @@ class TestHelpAndVersion:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestEntryPointSubprocess:
     def test_help_subprocess(self):
         result = subprocess.run(

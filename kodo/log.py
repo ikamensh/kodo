@@ -77,6 +77,10 @@ class RunDir:
     def config_file(self) -> Path:
         return self.root / "config.json"
 
+    @property
+    def team_file(self) -> Path:
+        return self.root / "team.json"
+
 
 def _extract_run_id(log_file: Path) -> str:
     """Extract run_id from a log file path (~/.kodo/runs/<run_id>/run.jsonl)."""

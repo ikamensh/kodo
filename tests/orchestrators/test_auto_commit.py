@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.conftest import _GIT_ENV
+
 import pytest
 
 from kodo import log
@@ -64,26 +66,11 @@ class GitCommitSession(FakeSession):
 
 
 @pytest.fixture
-def git_project(tmp_path: Path) -> Path:
-    """Create a real git repo with an initial commit and uncommitted changes."""
-    project = tmp_path / "project"
-    project.mkdir()
+def git_project(git_project: Path) -> Path:
+    """Extend the shared git_project with uncommitted changes for auto-commit tests."""
+    project = git_project
 
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "config", "user.email", "test@test.com"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-    )
-
-    # Initial commit
+    # Initial tracked file
     (project / "README.md").write_text("# Hello")
     subprocess.run(["git", "add", "-A"], cwd=project, capture_output=True, check=True)
     subprocess.run(
@@ -91,6 +78,7 @@ def git_project(tmp_path: Path) -> Path:
         cwd=project,
         capture_output=True,
         check=True,
+        env=_GIT_ENV,
     )
 
     # Now create uncommitted work (simulates what the worker_fast produced)
@@ -389,6 +377,7 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_auto_commit_creates_real_git_commit(git_project: Path) -> None:
     """_auto_commit with GitCommitSession creates a real commit in the repo."""
     # Verify there are uncommitted changes before auto-commit
@@ -442,6 +431,7 @@ def test_auto_commit_creates_real_git_commit(git_project: Path) -> None:
     assert "README.md" in committed_files
 
 
+@pytest.mark.slow
 def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> None:
     """End-to-end: orchestrator cycle → done → verify → auto-commit → real git commit.
 
@@ -505,6 +495,7 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
     assert not status.stdout.strip()
 
 
+@pytest.mark.slow
 def test_no_commit_when_auto_commit_disabled_real_git(
     tmp_path: Path,
     git_project: Path,

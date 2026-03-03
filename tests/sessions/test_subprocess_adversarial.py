@@ -27,6 +27,7 @@ def _count_threads() -> int:
     return sum(1 for t in threading.enumerate() if t is not threading.main_thread())
 
 
+@pytest.mark.slow
 def test_agent_run_returns_on_hanging_session(tmp_path: Path):
     """Boundary Condition 2: Agent.run() must return promptly when a session's
     query blocks indefinitely.

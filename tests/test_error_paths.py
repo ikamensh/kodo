@@ -495,7 +495,7 @@ class TestDoneSignalEdgeCases:
         for t in threads:
             t.start()
 
-        time.sleep(0.1)  # run for 100ms
+        time.sleep(0.02)  # run for 20ms
         stop.set()
 
         for t in threads:

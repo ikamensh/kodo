@@ -23,7 +23,12 @@ from kodo.factory import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult
-from kodo.team_config import build_team_from_json, load_team_config, validate_verifiers
+from kodo.team_config import (
+    build_team_from_json,
+    load_team_config,
+    team_to_json,
+    validate_verifiers,
+)
 
 # ---------------------------------------------------------------------------
 # Exit codes
@@ -246,6 +251,19 @@ def launch_run(
         except (ValueError, KeyError, OSError) as exc:
             _fail(f"Invalid team config: {exc}")
 
+        # Snapshot resolved team config for deterministic resume
+        if team_config:
+            _atomic_write(run_dir.team_file, json.dumps(team_config, indent=2))
+        else:
+            snapshot = team_to_json(
+                team,
+                orchestrator_prompt=system_prompt,
+                verifiers=verifiers,
+                max_exchanges=max_exchanges,
+                max_cycles=max_cycles,
+            )
+            _atomic_write(run_dir.team_file, json.dumps(snapshot, indent=2))
+
         orchestrator = build_orchestrator(
             params["orchestrator"],
             params["orchestrator_model"],
@@ -340,7 +358,9 @@ def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
+def launch_resume(
+    run_dir: RunDir, state: log.RunState, *, team_override: str | None = None,
+) -> RunResult:
     """Resume an interrupted run from its parsed RunState. Returns the RunResult."""
     log.init_append(state.log_file)
 
@@ -398,8 +418,34 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     max_exchanges = params["max_exchanges"]
     max_cycles = params["max_cycles"]
 
+    # Load team: --team override > snapshot from run dir > current config
+    team_config = None
+    if team_override:
+        # User explicitly chose a different team for this resume
+        try:
+            team_config = load_team_config(team_override, project_dir)
+        except (ValueError, KeyError, OSError):
+            team_config = None
+        if team_config is None:
+            # Try built-in preset (will be handled below as team_config=None)
+            try:
+                team_preset = get_team(team_override)
+            except KeyError:
+                _fail(f"Unknown team: {team_override!r}")
+    elif run_dir.team_file.exists():
+        try:
+            team_config = json.loads(run_dir.team_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            team_config = None
+
+    if team_config is None and not team_override:
+        # Backward compat: old runs without team.json
+        try:
+            team_config = load_team_config(params["team"], project_dir)
+        except (ValueError, KeyError, OSError):
+            team_config = None
+
     try:
-        team_config = load_team_config(params["team"], project_dir)
         if team_config:
             team = build_team_from_json(team_config)
             system_prompt = (

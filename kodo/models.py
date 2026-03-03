@@ -21,7 +21,7 @@ CURSOR_COMPOSER = "composer-1.5"
 # Codex
 # ---------------------------------------------------------------------------
 CODEX_DEFAULT = "gpt-5.3-codex"
-CODEX_WORKER = "gpt-5.2-codex"
+CODEX_WORKER = "gpt-5.3-codex"
 CODEX_O3 = "o3"
 
 # ---------------------------------------------------------------------------

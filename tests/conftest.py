@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +15,51 @@ from kodo.agent import Agent
 from kodo.factory import clear_backend_cache
 from kodo.sessions.base import QueryResult, SessionStats
 from kodo.user_config import clear_user_config_cache
+
+
+_GIT_ENV = {
+    **os.environ,
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "t@t",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+}
+
+
+@pytest.fixture(scope="session")
+def _git_repo_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Create a git repo once per session; tests copy it via git_project."""
+    tpl = tmp_path_factory.mktemp("git_tpl") / "repo"
+    tpl.mkdir()
+    subprocess.run(["git", "init"], cwd=tpl, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=tpl,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
+    )
+    return tpl
+
+
+@pytest.fixture
+def git_project(_git_repo_template: Path, tmp_path: Path) -> Path:
+    """Fast per-test git repo: copies the session-level template."""
+    dest = tmp_path / "repo"
+    shutil.copytree(_git_repo_template, dest)
+    return dest
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _fast_git():
+    """Skip global/system git config to speed up all subprocess git calls."""
+    os.environ.setdefault("GIT_CONFIG_NOSYSTEM", "1")
+    os.environ.setdefault("GIT_CONFIG_GLOBAL", "/dev/null")
+    yield
+    os.environ.pop("GIT_CONFIG_NOSYSTEM", None)
+    os.environ.pop("GIT_CONFIG_GLOBAL", None)
 
 
 @pytest.fixture(autouse=True)

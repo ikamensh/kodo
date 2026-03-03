@@ -22,27 +22,8 @@ import pytest
 
 from kodo.orchestrators.base import create_worktree, remove_worktree
 
+pytestmark = pytest.mark.slow
 
-@pytest.fixture
-def git_project(tmp_path: Path) -> Path:
-    """Create a real git repo for worktree tests."""
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env={
-            **os.environ,
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-        },
-    )
-    return project
 
 
 def _count_kodo_temp_dirs() -> int:

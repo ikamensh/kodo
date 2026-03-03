@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+import pytest
+
 from kodo.agent import Agent, AgentResult
 from kodo.sessions.base import QueryResult
 from tests.conftest import FakeSession, make_agent
@@ -111,6 +113,7 @@ def test_agent_close_no_error_with_noop_close(tmp_project: Path) -> None:
     agent.close()
 
 
+@pytest.mark.slow
 def test_agent_timeout_does_not_hang_on_stuck_session(tmp_project: Path) -> None:
     """When terminate() doesn't actually stop the worker thread,
     run() must still return promptly instead of hanging at pool.shutdown()."""

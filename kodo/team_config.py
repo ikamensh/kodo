@@ -218,3 +218,53 @@ def validate_verifiers(
         if valid:
             cleaned[role] = valid
     return cleaned or None
+
+
+def team_to_json(
+    team: TeamConfig,
+    *,
+    orchestrator_prompt: str | None = None,
+    verifiers: dict[str, list[str]] | None = None,
+    max_exchanges: int | None = None,
+    max_cycles: int | None = None,
+) -> dict:
+    """Serialize a built TeamConfig to a JSON-compatible dict for snapshotting."""
+    from kodo.factory import _SESSION_BACKEND_MAP
+
+    agents: dict[str, dict] = {}
+    for role, agent in team.items():
+        session = agent.session
+        backend = _SESSION_BACKEND_MAP.get(type(session).__name__, "claude")
+
+        entry: dict = {
+            "backend": backend,
+            "model": session.model,
+            "description": agent.description,
+            "max_turns": agent.max_turns,
+        }
+        if agent.timeout_s is not None:
+            entry["timeout_s"] = agent.timeout_s
+        if getattr(session, "system_prompt", None):
+            entry["system_prompt"] = session.system_prompt
+        if getattr(session, "chrome", False):
+            entry["chrome"] = True
+        if getattr(session, "fallback_model", None):
+            entry["fallback_model"] = session.fallback_model
+        session_timeout = getattr(session, "_session_timeout_s", None) or getattr(
+            session, "_timeout_s", None,
+        )
+        if session_timeout and session_timeout != 7200:
+            entry["session_timeout_s"] = session_timeout
+
+        agents[role] = entry
+
+    result: dict = {"agents": agents}
+    if orchestrator_prompt:
+        result["orchestrator_prompt"] = orchestrator_prompt
+    if verifiers:
+        result["verifiers"] = verifiers
+    if max_exchanges:
+        result["max_exchanges"] = max_exchanges
+    if max_cycles:
+        result["max_cycles"] = max_cycles
+    return result

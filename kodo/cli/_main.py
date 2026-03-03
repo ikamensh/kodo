@@ -272,7 +272,7 @@ def _main_inner() -> None:
                 sys.exit(0)
 
         run_dir = RunDir.from_log_file(state.log_file, project_dir)
-        result = launch_resume(run_dir, state)
+        result = launch_resume(run_dir, state, team_override=args.team)
         _emit_json_and_exit(args, result)
         return
 
