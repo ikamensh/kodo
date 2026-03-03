@@ -64,6 +64,9 @@ class FakeSession:
     def terminate(self) -> None:
         pass  # no subprocess to kill in tests
 
+    def close(self) -> None:
+        pass  # no resources to release in tests
+
     def clone(self) -> "FakeSession":
         return FakeSession(response_text=self._response_text, is_error=self._is_error)
 

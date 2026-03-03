@@ -12,7 +12,7 @@ import subprocess
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 from kodo.agent import Agent
 
@@ -358,9 +358,7 @@ def handle_done(
     log.tprint(f"🏁 [orchestrator] DONE requested (success={success}): {summary}")
 
     if not success:
-        done_signal.called = True
-        done_signal.summary = summary
-        done_signal.success = False
+        done_signal.set_done(summary, success=False)
         return "Acknowledged (marked as unsuccessful)."
 
     # Branch on verification mode
@@ -390,11 +388,10 @@ def handle_done(
         log.tprint("❌ [done] REJECTED — verification found issues")
         return rejection
 
-    # Update signal before auto-commit so the orchestrator loop sees
-    # "done" immediately and is not blocked by a potentially slow commit.
-    done_signal.called = True
-    done_signal.summary = summary
-    done_signal.success = True
+    # Update signal atomically before auto-commit so the orchestrator
+    # loop sees a consistent (called, summary, success) snapshot and is
+    # not blocked by a potentially slow commit.
+    done_signal.set_done(summary, success=True)
     log.emit("orchestrator_done_accepted", **tag, summary=summary)
 
     if config.auto_commit:
@@ -455,6 +452,17 @@ class DoneSignal:
     def success(self, value: bool) -> None:
         with self._lock:
             self._success = value
+
+    def set_done(self, summary: str, success: bool) -> None:
+        """Atomically set all three done-signal fields under one lock.
+
+        This prevents torn reads where ``called`` is ``True`` but
+        ``summary`` / ``success`` have not yet been written.
+        """
+        with self._lock:
+            self._called = True
+            self._summary = summary
+            self._success = success
 
     def snapshot(self) -> tuple[bool, str, bool]:
         """Return ``(called, summary, success)`` atomically."""
@@ -568,6 +576,7 @@ class McpServerContext:
 
     def __init__(self, mcp) -> None:
         self._mcp = mcp
+        self._server: Any = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._exc: Exception | None = None
@@ -610,6 +619,12 @@ class McpServerContext:
 
                 self._loop = asyncio.new_event_loop()
                 self._loop.run_until_complete(server.serve())
+            except RuntimeError as e:
+                # "Event loop is closed" / "Event loop stopped" are expected
+                # when __exit__ asks the loop to stop; suppress them silently.
+                if "event loop" not in str(e).lower():
+                    self._exc = e
+                    ready.set()
             except Exception as e:
                 self._exc = e
                 ready.set()  # unblock main thread so it can raise
@@ -619,7 +634,7 @@ class McpServerContext:
 
         # Wait for the server to be ready (up to 10s)
         if not ready.wait(timeout=10):
-            if hasattr(self, "_server"):
+            if self._server is not None:
                 self._server.should_exit = True
             if self._thread:
                 self._thread.join(timeout=5)
@@ -628,7 +643,7 @@ class McpServerContext:
             raise RuntimeError("MCP server failed to start within 10s")
 
         if self._exc:
-            if hasattr(self, "_server"):
+            if self._server is not None:
                 self._server.should_exit = True
             if self._thread:
                 self._thread.join(timeout=5)
@@ -656,7 +671,7 @@ class McpServerContext:
         ]
 
     def __exit__(self, *exc) -> None:
-        if hasattr(self, "_server"):
+        if self._server is not None:
             self._server.should_exit = True
         # Ask the event loop to stop so run_until_complete() returns
         # and the thread can exit naturally.
@@ -1062,7 +1077,13 @@ def cleanup_abandoned_worktrees(project_dir: Path, max_age_hours: int = 24) -> i
 
     This is safe to call at startup — it only touches kodo-prefixed branches
     and runs ``git worktree prune`` to sync git's internal state.
+
+    Raises ``ValueError`` if *max_age_hours* is not positive.
     """
+    if max_age_hours <= 0:
+        raise ValueError(
+            f"max_age_hours must be positive, got {max_age_hours}"
+        )
     import time
 
     cleaned = 0
@@ -1396,10 +1417,11 @@ def merge_worktree_branch(
             timeout=_GIT_TIMEOUT,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        err = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or str(e))
         log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {e.stderr}",
+            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {err}",
         )
-        return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
+        return MergeResult(success=False, had_changes=False, error=err)
 
     _strip_pycache_from_index(project_dir)
     status_before = subprocess.run(
@@ -1434,10 +1456,11 @@ def merge_worktree_branch(
             timeout=_GIT_TIMEOUT,
         )
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        err = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or str(e))
         log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {e.stderr}",
+            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {err}",
         )
-        return MergeResult(success=False, had_changes=False, error=e.stderr or str(e))
+        return MergeResult(success=False, had_changes=False, error=err)
 
     # Strip __pycache__ from current branch too (prior merge may have
     # brought in bytecode that would conflict with the next branch).

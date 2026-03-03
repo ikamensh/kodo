@@ -816,7 +816,7 @@ def _cmd_teams_edit(name: str) -> None:
             testers = questionary.checkbox(
                 "Testers (non-browser):",
                 choices=agent_keys,
-                default=[k for k in verifiers.get("testers", []) if k in agent_keys],
+                default=[k for k in verifiers.get("testers", []) if k in agent_keys],  # type: ignore[arg-type]
             ).ask()
             if testers is not None:
                 verifiers["testers"] = testers
@@ -826,7 +826,7 @@ def _cmd_teams_edit(name: str) -> None:
                 choices=agent_keys,
                 default=[
                     k for k in verifiers.get("browser_testers", []) if k in agent_keys
-                ],
+                ],  # type: ignore[arg-type]
             ).ask()
             if browser_testers is not None:
                 verifiers["browser_testers"] = browser_testers
@@ -834,7 +834,7 @@ def _cmd_teams_edit(name: str) -> None:
             reviewers = questionary.checkbox(
                 "Reviewers (architects):",
                 choices=agent_keys,
-                default=[k for k in verifiers.get("reviewers", []) if k in agent_keys],
+                default=[k for k in verifiers.get("reviewers", []) if k in agent_keys],  # type: ignore[arg-type]
             ).ask()
             if reviewers is not None:
                 verifiers["reviewers"] = reviewers

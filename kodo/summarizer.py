@@ -143,8 +143,10 @@ class Summarizer:
         report = report or ""
         try:
             if self._backend == "ollama":
+                assert self._backend_param is not None
                 text = _summarize_ollama(self._backend_param, task, report)
             elif self._backend == "gemini":
+                assert self._backend_param is not None
                 text = _summarize_gemini(self._backend_param, task, report)
             else:
                 text = _summarize_truncate(report)

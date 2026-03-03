@@ -129,6 +129,8 @@ class CursorOrchestrator(OrchestratorBase):
                     encoding="utf-8",
                     errors="replace",
                 )
+                assert proc.stdout is not None
+                assert proc.stderr is not None
 
                 # Parse stream-json output
                 response_text = ""

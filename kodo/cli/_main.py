@@ -360,6 +360,8 @@ def _main_inner() -> None:
             print(f"Using existing goal plan ({len(plan.stages)} stages)")
         elif args.auto_refine:
             backend = preferred_backend()
+            if backend is None:
+                _fail("No backend available for auto-refine. Install a backend first.")
             refined = run_intake_auto(backend, run_dir, goal_text)
             if refined:
                 goal_text = refined
@@ -383,6 +385,8 @@ def _main_inner() -> None:
         if plan is None and not args.skip_intake:
             if args.auto_refine:
                 backend = preferred_backend()
+                if backend is None:
+                    _fail("No backend available for auto-refine. Install a backend first.")
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined
@@ -395,7 +399,7 @@ def _main_inner() -> None:
 
     # 5. Summary and confirm
     team_name = params.get("team")
-    if team_name not in TEAMS:
+    if not isinstance(team_name, str) or team_name not in TEAMS:
         _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(TEAMS)}.")
     if not args.json:
         team_preset = get_team(team_name)

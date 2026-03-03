@@ -40,6 +40,8 @@ class SessionStats:
 
 
 class Session(Protocol):
+    model: str
+
     @property
     def stats(self) -> SessionStats: ...
 
@@ -64,6 +66,15 @@ class Session(Protocol):
 
         Called on timeout to forcefully stop a running query before ``reset()``.
         Implementations should be safe to call even when no query is in flight.
+        """
+        ...
+
+    def close(self) -> None:
+        """Release resources (event loops, file handles, threads).
+
+        Called after ``terminate()`` for final cleanup.  The default is a
+        no-op; sessions that own background threads or event loops (e.g.
+        ``ClaudeSession``) should override this.
         """
         ...
 
@@ -125,6 +136,8 @@ class SubprocessSession:
             cwd=cwd,
         )
         self._process = proc
+        assert proc.stdout is not None, "stdout must be PIPE"
+        assert proc.stderr is not None, "stderr must be PIPE"
         stderr_chunks: list[str] = []
         _STDERR_MAX_LINES = 10_000  # cap to avoid unbounded memory
         _STDERR_MAX_LINE = 65536  # 64KB per line to avoid unbounded single-line buffer
@@ -238,6 +251,11 @@ class SubprocessSession:
                 except (OSError, subprocess.TimeoutExpired):
                     pass
         self._process = None
+
+    def close(self) -> None:
+        """Release resources.  No-op for subprocess sessions (cleanup is in
+        ``terminate()`` / ``_wait()``).  Override if the session owns
+        long-lived resources like event loops or background threads."""
 
     def reset(self) -> None:
         """Reset shared state.  Subclasses should log, clear their own state,

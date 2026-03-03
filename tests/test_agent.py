@@ -105,9 +105,9 @@ def test_agent_close_calls_session_close(tmp_project: Path) -> None:
     assert agent.session.close_called is True
 
 
-def test_agent_close_no_error_without_close_method(tmp_project: Path) -> None:
+def test_agent_close_no_error_with_noop_close(tmp_project: Path) -> None:
     agent = make_agent("ok")
-    # FakeSession has no close() — should not raise
+    # FakeSession.close() is a no-op — should not raise
     agent.close()
 
 

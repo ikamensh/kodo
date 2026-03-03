@@ -236,11 +236,9 @@ class Agent:
         """Release resources held by the underlying session.
 
         Calls ``session.terminate()`` to stop any in-flight work, then
-        ``session.close()`` (if available) for final cleanup.  Safe to
-        call multiple times.
+        ``session.close()`` for final cleanup.  Safe to call multiple times.
         """
         try:
             self.session.terminate()
         finally:
-            if hasattr(self.session, "close"):
-                self.session.close()
+            self.session.close()

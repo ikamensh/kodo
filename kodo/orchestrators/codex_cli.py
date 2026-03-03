@@ -103,6 +103,8 @@ class CodexOrchestrator(OrchestratorBase):
                     encoding="utf-8",
                     errors="replace",
                 )
+                assert proc.stdout is not None
+                assert proc.stderr is not None
 
                 # Parse JSONL output
                 response_text = ""

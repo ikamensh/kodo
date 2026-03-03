@@ -37,11 +37,10 @@ def _close_session(session) -> None:
         session.terminate()
     except (OSError, RuntimeError) as e:
         log.emit("session_cleanup_warning", error=str(e))
-    if hasattr(session, "close"):
-        try:
-            session.close()
-        except (OSError, RuntimeError) as e:
-            log.emit("session_cleanup_warning", error=str(e))
+    try:
+        session.close()
+    except (OSError, RuntimeError) as e:
+        log.emit("session_cleanup_warning", error=str(e))
 
 
 # ---------------------------------------------------------------------------

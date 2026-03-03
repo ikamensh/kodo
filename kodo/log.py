@@ -49,7 +49,8 @@ class RunDir:
                 f"Invalid run_id {rid!r}: must not contain '/', '\\', or '..'"
             )
         rd = RunDir(project_dir=project_dir, run_id=rid)
-        rd.root.mkdir(parents=True, exist_ok=True)
+        rd.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # Defensive chmod — umask may override the mode parameter above.
         rd.root.chmod(0o700)
         return rd
 
@@ -237,8 +238,8 @@ def init(run_dir: RunDir) -> Path:
         _virtual_cost_note_shown = False
         _last_table_time = 0.0
 
-        run_dir.root.mkdir(parents=True, exist_ok=True)
-        run_dir.root.chmod(0o700)
+        run_dir.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        run_dir.root.chmod(0o700)  # defensive; umask may override mode
         _log_file = run_dir.log_file
 
     emit("run_init", project_dir=str(run_dir.project_dir), version=__version__)
@@ -627,4 +628,7 @@ def _serialize(obj: Any) -> Any:
         return str(obj)
     if hasattr(obj, "__dataclass_fields__"):
         return asdict(obj)
-    return repr(obj)
+    try:
+        return repr(obj)
+    except Exception:
+        return f"<{type(obj).__name__} unserializable>"

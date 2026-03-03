@@ -1,10 +1,13 @@
 """Run launch and resume logic, plus JSON output helpers."""
 
+from __future__ import annotations
+
 import contextlib
 import json
 import logging
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 # Suppress noisy SDK info messages ("Using bundled Claude Code CLI: ...")
 # that break the clean progress output.
@@ -31,7 +34,9 @@ EXIT_ERROR = 1
 EXIT_PARTIAL = 2
 
 
-def _try_auto_fix_team(team_name: str, project_dir: Path, exc: Exception):
+def _try_auto_fix_team(
+    team_name: str, project_dir: Path, exc: Exception,
+) -> tuple[dict, str, dict | None]:
     """Offer to run 'kodo teams auto' when team build fails."""
     print(f"\n  Team {team_name!r} could not be built: {exc}", file=sys.stderr)
     print(
@@ -91,7 +96,7 @@ def json_output_redirect():
 # ---------------------------------------------------------------------------
 
 
-def _fail(msg: str, code: int = 1) -> None:
+def _fail(msg: str, code: int = 1) -> NoReturn:
     """Print error and exit. In JSON mode, outputs JSON to original stdout."""
     if _original_stdout is not None:
         sys.stdout = _original_stdout
@@ -113,11 +118,15 @@ def _emit_json_and_exit(args, result, improve_report: str | None = None) -> None
 
 
 def _format_json_output(
-    result=None, error: str | None = None, improve_report: str | None = None,
+    result: RunResult | None = None,
+    error: str | None = None,
+    improve_report: str | None = None,
 ) -> dict:
     """Build the structured JSON output dict."""
     if error is not None:
         return {"status": "error", "error": error}
+    if result is None:
+        return {"status": "error", "error": "No result available"}
     if result.finished:
         status = "completed"
     elif result.cycles:

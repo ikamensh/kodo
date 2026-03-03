@@ -234,6 +234,19 @@ class ClaudeSession:
             self._disconnect()
         except (OSError, RuntimeError):
             pass  # best-effort; ensure stop/join/close always run
+
+        # Cancel all pending asyncio tasks before stopping the loop so that
+        # leaked Future objects (holding SDK client, response buffers, sockets)
+        # are cleaned up instead of lingering in "pending" state forever.
+        try:
+            pending = asyncio.all_tasks(self._loop)
+            for task in pending:
+                self._loop.call_soon_threadsafe(task.cancel)
+            # Give tasks a moment to process cancellation callbacks.
+            time.sleep(0.05)
+        except RuntimeError:
+            pass  # loop already closed/stopped
+
         try:
             self._loop.call_soon_threadsafe(self._loop.stop)
         except RuntimeError:
@@ -340,6 +353,7 @@ class ClaudeSession:
 
         t0 = time.monotonic()
 
+        assert self._client is not None, "_ensure_client must succeed before query"
         try:
             self._run(self._client.query(prompt), timeout=self._query_timeout)
 
@@ -351,6 +365,7 @@ class ClaudeSession:
 
             async def _collect():
                 nonlocal result
+                assert self._client is not None
                 async for message in self._client.receive_response():
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
