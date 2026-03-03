@@ -194,9 +194,9 @@ def test_find_incomplete_runs_newest_first(tmp_path: Path):
         ],
     )
 
-    # Incomplete with 0 cycles — should not appear (no cycle_end)
+    # Incomplete with 0 cycles — should appear (pre-launch failure, e.g. team config error)
     _make_run(
-        "run_nocycles",
+        "mmm_nocycles",
         [
             {
                 "event": "run_start",
@@ -249,10 +249,11 @@ def test_find_incomplete_runs_newest_first(tmp_path: Path):
     )
 
     runs = log.find_incomplete_runs(project)
-    assert len(runs) == 2
-    # Sorted by directory name descending: zzz before aaa
+    assert len(runs) == 3
+    # Sorted by directory name descending: zzz, mmm, aaa
     assert runs[0].run_id == "zzz_newer"
-    assert runs[1].run_id == "aaa_older"
+    assert runs[1].run_id == "mmm_nocycles"
+    assert runs[2].run_id == "aaa_older"
 
 
 def test_init_append_preserves_existing(tmp_path: Path):

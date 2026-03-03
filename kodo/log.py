@@ -512,25 +512,44 @@ def parse_run(log_file: Path) -> RunState | None:
                         if key in ("claude", "codex", "cursor", "gemini-cli"):
                             agent_session_ids[agent_name] = agent_session_ids.pop(key)
 
-    if run_start is None or cli_args is None:
+    if cli_args is None:
         return None
 
-    # Require critical fields; return None if corrupted run_start
-    try:
-        goal = run_start["goal"]
-    except KeyError:
-        return None
+    # When run_start exists, use it as primary source; otherwise
+    # reconstruct from cli_args (run failed before orchestrator started,
+    # e.g. team config validation error after refinement).
+    if run_start is not None:
+        try:
+            goal = run_start["goal"]
+        except KeyError:
+            return None
+        orchestrator = run_start.get("orchestrator", "unknown")
+        model = run_start.get("model", "unknown")
+        project_dir = run_start.get("project_dir", "")
+        max_exchanges = run_start.get("max_exchanges", 0)
+        max_cycles = run_start.get("max_cycles", 0)
+        team_list = run_start.get("team", [])
+    else:
+        goal = cli_args.get("goal_text", "")
+        if not goal:
+            return None
+        orchestrator = cli_args.get("orchestrator", "unknown")
+        model = cli_args.get("orchestrator_model", "unknown")
+        project_dir = cli_args.get("project_dir", "")
+        max_exchanges = cli_args.get("max_exchanges", 0)
+        max_cycles = cli_args.get("max_cycles", 0)
+        team_list = []
 
     return RunState(
         run_id=_extract_run_id(log_file),
         log_file=log_file,
         goal=goal,
-        orchestrator=run_start.get("orchestrator", "unknown"),
-        model=run_start.get("model", "unknown"),
-        project_dir=run_start.get("project_dir", ""),
-        max_exchanges=run_start.get("max_exchanges", 0),
-        max_cycles=run_start.get("max_cycles", 0),
-        team=run_start.get("team", []),
+        orchestrator=orchestrator,
+        model=model,
+        project_dir=project_dir,
+        max_exchanges=max_exchanges,
+        max_cycles=max_cycles,
+        team=team_list,
         completed_cycles=completed_cycles,
         last_summary=last_summary,
         finished=finished,
@@ -578,11 +597,11 @@ def list_runs(project_dir: Path | None = None) -> list[RunState]:
 def find_incomplete_runs(project_dir: Path) -> list[RunState]:
     """Scan ~/.kodo/runs/ for incomplete runs belonging to *project_dir*, newest first.
 
-    An incomplete run has a run_start + at least 1 cycle_end but no run_end.
+    An incomplete run is one that hasn't finished — either it started cycles
+    but didn't complete, or it failed before the first cycle (e.g. team config
+    error after refinement).
     """
-    return [
-        r for r in list_runs(project_dir) if not r.finished and r.completed_cycles >= 1
-    ]
+    return [r for r in list_runs(project_dir) if not r.finished]
 
 
 def init_append(log_file: Path) -> Path:

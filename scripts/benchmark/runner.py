@@ -43,12 +43,13 @@ def run_benchmark(
     run_id: str,
     timeout: int,
     parallel: int = 1,
+    dataset: str = "",
 ) -> None:
     """Run all tasks across all arms. Supports resumption."""
     run_dir = workspace / RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    _save_run_meta(run_dir, tasks, arms, timeout)
+    _save_run_meta(run_dir, tasks, arms, timeout, dataset=dataset)
     completed = _load_completed(run_dir)
     total = len(tasks) * len(arms)
 
@@ -423,7 +424,8 @@ def _load_completed(run_dir: Path) -> set[tuple[str, str]]:
 
 
 def _save_run_meta(
-    run_dir: Path, tasks: list[SWETask], arms: list[str], timeout: int
+    run_dir: Path, tasks: list[SWETask], arms: list[str], timeout: int,
+    *, dataset: str = "",
 ) -> None:
     meta_file = run_dir / "meta.json"
     if not meta_file.exists():
@@ -431,6 +433,7 @@ def _save_run_meta(
             "task_count": len(tasks),
             "arms": arms,
             "timeout": timeout,
+            "dataset": dataset,
             "instance_ids": [t.instance_id for t in tasks],
         }
         meta_file.write_text(json.dumps(meta, indent=2))

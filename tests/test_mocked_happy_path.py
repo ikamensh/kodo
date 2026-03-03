@@ -134,6 +134,7 @@ def _mocked_patches():
             "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
         ),
         patch("kodo.cli._main.run_improve_discovery", return_value=None),
+        patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
     )
 
 
@@ -314,9 +315,11 @@ class TestSubcommandBackends:
 
     def test_backends_prints_cli_and_orchestrator_sections(self):
         buf = StringIO()
+        fake_proc = MagicMock(returncode=0, stdout="1.0.0\n")
         with patch.object(sys, "argv", ["kodo", "backends"]):
             with patch("sys.stdout", buf):
-                _cmd_backends()
+                with patch("subprocess.run", return_value=fake_proc):
+                    _cmd_backends()
         out = buf.getvalue()
         assert "CLI backends" in out
         assert "Orchestrator models" in out

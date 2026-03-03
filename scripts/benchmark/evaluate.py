@@ -11,6 +11,13 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
     """Run swebench evaluation for each arm's predictions file."""
     run_dir = workspace / "runs" / run_id
 
+    # Read dataset from run metadata
+    meta_file = run_dir / "meta.json"
+    dataset = "princeton-nlp/SWE-bench_Lite"  # fallback
+    if meta_file.exists():
+        meta = json.loads(meta_file.read_text())
+        dataset = meta.get("dataset", dataset)
+
     for pred_file in sorted(run_dir.glob("predictions-*.jsonl")):
         arm = pred_file.stem.replace("predictions-", "")
         print(f"\nEvaluating {arm}...")
@@ -19,13 +26,13 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
         eval_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = [
-            "python",
+            "uv", "run", "python",
             "-m",
             "swebench.harness.run_evaluation",
             "--predictions_path",
             str(pred_file),
             "--dataset_name",
-            "princeton-nlp/SWE-bench_Lite",
+            dataset,
             "--run_id",
             f"{run_id}_{arm}",
             "--max_workers",

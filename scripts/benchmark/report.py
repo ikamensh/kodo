@@ -79,8 +79,8 @@ def generate_report(workspace: Path, run_id: str) -> int:
         lines.append("")
         for i, arm_a in enumerate(eval_arms):
             for arm_b in eval_arms[i + 1 :]:
-                set_a = set(eval_summary[arm_a].get("resolved", []))
-                set_b = set(eval_summary[arm_b].get("resolved", []))
+                set_a = set(eval_summary[_eval_key(arm_a)].get("resolved", []))
+                set_b = set(eval_summary[_eval_key(arm_b)].get("resolved", []))
                 both = set_a & set_b
                 only_a = set_a - set_b
                 only_b = set_b - set_a

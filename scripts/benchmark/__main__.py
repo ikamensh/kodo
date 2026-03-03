@@ -153,6 +153,7 @@ def main() -> int:
         run_id=run_id,
         timeout=args.timeout,
         parallel=args.parallel,
+        dataset=dataset,
     )
 
     if not args.skip_eval:

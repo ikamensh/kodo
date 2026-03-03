@@ -1486,7 +1486,19 @@ class TestMergeWorktreeBranch:
         _git(git_project, "add", "-A")
         _git(git_project, "commit", "-m", "main change")
 
-        result = merge_worktree_branch(git_project, branch, "ConflictStage")
+        def _fake_resolve(project_dir, branch_name, stage_name):
+            """Simulate agent resolving conflicts: pick a side, add, commit."""
+            (project_dir / "shared.py").write_text("resolved version")
+            _git(project_dir, "add", "shared.py")
+            _git(project_dir, "commit", "--no-edit")
+            return True
+
+        with patch(
+            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            side_effect=_fake_resolve,
+        ):
+            result = merge_worktree_branch(git_project, branch, "ConflictStage")
+
         # Agent resolves the conflict
         assert result.success
         assert result.had_changes

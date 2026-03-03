@@ -77,17 +77,36 @@ def _build_intake_prompt(output_path: str, staged: bool) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _stdin_has_data(timeout: float = 0.05) -> bool:
+    """Check if stdin has buffered data (e.g. from a paste)."""
+    import select
+
+    try:
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        return bool(ready)
+    except (ValueError, OSError):
+        return False
+
+
 def get_goal() -> str:
-    """Prompt user for a multiline goal. Empty line finishes input."""
-    print("\nWhat's your goal? (Enter an empty line to finish)")
+    """Prompt user for a multiline goal.
+
+    Detects paste (buffered input) and keeps reading through blank lines.
+    When typing manually, a single empty line finishes input.
+    """
+    print("\nWhat's your goal? (Empty line to finish, paste-friendly)")
     print("-" * 40)
-    lines = []
+    lines: list[str] = []
     while True:
         try:
             line = input()
         except EOFError:
             break
         if line == "":
+            # If more data is already buffered, this is a paste — keep reading
+            if _stdin_has_data():
+                lines.append(line)
+                continue
             break
         lines.append(line)
     text = "\n".join(lines).strip()

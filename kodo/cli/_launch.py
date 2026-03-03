@@ -181,7 +181,13 @@ def launch_run(
         _atomic_write(run_dir.goal_file, goal_text)
 
     log_path = log.init(run_dir)
-    log.emit("cli_args", **params, goal_text=goal_text, has_plan=plan is not None, debug=debug)
+    log.emit(
+        "cli_args", **params,
+        goal_text=goal_text,
+        project_dir=str(run_dir.project_dir),
+        has_plan=plan is not None,
+        debug=debug,
+    )
 
     project_dir = run_dir.project_dir
     max_exchanges = params["max_exchanges"]
