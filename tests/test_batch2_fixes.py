@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from kodo import log
-from kodo.log import RunDir
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +109,7 @@ class TestF17CleanupAbandonedWorktrees:
         project = tmp_path / "repo"
         project.mkdir()
         env = {
-            **__import__("os").environ,
+            **os.environ,
             "GIT_AUTHOR_NAME": "test",
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "test",

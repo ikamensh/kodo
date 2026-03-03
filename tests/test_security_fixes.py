@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import threading
 from pathlib import Path
 
@@ -232,7 +231,6 @@ class TestClaudeSessionTimeout:
 
     def test_run_raises_on_dead_thread(self) -> None:
         """_run should raise RuntimeError if the background thread is dead."""
-        import asyncio
         from kodo.sessions.claude import ClaudeSession
 
         session = ClaudeSession(model="test", use_api_key=True)
@@ -244,8 +242,12 @@ class TestClaudeSessionTimeout:
         async def dummy():
             return 42
 
-        with pytest.raises(RuntimeError, match="dead"):
-            session._run(dummy())
+        coro = dummy()
+        try:
+            with pytest.raises(RuntimeError, match="dead"):
+                session._run(coro)
+        finally:
+            coro.close()  # prevent "coroutine was never awaited" warning
 
         # Cleanup (mark as closed so close() is idempotent)
         session._closed = True

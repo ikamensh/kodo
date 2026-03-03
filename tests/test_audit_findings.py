@@ -133,7 +133,8 @@ class TestF4FileNotFoundInSpawn:
         # The function handles stderr patterns, but NOT the case where
         # Popen itself raises FileNotFoundError before any process runs.
         # That's the gap documented in F4.
-        assert result is not None or result is None  # always passes — just documents the gap
+        # result.returncode != 0 because the cursor binary doesn't exist
+        assert result is not None  # _spawn returns an error RunResult, doesn't raise
 
     def test_popen_file_not_found_is_uncaught(self):
         """Demonstrate that subprocess.Popen raises FileNotFoundError
