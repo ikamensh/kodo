@@ -27,7 +27,7 @@ from kodo import log
 from kodo.agent import Agent
 from kodo.log import RunDir
 from kodo.orchestrators.base import DoneSignal
-from kodo.sessions.base import QueryResult, SessionStats, classify_session_error
+from kodo.sessions.base import QueryResult, classify_session_error
 from kodo.summarizer import Summarizer
 from tests.conftest import FakeSession
 
@@ -216,14 +216,22 @@ def _make_summarizer():
 
 
 class TestSummarizerResilience:
-    def test_summarize_after_shutdown_raises(self):
-        """Submitting to a shut-down executor raises RuntimeError.
-        The caller must handle this — verify the exception surfaces."""
+    def test_summarize_after_shutdown_is_safe(self):
+        """After shutdown(), summarize() is a silent no-op (fire-and-forget).
+
+        Previously this raised RuntimeError.  Now the guard inside
+        summarize() catches the shutdown state and returns cleanly.
+        """
         s = _make_summarizer()
         s.shutdown()
-        # After shutdown, the underlying ThreadPoolExecutor rejects new work
-        with pytest.raises(RuntimeError):
-            s.summarize("worker", "task", "report")
+        # Should not raise — silently discarded
+        s.summarize("worker", "task", "report")
+
+    def test_shutdown_is_idempotent(self):
+        """Calling shutdown() multiple times must not raise."""
+        s = _make_summarizer()
+        s.shutdown()
+        s.shutdown()  # second call is a no-op
 
     def test_concurrent_get_accumulated_summary(self):
         """Two threads calling get_accumulated_summary concurrently

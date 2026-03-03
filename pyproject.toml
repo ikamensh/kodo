@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel>=0.46.2"]
+requires = ["setuptools>=61.0", "wheel>=0.46.2", "pip>=25.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.123"
+version = "0.4.124"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",

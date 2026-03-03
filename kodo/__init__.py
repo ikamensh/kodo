@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.123"
+__version__ = "0.4.124"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
@@ -86,6 +86,7 @@ def make_session(
         chrome=chrome,
         fallback_model=fallback_model,
         use_api_key=use_api_key,
+        session_timeout_s=session_timeout_s,
     )
 
 
