@@ -259,14 +259,19 @@ def test_init_append_preserves_existing(tmp_path: Path):
     run_dir = log._runs_root() / "test_run"
     run_dir.mkdir(parents=True)
     f = run_dir / "run.jsonl"
-    f.write_text('{"event":"run_start"}\n')
+    # init_append now validates the log file via parse_run, which requires
+    # both run_start (with a goal) and cli_args events.
+    f.write_text(
+        '{"event":"run_start","goal":"test","project_dir":"/tmp"}\n'
+        '{"event":"cli_args","team":"full"}\n'
+    )
 
     result = log.init_append(f)
     assert result == f
 
     content = f.read_text()
     lines = [line for line in content.strip().split("\n") if line]
-    assert len(lines) == 2  # original + run_resumed
+    assert len(lines) == 3  # run_start + cli_args + run_resumed
     last = json.loads(lines[-1])
     assert last["event"] == "run_resumed"
 

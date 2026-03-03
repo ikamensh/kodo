@@ -23,6 +23,9 @@ from tests.mocks.claude_sdk import (
 )
 
 
+_TEST_API_KEY = "sk-test-secret"
+
+
 def _install_mock_sdk(responses=None):
     """Install a fake claude_agent_sdk module and return the mock client that will be created."""
     mock_client = MockClaudeSDKClient(responses=responses)
@@ -172,7 +175,7 @@ def test_api_key_stripped_by_default(tmp_path: Path, monkeypatch):
     fake_types.TextBlock = MockTextBlock
     fake_types.ToolUseBlock = MockToolUseBlock
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _TEST_API_KEY)
 
     with patch.dict(
         sys.modules,
@@ -190,7 +193,7 @@ def test_api_key_stripped_by_default(tmp_path: Path, monkeypatch):
     # Key should have been stripped during _ensure_client
     assert keys_during_init[0] is None
     # Key should be restored after
-    assert os.environ.get("ANTHROPIC_API_KEY") == "sk-test-secret"
+    assert os.environ.get("ANTHROPIC_API_KEY") == _TEST_API_KEY
 
 
 def test_api_key_kept_when_explicit(tmp_path: Path, monkeypatch):
@@ -215,7 +218,7 @@ def test_api_key_kept_when_explicit(tmp_path: Path, monkeypatch):
     fake_types.TextBlock = MockTextBlock
     fake_types.ToolUseBlock = MockToolUseBlock
 
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-secret")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", _TEST_API_KEY)
 
     with patch.dict(
         sys.modules,
@@ -230,4 +233,4 @@ def test_api_key_kept_when_explicit(tmp_path: Path, monkeypatch):
         finally:
             session.close()
 
-    assert keys_during_init[0] == "sk-test-secret"
+    assert keys_during_init[0] == _TEST_API_KEY

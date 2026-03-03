@@ -97,11 +97,17 @@ class ClaudeSession:
 
         return PermissionResultAllow()
 
+    _QUERY_TIMEOUT: float = 7200  # 2 hours; prevents indefinite hangs
+
     def _run(self, coro, *, timeout: float | None = None):
         """Submit a coroutine to our background loop and block until it completes.
         If coro is None (sync client, e.g. mock), return immediately."""
         if coro is None:
             return
+        if not self._thread.is_alive():
+            raise RuntimeError(
+                "Background event-loop thread is dead; cannot execute coroutine"
+            )
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
 
@@ -317,7 +323,7 @@ class ClaudeSession:
         t0 = time.monotonic()
 
         try:
-            self._run(self._client.query(prompt))
+            self._run(self._client.query(prompt), timeout=self._QUERY_TIMEOUT)
 
             result = QueryResult(text="", elapsed_s=0.0)
             # Collect text from AssistantMessage blocks as fallback when
@@ -359,7 +365,7 @@ class ClaudeSession:
                         self._stats.total_output_tokens += out or 0
                         self._stats.total_cost_usd += message.total_cost_usd or 0.0
 
-            self._run(_collect())
+            self._run(_collect(), timeout=self._QUERY_TIMEOUT)
 
             # If ResultMessage had no text, use collected AssistantMessage texts.
             if not result.text and assistant_texts:

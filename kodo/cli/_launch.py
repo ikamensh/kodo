@@ -1,5 +1,6 @@
 """Run launch and resume logic, plus JSON output helpers."""
 
+import contextlib
 import json
 import logging
 import sys
@@ -18,7 +19,7 @@ from kodo.factory import (
     preflight_check_backends,
 )
 from kodo.log import RunDir
-from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult
+from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult, cleanup_abandoned_worktrees
 from kodo.team_config import build_team_from_json, load_team_config
 
 # ---------------------------------------------------------------------------
@@ -61,8 +62,28 @@ def _try_auto_fix_team(team_name: str, project_dir: Path, exc: Exception):
     else:
         _fail(f"Team {team_name!r} could not be built: {exc}")
 
-# Will be set to the real stdout when --json redirects sys.stdout to stderr
+# Will be set to the real stdout when --json redirects sys.stdout to stderr.
+# Prefer using json_output_redirect() context manager for new code;
+# the module-level variable is kept for backward compatibility with _main.py.
 _original_stdout = None
+
+
+@contextlib.contextmanager
+def json_output_redirect():
+    """Context manager that redirects stdout to stderr for JSON mode.
+
+    Saves the real stdout so that JSON output can be emitted to it later.
+    Restores sys.stdout on exit for test isolation.
+    """
+    global _original_stdout
+    saved = sys.stdout
+    _original_stdout = saved
+    try:
+        sys.stdout = sys.stderr
+        yield saved
+    finally:
+        sys.stdout = saved
+        _original_stdout = None
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +177,14 @@ def launch_run(
     project_dir = run_dir.project_dir
     max_exchanges = params["max_exchanges"]
     max_cycles = params["max_cycles"]
+
+    # Best-effort cleanup of stale worktrees from previous crashed runs
+    try:
+        cleaned = cleanup_abandoned_worktrees(project_dir)
+        if cleaned and not json_mode:
+            print(f"  Cleaned {cleaned} abandoned worktree(s)")
+    except Exception:
+        pass  # non-fatal — don't block the run
 
     team_preset = get_team(params["team"])
     verifiers = None
@@ -309,6 +338,14 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     log.init_append(state.log_file)
 
     project_dir = run_dir.project_dir
+
+    # Best-effort cleanup of stale worktrees from previous crashed runs
+    try:
+        cleaned = cleanup_abandoned_worktrees(project_dir)
+        if cleaned and _original_stdout is None:
+            print(f"  Cleaned {cleaned} abandoned worktree(s)")
+    except Exception:
+        pass  # non-fatal — don't block the resume
 
     # Load params from run config if available; otherwise reconstruct from RunState
     required_keys = {

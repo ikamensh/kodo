@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1038,7 +1039,7 @@ def git_project(tmp_path: Path) -> Path:
         capture_output=True,
         check=True,
         env={
-            **__import__("os").environ,
+            **os.environ,
             "GIT_AUTHOR_NAME": "test",
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "test",
@@ -1105,7 +1106,7 @@ class TestWorktreeHelpers:
             cwd=git_project,
             capture_output=True,
             env={
-                **__import__("os").environ,
+                **os.environ,
                 "GIT_AUTHOR_NAME": "test",
                 "GIT_AUTHOR_EMAIL": "t@t",
                 "GIT_COMMITTER_NAME": "test",
@@ -1140,7 +1141,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, tmp_path):
         capture_output=True,
         check=True,
         env={
-            **__import__("os").environ,
+            **os.environ,
             "GIT_AUTHOR_NAME": "test",
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "test",
@@ -1342,7 +1343,7 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
         capture_output=True,
         check=True,
         env={
-            **__import__("os").environ,
+            **os.environ,
             "GIT_AUTHOR_NAME": "test",
             "GIT_AUTHOR_EMAIL": "t@t",
             "GIT_COMMITTER_NAME": "test",
@@ -1389,7 +1390,7 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
 
 
 _GIT_ENV = {
-    **__import__("os").environ,
+    **os.environ,
     "GIT_AUTHOR_NAME": "test",
     "GIT_AUTHOR_EMAIL": "t@t",
     "GIT_COMMITTER_NAME": "test",

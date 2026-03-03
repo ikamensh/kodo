@@ -301,7 +301,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
     available_backends.cache_clear()
     backends = available_backends()
 
-    has = {name: present for name, present in backends.items()}
+    has = dict(backends.items())
     any_available = any(has.values())
 
     if not any_available:

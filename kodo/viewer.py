@@ -150,6 +150,9 @@ def _serve(port: int, log_path: Path | None) -> None:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def main() -> None:

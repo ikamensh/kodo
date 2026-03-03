@@ -42,6 +42,11 @@ class RunDir:
     @staticmethod
     def create(project_dir: Path, run_id: str | None = None) -> "RunDir":
         rid = run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        # Reject run_id values that could escape the runs directory
+        if "/" in rid or "\\" in rid or ".." in rid:
+            raise ValueError(
+                f"Invalid run_id {rid!r}: must not contain '/', '\\', or '..'"
+            )
         rd = RunDir(project_dir=project_dir, run_id=rid)
         rd.root.mkdir(parents=True, exist_ok=True)
         rd.root.chmod(0o700)
@@ -574,8 +579,24 @@ def find_incomplete_runs(project_dir: Path) -> list[RunState]:
 
 
 def init_append(log_file: Path) -> Path:
-    """Set module globals to append to an existing log file. Emits run_resumed marker."""
+    """Set module globals to append to an existing log file. Emits run_resumed marker.
+
+    Validates that the file exists and is a parseable kodo log (has a run_start
+    event) before mutating global state.  Raises ``FileNotFoundError`` if the
+    file is missing or ``ValueError`` if it is not a valid kodo run log.
+    """
     global _log_file, _run_id, _start_time, _run_stats, _last_table_time
+
+    if not log_file.exists():
+        raise FileNotFoundError(f"Log file does not exist: {log_file}")
+
+    # Validate that the file is a real kodo log (parse_run returns None on
+    # invalid / missing run_start).
+    state = parse_run(log_file)
+    if state is None:
+        raise ValueError(
+            f"Not a valid kodo log (missing run_start or cli_args): {log_file}"
+        )
 
     with _lock:
         _log_file = log_file
