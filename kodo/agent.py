@@ -219,7 +219,7 @@ class Agent:
                     f"Agent timed out after {self.timeout_s}s. "
                     "Hint: increase timeout_s in Agent or TeamConfig."
                 ),
-                elapsed_s=self.timeout_s,
+                elapsed_s=self.timeout_s or 0.0,
                 is_error=True,
             )
 

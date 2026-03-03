@@ -732,10 +732,11 @@ def _check_passed(report: str) -> bool:
         return False
 
     # Accept the signal at: start of text, start of line, or after sentence-ending
-    # punctuation (.!?).  Reject mid-sentence mentions that follow attribution
+    # punctuation (.!?。).  Reject mid-sentence mentions that follow attribution
     # words (said, say, cannot, etc.).
+    # Also allow optional ':' after the signal (e.g., "ALL CHECKS PASS:")
     pattern = re.compile(
-        r"(?:^|(?<=\.)|(?<=!)|(?<=\?))\s*" + _SIGNAL + r"\b",
+        r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*" + _SIGNAL + r"(?::|\b)",
         re.MULTILINE,
     )
     return bool(pattern.search(stripped))
@@ -917,7 +918,20 @@ def compose_stage_goal(
 
     Includes project context, current stage description + acceptance criteria,
     summaries of completed stages, and a hint about the next stage.
+
+    Args:
+        plan: The goal plan containing stages
+        stage_index: 1-based stage index (1 to len(plan.stages))
+        completed_summaries: Summaries of completed stages
+
+    Raises:
+        ValueError: If stage_index is out of valid range
     """
+    if stage_index < 1 or stage_index > len(plan.stages):
+        raise ValueError(
+            f"stage_index must be between 1 and {len(plan.stages)}, got {stage_index}"
+        )
+
     stage = plan.stages[stage_index - 1]  # 1-based index
     total = len(plan.stages)
 
@@ -962,13 +976,21 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
     Returns ``(worktree_dir, branch_name)``.  The worktree is placed in a
     temp directory (outside the repo) and uses a unique branch name to avoid
     collisions with leftover branches from crashed runs.
+
+    The label is sanitized by replacing special characters (/, @, :, etc.)
+    with underscores to ensure git branch name validity.
     """
+    import re
     import tempfile
     import uuid
 
+    # Sanitize label: replace special characters with underscores
+    # Git branch names cannot contain /, @, :, ^, ~, ?, *, [, \, space, etc.
+    sanitized_label = re.sub(r"[/@:^~?\*\[\\\s]+", "_", label)
+
     suffix = uuid.uuid4().hex[:8]
-    branch_name = f"kodo-{label}-{suffix}"
-    worktree_dir = Path(tempfile.mkdtemp(prefix=f"kodo-{label}-"))
+    branch_name = f"kodo-{sanitized_label}-{suffix}"
+    worktree_dir = Path(tempfile.mkdtemp(prefix=f"kodo-{sanitized_label}-"))
     # mkdtemp already created the dir; git worktree add wants a non-existing
     # target, so remove the empty dir first.
     try:
