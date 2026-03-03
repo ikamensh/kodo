@@ -35,6 +35,12 @@ def parse_arm(arm: str) -> tuple[str, str | None]:
     return arm, None
 
 
+def _timeout_for_arm(arm: str, timeout: int, timeout_kodo: int) -> int:
+    """Return the appropriate timeout for an arm."""
+    base, _ = parse_arm(arm)
+    return timeout_kodo if base == "kodo" else timeout
+
+
 def run_benchmark(
     *,
     tasks: list[SWETask],
@@ -42,6 +48,7 @@ def run_benchmark(
     workspace: Path,
     run_id: str,
     timeout: int,
+    timeout_kodo: int = 43200,
     parallel: int = 1,
     dataset: str = "",
 ) -> None:
@@ -54,13 +61,14 @@ def run_benchmark(
     total = len(tasks) * len(arms)
 
     print(f"Benchmark run {run_id}: {len(tasks)} tasks x {len(arms)} arm(s)")
+    print(f"  Timeout: {timeout}s (non-kodo), {timeout_kodo}s (kodo)")
     print(f"  Already completed: {len(completed)}/{total}")
     print(f"  Workspace: {workspace}")
 
     if parallel > 1:
-        _run_parallel(tasks, arms, workspace, run_dir, timeout, parallel, completed)
+        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed)
     else:
-        _run_sequential(tasks, arms, workspace, run_dir, timeout, completed)
+        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed)
 
     print(f"\nRun complete. Results in {run_dir}")
 
@@ -71,6 +79,7 @@ def _run_sequential(
     workspace: Path,
     run_dir: Path,
     timeout: int,
+    timeout_kodo: int,
     completed: set[tuple[str, str]],
 ) -> None:
     for i, task in enumerate(tasks):
@@ -78,8 +87,9 @@ def _run_sequential(
             if (task.instance_id, arm) in completed:
                 continue
 
-            print(f"\n[{i + 1}/{len(tasks)}] {task.instance_id} ({arm})")
-            result = _safe_run(task, arm, workspace, timeout)
+            t = _timeout_for_arm(arm, timeout, timeout_kodo)
+            print(f"\n[{i + 1}/{len(tasks)}] {task.instance_id} ({arm}) [timeout {t}s]")
+            result = _safe_run(task, arm, workspace, t)
             _append_result(run_dir, result)
             _append_prediction(run_dir, result)
             completed.add((task.instance_id, arm))
@@ -91,6 +101,7 @@ def _run_parallel(
     workspace: Path,
     run_dir: Path,
     timeout: int,
+    timeout_kodo: int,
     parallel: int,
     completed: set[tuple[str, str]],
 ) -> None:
@@ -105,7 +116,7 @@ def _run_parallel(
 
     with ThreadPoolExecutor(max_workers=parallel) as pool:
         futures = {
-            pool.submit(_safe_run, task, arm, workspace, timeout): (task, arm)
+            pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo)): (task, arm)
             for task, arm in work
         }
         for future in as_completed(futures):
@@ -321,11 +332,13 @@ def _run_gemini(
 
 
 def _clean_env() -> dict[str, str]:
-    """Return a copy of os.environ without vars that block nested sessions."""
+    """Return a copy of os.environ without vars that block nested sessions
+    or that force API billing instead of subscription."""
     import os
 
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
+    env.pop("ANTHROPIC_API_KEY", None)
     return env
 
 

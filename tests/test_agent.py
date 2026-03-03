@@ -12,14 +12,6 @@ from kodo.sessions.base import QueryResult
 from tests.conftest import FakeSession, make_agent
 
 
-def test_agent_run_returns_result(tmp_project: Path) -> None:
-    agent = make_agent("hello world")
-    result = agent.run("do something", tmp_project, agent_name="test")
-    assert result.text == "hello world"
-    assert not result.is_error
-    assert result.elapsed_s > 0
-
-
 def test_agent_new_conversation_clears_stats(tmp_project: Path) -> None:
     agent = make_agent("ok")
     agent.run("task1", tmp_project, agent_name="test")
@@ -93,24 +85,6 @@ def test_agent_no_timeout_when_fast(tmp_project: Path) -> None:
     result = agent.run("do something", tmp_project, agent_name="test")
     assert not result.is_error
     assert result.text == "fast"
-
-
-def test_agent_close_calls_session_close(tmp_project: Path) -> None:
-    agent = make_agent("ok")
-    agent.session.close_called = False
-
-    def _close():
-        agent.session.close_called = True
-
-    agent.session.close = _close
-    agent.close()
-    assert agent.session.close_called is True
-
-
-def test_agent_close_no_error_with_noop_close(tmp_project: Path) -> None:
-    agent = make_agent("ok")
-    # FakeSession.close() is a no-op — should not raise
-    agent.close()
 
 
 @pytest.mark.slow

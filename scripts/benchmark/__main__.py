@@ -72,8 +72,14 @@ def main() -> int:
     parser.add_argument(
         "--timeout",
         type=int,
-        default=1800,
-        help="Per-task timeout in seconds (default: 1800)",
+        default=7200,
+        help="Per-task timeout for non-orchestrated arms in seconds (default: 7200 / 2h)",
+    )
+    parser.add_argument(
+        "--timeout-kodo",
+        type=int,
+        default=43200,
+        help="Per-task timeout for kodo arms in seconds (default: 43200 / 12h)",
     )
     parser.add_argument(
         "--workspace", type=Path, default=WORKSPACE, help="Workspace directory"
@@ -152,6 +158,7 @@ def main() -> int:
         workspace=workspace,
         run_id=run_id,
         timeout=args.timeout,
+        timeout_kodo=args.timeout_kodo,
         parallel=args.parallel,
         dataset=dataset,
     )

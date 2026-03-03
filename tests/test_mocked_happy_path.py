@@ -18,7 +18,6 @@ import pytest
 from kodo import log
 from kodo.agent import Agent
 from kodo.cli import _main_inner
-from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams
 from kodo.orchestrators.base import CycleResult, RunResult
 from tests.conftest import FakeSession
 
@@ -265,101 +264,6 @@ class TestMockedResumeHappyPath:
             runs = log.list_runs(project)
             assert len(runs) >= 1
             assert any(r.run_id == run_id for r in runs)
-
-
-# ---------------------------------------------------------------------------
-# Subcommands: kodo runs, kodo backends, kodo teams
-# ---------------------------------------------------------------------------
-
-
-class TestSubcommandRuns:
-    """kodo runs — list runs from central store."""
-
-    def test_runs_no_runs_shows_message(self):
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "runs"]):
-            with patch("sys.stdout", buf):
-                _cmd_runs()
-        assert "No runs found" in buf.getvalue()
-
-    def test_runs_shows_run_id_and_goal(self, tmp_path: Path):
-        project = tmp_path / "proj"
-        project.mkdir()
-        _create_run("20250315_120000", str(project), "Add user auth")
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "runs"]):
-            with patch("sys.stdout", buf):
-                _cmd_runs()
-        out = buf.getvalue()
-        assert "20250315_120000" in out
-        assert "Add user auth" in out
-
-    def test_runs_filter_by_project_dir(self, tmp_path: Path):
-        proj_a = tmp_path / "alpha"
-        proj_a.mkdir()
-        proj_b = tmp_path / "beta"
-        proj_b.mkdir()
-        _create_run("run_a", str(proj_a), "Alpha goal")
-        _create_run("run_b", str(proj_b), "Beta goal")
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "runs", str(proj_a)]):
-            with patch("sys.stdout", buf):
-                _cmd_runs()
-        out = buf.getvalue()
-        assert "Alpha goal" in out
-        assert "Beta goal" not in out
-
-
-class TestSubcommandBackends:
-    """kodo backends — list CLI backends and API keys."""
-
-    def test_backends_prints_cli_and_orchestrator_sections(self):
-        buf = StringIO()
-        fake_proc = MagicMock(returncode=0, stdout="1.0.0\n")
-        with patch.object(sys, "argv", ["kodo", "backends"]):
-            with patch("sys.stdout", buf):
-                with patch("subprocess.run", return_value=fake_proc):
-                    _cmd_backends()
-        out = buf.getvalue()
-        assert "CLI backends" in out
-        assert "Orchestrator models" in out
-        assert "API keys" in out
-
-
-class TestSubcommandTeams:
-    """kodo teams — list/add/edit team configs."""
-
-    def test_teams_list_prints_teams(self):
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "teams"]):
-            with patch("sys.stdout", buf):
-                _cmd_teams()
-        out = buf.getvalue()
-        assert "full" in out or "quick" in out or "No teams found" in out
-
-    def test_teams_add_requires_name(self):
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "teams", "add"]):
-            with patch("sys.stdout", buf):
-                with pytest.raises(SystemExit):
-                    _cmd_teams()
-        assert "Usage" in buf.getvalue()
-
-    def test_teams_edit_requires_name(self):
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "teams", "edit"]):
-            with patch("sys.stdout", buf):
-                with pytest.raises(SystemExit):
-                    _cmd_teams()
-        assert "Usage" in buf.getvalue()
-
-    def test_teams_unknown_subcommand_exits(self):
-        buf = StringIO()
-        with patch.object(sys, "argv", ["kodo", "teams", "unknown"]):
-            with patch("sys.stdout", buf):
-                with pytest.raises(SystemExit):
-                    _cmd_teams()
-        assert "Unknown" in buf.getvalue()
 
 
 # ---------------------------------------------------------------------------

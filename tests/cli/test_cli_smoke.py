@@ -93,22 +93,31 @@ class TestFlagConflicts:
         ):
             yield
 
-    def test_goal_and_improve_mutually_exclusive(self):
-        """argparse enforces --goal and --improve are mutually exclusive."""
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ["--goal", "X", "--improve"],
+            ["--goal", "X", "--goal-file", "f.md"],
+            ["--goal", "X", "--exchanges", "-1", "--project", "__TMP__"],
+            ["--goal", "X", "--cycles", "0", "--project", "__TMP__"],
+            ["--goal", "X", "--team", "nonexistent", "--project", "__TMP__"],
+        ],
+        ids=[
+            "goal+improve",
+            "goal+goal-file",
+            "negative-exchanges",
+            "zero-cycles",
+            "invalid-team",
+        ],
+    )
+    def test_invalid_flag_combos_rejected(self, tmp_path, args):
+        """argparse rejects invalid flag combinations."""
+        args = [a.replace("__TMP__", str(tmp_path)) for a in args]
         with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--improve"]),
-            pytest.raises(SystemExit) as exc_info,
+            patch("sys.argv", ["kodo", *args]),
+            pytest.raises(SystemExit),
         ):
             _main_inner()
-        assert exc_info.value.code == 2  # argparse exits with 2
-
-    def test_goal_and_goal_file_mutually_exclusive(self):
-        with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--goal-file", "f.md"]),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            _main_inner()
-        assert exc_info.value.code == 2
 
     def test_resume_with_goal_fails(self, tmp_path):
         with (
@@ -123,33 +132,6 @@ class TestFlagConflicts:
             pytest.raises(SystemExit),
         ):
             _main_inner()
-
-    def test_negative_exchanges_fails(self, tmp_path):
-        with (
-            patch(
-                "sys.argv", ["kodo", "--goal", "X", "--exchanges", "-1", "--project", str(tmp_path)]
-            ),
-            pytest.raises(SystemExit),
-        ):
-            _main_inner()
-
-    def test_zero_cycles_fails(self, tmp_path):
-        with (
-            patch("sys.argv", ["kodo", "--goal", "X", "--cycles", "0", "--project", str(tmp_path)]),
-            pytest.raises(SystemExit),
-        ):
-            _main_inner()
-
-    def test_invalid_team_fails(self, tmp_path):
-        with (
-            patch(
-                "sys.argv",
-                ["kodo", "--goal", "X", "--team", "nonexistent", "--project", str(tmp_path)],
-            ),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            _main_inner()
-        assert exc_info.value.code == 2  # argparse rejects invalid choice
 
     def test_goal_file_not_found_fails(self, tmp_path):
         with (

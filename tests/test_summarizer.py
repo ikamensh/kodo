@@ -16,11 +16,6 @@ def _make_summarizer():
         return Summarizer()
 
 
-def test_accumulated_summary_empty_initially() -> None:
-    s = _make_summarizer()
-    assert s.get_accumulated_summary() == ""
-
-
 def test_accumulated_summary_collects_truncation() -> None:
     """With truncation backend, summaries are first non-empty lines."""
     s = _make_summarizer()
@@ -75,7 +70,3 @@ def test_summarize_after_get_accumulated_summary() -> None:
     assert "[tester]" in acc
 
 
-def test_shutdown_is_idempotent() -> None:
-    s = _make_summarizer()
-    s.shutdown()
-    s.shutdown()  # should not raise

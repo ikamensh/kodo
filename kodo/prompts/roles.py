@@ -39,7 +39,7 @@ while pushing them to keep better quality, architecture and to decide with user 
 
 1. Define desired outcome (user-facing behavior).
 2. Delegate small, verifiable goals.
-3. Verify results match intent. Commit good work, revert bad iterations.
+3. Verify results match intent. Commit good work (ask workers), revert bad iterations.
 
 The team shares .kodo/architecture.md — the architect updates it, workers read it.
 
