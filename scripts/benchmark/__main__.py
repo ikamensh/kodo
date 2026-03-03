@@ -1,4 +1,6 @@
-"""SWE-bench Lite benchmark: kodo vs raw Claude Code.
+"""SWE-bench benchmark: kodo vs raw Claude Code.
+
+Uses SWE-bench Pro (731 tasks) by default. Pass --dataset lite for SWE-bench Lite.
 
 Arms are specified as strings. "claude" runs raw Claude Code CLI.
 "kodo" runs kodo with the default team. "kodo:quick" or "kodo:full"
@@ -7,8 +9,8 @@ runs kodo with a specific --team flag.
 Usage:
     uv run python -m scripts.benchmark --limit 5
     uv run python -m scripts.benchmark --arm kodo:quick --arm claude
-    uv run python -m scripts.benchmark --arm kodo:full --arm kodo:quick --arm claude
-    uv run python -m scripts.benchmark --evaluate-only --run-id 20260303_120000
+    uv run python -m scripts.benchmark --language python --limit 20
+    uv run python -m scripts.benchmark --dataset lite --limit 10
 """
 
 from __future__ import annotations
@@ -23,16 +25,31 @@ WORKSPACE = Path.home() / ".kodo" / "benchmark"
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="SWE-bench Lite benchmark: kodo vs raw Claude Code",
+        description="SWE-bench benchmark: kodo vs raw Claude Code",
     )
 
-    # Task selection
+    # Dataset and task selection
+    parser.add_argument(
+        "--dataset",
+        choices=["pro", "lite"],
+        default="pro",
+        help="SWE-bench variant (default: pro)",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Run first N tasks")
     parser.add_argument(
         "--instance-ids", nargs="+", default=None, help="Specific instance IDs"
     )
     parser.add_argument(
-        "--repo", type=str, default=None, help="Filter to repo (e.g. 'django/django')"
+        "--repo",
+        type=str,
+        default=None,
+        help="Filter to repo (e.g. 'ansible/ansible')",
+    )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default=None,
+        help="Filter by language (e.g. 'python', 'go', 'js'). Pro only.",
     )
     parser.add_argument("--offset", type=int, default=0, help="Skip first N tasks")
 
@@ -97,12 +114,15 @@ def main() -> int:
 
     # Run agents
     from scripts.benchmark.runner import run_benchmark
-    from scripts.benchmark.tasks import load_tasks
+    from scripts.benchmark.tasks import DATASET_LITE, DATASET_PRO, load_tasks
 
+    dataset = DATASET_PRO if args.dataset == "pro" else DATASET_LITE
     tasks = load_tasks(
+        dataset=dataset,
         limit=args.limit,
         instance_ids=args.instance_ids,
         repo_filter=args.repo,
+        language=args.language,
         offset=args.offset,
     )
 
