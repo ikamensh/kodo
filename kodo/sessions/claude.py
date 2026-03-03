@@ -173,7 +173,7 @@ class ClaudeSession:
 
         # connect() spawns the subprocess and does I/O — run outside the lock.
         try:
-            self._run(self._client.connect())
+            self._run(self._client.connect(), timeout=120)
         finally:
             # Restore the key so the orchestrator's own API calls still work,
             # even if connect() failed.

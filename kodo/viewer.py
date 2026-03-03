@@ -127,6 +127,9 @@ def _serve(port: int, log_path: Path | None) -> None:
 
         def _serve_log(self, run_id: str):
             from kodo.log import _runs_root
+            if "/" in run_id or "\\" in run_id or ".." in run_id:
+                self.send_error(400, "Invalid run_id")
+                return
             log_file = _runs_root() / run_id / "run.jsonl"
             if not log_file.exists():
                 self.send_error(404, f"Run not found: {run_id}")
