@@ -57,7 +57,7 @@ Real run from [blackopt](https://github.com/ikamen/blackopt) — building an aut
 
 The architect verifier caught **9 rounds of bugs** that the worker agent was blind to — resource leaks, class variable contamination, state mutation — each subtler than the last. A single Claude Code session would likely have shipped with several of these.
 
-## 💤 When to use kodo
+## 🦉 When to use kodo
 
 You have a Claude Code Max subscription. You can't use it while you sleep.
 
