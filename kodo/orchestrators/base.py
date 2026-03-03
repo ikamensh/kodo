@@ -17,6 +17,12 @@ from typing import Any, Literal, Protocol
 from kodo.agent import Agent
 from kodo.prompts.roles import MINOR_SIGNAL, PASS_SIGNAL, VERIFICATION_INSTRUCTIONS
 
+# ANSI formatting (duplicated from cli._ui to avoid circular import)
+_BOLD = "\033[1m"
+_DIM = "\033[2m"
+_CYAN = "\033[36m"
+_RESET = "\033[0m"
+
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
 
@@ -174,7 +180,7 @@ def handle_agent_call(
 
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
-    log.tprint(f"🔧 [orchestrator] → {agent_name}: {task[:100]}...")
+    log.tprint(f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}: {task[:100]}...")
     if new_conversation:
         log.tprint("   (new conversation)")
 
@@ -197,7 +203,7 @@ def handle_agent_call(
             agent_name=agent_name,
         )
     except Exception as exc:
-        error_msg = f"💥 {agent_name} crashed: {type(exc).__name__}: {exc}"
+        error_msg = f"💥 {_CYAN}{agent_name}{_RESET} crashed: {_DIM}{type(exc).__name__}: {exc}{_RESET}"
         log.emit("agent_crash", agent=agent_name, error=str(exc))
         log.tprint(error_msg)
         if cycle_log is not None:
@@ -217,13 +223,13 @@ def handle_agent_call(
     )
 
     icon = "⚠️" if agent_result.is_error else "✅"
-    done_msg = f"{icon} [{agent_name}] done ({agent_result.elapsed_s:.1f}s)"
+    done_msg = f"{icon} [{_CYAN}{agent_name}{_RESET}] done ({agent_result.elapsed_s:.1f}s)"
     if agent_obj.session.cost_bucket != "cursor_subscription":
         done_msg += f" | session: {agent_result.session_tokens:,} tokens"
     log.tprint(done_msg)
     if agent_result.is_error:
         err_text = (agent_result.text or "unknown error")[:200]
-        log.tprint(f"⚠️  [{agent_name}] error: {err_text}")
+        log.tprint(f"⚠️  [{_CYAN}{agent_name}{_RESET}] error: {_DIM}{err_text}{_RESET}")
         # Track workers with fatal (unrecoverable) errors
         if dead_workers is not None and _FATAL_ERROR_PATTERNS.search(err_text):
             dead_workers.add(agent_name)
@@ -233,7 +239,7 @@ def handle_agent_call(
                 )
     if agent_result.context_reset:
         log.tprint(
-            f"🔄 [{agent_name}] context reset: {agent_result.context_reset_reason}",
+            f"🔄 [{_CYAN}{agent_name}{_RESET}] context reset: {agent_result.context_reset_reason}",
         )
 
     log.print_stats_table()
@@ -379,7 +385,7 @@ def handle_done(
 
     if rejection:
         log.emit("orchestrator_done_rejected", **tag, rejection=rejection[:5000])
-        log.tprint("❌ [done] REJECTED — verification found issues")
+        log.tprint(f"❌ [done] {_DIM}REJECTED — verification found issues{_RESET}")
         return rejection
 
     # Auto-commit after successful verification
@@ -1700,7 +1706,8 @@ class OrchestratorBase:
         for i in range(start_cycle, max_cycles + 1):
             if i > 1:
                 print()
-                log.tprint(f"[orchestrator] === CYCLE {i}/{max_cycles} ===")
+                log.tprint(f"{'─' * 40}")
+                log.tprint(f"{_BOLD}CYCLE {i}/{max_cycles}{_RESET}")
             log.emit(
                 "run_cycle",
                 orchestrator=self._orchestrator_name,
@@ -1946,7 +1953,8 @@ class OrchestratorBase:
                 per_stage_cycles = remaining_cycles
                 stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
                 print()
-                log.tprint(f"[orchestrator] === PARALLEL GROUP: {stage_labels} ===")
+                log.tprint(f"{'─' * 40}")
+                log.tprint(f"{_BOLD}PARALLEL GROUP: {stage_labels}{_RESET}")
                 log.emit(
                     "parallel_group_start",
                     stages=[s.index for s in group],

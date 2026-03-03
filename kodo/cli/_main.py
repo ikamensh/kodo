@@ -404,24 +404,32 @@ def _main_inner() -> None:
         _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(sorted(_all_team_names))}.")
     if not args.json:
         team_preset = get_team(team_name)
-        print("\n" + "=" * 60)
-        print("  READY TO LAUNCH")
-        print("=" * 60)
-        print(f"  Project:      {project_dir}")
-        print(f"  Goal:         {goal_text[:80]}{'...' if len(goal_text) > 80 else ''}")
+        print(f"\n  ┌{'─' * 58}┐")
+        print(f"  │{'READY TO LAUNCH':^58}│")
+        print(f"  ├{'─' * 58}┤")
+        def _box_line(text: str, w: int = 56) -> None:
+            print(f"  │ {text:<{w}} │")
+
+        _box_line(f"Project:      {project_dir}")
+        goal_display = f"{goal_text[:50]}..." if len(goal_text) > 50 else goal_text
+        _box_line(f"Goal:         {goal_display}")
         if plan:
-            print(f"  Stages:       {len(plan.stages)}")
+            _box_line(f"Stages:       {len(plan.stages)}")
             for s in plan.stages:
-                print(f"                  {s.index}. {s.name}")
-        print(f"  Team:         {team_preset.name} — {team_preset.description}")
-        print(
-            f"  Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})",
+                _box_line(f"                {s.index}. {s.name}")
+        team_text = f"{team_preset.name} — {team_preset.description}"
+        if len(team_text) > 42:
+            team_text = team_text[:41] + "…"
+        _box_line(f"Team:         {team_text}")
+        _box_line(
+            f"Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})",
         )
-        print(
-            f"  Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",
+        _box_line(
+            f"Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",
         )
         if args.debug:
-            print("  Mode:         DEBUG (all backends mocked)")
+            _box_line("Mode:         DEBUG (all backends mocked)")
+        print(f"  └{'─' * 58}┘")
         print()
 
     if not skip_prompts:

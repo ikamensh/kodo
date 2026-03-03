@@ -276,13 +276,17 @@ def emit(event: str, **data: Any) -> None:
             pass  # best-effort logging; don't crash on write failure
 
 
+_DIM = "\033[2m"
+_RESET = "\033[0m"
+
+
 def tprint(msg: str) -> None:
     """Print with elapsed time prefix, e.g. '[  12.3s] ...'."""
     with _lock:
         st = _start_time
     if st is not None:
         elapsed = time.monotonic() - st
-        print(f"  [{elapsed:7.1f}s] {msg}", flush=True)
+        print(f"  {_DIM}[{elapsed:7.1f}s]{_RESET} {msg}", flush=True)
     else:
         print(f"  {msg}", flush=True)
 
@@ -359,37 +363,40 @@ def print_stats_table(final: bool = False) -> None:
 
     elapsed = time.monotonic() - (start or time.monotonic())
 
-    # Header
-    sep = "-" * 70
+    # Header — W is the inner width between │ bars, derived from data rows.
+    #   data row = " " + 20 + " " + 10 + " " + 3 + " " + 7 + " " + 5
+    #            + " " + 5 + " " + 6 + " " + 3 + " " = 68 chars
+    W = 68
     label = "📊 FINAL STATS" if final else "📊 PROGRESS"
-    print(f"\n  {sep}")
-    print(f"  | {label:<66} |")
+    # Emoji takes 2 display columns but Python counts 1 char → pad W-3.
+    print(f"\n  ┌{'─' * W}┐")
+    print(f"  │ {label:<{W - 3}} │")
     print(
-        f"  | {'Agent':<20} {'Bucket':<10} {'#':>3} {'Cost':>7}"
-        f" {'In':>5} {'Out':>5} {'Time':>6} {'Err':>3} |",
+        f"  │ {'Agent':<20} {'Bucket':<10} {'#':>3} {'Cost':>7}"
+        f" {'In':>5} {'Out':>5} {'Time':>6} {'Err':>3} │",
     )
-    print(f"  |{sep[1:-1]}|")
+    print(f"  ├{'─' * W}┤")
 
     for agent, s in sorted(agents.items()):
         has_tokens = s.cost_bucket not in ("cursor_subscription",)
         in_tok = _fmt_tokens(s.input_tokens) if has_tokens else "-"
         out_tok = _fmt_tokens(s.output_tokens) if has_tokens else "-"
         print(
-            f"  | {_trunc(agent, 20):<20} {_trunc(_bucket_label(s.cost_bucket), 10):<10}"
+            f"  │ {_trunc(agent, 20):<20} {_trunc(_bucket_label(s.cost_bucket), 10):<10}"
             f" {s.calls:>3} {_fmt_cost(s.cost_usd):>7}"
             f" {in_tok:>5} {out_tok:>5}"
-            f" {_fmt_time(s.elapsed_s):>6} {s.errors:>3} |",
+            f" {_fmt_time(s.elapsed_s):>6} {s.errors:>3} │",
         )
 
     # Orchestrator row
     if orch_cost > 0:
         print(
-            f"  | {'orchestrator':<20} {_trunc(_bucket_label(orch_bucket), 10):<10}"
+            f"  │ {'orchestrator':<20} {_trunc(_bucket_label(orch_bucket), 10):<10}"
             f" {'':>3} {_fmt_cost(orch_cost):>7}"
-            f" {'':>5} {'':>5} {'':>6} {'':>3} |",
+            f" {'':>5} {'':>5} {'':>6} {'':>3} │",
         )
 
-    print(f"  |{sep[1:-1]}|")
+    print(f"  ├{'─' * W}┤")
 
     # Totals by bucket — compute from the snapshot
     total_exch = sum(s.calls for s in agents.values())
@@ -401,16 +408,16 @@ def print_stats_table(final: bool = False) -> None:
     sub = sum(v for k, v in buckets.items() if k != "api")
     total = sum(s.cost_usd for s in agents.values()) + orch_cost
     print(
-        f"  | {'Total':<20} {'':10} {total_exch:>3}"
+        f"  │ {'Total':<20} {'':10} {total_exch:>3}"
         f" {_fmt_cost(total):>7} {'':>5} {'':>5}"
-        f" {_fmt_time(elapsed):>6} {'':>3} |",
+        f" {_fmt_time(elapsed):>6} {'':>3} │",
     )
     print(
-        f"  |   API: {_fmt_cost(api):<7}"
+        f"  │   API: {_fmt_cost(api):<7}"
         f"  Virtual: {_fmt_cost(sub):<7}"
-        f"  Wall: {_fmt_time(elapsed):<27}|",
+        f"  Wall: {_fmt_time(elapsed):<27}│",
     )
-    print(f"  {sep}")
+    print(f"  └{'─' * W}┘")
     if not _virtual_cost_note_shown and sub > 0:
         print(
             "    Virtual = Claude Code's API cost estimate."

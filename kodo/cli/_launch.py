@@ -288,19 +288,7 @@ def launch_run(
             log.emit("preflight_warnings", warnings=preflight_warnings)
 
     if not json_mode:
-        print(f"\nTeam: {team_preset.name} — {team_preset.description}")
-        if team_config:
-            team_name = team_config.get("name", "custom")
-            print(f"Team config: {team_name}")
-        print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
-        print("Team:")
-        for k, a in team.items():
-            print(f"  {k} ({_backend_label(a)} / {a.session.model})")
-        print(f"Project dir: {project_dir}")
-        print(f"Max: {max_exchanges} exchanges/cycle, {max_cycles} cycles")
-        if plan:
-            print(f"Stages: {len(plan.stages)}")
-        print(f"Log: {log_path}")
+        print(f"  Log: {log_path}")
         print()
 
     result = orchestrator.run(
