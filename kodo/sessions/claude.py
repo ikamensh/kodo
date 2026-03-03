@@ -34,6 +34,7 @@ class ClaudeSession:
         fallback_model: str | None = None,
         use_api_key: bool = False,
         resume_session_id: str | None = None,
+        session_timeout_s: int | None = None,
     ):
         self.model = model
         self.system_prompt = system_prompt
@@ -41,6 +42,7 @@ class ClaudeSession:
         self.fallback_model = fallback_model
         self.use_api_key = use_api_key
         self.resume_session_id = resume_session_id
+        self._session_timeout_s = session_timeout_s
         self._client = None
         self._project_dir: Path | None = None
         self._session_id: str | None = None
@@ -57,6 +59,7 @@ class ClaudeSession:
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
         self._closed = False
+        self._close_lock = threading.Lock()
 
     def __enter__(self) -> "ClaudeSession":
         return self
@@ -97,7 +100,14 @@ class ClaudeSession:
 
         return PermissionResultAllow()
 
-    _QUERY_TIMEOUT: float = 7200  # 2 hours; prevents indefinite hangs
+    _DEFAULT_QUERY_TIMEOUT: float = 7200  # 2 hours; prevents indefinite hangs
+
+    @property
+    def _query_timeout(self) -> float:
+        """Effective query timeout: session_timeout_s if set, else default."""
+        if self._session_timeout_s is not None:
+            return float(self._session_timeout_s)
+        return self._DEFAULT_QUERY_TIMEOUT
 
     def _run(self, coro, *, timeout: float | None = None):
         """Submit a coroutine to our background loop and block until it completes.
@@ -197,6 +207,7 @@ class ClaudeSession:
             chrome=self.chrome,
             fallback_model=self.fallback_model,
             use_api_key=self.use_api_key,
+            session_timeout_s=self._session_timeout_s,
         )
 
     def _get_subprocess_pid(self) -> int | None:
@@ -211,9 +222,10 @@ class ClaudeSession:
 
     def close(self) -> None:
         """Stop the event loop and join the background thread. Idempotent."""
-        if self._closed:
-            return
-        self._closed = True
+        with self._close_lock:
+            if self._closed:
+                return
+            self._closed = True
 
         # Grab subprocess PID before disconnect so we can force-kill if needed.
         subprocess_pid = self._get_subprocess_pid()
@@ -245,6 +257,12 @@ class ClaudeSession:
             # Fallback when subprocess_pid was None (SDK transport changed,
             # connect failed partway): give the thread 2s more to exit on its own.
             self._thread.join(timeout=2)
+        if self._thread.is_alive():
+            log.emit(
+                "session_close_warning",
+                session="claude",
+                reason="thread_still_alive_after_kill",
+            )
         try:
             self._loop.close()
         except (OSError, RuntimeError):
@@ -323,7 +341,7 @@ class ClaudeSession:
         t0 = time.monotonic()
 
         try:
-            self._run(self._client.query(prompt), timeout=self._QUERY_TIMEOUT)
+            self._run(self._client.query(prompt), timeout=self._query_timeout)
 
             result = QueryResult(text="", elapsed_s=0.0)
             # Collect text from AssistantMessage blocks as fallback when
@@ -365,7 +383,7 @@ class ClaudeSession:
                         self._stats.total_output_tokens += out or 0
                         self._stats.total_cost_usd += message.total_cost_usd or 0.0
 
-            self._run(_collect(), timeout=self._QUERY_TIMEOUT)
+            self._run(_collect(), timeout=self._query_timeout)
 
             # If ResultMessage had no text, use collected AssistantMessage texts.
             if not result.text and assistant_texts:

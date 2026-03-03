@@ -87,7 +87,18 @@ class CodexSession(SubprocessSession):
         raw_messages: list[dict] = []
         error_messages: list[str] = []
 
-        proc, stderr_chunks, stderr_thread = self._spawn(cmd)
+        try:
+            proc, stderr_chunks, stderr_thread = self._spawn(cmd)
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            elapsed = time.monotonic() - t0
+            error_msg = classify_session_error(
+                -1, str(exc), backend="codex",
+            ) or f"Failed to spawn codex: {exc}"
+            log.emit(
+                "session_query_end", session="codex", elapsed_s=elapsed,
+                is_error=True, error=str(exc),
+            )
+            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
 
         try:
             for line in proc.stdout:

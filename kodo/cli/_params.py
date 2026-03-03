@@ -247,8 +247,10 @@ def _load_or_select_params(project_dir: Path) -> dict:
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             prev = None
         # Accept old configs with "mode" key
+        was_legacy = False
         if isinstance(prev, dict) and "mode" in prev and "team" not in prev:
             prev["team"] = prev.pop("mode")
+            was_legacy = True
         if isinstance(prev, dict) and required_keys <= prev.keys():
             try:
                 team_preset = get_team(prev["team"])
@@ -266,6 +268,13 @@ def _load_or_select_params(project_dir: Path) -> dict:
                 )
                 reuse = input("\n  Reuse this config? [Y/n] ").strip().lower()
                 if not reuse or reuse == "y":
+                    # Re-save migrated config to the canonical path so the
+                    # legacy "mode" key doesn't persist on disk.
+                    if was_legacy:
+                        try:
+                            _save_config(project_dir, prev)
+                        except (PermissionError, OSError):
+                            pass  # best-effort; config works in-memory either way
                     return prev
 
     params = select_params()

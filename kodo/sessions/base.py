@@ -196,7 +196,15 @@ class SubprocessSession:
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    pass  # zombie; will be reaped at process exit
+                    log.emit(
+                        "zombie_process",
+                        session=getattr(self, "_session_label", "subprocess"),
+                        pid=proc.pid,
+                    )
+                    log.tprint(
+                        f"⚠️  Process {proc.pid} became zombie "
+                        f"(will clean up on exit)",
+                    )
         # Allow up to 30s for drain to finish; process has exited so stderr
         # should close soon. Increase from 5s to avoid truncating long output.
         thread.join(timeout=30)

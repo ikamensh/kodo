@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import subprocess
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +25,19 @@ from tests.conftest import FakeRunResult, FakeSession, make_agent
 
 GOAL = "Build a hello-world web server."
 SUMMARY = "Implemented hello-world server on port 8000."
+
+
+def _wait_for_auto_commit_thread(timeout: float = 5.0) -> None:
+    """Block until all background auto-commit daemon threads finish."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        alive = [
+            t for t in threading.enumerate()
+            if t.daemon and t.is_alive() and t is not threading.main_thread()
+        ]
+        if not alive:
+            return
+        time.sleep(0.05)
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +185,8 @@ def test_handle_done_calls_auto_commit_on_success(tmp_project: Path) -> None:
     assert "Verified and accepted" in result
     assert done_signal.called
     assert done_signal.success
+    # auto-commit runs in a background thread — wait for it
+    _wait_for_auto_commit_thread()
     # worker_fast should have been called with commit directive
     worker_session = team["worker_fast"].session
     assert len(worker_session.prompts) == 1
@@ -298,6 +315,8 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
 
     assert result.finished is True
 
+    # auto-commit runs in a background thread — wait for it
+    _wait_for_auto_commit_thread()
     # worker_fast should have been dispatched with a commit directive
     wf_session = team["worker_fast"].session
     assert len(wf_session.prompts) == 1
@@ -483,6 +502,9 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
         )
 
     assert result.finished is True
+
+    # auto-commit runs in a background thread — wait for it (real git, may be slower)
+    _wait_for_auto_commit_thread(timeout=10.0)
 
     # Verify a real commit was created
     git_log = subprocess.run(

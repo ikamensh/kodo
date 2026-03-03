@@ -1,6 +1,7 @@
 """Main entry point and argument parsing."""
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -31,6 +32,7 @@ from kodo.cli._launch import (  # noqa: E402
     EXIT_ERROR,
     _emit_json_and_exit,
     _fail,
+    json_output_redirect,
     launch_resume,
     launch_run,
 )
@@ -198,6 +200,12 @@ def _main_inner() -> None:
     if args.cycles is not None and args.cycles <= 0:
         _fail("--cycles must be a positive integer.")
 
+    # --skip-intake and --auto-refine require a goal (otherwise silently goes interactive)
+    if (args.skip_intake or args.auto_refine) and not (
+        args.goal or args.goal_file or args.improve
+    ):
+        _fail("--skip-intake and --auto-refine require --goal, --goal-file, or --improve.")
+
     # --json and --auto-refine imply --yes
     if args.json or args.auto_refine:
         args.yes = True
@@ -214,13 +222,15 @@ def _main_inner() -> None:
     )
     skip_prompts = non_interactive or args.yes
 
-    # In JSON mode, redirect prints to stderr so stdout stays clean for JSON
+    # In JSON mode, redirect prints to stderr so stdout stays clean for JSON.
+    # We use an ExitStack so the context manager stays active for the rest of
+    # the function without indenting the entire body.
     import kodo.cli._launch as _launch_mod
 
+    _json_stack = contextlib.ExitStack()
     _launch_mod._original_stdout = None
     if args.json:
-        _launch_mod._original_stdout = sys.stdout
-        sys.stdout = sys.stderr
+        _json_stack.enter_context(json_output_redirect())
         os.environ["KODO_NO_VIEWER"] = "1"
 
     if not args.json:

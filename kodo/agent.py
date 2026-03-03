@@ -208,6 +208,11 @@ class Agent:
                     agent=label,
                     message="Worker thread did not exit after terminate()",
                 )
+            except Exception:
+                # Worker finished with an error during grace period
+                # (e.g. ConnectionError). Swallow it — the timeout result
+                # below is the correct response for the caller.
+                pass
             self.session.reset()
             return QueryResult(
                 text=(
@@ -234,6 +239,8 @@ class Agent:
         ``session.close()`` (if available) for final cleanup.  Safe to
         call multiple times.
         """
-        self.session.terminate()
-        if hasattr(self.session, "close"):
-            self.session.close()
+        try:
+            self.session.terminate()
+        finally:
+            if hasattr(self.session, "close"):
+                self.session.close()

@@ -60,8 +60,12 @@ def available_backends() -> dict[str, bool]:
 
 
 def clear_backend_cache() -> None:
-    """Invalidate the available_backends() cache. Call after env changes or in tests."""
+    """Invalidate the available_backends() cache and regenerate TEAMS.
+
+    Call after env changes or in tests.
+    """
     available_backends.cache_clear()
+    refresh_teams()
 
 
 def has_claude() -> bool:
@@ -573,7 +577,13 @@ def get_team_presets() -> dict[str, TeamPreset]:
     }
 
 
-TEAMS = get_team_presets()
+TEAMS: dict[str, "TeamPreset"] = get_team_presets()
+
+
+def refresh_teams() -> None:
+    """Regenerate the TEAMS registry (e.g. after backend availability changes)."""
+    global TEAMS
+    TEAMS = get_team_presets()
 
 
 def get_team(name: str) -> TeamPreset:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import threading
 import time
 from collections import defaultdict
@@ -342,12 +343,12 @@ def print_stats_table(final: bool = False) -> None:
     """
     global _virtual_cost_note_shown, _last_table_time
 
-    if not final:
-        now = time.monotonic()
-        if now - _last_table_time < _TABLE_MIN_INTERVAL:
-            return
-        _last_table_time = now
     with _lock:
+        if not final:
+            now = time.monotonic()
+            if now - _last_table_time < _TABLE_MIN_INTERVAL:
+                return
+            _last_table_time = now
         stats = _run_stats
         start = _start_time
 
@@ -465,7 +466,13 @@ def parse_run(log_file: Path) -> RunState | None:
     current_stage_cycles = 0
     current_stage_index: int | None = None
 
-    with open(log_file, encoding="utf-8", errors="replace") as fh:
+    try:
+        fh = open(log_file, encoding="utf-8", errors="replace")
+    except PermissionError:
+        logging.warning("Cannot read %s (permission denied), skipping run", log_file)
+        return None
+
+    with fh:
         for raw_line in fh:
             try:
                 evt = json.loads(raw_line)
@@ -546,7 +553,12 @@ def list_runs(project_dir: Path | None = None) -> list[RunState]:
     candidates: list[Path] = []
     runs_dir = _runs_root()
     if runs_dir.exists():
-        for d in sorted(runs_dir.iterdir(), reverse=True):
+        try:
+            entries = sorted(runs_dir.iterdir(), reverse=True)
+        except PermissionError:
+            logging.warning("Cannot list %s (permission denied)", runs_dir)
+            return []
+        for d in entries:
             if d.is_dir():
                 f = d / "run.jsonl"
                 if f.exists():

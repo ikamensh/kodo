@@ -12,7 +12,7 @@ logging.getLogger("claude_agent_sdk").setLevel(logging.WARNING)
 
 from kodo import log
 from kodo.cli._intake import _load_goal_plan
-from kodo.cli._ui import _atomic_write, _backend_label
+from kodo.cli._ui import _atomic_write, _backend_label, _plural
 from kodo.factory import (
     build_orchestrator,
     get_team,
@@ -20,7 +20,7 @@ from kodo.factory import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult, cleanup_abandoned_worktrees
-from kodo.team_config import build_team_from_json, load_team_config
+from kodo.team_config import build_team_from_json, load_team_config, validate_verifiers
 
 # ---------------------------------------------------------------------------
 # Exit codes
@@ -182,9 +182,9 @@ def launch_run(
     try:
         cleaned = cleanup_abandoned_worktrees(project_dir)
         if cleaned and not json_mode:
-            print(f"  Cleaned {cleaned} abandoned worktree(s)")
-    except Exception:
-        pass  # non-fatal — don't block the run
+            print(f"  Cleaned {_plural(cleaned, 'abandoned worktree')}")
+    except Exception as e:
+        logging.debug("Worktree cleanup failed (non-fatal): %s", e)
 
     team_preset = get_team(params["team"])
     verifiers = None
@@ -227,7 +227,7 @@ def launch_run(
                 system_prompt = (
                     team_config.get("orchestrator_prompt") or team_preset.system_prompt
                 )
-                verifiers = team_config.get("verifiers")
+                verifiers = validate_verifiers(team_config.get("verifiers"), team)
                 max_exchanges = team_config.get("max_exchanges", max_exchanges)
                 max_cycles = team_config.get("max_cycles", max_cycles)
             else:
@@ -294,13 +294,13 @@ def launch_run(
         if result.stage_results:
             completed = sum(1 for sr in result.stage_results if sr.finished)
             print(
-                f"Done: {completed}/{len(result.stage_results)} stage(s) completed, "
-                f"{len(result.cycles)} cycle(s), {result.total_exchanges} exchanges, "
+                f"Done: {completed}/{_plural(len(result.stage_results), 'stage')} completed, "
+                f"{_plural(len(result.cycles), 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, "
                 f"${result.total_cost_usd:.4f}",
             )
         else:
             print(
-                f"Done: {len(result.cycles)} cycle(s), {result.total_exchanges} exchanges, ${result.total_cost_usd:.4f}",
+                f"Done: {_plural(len(result.cycles), 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, ${result.total_cost_usd:.4f}",
             )
         if result.summary:
             print(f"  {result.summary[:300]}")
@@ -343,9 +343,9 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     try:
         cleaned = cleanup_abandoned_worktrees(project_dir)
         if cleaned and _original_stdout is None:
-            print(f"  Cleaned {cleaned} abandoned worktree(s)")
-    except Exception:
-        pass  # non-fatal — don't block the resume
+            print(f"  Cleaned {_plural(cleaned, 'abandoned worktree')}")
+    except Exception as e:
+        logging.debug("Worktree cleanup failed (non-fatal): %s", e)
 
     # Load params from run config if available; otherwise reconstruct from RunState
     required_keys = {
@@ -359,9 +359,16 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     if run_dir.config_file.exists():
         try:
             loaded = json.loads(run_dir.config_file.read_text(encoding="utf-8"))
-            # Accept old configs with "mode" key
+            # Accept old configs with "mode" key and re-save migrated version
             if isinstance(loaded, dict) and "mode" in loaded and "team" not in loaded:
                 loaded["team"] = loaded.pop("mode")
+                try:
+                    _atomic_write(
+                        run_dir.config_file,
+                        json.dumps(loaded, indent=2),
+                    )
+                except (PermissionError, OSError):
+                    pass  # best-effort
             if isinstance(loaded, dict) and required_keys <= loaded.keys():
                 params = loaded
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
@@ -375,8 +382,22 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
             "max_cycles": state.max_cycles,
         }
 
-    team_preset = get_team(params["team"])
+    try:
+        team_preset = get_team(params["team"])
+    except KeyError:
+        logging.warning(
+            "Saved team %r no longer exists, falling back to 'full'",
+            params["team"],
+        )
+        if _original_stdout is None:
+            print(
+                f"  Warning: team {params['team']!r} no longer exists, using 'full'."
+            )
+        params["team"] = "full"
+        team_preset = get_team("full")
     verifiers = None
+    max_exchanges = params["max_exchanges"]
+    max_cycles = params["max_cycles"]
 
     try:
         team_config = load_team_config(params["team"], project_dir)
@@ -385,7 +406,9 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
             system_prompt = (
                 team_config.get("orchestrator_prompt") or team_preset.system_prompt
             )
-            verifiers = team_config.get("verifiers")
+            verifiers = validate_verifiers(team_config.get("verifiers"), team)
+            max_exchanges = team_config.get("max_exchanges", max_exchanges)
+            max_cycles = team_config.get("max_cycles", max_cycles)
         else:
             team = team_preset.build_team()
             system_prompt = team_preset.system_prompt
@@ -435,7 +458,7 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
             print(f"Resuming sessions: {', '.join(state.agent_session_ids.keys())}")
         if state.pending_exchanges:
             print(
-                f"Resuming mid-cycle: {len(state.pending_exchanges)} exchange(s) to restore",
+                f"Resuming mid-cycle: {_plural(len(state.pending_exchanges), 'exchange')} to restore",
             )
         print(f"Log: {state.log_file}")
         print()
@@ -444,8 +467,8 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
         state.goal,
         Path(state.project_dir),
         team,
-        max_exchanges=params["max_exchanges"],
-        max_cycles=params["max_cycles"],
+        max_exchanges=max_exchanges,
+        max_cycles=max_cycles,
         resume=resume,
         plan=plan,
         verifiers=verifiers,
@@ -456,7 +479,7 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     if _original_stdout is None:
         print(f"\n{'=' * 50}")
         print(
-            f"Done: {total_cycles} total cycle(s), {result.total_exchanges} exchanges (this session), "
+            f"Done: {_plural(total_cycles, 'total cycle')}, {_plural(result.total_exchanges, 'exchange')} (this session), "
             f"${result.total_cost_usd:.4f}",
         )
         if result.summary:

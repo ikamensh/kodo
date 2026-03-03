@@ -13,6 +13,7 @@ from kodo.cli._ui import (
     _GREEN,
     _RESET,
     _atomic_write,
+    _plural,
     _print_agent,
     _print_separator,
     _Spinner,
@@ -193,8 +194,10 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
             continue
         try:
             idx = int(index)
-        except (TypeError, ValueError):
-            raise ValueError(f"Stage index must be a positive integer, got {index!r}")
+        except (TypeError, ValueError) as err:
+            raise ValueError(
+                f"Stage index must be a positive integer, got {index!r}",
+            ) from err
         if idx <= 0:
             raise ValueError(f"Stage index must be positive, got {idx}")
         if idx in seen_indices:
@@ -206,8 +209,10 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         if pg_raw is not None:
             try:
                 pg = int(pg_raw)
-            except (TypeError, ValueError):
-                raise ValueError(f"parallel_group must be integer, got {pg_raw!r}")
+            except (TypeError, ValueError) as err:
+                raise ValueError(
+                    f"parallel_group must be integer, got {pg_raw!r}",
+                ) from err
 
         stages.append(
             GoalStage(
@@ -392,7 +397,7 @@ def _read_intake_output(
             plan = _parse_goal_plan(raw)
             if plan.stages:
                 print(f"\nGoal plan read from {output_file}")
-                print(f"  {len(plan.stages)} stage(s):")
+                print(f"  {_plural(len(plan.stages), 'stage')}:")
                 for s in plan.stages:
                     pg = (
                         f" [parallel group {s.parallel_group}]"

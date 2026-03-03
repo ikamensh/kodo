@@ -60,8 +60,8 @@ class TestSkipIntakeRequiresGoal:
 class TestParseRunPermissionError:
     """parse_run and list_runs should not crash on unreadable log files."""
 
-    def test_parse_run_raises_on_permission_error(self, tmp_path):
-        """parse_run should let PermissionError propagate — callers decide."""
+    def test_parse_run_returns_none_on_permission_error(self, tmp_path):
+        """parse_run should return None (not crash) on PermissionError."""
         d = log._runs_root() / "perm_test"
         d.mkdir(parents=True)
         log_file = d / "run.jsonl"
@@ -69,8 +69,8 @@ class TestParseRunPermissionError:
 
         log_file.chmod(0o000)
         try:
-            with pytest.raises(PermissionError):
-                log.parse_run(log_file)
+            result = log.parse_run(log_file)
+            assert result is None
         finally:
             log_file.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
@@ -157,6 +157,37 @@ class TestCheckPassedQuoting:
 
     def test_minor_issues_fixed_accepted(self):
         assert _check_passed("MINOR ISSUES FIXED") is True
+
+    def test_code_block_pass_rejected(self):
+        """Signal phrase inside a fenced code block should be rejected."""
+        report = (
+            "The test output shows:\n"
+            "```\n"
+            "ALL CHECKS PASS\n"
+            "```\n"
+            "But actually 2 tests are still failing."
+        )
+        assert _check_passed(report) is False
+
+    def test_inline_code_pass_rejected(self):
+        """Signal phrase inside inline code should be rejected."""
+        report = "The output contained `ALL CHECKS PASS` but tests fail."
+        assert _check_passed(report) is False
+
+    def test_double_quoted_pass_rejected(self):
+        """Signal phrase inside double quotes should be rejected."""
+        report = 'The agent output "ALL CHECKS PASS" but 3 tests are broken.'
+        assert _check_passed(report) is False
+
+    def test_pass_after_period_accepted(self):
+        """Signal phrase at start of a new sentence should be accepted."""
+        report = "I have reviewed all test results. ALL CHECKS PASS"
+        assert _check_passed(report) is True
+
+    def test_pass_on_own_line_accepted(self):
+        """Signal phrase on its own line should be accepted."""
+        report = "Review complete.\nALL CHECKS PASS\n"
+        assert _check_passed(report) is True
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,11 @@ TeamConfig = dict[str, Agent]
 _GIT_TIMEOUT = 60  # seconds; prevents indefinite block on git commands
 
 
+def _plural(n: int, word: str) -> str:
+    """Return e.g. '1 cycle' or '3 cycles'."""
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def _resolve_executable(name: str) -> str:
     """Resolve an executable via ``shutil.which()`` to avoid PATH manipulation risks.
 
@@ -275,7 +280,7 @@ def _auto_commit(
     directive = (
         "Review `git diff` and `git status`. Stage the relevant changed files "
         "and commit with a clear, concise message describing what was accomplished. "
-        "Add Co-Authored-By: kodo <noreply@github.com>"
+        "Add Co-Authored-By: kodo <noreply@github.com>\n"
         "Do NOT push. Do NOT commit unrelated or generated files.\n\n"
         f"Summary of completed work:\n{summary}"
     )
@@ -365,7 +370,7 @@ def handle_done(
         log.tprint("⏩ [done] verification=skip — accepting immediately")
     elif isinstance(verification, list):
         log.tprint(
-            f"⚡ [done] running {len(verification)} quick check(s)...",
+            f"⚡ [done] running {_plural(len(verification), 'quick check')}...",
         )
         rejection = _run_quick_checks(verification)
     else:
@@ -385,14 +390,20 @@ def handle_done(
         log.tprint("❌ [done] REJECTED — verification found issues")
         return rejection
 
-    # Auto-commit after successful verification
-    if config.auto_commit:
-        _auto_commit(team, project_dir, summary)
-
+    # Update signal before auto-commit so the orchestrator loop sees
+    # "done" immediately and is not blocked by a potentially slow commit.
     done_signal.called = True
     done_signal.summary = summary
     done_signal.success = True
     log.emit("orchestrator_done_accepted", **tag, summary=summary)
+
+    if config.auto_commit:
+        threading.Thread(
+            target=_auto_commit,
+            args=(team, project_dir, summary),
+            daemon=True,
+        ).start()
+
     log.tprint("🎉 [done] ACCEPTED — all checks pass")
     return "Verified and accepted. All checks pass."
 
@@ -444,6 +455,11 @@ class DoneSignal:
     def success(self, value: bool) -> None:
         with self._lock:
             self._success = value
+
+    def snapshot(self) -> tuple[bool, str, bool]:
+        """Return ``(called, summary, success)`` atomically."""
+        with self._lock:
+            return self._called, self._summary, self._success
 
 
 def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
@@ -654,9 +670,22 @@ class McpServerContext:
             if self._thread.is_alive():
                 from kodo import log
 
-                log.tprint("[mcp] server thread did not stop within 5s")
-        # Only close the loop once the thread is no longer using it.
-        if self._loop and (not self._thread or not self._thread.is_alive()):
+                log.tprint("[mcp] server thread did not stop within 5s, retrying...")
+                # Escalation: retry loop.stop and give 2s more
+                if self._loop:
+                    try:
+                        self._loop.call_soon_threadsafe(self._loop.stop)
+                    except RuntimeError:
+                        pass
+                self._thread.join(timeout=2)
+                if self._thread.is_alive():
+                    log.emit(
+                        "mcp_server_thread_stuck",
+                        message="Thread still alive after 7s",
+                    )
+        # Close loop even if thread is stuck — the daemon thread will be
+        # cleaned up at process exit.
+        if self._loop:
             try:
                 self._loop.close()
             except (OSError, RuntimeError):
@@ -680,20 +709,36 @@ def _check_passed(report: str) -> bool:
 
     Rejects reports containing "NOT ALL CHECKS PASS" or "NOT MINOR ISSUES FIXED".
     The signal phrase must appear as the verifier's own assertion — at the start
-    of a line/sentence — not inside a quotation or attribution like
-    ``The agent said 'ALL CHECKS PASS' but tests fail``.
+    of a line/sentence — not inside a quotation, attribution, or code block like
+    ``The agent said 'ALL CHECKS PASS' but tests fail`` or inside triple backticks.
     """
     upper = report.upper()
     if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:
         return False
+
+    _SIGNAL = r"(?:ALL CHECKS PASS|MINOR ISSUES FIXED)"
+
+    # Strip fenced code blocks (```...```) — signals inside code are quotations,
+    # not the verifier's own assertion.
+    stripped = re.sub(r"```.*?```", "", upper, flags=re.DOTALL)
+    # Strip inline code (`...`)
+    stripped = re.sub(r"`[^`]+`", "", stripped)
+    # Strip single-quoted and double-quoted strings containing the signal phrase
+    stripped = re.sub(r"'[^']*" + _SIGNAL + r"[^']*'", "", stripped)
+    stripped = re.sub(r'"[^"]*' + _SIGNAL + r'[^"]*"', "", stripped)
+
+    # After stripping, reject if no signal phrase remains
+    if not re.search(_SIGNAL, stripped):
+        return False
+
     # Accept the signal at: start of text, start of line, or after sentence-ending
     # punctuation (.!?).  Reject mid-sentence mentions that follow attribution
-    # words (said, say, cannot, etc.) or appear inside quotes.
+    # words (said, say, cannot, etc.).
     pattern = re.compile(
-        r"(?:^|(?<=\.)|(?<=!)|(?<=\?))\s*(?:ALL CHECKS PASS|MINOR ISSUES FIXED)\b",
+        r"(?:^|(?<=\.)|(?<=!)|(?<=\?))\s*" + _SIGNAL + r"\b",
         re.MULTILINE,
     )
-    return bool(pattern.search(upper))
+    return bool(pattern.search(stripped))
 
 
 def verify_done(
@@ -1190,18 +1235,19 @@ def _resolve_conflicts_with_agent(
 
     from kodo.models import CLAUDE_SONNET
 
-    session = make_session(
-        backend="claude-code",
-        model=CLAUDE_SONNET,
-        system_prompt=(
-            "You are resolving git merge conflicts. The merge is in progress. "
-            "Conflicting files have <<<<<<< / ======= / >>>>>>> markers. "
-            "Resolve each conflict by keeping BOTH sides' changes integrated "
-            "correctly. Both branches implemented independent features that "
-            "should coexist. After resolving, run `git add` on each file."
-        ),
-    )
+    session = None
     try:
+        session = make_session(
+            backend="claude-code",
+            model=CLAUDE_SONNET,
+            system_prompt=(
+                "You are resolving git merge conflicts. The merge is in progress. "
+                "Conflicting files have <<<<<<< / ======= / >>>>>>> markers. "
+                "Resolve each conflict by keeping BOTH sides' changes integrated "
+                "correctly. Both branches implemented independent features that "
+                "should coexist. After resolving, run `git add` on each file."
+            ),
+        )
         session.query(
             f"Resolve the merge conflicts in this project. The conflicting files are:\n"
             f"{files}\n\n"
@@ -1213,8 +1259,13 @@ def _resolve_conflicts_with_agent(
             project_dir=project_dir,
             max_turns=30,
         )
+    except Exception as exc:
+        log.emit("persist_conflict_resolve_crash", error=str(exc))
+        log.tprint(f"[persist] Conflict resolver crashed: {exc}")
+        return False
     finally:
-        session.close()
+        if session is not None:
+            session.close()
 
     # Check if all conflicts are resolved
     remaining = subprocess.run(
@@ -1669,6 +1720,12 @@ class OrchestratorBase:
         run_config = CycleConfig(verifiers=verifiers, auto_commit=auto_commit)
 
         try:
+            if plan and not plan.stages:
+                log.tprint(
+                    "[orchestrator] Warning: GoalPlan has no stages, "
+                    "running as single-goal",
+                )
+                log.emit("run_empty_plan_fallback", goal=goal)
             if plan and plan.stages:
                 self._run_staged(
                     goal,
@@ -1848,7 +1905,7 @@ class OrchestratorBase:
                 )
                 log.tprint(
                     f"[orchestrator] Stage {stage.index} ({stage.name}) "
-                    f"completed in {len(stage_res.cycles)} cycle(s)",
+                    f"completed in {_plural(len(stage_res.cycles), 'cycle')}",
                 )
                 break
 
@@ -1867,7 +1924,7 @@ class OrchestratorBase:
             )
             log.tprint(
                 f"[orchestrator] Stage {stage.index} ({stage.name}) "
-                f"— cycle limit reached after {len(stage_res.cycles)} cycle(s)",
+                f"— cycle limit reached after {_plural(len(stage_res.cycles), 'cycle')}",
             )
 
         return stage_res
@@ -1925,8 +1982,8 @@ class OrchestratorBase:
                     len(g) for g in remaining_groups[remaining_groups.index(group) :]
                 )
                 log.tprint(
-                    f"[orchestrator] Stopping run — all {max_cycles} cycle(s) used, "
-                    f"{skipped} stage(s) remaining",
+                    f"[orchestrator] Stopping run — all {_plural(max_cycles, 'cycle')} used, "
+                    f"{_plural(skipped, 'stage')} remaining",
                 )
                 break
 
@@ -2077,8 +2134,12 @@ class OrchestratorBase:
                         for idx, (wt_dir, branch) in list(worktrees.items()):
                             try:
                                 remove_worktree(project_dir, wt_dir, branch)
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                log.emit(
+                                    "worktree_cleanup_error",
+                                    stage_index=idx,
+                                    error=str(exc),
+                                )
                         worktrees.clear()
                         for stage in group:
                             stage_res = self._run_one_stage(

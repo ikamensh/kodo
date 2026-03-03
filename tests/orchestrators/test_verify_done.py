@@ -468,3 +468,36 @@ class TestHandleDoneFullVerification:
         done_signal = DoneSignal()
         handle_done(SUMMARY, True, done_signal, GOAL, team, tmp_project)
         assert tester.session.stats.queries == 1
+
+
+class TestVerificationStateCycleBoundary:
+    """Ensure VerificationState resets between cycles."""
+
+    def test_verification_state_resets_between_cycles(
+        self, tmp_project: Path,
+    ) -> None:
+        """Each cycle creates a fresh VerificationState, resetting done_attempt.
+
+        Simulates two cycles: cycle 1 calls verify_done() twice (attempt
+        reaches 2), then cycle 2 creates a fresh state (attempt restarts
+        at 1).
+        """
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+
+        # ── Cycle 1 ──
+        state1 = VerificationState()
+        verify_done(GOAL, SUMMARY, team, tmp_project, state=state1)
+        assert state1.done_attempt == 1
+
+        verify_done(GOAL, SUMMARY, team, tmp_project, state=state1)
+        assert state1.done_attempt == 2
+
+        # ── Cycle 2 — fresh state, counter must restart ──
+        state2 = VerificationState()
+        verify_done(GOAL, SUMMARY, team, tmp_project, state=state2)
+        assert state2.done_attempt == 1  # NOT 3
+
+    def test_default_state_starts_fresh(self) -> None:
+        """A newly-created VerificationState always starts at attempt 0."""
+        state = VerificationState()
+        assert state.done_attempt == 0

@@ -223,11 +223,31 @@ class TestResolveExecutable:
 
 class TestClaudeSessionTimeout:
     def test_run_has_query_timeout_constant(self) -> None:
-        """ClaudeSession should have a _QUERY_TIMEOUT class attribute."""
+        """ClaudeSession should have a _DEFAULT_QUERY_TIMEOUT class attribute."""
         from kodo.sessions.claude import ClaudeSession
 
-        assert hasattr(ClaudeSession, "_QUERY_TIMEOUT")
-        assert ClaudeSession._QUERY_TIMEOUT == 7200
+        assert hasattr(ClaudeSession, "_DEFAULT_QUERY_TIMEOUT")
+        assert ClaudeSession._DEFAULT_QUERY_TIMEOUT == 7200
+
+    def test_session_timeout_s_overrides_default(self) -> None:
+        """session_timeout_s should override the default query timeout."""
+        from kodo.sessions.claude import ClaudeSession
+
+        session = ClaudeSession(model="test", use_api_key=True, session_timeout_s=3600)
+        try:
+            assert session._query_timeout == 3600.0
+        finally:
+            session.close()
+
+    def test_default_query_timeout_when_no_override(self) -> None:
+        """Without session_timeout_s, the default timeout should be used."""
+        from kodo.sessions.claude import ClaudeSession
+
+        session = ClaudeSession(model="test", use_api_key=True)
+        try:
+            assert session._query_timeout == 7200.0
+        finally:
+            session.close()
 
     def test_run_raises_on_dead_thread(self) -> None:
         """_run should raise RuntimeError if the background thread is dead."""

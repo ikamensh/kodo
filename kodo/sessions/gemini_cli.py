@@ -83,7 +83,18 @@ class GeminiCliSession(SubprocessSession):
 
         t0 = time.monotonic()
 
-        proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=str(project_dir))
+        try:
+            proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=str(project_dir))
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            elapsed = time.monotonic() - t0
+            error_msg = classify_session_error(
+                -1, str(exc), backend="gemini",
+            ) or f"Failed to spawn gemini: {exc}"
+            log.emit(
+                "session_query_end", session="gemini-cli", elapsed_s=elapsed,
+                is_error=True, error=str(exc),
+            )
+            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
 
         try:
             stdout_text = proc.stdout.read()

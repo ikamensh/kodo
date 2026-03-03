@@ -131,7 +131,12 @@ class Summarizer:
     def summarize(self, agent_name: str, task: str, report: str) -> None:
         """Submit a summary job (fire-and-forget)."""
         with self._lock:
-            self._executor.submit(self._do_summarize, agent_name, task, report)
+            if self._executor is None:
+                return  # already shut down
+            try:
+                self._executor.submit(self._do_summarize, agent_name, task, report)
+            except RuntimeError:
+                pass  # executor already shut down; fire-and-forget, safe to discard
 
     def _do_summarize(self, agent_name: str, task: str, report: str) -> None:
         task = task or ""
@@ -164,6 +169,8 @@ class Summarizer:
         """Drain pending work and return all summaries collected."""
         with self._lock:
             old_executor = self._executor
+            if old_executor is None:
+                return "\n".join(self._summaries)
             self._executor = ThreadPoolExecutor(max_workers=1)
         # Shutdown outside lock so _do_summarize can acquire it to append
         old_executor.shutdown(wait=True)
@@ -176,5 +183,9 @@ class Summarizer:
             self._summaries.clear()
 
     def shutdown(self, wait: bool = True) -> None:
-        """Drain pending work."""
-        self._executor.shutdown(wait=wait)
+        """Drain pending work. Idempotent — safe to call multiple times."""
+        with self._lock:
+            executor = self._executor
+            self._executor = None
+        if executor is not None:
+            executor.shutdown(wait=wait)

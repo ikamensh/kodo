@@ -84,7 +84,21 @@ class CursorSession(SubprocessSession):
         result_text = ""
         raw_messages: list[dict] = []
 
-        proc, stderr_chunks, stderr_thread = self._spawn(cmd)
+        try:
+            proc, stderr_chunks, stderr_thread = self._spawn(cmd)
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            elapsed = time.monotonic() - t0
+            error_msg = classify_session_error(
+                -1, str(exc), backend="cursor",
+            ) or f"Failed to spawn cursor-agent: {exc}"
+            log.emit(
+                "session_query_end", session="cursor", elapsed_s=elapsed,
+                is_error=True, error=str(exc),
+            )
+            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
+
+        input_tokens = 0
+        output_tokens = 0
 
         try:
             for line in proc.stdout:
@@ -101,6 +115,17 @@ class CursorSession(SubprocessSession):
                 if msg.get("type") == "result":
                     r = msg.get("result", "")
                     result_text = str(r) if r is not None else ""
+                # Extract token counts from any message that reports them.
+                # cursor-agent may emit these in "token_count", "usage", or
+                # top-level fields depending on version.
+                _usage = msg.get("usage") or msg
+                if "input_tokens" in _usage:
+                    input_tokens += _usage.get("input_tokens", 0)
+                    output_tokens += _usage.get("output_tokens", 0)
+                elif msg.get("type") == "token_count":
+                    inner = msg.get("data") or msg
+                    input_tokens += inner.get("input_tokens", 0)
+                    output_tokens += inner.get("output_tokens", 0)
                 # Capture chat ID from any message that reports it
                 if "chatId" in msg:
                     self._chat_id = msg["chatId"]
@@ -127,6 +152,8 @@ class CursorSession(SubprocessSession):
                 result_text = hint
 
         self._stats.queries += 1
+        self._stats.total_input_tokens += input_tokens
+        self._stats.total_output_tokens += output_tokens
 
         log.emit(
             "session_query_end",
@@ -136,6 +163,8 @@ class CursorSession(SubprocessSession):
             is_error=is_error,
             chat_id=self._chat_id,
             returncode=proc.returncode,
+            input_tokens=input_tokens or None,
+            output_tokens=output_tokens or None,
             response_text=result_text or stderr_text,
             raw_messages=raw_messages,
         )
@@ -145,4 +174,6 @@ class CursorSession(SubprocessSession):
             text=text_out,
             elapsed_s=elapsed,
             is_error=is_error,
+            input_tokens=input_tokens or None,
+            output_tokens=output_tokens or None,
         )

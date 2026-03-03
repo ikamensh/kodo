@@ -105,7 +105,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             # threads (e.g. API summarizer) see the key missing.
             with anthropic_env_lock:
                 saved_api_key = os.environ.pop("ANTHROPIC_API_KEY", None)
-            client = ClaudeSDKClient(options=options)
+                client = ClaudeSDKClient(options=options)
             try:
                 await client.connect()
                 log.tprint("🚀 [orchestrator] starting cycle...")

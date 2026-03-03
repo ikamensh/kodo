@@ -18,6 +18,11 @@ _CYAN = "\033[36m"
 _GREEN = "\033[32m"
 _RESET = "\033[0m"
 
+def _plural(n: int, word: str) -> str:
+    """Return e.g. '1 cycle' or '3 cycles'. Handles simple English plurals."""
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 _BACKEND_LABELS = {
     "ClaudeSession": "claude code",
     "CursorSession": "cursor",

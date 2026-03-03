@@ -178,3 +178,33 @@ def build_team_from_json(config: dict) -> TeamConfig:
         )
 
     return team
+
+
+def validate_verifiers(
+    verifiers: dict[str, list[str]] | None,
+    team: TeamConfig,
+) -> dict[str, list[str]] | None:
+    """Validate verifier agent references against the built team.
+
+    Removes references to agents that don't exist in the team (e.g. because
+    their backend was unavailable) and warns about them.  Returns the cleaned
+    verifiers dict, or None if input was None.
+    """
+    if verifiers is None:
+        return None
+
+    cleaned: dict[str, list[str]] = {}
+    for role, agent_keys in verifiers.items():
+        valid = []
+        for key in agent_keys:
+            if key in team:
+                valid.append(key)
+            else:
+                logger.warning(
+                    "Verifier role %r references non-existent agent %r — skipping",
+                    role,
+                    key,
+                )
+        if valid:
+            cleaned[role] = valid
+    return cleaned or None

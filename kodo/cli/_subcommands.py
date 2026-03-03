@@ -9,6 +9,7 @@ from typing import Any
 import questionary
 
 from kodo import log
+from kodo.cli._ui import _plural
 from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
@@ -253,7 +254,7 @@ def _cmd_teams_list() -> None:
         if desc:
             print(f"  {desc}")
         print(
-            f"  {len(agents)} agents ({avail_str}), {exchanges} exchanges, {cycles} cycles",
+            f"  {_plural(len(agents), 'agent')} ({avail_str}), {_plural(exchanges, 'exchange')}, {_plural(cycles, 'cycle')}",
         )
         print(f"  {path}")
 
@@ -425,6 +426,16 @@ def _cmd_teams_auto(mode_name: str) -> None:
         )
     print()
 
+    # Confirm before overwriting an existing team config
+    existing_path = _teams_dir() / f"{mode_name}.json"
+    if existing_path.exists():
+        confirm = input(
+            f"Team {mode_name!r} already exists at {existing_path}. Overwrite? [y/N] "
+        ).strip().lower()
+        if confirm not in ("y", "yes"):
+            print("Cancelled.")
+            return
+
     _save_team(mode_name, config)
     print(f"\nUse with: kodo --team {mode_name}")
 
@@ -522,16 +533,25 @@ def _ask_agent_fields(
         print("Cancelled.")
         sys.exit(1)
 
+    try:
+        max_turns_int = int(max_turns)
+    except ValueError:
+        print(f"Invalid max_turns value: {max_turns!r} (must be an integer)")
+        sys.exit(1)
     agent: dict[str, Any] = {
         "backend": backend,
         "model": model.strip(),
         "description": description,
-        "max_turns": int(max_turns),
+        "max_turns": max_turns_int,
     }
     if system_prompt.strip():
         agent["system_prompt"] = system_prompt
     if timeout_raw.strip():
-        agent["timeout_s"] = int(timeout_raw)
+        try:
+            agent["timeout_s"] = int(timeout_raw)
+        except ValueError:
+            print(f"Invalid timeout value: {timeout_raw!r} (must be an integer)")
+            sys.exit(1)
 
     # Optional fields
     if backend == "claude":
@@ -760,14 +780,22 @@ def _cmd_teams_edit(name: str) -> None:
                 default=str(config.get("max_exchanges", 20)),
             ).ask()
             if exc is not None:
-                config["max_exchanges"] = int(exc)
+                try:
+                    config["max_exchanges"] = int(exc)
+                except ValueError:
+                    print(f"Invalid max_exchanges value: {exc!r} (must be an integer)")
+                    continue
 
             cyc = questionary.text(
                 "Max cycles:",
                 default=str(config.get("max_cycles", 1)),
             ).ask()
             if cyc is not None:
-                config["max_cycles"] = int(cyc)
+                try:
+                    config["max_cycles"] = int(cyc)
+                except ValueError:
+                    print(f"Invalid max_cycles value: {cyc!r} (must be an integer)")
+                    continue
 
             orch_prompt = questionary.text(
                 "Orchestrator prompt (Enter to keep default):",
