@@ -304,9 +304,13 @@ class ApiOrchestrator(OrchestratorBase):
                 ),
             )
 
+        system_prompt = self._system_prompt.format(
+            log_path=log.get_log_file(),
+        )
+
         agent = Agent(
             self._pydantic_model,
-            system_prompt=self._system_prompt,
+            system_prompt=system_prompt,
             tools=tools,
             history_processors=history_processors or None,
         )

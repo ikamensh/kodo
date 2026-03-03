@@ -225,8 +225,6 @@ def team_to_json(
     *,
     orchestrator_prompt: str | None = None,
     verifiers: dict[str, list[str]] | None = None,
-    max_exchanges: int | None = None,
-    max_cycles: int | None = None,
 ) -> dict:
     """Serialize a built TeamConfig to a JSON-compatible dict for snapshotting."""
     from kodo.factory import _SESSION_BACKEND_MAP
@@ -263,8 +261,4 @@ def team_to_json(
         result["orchestrator_prompt"] = orchestrator_prompt
     if verifiers:
         result["verifiers"] = verifiers
-    if max_exchanges:
-        result["max_exchanges"] = max_exchanges
-    if max_cycles:
-        result["max_cycles"] = max_cycles
     return result

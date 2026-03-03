@@ -356,29 +356,6 @@ def test_run_bash_handles_timeout(tmp_path: Path):
     assert "timed out" in result["output"].lower()
 
 
-# ── build_cycle_prompt log path ──────────────────────────────────────────
-
-
-def test_build_cycle_prompt_includes_log_path(tmp_path: Path):
-    """build_cycle_prompt includes the JSONL log path when available."""
-    from kodo.orchestrators.base import build_cycle_prompt
-
-    log.init(RunDir.create(tmp_path, "prompt_log"))
-    prompt = build_cycle_prompt("test goal", tmp_path)
-    assert "Run log (JSONL):" in prompt
-    assert ".jsonl" in prompt
-
-
-def test_build_cycle_prompt_no_log_path(tmp_path: Path):
-    """build_cycle_prompt omits log path when log is not initialized."""
-    from unittest.mock import patch as _patch
-
-    from kodo.orchestrators.base import build_cycle_prompt
-
-    with _patch("kodo.log.get_log_file", return_value=None):
-        prompt = build_cycle_prompt("test goal", tmp_path)
-    assert "Run log" not in prompt
-
 
 # ── shared helpers ───────────────────────────────────────────────────────
 

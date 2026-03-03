@@ -311,12 +311,7 @@ class DoneSignal:
 
 def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
     """Build the user-turn prompt sent to the orchestrator each cycle."""
-    from kodo import log
-
     prompt = f"# Goal\n\n{goal}\n\nProject directory: {project_dir}"
-    log_file = log.get_log_file()
-    if log_file:
-        prompt += f"\nRun log (JSONL): {log_file}"
     if prior_summary:
         prompt += (
             f"\n\n# Previous progress\n\n{prior_summary}"

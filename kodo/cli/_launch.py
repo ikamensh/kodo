@@ -240,8 +240,6 @@ def launch_run(
                     team_config.get("orchestrator_prompt") or team_preset.system_prompt
                 )
                 verifiers = validate_verifiers(team_config.get("verifiers"), team)
-                max_exchanges = team_config.get("max_exchanges", max_exchanges)
-                max_cycles = team_config.get("max_cycles", max_cycles)
             else:
                 team = team_preset.build_team()
                 system_prompt = team_preset.system_prompt
@@ -259,8 +257,6 @@ def launch_run(
                 team,
                 orchestrator_prompt=system_prompt,
                 verifiers=verifiers,
-                max_exchanges=max_exchanges,
-                max_cycles=max_cycles,
             )
             _atomic_write(run_dir.team_file, json.dumps(snapshot, indent=2))
 
@@ -451,8 +447,6 @@ def launch_resume(
                 team_config.get("orchestrator_prompt") or team_preset.system_prompt
             )
             verifiers = validate_verifiers(team_config.get("verifiers"), team)
-            max_exchanges = team_config.get("max_exchanges", max_exchanges)
-            max_cycles = team_config.get("max_cycles", max_cycles)
         else:
             team = team_preset.build_team()
             system_prompt = team_preset.system_prompt
