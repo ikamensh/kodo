@@ -1,7 +1,7 @@
 """Goal refinement and planning prompts."""
 
 INTAKE_PREAMBLE = """\
-You are refining a software project goal{purpose}.
+You are refining a software project goal: {purpose}.
 
 Ask 2-3 clarifying questions about constraints, tech choices, and scope.
 When clear enough, write {output}."""
@@ -51,8 +51,8 @@ Review this goal before implementation:
 Concisely answer (2-3 sentences each):
 1. **Implicit constraints** — what does this goal imply that isn't stated?
 2. **Simplest architecture** — one specific approach, not options.
-3. **Common traps** — most likely over-engineering mistake?
+3. **Common traps** — most likely over-engineering mistakes
 
 Then write a refined goal to {output_path} incorporating the original intent \
-plus implicit constraints. Keep it concise — an autonomous agent will read it.
+plus what you deduced. Keep it concise — low level details don't belong here.
 """

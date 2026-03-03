@@ -147,6 +147,12 @@ def _run_single_task(
         agent_output, status, error = _run_kodo(task, repo_dir, timeout, team=team)
     elif base == "claude":
         agent_output, status, error = _run_claude(task, repo_dir, timeout)
+    elif base == "cursor":
+        agent_output, status, error = _run_cursor(task, repo_dir, timeout)
+    elif base == "codex":
+        agent_output, status, error = _run_codex(task, repo_dir, timeout, model=team)
+    elif base == "gemini":
+        agent_output, status, error = _run_gemini(task, repo_dir, timeout)
     else:
         raise ValueError(f"Unknown arm: {arm}")
 
@@ -231,7 +237,7 @@ def _run_kodo(
 ) -> tuple[dict, str, str]:
     prompt = _build_prompt(task)
     cmd = [
-        "kodo",
+        "uv", "run", "kodo",
         "--goal",
         prompt,
         "--skip-intake",
@@ -262,12 +268,73 @@ def _run_claude(
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
 
 
+def _run_cursor(
+    task: SWETask, repo_dir: Path, timeout: int
+) -> tuple[dict, str, str]:
+    """Run Cursor agent CLI in print mode."""
+    prompt = _build_prompt(task)
+    cmd = [
+        "cursor-agent",
+        "--print",
+        "--force",
+        "--output-format",
+        "json",
+        "--model",
+        "composer-1.5",
+        prompt,
+    ]
+    return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
+
+
+def _run_codex(
+    task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
+) -> tuple[dict, str, str]:
+    """Run OpenAI Codex CLI in non-interactive mode."""
+    prompt = _build_prompt(task)
+    cmd = [
+        "codex",
+        "exec",
+        "--full-auto",
+        "--json",
+    ]
+    if model:
+        cmd.extend(["-m", model])
+    cmd.append(prompt)
+    return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
+
+
+def _run_gemini(
+    task: SWETask, repo_dir: Path, timeout: int
+) -> tuple[dict, str, str]:
+    """Run Google Gemini CLI in headless mode."""
+    prompt = _build_prompt(task)
+    cmd = [
+        "gemini",
+        "-p",
+        prompt,
+        "--yolo",
+        "--output-format",
+        "json",
+    ]
+    return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
+
+
+def _clean_env() -> dict[str, str]:
+    """Return a copy of os.environ without vars that block nested sessions."""
+    import os
+
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+    return env
+
+
 def _run_subprocess(
     cmd: list[str], cwd: Path | None, timeout: int
 ) -> tuple[dict, str, str]:
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd,
+            env=_clean_env(),
         )
         output = _parse_json_output(proc.stdout)
         status = "ok" if proc.returncode == 0 else "error"

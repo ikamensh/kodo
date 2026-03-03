@@ -28,7 +28,6 @@
       "backend": "cursor",
       "model": "composer-1.5",
       "description": "Verifies features end-to-end. Give it a user-experience description to check.\nReports what works and what's broken. Does not fix anything.",
-      "system_prompt": "You are a tester agent. Verify the desired user experience works end-to-end — run the app, call APIs, check files, verify imports, run scripts.\nFix minor issues yourself. Only report blocking issues with specific error messages.\nSay 'ALL CHECKS PASS' if clean, 'MINOR ISSUES FIXED' if you only fixed cosmetics.",
       "max_turns": 20,
       "timeout_s": 1800
     },
@@ -36,7 +35,6 @@
       "backend": "cursor",
       "model": "composer-1.5",
       "description": "Tester with real browser access — use for web UI verification.\nReports issues but does not fix anything.",
-      "system_prompt": "You are a tester agent with browser access. Verify the app works by opening it in a real browser — navigate the UI, click buttons, fill forms, check rendering.\nFix minor issues yourself. Only report blocking issues with specific error messages.\nSay 'ALL CHECKS PASS' if clean, 'MINOR ISSUES FIXED' if you only fixed cosmetics.",
       "max_turns": 20,
       "timeout_s": 1800,
       "chrome": true
@@ -45,7 +43,6 @@
       "backend": "claude",
       "model": "opus",
       "description": "Code reviewer. Updates .kodo/architecture.md with decisions.\nDoes not implement features.",
-      "system_prompt": "You are the architect. When reviewing code, update .kodo/architecture.md with key decisions, component boundaries, and lessons learned. Keep it concise.\nWorkers read this file before coding and may append critique there.\nIdentify bugs and structural issues with specific file/line references.\nFix minor issues yourself. Only report blocking issues with specific error messages.\nSay 'ALL CHECKS PASS' if clean, 'MINOR ISSUES FIXED' if you only fixed cosmetics.",
       "max_turns": 10,
       "timeout_s": 600,
       "fallback_model": "sonnet"

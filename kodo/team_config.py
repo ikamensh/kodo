@@ -8,8 +8,9 @@ from pathlib import Path
 
 from kodo import make_session
 from kodo.agent import Agent
-from kodo.factory import available_backends
+from kodo.factory import available_backends, smart_model_for_backend
 from kodo.orchestrators.base import TeamConfig
+from kodo.prompts.roles import ARCHITECT_PROMPT, TESTER_BROWSER_PROMPT, TESTER_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,13 @@ _AGENT_DEFAULTS = {
     "system_prompt": None,
     "fallback_model": None,
     "session_timeout_s": 7200,
+}
+
+# Agent key → default system prompt (applied when JSON omits system_prompt)
+_ROLE_PROMPTS: dict[str, str] = {
+    "tester": TESTER_PROMPT,
+    "tester_browser": TESTER_BROWSER_PROMPT,
+    "architect": ARCHITECT_PROMPT,
 }
 
 
@@ -123,10 +131,9 @@ def build_team_from_json(config: dict) -> TeamConfig:
             continue
 
         backend = agent_cfg.get("backend")
-        model = agent_cfg.get("model")
-        if not backend or not model:
+        if not backend:
             raise ValueError(
-                f"Agent {agent_key!r} must have 'backend' and 'model' fields",
+                f"Agent {agent_key!r} must have a 'backend' field",
             )
 
         # Check backend availability
@@ -136,6 +143,8 @@ def build_team_from_json(config: dict) -> TeamConfig:
                 f"Agent {agent_key!r} has unknown backend {backend!r}. "
                 f"Valid backends: {', '.join(_BACKEND_MAP.keys())}",
             )
+
+        model = agent_cfg.get("model") or smart_model_for_backend(backend_key)
         if not backends.get(backend_key, False):
             logger.warning(
                 "Skipping agent %r: backend %r not available", agent_key, backend,
@@ -144,7 +153,8 @@ def build_team_from_json(config: dict) -> TeamConfig:
 
         # Build session
         description = agent_cfg.get("description", _AGENT_DEFAULTS["description"])
-        system_prompt = agent_cfg.get("system_prompt", _AGENT_DEFAULTS["system_prompt"])
+        default_prompt = _ROLE_PROMPTS.get(agent_key, _AGENT_DEFAULTS["system_prompt"])
+        system_prompt = agent_cfg.get("system_prompt", default_prompt)
         max_turns = agent_cfg.get("max_turns", _AGENT_DEFAULTS["max_turns"])
         timeout_s = agent_cfg.get("timeout_s", _AGENT_DEFAULTS["timeout_s"])
         chrome = agent_cfg.get("chrome", _AGENT_DEFAULTS["chrome"])

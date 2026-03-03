@@ -398,8 +398,10 @@ def _main_inner() -> None:
 
     # 5. Summary and confirm
     team_name = params.get("team")
-    if not isinstance(team_name, str) or team_name not in TEAMS:
-        _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(TEAMS)}.")
+    # Accept both hardcoded presets and user-defined JSON teams from ~/.kodo/teams/
+    _all_team_names = set(TEAMS) | {n for n, *_ in list_available_teams()}
+    if not isinstance(team_name, str) or team_name not in _all_team_names:
+        _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(sorted(_all_team_names))}.")
     if not args.json:
         team_preset = get_team(team_name)
         print("\n" + "=" * 60)

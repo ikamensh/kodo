@@ -34,7 +34,7 @@ class TestF1UserJsonTeamsBlocked:
         presets = get_team_presets()
         # Built-in names only — no user-defined teams appear here
         for name in presets:
-            assert name in {"full", "quick", "saga", "mission"}, (
+            assert name in {"full", "quick"}, (
                 f"Unexpected preset {name!r} — if user teams now appear, F1 may be fixed"
             )
 

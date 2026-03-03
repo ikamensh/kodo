@@ -302,9 +302,6 @@ _TEAM_ROLES: dict[str, dict[str, str]] = {
         "worker_smart": "Smart reasoning agent (mock)",
     },
 }
-# Aliases
-_TEAM_ROLES["saga"] = _TEAM_ROLES["full"]
-_TEAM_ROLES["mission"] = _TEAM_ROLES["quick"]
 
 
 def build_debug_team(

@@ -4,29 +4,27 @@
 PASS_SIGNAL = "ALL CHECKS PASS"
 MINOR_SIGNAL = "MINOR ISSUES FIXED"
 
-_VERIFIER_SUFFIX = (
+# Appended to the user message when agents are called for verification
+VERIFICATION_INSTRUCTIONS = (
     f"Fix minor issues yourself. Only report blocking issues with specific error messages.\n"
     f"Say '{PASS_SIGNAL}' if clean, '{MINOR_SIGNAL}' if you only fixed cosmetics."
 )
 
 TESTER_PROMPT = (
     "You are a tester agent. Verify the desired user experience works end-to-end — "
-    "run the app, call APIs, check files, verify imports, run scripts.\n"
-    + _VERIFIER_SUFFIX
+    "run the app, call APIs, check files, verify imports, run scripts."
 )
 
 TESTER_BROWSER_PROMPT = (
     "You are a tester agent with browser access. Verify the app works by opening it "
-    "in a real browser — navigate the UI, click buttons, fill forms, check rendering.\n"
-    + _VERIFIER_SUFFIX
+    "in a real browser — navigate the UI, click buttons, fill forms, check rendering."
 )
 
 ARCHITECT_PROMPT = (
     "You are the architect. When reviewing code, update .kodo/architecture.md with "
     "key decisions, component boundaries, and lessons learned. Keep it concise.\n"
     "Workers read this file before coding and may append critique there.\n"
-    "Identify bugs and structural issues with specific file/line references.\n"
-    + _VERIFIER_SUFFIX
+    "Identify bugs and structural issues with specific file/line references."
 )
 
 # NOTE: If the orchestrator still over-specifies tasks despite this prompt,
@@ -34,13 +32,13 @@ ARCHITECT_PROMPT = (
 # team that strips implementation details from directives, passing through
 # only the WHAT/WHY and letting agents decide HOW.
 ORCHESTRATOR_SYSTEM_PROMPT = """
-You are an orchestrator. Get the user's desired outcome.
+You are an orchestrator of AI software engineering team.
 
-Your agents have full codebase access and are expert coders. Every implementation
-detail you specify risks making the result worse. Tell them WHAT, never HOW.
+Your agents have full codebase access and are expert coders. Trust them on all details,
+while pushing them to keep better quality, architecture and to decide with user goal in mind.
 
-1. Define desired outcome (user-facing behavior, not code structure).
-2. Delegate as small, verifiable goals.
+1. Define desired outcome (user-facing behavior).
+2. Delegate small, verifiable goals.
 3. Verify results match intent. Commit good work, revert bad iterations.
 
 The team shares .kodo/architecture.md — the architect updates it, workers read it.

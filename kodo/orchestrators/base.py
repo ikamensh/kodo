@@ -15,12 +15,22 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from kodo.agent import Agent
-from kodo.prompts.roles import MINOR_SIGNAL, PASS_SIGNAL
+from kodo.prompts.roles import MINOR_SIGNAL, PASS_SIGNAL, VERIFICATION_INSTRUCTIONS
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
 
 _GIT_TIMEOUT = 60  # seconds; prevents indefinite block on git commands
+
+# Patterns that indicate unrecoverable errors — retrying won't help.
+_FATAL_ERROR_PATTERNS = re.compile(
+    r"Subscription/billing issue|Authentication failed|Binary not working",
+    re.IGNORECASE,
+)
+
+
+class FatalAgentError(Exception):
+    """Raised when all workers have hit unrecoverable errors."""
 
 
 def _plural(n: int, word: str) -> str:
@@ -151,6 +161,8 @@ def handle_agent_call(
     new_conversation: bool = False,
     cycle_log: list[str] | None = None,
     orchestrator_tag: str | None = None,
+    dead_workers: set[str] | None = None,
+    total_workers: int = 0,
 ) -> str:
     """Run an agent and return its report (or error string on crash).
 
@@ -210,7 +222,15 @@ def handle_agent_call(
         done_msg += f" | session: {agent_result.session_tokens:,} tokens"
     log.tprint(done_msg)
     if agent_result.is_error:
-        log.tprint(f"⚠️  [{agent_name}] reported error")
+        err_text = (agent_result.text or "unknown error")[:200]
+        log.tprint(f"⚠️  [{agent_name}] error: {err_text}")
+        # Track workers with fatal (unrecoverable) errors
+        if dead_workers is not None and _FATAL_ERROR_PATTERNS.search(err_text):
+            dead_workers.add(agent_name)
+            if len(dead_workers) >= total_workers:
+                raise FatalAgentError(
+                    f"All workers failed: {', '.join(sorted(dead_workers))}"
+                )
     if agent_result.context_reset:
         log.tprint(
             f"🔄 [{agent_name}] context reset: {agent_result.context_reset_reason}",
@@ -413,6 +433,8 @@ def build_mcp_server(
     from mcp.server.fastmcp import FastMCP
 
     mcp = FastMCP("team")
+    dead_workers: set[str] = set()
+    total_workers = len(team)
 
     for name, agent in team.items():
 
@@ -427,6 +449,8 @@ def build_mcp_server(
                     summarizer,
                     new_conversation=new_conversation,
                     orchestrator_tag=orchestrator_tag,
+                    dead_workers=dead_workers,
+                    total_workers=total_workers,
                 )
 
             handler.__name__ = f"ask_{agent_name}"
@@ -733,9 +757,7 @@ def verify_done(
                 f"[done] running {tester_name} verification (attempt {attempt})...",
             )
             tester_result = tester_agent.run(
-                verification_prompt
-                + "Verify this works end-to-end. Report ONLY issues found. "
-                "If everything works, say 'ALL CHECKS PASS'.",
+                verification_prompt + VERIFICATION_INSTRUCTIONS,
                 project_dir,
                 new_conversation=reset_session,
                 agent_name=f"{tester_name}_verification",
@@ -762,10 +784,7 @@ def verify_done(
                 f"[done] running {reviewer_key} verification (attempt {attempt})...",
             )
             reviewer_result = reviewer_agent.run(
-                verification_prompt
-                + "Review the codebase for critical bugs, missing features, "
-                "or deviations from the goal. Report ONLY issues found. "
-                "If everything looks good, say 'ALL CHECKS PASS'.",
+                verification_prompt + VERIFICATION_INSTRUCTIONS,
                 project_dir,
                 new_conversation=reset_session,
                 agent_name=f"{reviewer_key}_verification",
@@ -806,12 +825,7 @@ def verify_done(
                     f"[done] running {verifier_name} as verifier (fresh session)...",
                 )
                 verify_result = verifier.run(
-                    verification_prompt
-                    + "You are reviewing work done by another agent. "
-                    "In a FRESH context, review the codebase changes against the goal. "
-                    "Check: does it solve the goal? Is the code correct? Did anything break? "
-                    "Run tests if available. Report ONLY issues found. "
-                    "If everything looks good, say 'ALL CHECKS PASS'.",
+                    verification_prompt + VERIFICATION_INSTRUCTIONS,
                     project_dir,
                     new_conversation=True,
                     agent_name=f"{verifier_name}_verification",

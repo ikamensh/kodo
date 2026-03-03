@@ -175,7 +175,7 @@ invisible or untested.
 - **Dependency Audit**: Check for known vulnerabilities \
 (pip-audit, npm audit, cargo audit, govulncheck, bundler-audit)
 - **Dead Code / Unused Deps**: Find unused imports, unreachable code, \
-dependencies in manifests that nothing imports
+dependencies in manifests that nothing imports, use dedicated tools like vulture
 
 ### Functional Testing
 - **Happy Path Integration**: Run 3-5 core user scenarios end-to-end with \

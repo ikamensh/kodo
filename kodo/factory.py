@@ -458,20 +458,12 @@ def _build_team_full(
     )
 
 
-# Backward-compat alias
-_build_team_saga = _build_team_full
-
-
 def _build_team_quick() -> TeamConfig:
     """Create a quick team, skipping workers whose backends are unavailable."""
     return _build_team_core(
         worker_fast_desc=_WORKER_FAST_DESC,
         worker_smart_desc=_WORKER_SMART_DESC,
     )
-
-
-# Backward-compat alias
-_build_team_mission = _build_team_quick
 
 
 # ---------------------------------------------------------------------------
@@ -539,12 +531,6 @@ def _quick_description() -> str:
     return f"{label.title()} worker(s) ({_describe_backends()}) solving one issue, orchestrator as quality gate"
 
 
-# Backward-compat aliases
-_saga_description = _full_description
-_mission_description = _quick_description
-_mission_system_prompt = _quick_system_prompt
-
-
 def get_team_presets() -> dict[str, TeamPreset]:
     """Build the team preset registry based on available backends."""
     quick = TeamPreset(
@@ -565,16 +551,6 @@ def get_team_presets() -> dict[str, TeamPreset]:
             default_max_cycles=5,
         ),
         "quick": quick,
-        # Backward-compat aliases
-        "saga": TeamPreset(
-            name="full",
-            description=_full_description(),
-            system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
-            build_team=_build_team_full,
-            default_max_exchanges=30,
-            default_max_cycles=5,
-        ),
-        "mission": quick,
     }
 
 

@@ -32,6 +32,7 @@ from kodo.orchestrators.base import (
     CycleResult,
     DoneSignal,
     OrchestratorBase,
+    FatalAgentError,
     TeamConfig,
     VerificationState,
     build_cycle_prompt,
@@ -70,6 +71,8 @@ def _build_tools(
 ) -> list[Tool]:
     """Build pydantic-ai Tool objects for each team agent + the done tool."""
     tools: list[Tool] = []
+    dead_workers: set[str] = set()
+    total_workers = len(team)
 
     for name, agent in team.items():
 
@@ -82,6 +85,8 @@ def _build_tools(
                     project_dir,
                     summarizer,
                     new_conversation=new_conversation,
+                    dead_workers=dead_workers,
+                    total_workers=total_workers,
                 )
 
             return handler
@@ -271,6 +276,13 @@ class ApiOrchestrator(OrchestratorBase):
                     usage_limits=UsageLimits(request_limit=max_exchanges),
                 )
                 break
+            except FatalAgentError as exc:
+                log.tprint(f"🛑 [orchestrator] fatal worker error: {exc}")
+                log.emit("cycle_fatal_agent_error", error=str(exc))
+                result.finished = True
+                result.success = False
+                result.summary = f"Aborted: {exc}"
+                return result
             except UsageLimitExceeded:
                 log.tprint(f"⏱️  [orchestrator] request limit reached ({max_exchanges})")
                 break

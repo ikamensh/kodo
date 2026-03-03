@@ -1,16 +1,13 @@
-"""SWE-bench benchmark: kodo vs raw Claude Code.
+"""SWE-bench benchmark: kodo vs raw Claude Code / Cursor / Codex / Gemini.
 
 Uses SWE-bench Pro (731 tasks) by default. Pass --dataset lite for SWE-bench Lite.
 
-Arms are specified as strings. "claude" runs raw Claude Code CLI.
-"kodo" runs kodo with the default team. "kodo:quick" or "kodo:full"
-runs kodo with a specific --team flag.
+Arms: "claude", "cursor", "codex", "gemini", "kodo", "kodo:<team>".
 
 Usage:
-    uv run python -m scripts.benchmark --limit 5
-    uv run python -m scripts.benchmark --arm kodo:quick --arm claude
-    uv run python -m scripts.benchmark --language python --limit 20
-    uv run python -m scripts.benchmark --dataset lite --limit 10
+    uv run python -m scripts.benchmark --subset scripts/benchmark/subsets/pro-20.json
+    uv run python -m scripts.benchmark --subset scripts/benchmark/subsets/pro-20.json --arm kodo:solo --limit 2
+    uv run python -m scripts.benchmark --arm cursor --arm kodo:solo --limit 2 --skip-eval
 """
 
 from __future__ import annotations
@@ -35,6 +32,13 @@ def main() -> int:
         default="pro",
         help="SWE-bench variant (default: pro)",
     )
+    parser.add_argument(
+        "--subset",
+        type=Path,
+        default=None,
+        help="Path to a subset JSON file (e.g. subsets/pro-20.json). "
+        "Overrides --dataset and --instance-ids.",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Run first N tasks")
     parser.add_argument(
         "--instance-ids", nargs="+", default=None, help="Specific instance IDs"
@@ -58,9 +62,10 @@ def main() -> int:
         "--arm",
         action="append",
         default=None,
-        help="Arm to benchmark. Repeatable. 'claude' for raw Claude Code, "
-        "'kodo' for default team, 'kodo:<team>' for a specific team "
-        "(e.g. 'kodo:quick', 'kodo:full'). Default: claude + kodo.",
+        help="Arm to benchmark. Repeatable. 'claude', 'cursor', 'codex', "
+        "'gemini' for raw CLI tools; 'kodo' for default team, "
+        "'kodo:<team>' for a specific team (e.g. 'kodo:quick'). "
+        "Default: claude + kodo.",
     )
 
     # Execution
@@ -113,14 +118,23 @@ def main() -> int:
         return generate_report(workspace, run_id)
 
     # Run agents
+    import json as _json
+
     from scripts.benchmark.runner import run_benchmark
     from scripts.benchmark.tasks import DATASET_LITE, DATASET_PRO, load_tasks
 
+    # Resolve dataset and instance_ids from --subset if provided
+    instance_ids = args.instance_ids
     dataset = DATASET_PRO if args.dataset == "pro" else DATASET_LITE
+    if args.subset:
+        subset_data = _json.loads(args.subset.read_text())
+        instance_ids = subset_data["instance_ids"]
+        dataset = subset_data.get("dataset", dataset)
+
     tasks = load_tasks(
         dataset=dataset,
         limit=args.limit,
-        instance_ids=args.instance_ids,
+        instance_ids=instance_ids,
         repo_filter=args.repo,
         language=args.language,
         offset=args.offset,
