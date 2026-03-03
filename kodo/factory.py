@@ -13,12 +13,7 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Callable
 
-from kodo import (
-    ARCHITECT_PROMPT,
-    TESTER_BROWSER_PROMPT,
-    TESTER_PROMPT,
-    make_session,
-)
+from kodo import make_session
 from kodo.agent import Agent
 from kodo.models import (
     CLAUDE_OPUS,
@@ -37,7 +32,13 @@ from kodo.models import (
     GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
 )
-from kodo.orchestrators.base import ORCHESTRATOR_SYSTEM_PROMPT, TeamConfig
+from kodo.orchestrators.base import TeamConfig
+from kodo.prompts.roles import (
+    ARCHITECT_PROMPT,
+    ORCHESTRATOR_SYSTEM_PROMPT,
+    TESTER_BROWSER_PROMPT,
+    TESTER_PROMPT,
+)
 
 # ---------------------------------------------------------------------------
 # Backend availability detection

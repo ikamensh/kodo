@@ -25,6 +25,12 @@ from kodo.factory import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage
+from kodo.prompts.intake import (
+    AUTO_REFINE_PROMPT,
+    INTAKE_PREAMBLE,
+    INTAKE_STAGES_SUFFIX,
+    PARALLELISM_PASS_PROMPT,
+)
 
 
 def _close_session(session) -> None:
@@ -43,66 +49,6 @@ def _close_session(session) -> None:
         log.emit("session_cleanup_warning", error=str(e))
 
 
-# ---------------------------------------------------------------------------
-# Intake prompts
-# ---------------------------------------------------------------------------
-
-_INTAKE_PREAMBLE = """\
-You are refining a software project goal{purpose}.
-
-Ask 2-3 clarifying questions about constraints, tech choices, and scope.
-When clear enough, write {output}."""
-
-_INTAKE_STAGES_SUFFIX = """
-
-JSON format:
-{{
-  "context": "Shared context — tech stack, key files, conventions",
-  "stages": [
-    {{
-      "index": 1,
-      "name": "Short label",
-      "description": "What this stage accomplishes",
-      "acceptance_criteria": "Verifiable definition of done",
-      "browser_testing": false
-    }}
-  ]
-}}
-
-Set browser_testing=true only for stages with web UI to verify in a browser.
-Break into 2-5 independently verifiable stages, ordered by dependency."""
-
-_PARALLELISM_PASS_PROMPT = """\
-Now review the plan you just wrote and identify stages that can run in parallel.
-
-Stages can be parallel when they:
-- Touch different files or areas of the codebase
-- Don't depend on each other's output
-- Could be done by separate developers simultaneously
-
-For each stage, decide:
-- parallel_group: assign the same integer to stages that should run concurrently. \
-null for sequential stages. Each parallel stage runs in its own git worktree.
-- persist_changes: true if a parallel stage produces code changes that should \
-be merged back into the main branch. false for read-only/exploration stages \
-(testing, auditing, analysis).
-
-Update the JSON file, adding parallel_group and persist_changes to each stage. \
-If no stages can be parallelized, leave them all as null/false."""
-
-_AUTO_REFINE_PROMPT = """\
-Review this goal before implementation:
-
-{goal}
-
-Concisely answer (2-3 sentences each):
-1. **Implicit constraints** — what does this goal imply that isn't stated?
-2. **Simplest architecture** — one specific approach, not options.
-3. **Common traps** — most likely over-engineering mistake?
-
-Then write a refined goal to {output_path} incorporating the original intent \
-plus implicit constraints. Keep it concise — an autonomous agent will read it.
-"""
 
 # TODO: The canned questions above are a starting point. Experiment with whether
 # letting the LLM ask its own probing questions (rather than canned ones) produces
@@ -114,13 +60,13 @@ plus implicit constraints. Keep it concise — an autonomous agent will read it.
 def _build_intake_prompt(output_path: str, staged: bool) -> str:
     """Build intake prompt with the correct output file path."""
     if staged:
-        prompt = _INTAKE_PREAMBLE.format(
+        prompt = INTAKE_PREAMBLE.format(
             purpose=" into an ordered list of stages",
             output=f"a structured goal plan to {output_path}",
         )
-        return prompt + _INTAKE_STAGES_SUFFIX
+        return prompt + INTAKE_STAGES_SUFFIX
     else:
-        return _INTAKE_PREAMBLE.format(
+        return INTAKE_PREAMBLE.format(
             purpose="",
             output=f"a refined, detailed goal to {output_path}",
         )
@@ -364,13 +310,13 @@ def run_intake_chat(
 def _run_parallelism_pass(session, output_file: Path, project_dir: Path) -> None:
     """Second turn: ask the LLM to annotate the sequential plan with parallelism.
 
-    Sends ``_PARALLELISM_PASS_PROMPT`` in the same session so the LLM has full
+    Sends ``PARALLELISM_PASS_PROMPT`` in the same session so the LLM has full
     context from the planning conversation.  The LLM overwrites the plan file
     with updated ``parallel_group`` / ``persist_changes`` fields.
     """
     try:
         with _Spinner("Identifying parallelism"):
-            session.query(_PARALLELISM_PASS_PROMPT, project_dir, max_turns=10)
+            session.query(PARALLELISM_PASS_PROMPT, project_dir, max_turns=10)
     except Exception as exc:
         print(f"\n  Parallelism pass failed ({exc}), using sequential plan.")
 
@@ -442,7 +388,7 @@ def run_intake_auto(
     _atomic_write(goal_path, goal_text)
 
     output_file = run_dir.goal_refined_file
-    prompt = _AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
+    prompt = AUTO_REFINE_PROMPT.format(goal=goal_text, output_path=str(output_file))
     model = smart_model_for_backend(backend)
     session = make_session(backend, model, system_prompt=prompt)
 

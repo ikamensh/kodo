@@ -9,8 +9,8 @@ from pathlib import Path
 
 from kodo import log
 from kodo.env import anthropic_env_lock
+from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
-    ORCHESTRATOR_SYSTEM_PROMPT,
     CycleConfig,
     CycleResult,
     DoneSignal,

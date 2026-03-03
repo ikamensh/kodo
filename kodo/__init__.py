@@ -1,16 +1,11 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.133"
+__version__ = "0.4.134"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
 
-# ---------------------------------------------------------------------------
-# Shared agent prompts — imported by factory.py
-# ---------------------------------------------------------------------------
 from kodo.orchestrators.base import (
-    MINOR_SIGNAL,
-    PASS_SIGNAL,
     CycleResult,
     GoalPlan,
     GoalStage,
@@ -19,32 +14,12 @@ from kodo.orchestrators.base import (
     RunResult,
     TeamConfig,
 )
+from kodo.prompts.roles import (
+    ARCHITECT_PROMPT,
+    TESTER_BROWSER_PROMPT,
+    TESTER_PROMPT,
+)
 from kodo.sessions.base import QueryResult, Session, SessionStats
-
-_VERIFIER_SUFFIX = (
-    f"Fix minor issues yourself. Only report blocking issues with specific error messages.\n"
-    f"Say '{PASS_SIGNAL}' if clean, '{MINOR_SIGNAL}' if you only fixed cosmetics."
-)
-
-TESTER_PROMPT = (
-    "You are a tester agent. Verify the desired user experience works end-to-end — "
-    "run the app, call APIs, check files, verify imports, run scripts.\n"
-    + _VERIFIER_SUFFIX
-)
-
-TESTER_BROWSER_PROMPT = (
-    "You are a tester agent with browser access. Verify the app works by opening it "
-    "in a real browser — navigate the UI, click buttons, fill forms, check rendering.\n"
-    + _VERIFIER_SUFFIX
-)
-
-ARCHITECT_PROMPT = (
-    "You are the architect. When reviewing code, update .kodo/architecture.md with "
-    "key decisions, component boundaries, and lessons learned. Keep it concise.\n"
-    "Workers read this file before coding and may append critique there.\n"
-    "Identify bugs and structural issues with specific file/line references.\n"
-    + _VERIFIER_SUFFIX
-)
 
 
 def make_session(

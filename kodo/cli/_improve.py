@@ -5,142 +5,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kodo.orchestrators.base import GoalPlan, GoalStage, QuickCheck
+from kodo.prompts.improve import (
+    DISCOVERY_PROMPT,
+    IMPROVE_GOAL,
+    IMPROVE_REPORT_FORMAT,
+    IMPROVE_TIME_GUIDANCE,
+    METHODOLOGY_LIBRARY,
+    TRIAGE_FINDINGS_FORMAT,
+    TRIAGE_STAGE_DESCRIPTION,
+    detect_docker,
+)
 
 if TYPE_CHECKING:
     from kodo.log import RunDir
-
-_IMPROVE_REPORT_FORMAT = """\
-```markdown
-# Improve Report
-
-## Auto-fixed
-- <file>:<line> — <description>
-
-## Needs decision
-- <file>:<line> — <description + suggested fix>
-
-## Skipped by triage
-- <finding title> — <reason>
-```"""
-
-_IMPROVE_GOAL = """\
-Test and improve this codebase. Report at `{report_path}`.
-
-{report_format}
-
-Commit auto-fixes: "chore: auto-fix issues found by kodo improve".
-"""
-
-_IMPROVE_TIME_GUIDANCE = """\
-**Be fast.** Mock or stub external calls (APIs, databases, network). \
-Use targeted tests, not exhaustive sweeps. Abort anything over 30 seconds. \
-In-memory fixtures, lightweight fakes, skip heavy init."""
-
-
-_TRIAGE_FINDINGS_FORMAT = """\
-Format each finding as:
-
-### F<n>: <title>
-- **File:** <file>:<line>
-- **Severity:** bug | hardening | style | performance
-- **Evidence:** <proof: test output, error message, or code path — not just assertions>
-- **Proposed fix:** <concrete change>"""
-
-_TRIAGE_STAGE_DESCRIPTION = """\
-Skeptically verify each finding from previous stages. Read the actual code \
-at the cited location. Most findings are phantoms — default to `skip`.
-
-For each finding, ask:
-- Does the evidence hold when you read the actual code?
-- Is there already a guard (exception handler, early return, default, \
-framework guarantee like `exist_ok=True`)?
-- Can the claimed state actually occur? Trace callers.
-- Would the fix be net-negative (more code for an impossible case)?
-
-Write `{triage_path}`:
-
-### F<n>: <title>
-- **Verdict:** fix | skip | needs-decision
-- **Reason:** <1-2 sentences>"""
-
-
-# ---------------------------------------------------------------------------
-# Discovery prompt — sent to an AI session to build a dynamic improve plan
-# ---------------------------------------------------------------------------
-
-_DISCOVERY_PROMPT = """\
-You are analyzing a software project to create a tailored improvement plan.
-
-## Your Task
-1. Inspect the project: read README, config files (pyproject.toml, package.json, \
-Cargo.toml, go.mod, etc.), source structure, test setup, CI config
-2. Determine: language/stack, available tools (test runners, linters, formatters, \
-audit tools), project type (app, library, service, monorepo)
-3. Design an improvement plan using the recommendations below as a starting point. \
-You may adapt them, combine them, or add your own strategies based on what you \
-discover about the project.
-4. Write a GoalPlan JSON to `{output_path}`
-
-{methodologies}
-
-## Host Environment
-{environment}
-
-## Mandatory Constraints
-
-### Stage structure
-- Total stages: 3-6 (inclusive)
-- Stages that can run independently SHOULD share a `parallel_group` integer
-- Parallel stages MUST set `persist_changes` to false (they explore/test, \
-they do NOT modify source code)
-- Each testing/analysis stage must write findings to a separate file under \
-the run directory: `{run_dir}/findings-<slug>.md`
-
-### Required final stages
-The plan MUST end with these two stages (adapt descriptions to the project):
-
-**Triage & Verify** (second-to-last):
-{triage_description}
-
-Reference all findings files from earlier stages.
-
-**Fix & Report** (last):
-Act only on `fix` and `needs-decision` from triage. Ignore `skip`.
-Auto-fix safe issues, flag ambiguous ones.
-Write report to `{report_path}`:
-
-{report_format}
-
-Commit auto-fixes: "chore: auto-fix issues found by kodo improve".
-
-### Findings format
-All analysis/testing stages must use this format:
-
-{findings_format}
-
-### Time guidance
-{time_guidance}
-
-## JSON Output Format
-Write the file as valid JSON:
-
-{{
-  "context": "Shared context — discovered stack, key files, conventions, tools",
-  "stages": [
-    {{
-      "index": 1,
-      "name": "Short label",
-      "description": "What this stage accomplishes — full prose for the agent",
-      "acceptance_criteria": "Verifiable definition of done",
-      "browser_testing": false,
-      "parallel_group": null,
-      "persist_changes": false
-    }}
-  ]
-}}
-
-IMPORTANT: This is non-interactive. Do NOT ask questions. Inspect the project, \
-make reasonable assumptions, and write the JSON file immediately."""
 
 
 # ---------------------------------------------------------------------------
@@ -158,14 +35,13 @@ def run_improve_discovery(
     to ``None`` when no backend is available or parsing fails.
     """
     from kodo.cli._intake import run_single_turn_plan
-    from kodo.cli._methodologies import METHODOLOGY_LIBRARY, _detect_docker
 
     output_file = run_dir.goal_plan_file
     run_dir_str = str(run_dir.root)
     triage_path = f"{run_dir_str}/triage-results.md"
 
     env_lines = []
-    if _detect_docker():
+    if detect_docker():
         env_lines.append(
             "- **Docker**: available. You can build/run containers for isolated "
             "testing if the project has a Dockerfile or you want a clean environment.",
@@ -174,16 +50,16 @@ def run_improve_discovery(
         env_lines.append("- **Docker**: not available.")
     environment = "\n".join(env_lines)
 
-    prompt = _DISCOVERY_PROMPT.format(
+    prompt = DISCOVERY_PROMPT.format(
         output_path=str(output_file),
         methodologies=METHODOLOGY_LIBRARY,
         environment=environment,
         run_dir=run_dir_str,
         report_path=report_path,
-        triage_description=_TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
-        report_format=_IMPROVE_REPORT_FORMAT,
-        findings_format=_TRIAGE_FINDINGS_FORMAT,
-        time_guidance=_IMPROVE_TIME_GUIDANCE,
+        triage_description=TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
+        report_format=IMPROVE_REPORT_FORMAT,
+        findings_format=TRIAGE_FINDINGS_FORMAT,
+        time_guidance=IMPROVE_TIME_GUIDANCE,
     )
 
     plan = run_single_turn_plan(
@@ -244,7 +120,7 @@ def _validate_improve_plan(
             GoalStage(
                 index=len(stages) + 1,
                 name="Triage & Verify",
-                description=_TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
+                description=TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
                 acceptance_criteria=f"Every finding has a verdict in {triage_path}.",
             ),
         )
@@ -259,7 +135,7 @@ def _validate_improve_plan(
                     "Ignore `skip`.\n\n"
                     "Auto-fix safe issues, flag ambiguous ones. "
                     f"Write report to `{report_path}`:\n\n"
-                    f"{_IMPROVE_REPORT_FORMAT}\n\n"
+                    f"{IMPROVE_REPORT_FORMAT}\n\n"
                     "Commit auto-fixes: "
                     '"chore: auto-fix issues found by kodo improve".'
                 ),
@@ -284,7 +160,7 @@ def _validate_improve_plan(
         findings_file = f"{run_dir}/findings-{_slugify(stage.name)}.md"
         findings_paths.append(findings_file)
 
-        extra = f"\n\nWrite findings to `{findings_file}`.\n\n{_TRIAGE_FINDINGS_FORMAT}"
+        extra = f"\n\nWrite findings to `{findings_file}`.\n\n{TRIAGE_FINDINGS_FORMAT}"
 
         if stage.parallel_group is not None:
             extra = f"\n\nDo NOT modify source code.{extra}"
@@ -354,7 +230,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
         context=(
             "Find real bugs and simplification opportunities by RUNNING the "
             "software and reading the code critically.\n\n"
-            f"{_IMPROVE_TIME_GUIDANCE}"
+            f"{IMPROVE_TIME_GUIDANCE}"
         ),
         stages=[
             GoalStage(
@@ -382,7 +258,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Report any bugs discovered — these are findings that were "
                     "previously invisible or untested.\n\n"
                     f"Write findings to `{forge_findings}`.\n\n"
-                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                    f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
                     "Test tool created or enhanced, committed, and executed. "
@@ -404,7 +280,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Run test suite, linters, type-checkers. Flag obvious bugs, "
                     "dead code, security concerns, performance hot-spots. "
                     "Quick analytical sweep — one pass.\n\n"
-                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                    f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
                     "Test/lint/type-check results documented. Issues listed with "
@@ -420,12 +296,12 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Run 3-5 core user scenarios end-to-end. Read entry points, "
                     "set up realistic inputs, verify outputs. Write integration "
                     "tests for uncovered scenarios.\n\n"
-                    f"{_IMPROVE_TIME_GUIDANCE}\n\n"
+                    f"{IMPROVE_TIME_GUIDANCE}\n\n"
                     "Mock or stub external services. Use temp dirs. Exercise real "
                     "code paths, not real API calls.\n\n"
                     "Do NOT modify source code. Write findings to "
                     f"`{happy_findings}`.\n\n"
-                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                    f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
                     "Core workflows tested end-to-end. Bugs documented. "
@@ -447,10 +323,10 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Break it. Edge-case inputs (empty, None, zero, huge, unicode), "
                     "invalid configs, missing dependencies, wrong permissions, "
                     "undocumented flag combos. Focus on areas Stage 1 flagged.\n\n"
-                    f"{_IMPROVE_TIME_GUIDANCE}\n\n"
+                    f"{IMPROVE_TIME_GUIDANCE}\n\n"
                     "Do NOT modify source code. Write findings to "
                     f"`{adversarial_findings}`.\n\n"
-                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                    f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
                     "Edge cases and error paths tested. Bugs documented with "
@@ -477,7 +353,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "look like instead, and why the change is worth making.\n\n"
                     "Do NOT modify source code. Write findings to "
                     f"`{architecture_findings}`.\n\n"
-                    f"{_TRIAGE_FINDINGS_FORMAT}"
+                    f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
                     "Simplification opportunities identified with concrete "
@@ -494,7 +370,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
             GoalStage(
                 index=6,
                 name="Triage & Verify",
-                description=_TRIAGE_STAGE_DESCRIPTION.format(
+                description=TRIAGE_STAGE_DESCRIPTION.format(
                     triage_path=triage_path,
                 )
                 + (
@@ -527,7 +403,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
                     "Auto-fix safe issues, flag ambiguous ones. "
                     "For architecture simplifications marked `fix`, apply them. "
                     f"Write report to `{report_path}`:\n\n"
-                    f"{_IMPROVE_REPORT_FORMAT}\n\n"
+                    f"{IMPROVE_REPORT_FORMAT}\n\n"
                     "Commit auto-fixes: "
                     '"chore: auto-fix issues found by kodo improve".'
                 ),

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from kodo.agent import Agent
+from kodo.prompts.roles import MINOR_SIGNAL, PASS_SIGNAL
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
@@ -133,26 +134,6 @@ class RunResult:
     def summary(self) -> str:
         return self.cycles[-1].summary if self.cycles else ""
 
-
-# NOTE: If the orchestrator still over-specifies tasks despite this prompt,
-# the next step is to insert an LLM layer between the orchestrator and the
-# team that strips implementation details from directives, passing through
-# only the WHAT/WHY and letting agents decide HOW.
-ORCHESTRATOR_SYSTEM_PROMPT = """
-You are an orchestrator. Get the user's desired outcome.
-
-Your agents have full codebase access and are expert coders. Every implementation
-detail you specify risks making the result worse. Tell them WHAT, never HOW.
-
-1. Define desired outcome (user-facing behavior, not code structure).
-2. Delegate as small, verifiable goals.
-3. Verify results match intent. Commit good work, revert bad iterations.
-
-The team shares .kodo/architecture.md — the architect updates it, workers read it.
-
-You decide: priorities, scope, what "done" looks like, when to revert.
-Agents decide: code structure, libraries, patterns, file organization.
-""".strip()
 
 
 # ---------------------------------------------------------------------------
@@ -393,10 +374,6 @@ def handle_done(
     log.tprint("🎉 [done] ACCEPTED — all checks pass")
     return "Verified and accepted. All checks pass."
 
-
-# Verification signal strings — used in agent prompts and _check_passed()
-PASS_SIGNAL = "ALL CHECKS PASS"
-MINOR_SIGNAL = "MINOR ISSUES FIXED"
 
 
 class DoneSignal:

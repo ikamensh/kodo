@@ -14,13 +14,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from kodo import log
-
-_PROMPT_TEMPLATE = (
-    "Summarize in 1 sentence what was accomplished. "
-    "Be specific (mention file names, features, decisions). No preamble.\n\n"
-    "Task: {task}\n"
-    "Result: {report}"
-)
+from kodo.prompts.other import SUMMARIZER_TEMPLATE
 
 
 def _probe_ollama() -> str | None:
@@ -43,7 +37,7 @@ def _probe_gemini() -> str | None:
 
 
 def _summarize_ollama(model: str, task: str, report: str) -> str:
-    prompt = _PROMPT_TEMPLATE.format(task=task[:200], report=report[:2000])
+    prompt = SUMMARIZER_TEMPLATE.format(task=task[:200], report=report[:2000])
     payload = json.dumps(
         {
             "model": model,
@@ -63,7 +57,7 @@ def _summarize_ollama(model: str, task: str, report: str) -> str:
 
 
 def _summarize_gemini(api_key: str, task: str, report: str) -> str:
-    prompt = _PROMPT_TEMPLATE.format(task=task[:200], report=report[:2000])
+    prompt = SUMMARIZER_TEMPLATE.format(task=task[:200], report=report[:2000])
     from kodo.models import GEMINI_SUMMARIZER
 
     url = (

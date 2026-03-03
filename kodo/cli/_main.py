@@ -14,13 +14,12 @@ load_dotenv()
 
 from kodo import __version__, log  # noqa: E402
 from kodo.cli._improve import (  # noqa: E402
-    _IMPROVE_GOAL,
-    _IMPROVE_REPORT_FORMAT,
     _build_fallback_plan,
     _collect_prior_needs_decision,
     _extract_section,
     run_improve_discovery,
 )
+from kodo.prompts.improve import IMPROVE_GOAL, IMPROVE_REPORT_FORMAT  # noqa: E402
 from kodo.cli._intake import (  # noqa: E402
     _load_goal_plan,
     _offer_intake,
@@ -340,9 +339,9 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         prior = _collect_prior_needs_decision(run_dir)
-        goal_text = _IMPROVE_GOAL.format(
+        goal_text = IMPROVE_GOAL.format(
             report_path=report_path,
-            report_format=_IMPROVE_REPORT_FORMAT,
+            report_format=IMPROVE_REPORT_FORMAT,
         )
         if not args.json:
             if prior:

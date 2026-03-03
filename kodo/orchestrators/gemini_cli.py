@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 
 from kodo import log
+from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
-    ORCHESTRATOR_SYSTEM_PROMPT,
     CycleConfig,
     CycleResult,
     DoneSignal,

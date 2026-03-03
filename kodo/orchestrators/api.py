@@ -26,8 +26,8 @@ from kodo.models import (
     GEMINI_API_PRO,
     GEMINI_API_PRO_V3,
 )
+from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
-    ORCHESTRATOR_SYSTEM_PROMPT,
     CycleConfig,
     CycleResult,
     DoneSignal,
