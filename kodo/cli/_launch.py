@@ -291,6 +291,17 @@ def launch_run(
         print(f"  Log: {log_path}")
         print()
 
+    # Only allow auto-commit when project_dir is a git repo root.
+    # If launched inside a subfolder of another repo, committing would
+    # land changes in the parent — which is never what we want.
+    auto_commit = params.get("auto_commit", True)
+    is_own_git_repo = (project_dir / ".git").exists()
+    if auto_commit and not is_own_git_repo:
+        auto_commit = False
+        if not json_mode:
+            print("  ℹ  Auto-commit disabled (no .git in project directory)")
+        log.emit("auto_commit_disabled", reason="no_git_root")
+
     result = orchestrator.run(
         goal_text,
         project_dir,
@@ -299,7 +310,7 @@ def launch_run(
         max_cycles=max_cycles,
         plan=plan,
         verifiers=verifiers,
-        auto_commit=params.get("auto_commit", True),
+        auto_commit=auto_commit,
     )
 
     if not json_mode:
@@ -496,6 +507,14 @@ def launch_resume(
         print(f"Log: {state.log_file}")
         print()
 
+    auto_commit = params.get("auto_commit", True)
+    is_own_git_repo = (project_dir / ".git").exists()
+    if auto_commit and not is_own_git_repo:
+        auto_commit = False
+        if _original_stdout is None:
+            print("  ℹ  Auto-commit disabled (no .git in project directory)")
+        log.emit("auto_commit_disabled", reason="no_git_root")
+
     result = orchestrator.run(
         state.goal,
         Path(state.project_dir),
@@ -505,7 +524,7 @@ def launch_resume(
         resume=resume,
         plan=plan,
         verifiers=verifiers,
-        auto_commit=params.get("auto_commit", True),
+        auto_commit=auto_commit,
     )
 
     total_cycles = state.completed_cycles + len(result.cycles)

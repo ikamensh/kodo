@@ -18,8 +18,8 @@ from kodo.orchestrators.base import (
     CycleConfig,
     DoneSignal,
     _auto_commit,
-    handle_done,
 )
+from kodo.orchestrators.verification import handle_done
 from kodo.sessions.base import QueryResult
 from tests.conftest import FakeRunResult, FakeSession, make_agent
 
@@ -274,7 +274,7 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
 
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.base.verify_done", return_value=None),
+        patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -313,7 +313,7 @@ def test_cycle_no_auto_commit_when_disabled(tmp_path: Path) -> None:
 
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.base.verify_done", return_value=None),
+        patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -352,7 +352,7 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
         patch(
-            "kodo.orchestrators.base.verify_done",
+            "kodo.orchestrators.verification.verify_done",
             return_value="DONE REJECTED — tests fail",
         ),
     ):
@@ -462,7 +462,7 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
 
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.base.verify_done", return_value=None),
+        patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -524,7 +524,7 @@ def test_no_commit_when_auto_commit_disabled_real_git(
 
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.base.verify_done", return_value=None),
+        patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(

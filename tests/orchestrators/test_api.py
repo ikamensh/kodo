@@ -33,7 +33,7 @@ def test_cycle_done_returns_finished(tmp_path: Path):
 
     with (
         patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.base.verify_done", return_value=None),
+        patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle("build feature", tmp_path, team, max_exchanges=10)
@@ -135,8 +135,9 @@ def test_build_tools_creates_agent_and_done_tools(tmp_path: Path):
     tool_names = {t.name for t in tools}
     assert "ask_worker" in tool_names
     assert "ask_tester" in tool_names
+    assert "bash" in tool_names
     assert "done" in tool_names
-    assert len(tools) == 3  # 2 agents + done
+    assert len(tools) == 4  # 2 agents + bash + done
 
 
 def test_build_tools_agent_handler_returns_string(tmp_path: Path):
@@ -173,7 +174,7 @@ def test_build_tools_done_sets_signal(tmp_path: Path):
     done_tool = next(t for t in tools if t.name == "done")
 
     log.init(RunDir.create(tmp_path, "done_test"))
-    with patch("kodo.orchestrators.base.verify_done", return_value=None):
+    with patch("kodo.orchestrators.verification.verify_done", return_value=None):
         done_tool.function(summary="all done", success=True)
 
     assert done_signal.called is True
@@ -304,6 +305,79 @@ def test_close_releases_http_client():
     loop.close()
     # aclose still only called once
     mock_client.aclose.assert_awaited_once()
+
+
+# ── _run_bash tests ──────────────────────────────────────────────────────
+
+
+def test_run_bash_returns_exit_code_and_output(tmp_path: Path):
+    """_run_bash returns dict with exit_code and output."""
+    from kodo.orchestrators.api import _run_bash
+
+    log.init(RunDir.create(tmp_path, "bash_basic"))
+    result = _run_bash("echo hello", tmp_path)
+    assert result["exit_code"] == 0
+    assert "hello" in result["output"]
+
+
+def test_run_bash_nonzero_exit(tmp_path: Path):
+    """_run_bash captures non-zero exit codes."""
+    from kodo.orchestrators.api import _run_bash
+
+    log.init(RunDir.create(tmp_path, "bash_fail"))
+    result = _run_bash("exit 42", tmp_path)
+    assert result["exit_code"] == 42
+
+
+def test_run_bash_truncates_large_output(tmp_path: Path):
+    """_run_bash truncates output exceeding _BASH_MAX_OUTPUT."""
+    from kodo.orchestrators.api import _BASH_MAX_OUTPUT, _run_bash
+
+    log.init(RunDir.create(tmp_path, "bash_trunc"))
+    # Generate output larger than the limit
+    big_size = _BASH_MAX_OUTPUT + 5000
+    result = _run_bash(f"python3 -c \"print('x' * {big_size})\"", tmp_path)
+    assert result["exit_code"] == 0
+    assert "truncated" in result["output"]
+    # Output should be roughly _BASH_MAX_OUTPUT + the truncation message
+    assert len(result["output"]) < big_size
+
+
+def test_run_bash_handles_timeout(tmp_path: Path):
+    """_run_bash returns exit_code -1 on timeout."""
+    from unittest.mock import patch as _patch
+
+    from kodo.orchestrators.api import _run_bash
+
+    log.init(RunDir.create(tmp_path, "bash_timeout"))
+    with _patch("kodo.orchestrators.api._BASH_TIMEOUT", 0.001):
+        result = _run_bash("sleep 10", tmp_path)
+    assert result["exit_code"] == -1
+    assert "timed out" in result["output"].lower()
+
+
+# ── build_cycle_prompt log path ──────────────────────────────────────────
+
+
+def test_build_cycle_prompt_includes_log_path(tmp_path: Path):
+    """build_cycle_prompt includes the JSONL log path when available."""
+    from kodo.orchestrators.base import build_cycle_prompt
+
+    log.init(RunDir.create(tmp_path, "prompt_log"))
+    prompt = build_cycle_prompt("test goal", tmp_path)
+    assert "Run log (JSONL):" in prompt
+    assert ".jsonl" in prompt
+
+
+def test_build_cycle_prompt_no_log_path(tmp_path: Path):
+    """build_cycle_prompt omits log path when log is not initialized."""
+    from unittest.mock import patch as _patch
+
+    from kodo.orchestrators.base import build_cycle_prompt
+
+    with _patch("kodo.log.get_log_file", return_value=None):
+        prompt = build_cycle_prompt("test goal", tmp_path)
+    assert "Run log" not in prompt
 
 
 # ── shared helpers ───────────────────────────────────────────────────────

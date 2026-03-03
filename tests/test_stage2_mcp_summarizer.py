@@ -10,7 +10,8 @@ from unittest.mock import MagicMock, patch
 from kodo import log
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator
-from kodo.orchestrators.base import DoneSignal, McpServerContext, build_mcp_server
+from kodo.orchestrators.base import DoneSignal
+from kodo.orchestrators.mcp_server import McpServerContext, build_mcp_server
 from kodo.summarizer import Summarizer
 from tests.conftest import make_agent
 

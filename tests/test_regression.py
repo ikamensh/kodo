@@ -13,7 +13,7 @@ import pytest
 
 from kodo import log
 from kodo.cli._main import _main_inner
-from kodo.orchestrators.base import _check_passed
+from kodo.orchestrators.verification import _check_passed
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from kodo.orchestrators.base import DoneSignal, build_mcp_server
+from kodo.orchestrators.base import DoneSignal
+from kodo.orchestrators.mcp_server import build_mcp_server
 from kodo.summarizer import Summarizer
 from tests.conftest import make_agent
 

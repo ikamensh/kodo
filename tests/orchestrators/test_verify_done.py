@@ -11,6 +11,8 @@ from kodo.orchestrators.base import (
     CycleConfig,
     DoneSignal,
     QuickCheck,
+)
+from kodo.orchestrators.verification import (
     VerificationState,
     handle_done,
     verify_done,

@@ -16,10 +16,10 @@ from kodo.orchestrators.base import (
     DoneSignal,
     OrchestratorBase,
     TeamConfig,
-    VerificationState,
     build_cycle_prompt,
-    build_mcp_server,
 )
+from kodo.orchestrators.mcp_server import build_mcp_server
+from kodo.orchestrators.verification import VerificationState
 from kodo.models import CLAUDE_OPUS
 from kodo.summarizer import Summarizer
 

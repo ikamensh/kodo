@@ -58,11 +58,15 @@ def run_benchmark(
 
     _save_run_meta(run_dir, tasks, arms, timeout, dataset=dataset)
     completed = _load_completed(run_dir)
+    # Seed from prior runs: copy results for matching (instance_id, arm) pairs
+    needed = {(t.instance_id, a) for t in tasks for a in arms} - completed
+    seeded = _seed_from_prior_runs(workspace, run_dir, needed)
+    completed |= seeded
     total = len(tasks) * len(arms)
 
     print(f"Benchmark run {run_id}: {len(tasks)} tasks x {len(arms)} arm(s)")
     print(f"  Timeout: {timeout}s (non-kodo), {timeout_kodo}s (kodo)")
-    print(f"  Already completed: {len(completed)}/{total}")
+    print(f"  Already completed: {len(completed)}/{total} ({len(seeded)} from prior runs)")
     print(f"  Workspace: {workspace}")
 
     if parallel > 1:
@@ -169,7 +173,7 @@ def _run_single_task(
         raise ValueError(f"Unknown arm: {arm}")
 
     elapsed = time.monotonic() - t0
-    patch = _capture_diff(repo_dir)
+    patch = _capture_diff(repo_dir, task.base_commit)
 
     return TaskResult(
         instance_id=task.instance_id,
@@ -361,15 +365,20 @@ def _run_subprocess(
 # ── Diff and Persistence ─────────────────────────────────────────────────
 
 
-def _capture_diff(repo_dir: Path) -> str:
-    """Capture all changes (staged + unstaged + untracked) as unified diff."""
+def _capture_diff(repo_dir: Path, base_commit: str) -> str:
+    """Capture all changes (committed + staged + unstaged + untracked) as unified diff."""
+    # Mixed reset to base_commit: collapses any worker commits back to working tree
+    subprocess.run(
+        ["git", "reset", base_commit],
+        cwd=str(repo_dir), capture_output=True, timeout=30,
+    )
     # Stage everything so we catch new files too
     subprocess.run(
         ["git", "add", "-A"], cwd=str(repo_dir), capture_output=True, timeout=30
     )
     try:
         result = subprocess.run(
-            ["git", "diff", "--cached"],
+            ["git", "diff", "--cached", "--", ".", ":(exclude).kodo"],
             cwd=str(repo_dir),
             capture_output=True,
             text=True,
@@ -419,6 +428,57 @@ def _append_prediction(run_dir: Path, result: TaskResult) -> None:
     }
     with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def _seed_from_prior_runs(
+    workspace: Path, run_dir: Path, needed: set[tuple[str, str]],
+) -> set[tuple[str, str]]:
+    """Copy results from prior runs for matching (instance_id, arm) pairs."""
+    seeded: set[tuple[str, str]] = set()
+    if not needed:
+        return seeded
+    runs_dir = workspace / RUNS_DIR
+    for other_dir in sorted(runs_dir.iterdir()):
+        if other_dir == run_dir or not other_dir.is_dir():
+            continue
+        results_file = other_dir / "results.jsonl"
+        if not results_file.exists():
+            continue
+        for line in results_file.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                key = (entry["instance_id"], entry["arm"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+            if key not in needed or key in seeded:
+                continue
+            # Copy result and prediction into current run
+            _append_result_raw(run_dir, line)
+            # Find matching prediction
+            safe_arm = entry["arm"].replace(":", "_")
+            pred_file = other_dir / f"predictions-{safe_arm}.jsonl"
+            if pred_file.exists():
+                for pred_line in pred_file.read_text().splitlines():
+                    if not pred_line.strip():
+                        continue
+                    try:
+                        pred = json.loads(pred_line)
+                        if pred["instance_id"] == entry["instance_id"]:
+                            with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:
+                                f.write(pred_line + "\n")
+                            break
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+            seeded.add(key)
+    return seeded
+
+
+def _append_result_raw(run_dir: Path, line: str) -> None:
+    """Append a raw JSON line to results.jsonl."""
+    with open(run_dir / "results.jsonl", "a") as f:
+        f.write(line.strip() + "\n")
 
 
 def _load_completed(run_dir: Path) -> set[tuple[str, str]]:

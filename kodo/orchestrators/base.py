@@ -6,16 +6,22 @@ import asyncio
 import concurrent.futures
 import os
 import re
-import shutil
-import socket
 import subprocess
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 from kodo.agent import Agent
-from kodo.prompts.roles import MINOR_SIGNAL, PASS_SIGNAL, VERIFICATION_INSTRUCTIONS
+from kodo.orchestrators.git_ops import (
+    _GIT_TIMEOUT,
+    _git,
+    _remove_worktree_keep_branch,
+    commit_worktree_changes,
+    create_worktree,
+    merge_worktree_branch,
+    remove_worktree,
+)
+from kodo.orchestrators.verification import VerificationState, handle_done, verify_done
 
 # ANSI formatting (duplicated from cli._ui to avoid circular import)
 _BOLD = "\033[1m"
@@ -25,8 +31,6 @@ _RESET = "\033[0m"
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
-
-_GIT_TIMEOUT = 60  # seconds; prevents indefinite block on git commands
 
 # Patterns that indicate unrecoverable errors — retrying won't help.
 _FATAL_ERROR_PATTERNS = re.compile(
@@ -42,11 +46,6 @@ class FatalAgentError(Exception):
 def _plural(n: int, word: str) -> str:
     """Return e.g. '1 cycle' or '3 cycles'."""
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
-
-
-def _git() -> str:
-    """Return the git executable name."""
-    return "git"
 
 
 @dataclass
@@ -301,107 +300,6 @@ def _auto_commit(
         log.tprint(f"📝 [auto-commit] {worker_name} failed: {exc}")
 
 
-def _run_quick_checks(
-    checks: list["QuickCheck"],
-) -> str | None:
-    """Run lightweight file-existence checks.
-
-    Returns None if all pass, or a combined error string if any fail.
-    Substitutes ``{run_dir}`` in ``check.path`` with the current run directory.
-    """
-    from kodo import log as _log
-
-    # Resolve {run_dir} placeholder using the active run directory
-    log_file = _log.get_log_file()
-    run_dir_str = str(log_file.parent) if log_file else ""
-
-    failures: list[str] = []
-    for check in checks:
-        resolved_path = check.path.replace("{run_dir}", run_dir_str)
-        if not Path(resolved_path).exists():
-            failures.append(f"- {check.description}: {check.error_message}")
-    if failures:
-        return (
-            "Quick-check verification failed:\n"
-            + "\n".join(failures)
-            + "\n\nFix these issues and try calling done again."
-        )
-    return None
-
-
-def handle_done(
-    summary: str,
-    success: bool,
-    done_signal: "DoneSignal",
-    goal: str,
-    team: TeamConfig,
-    project_dir: Path,
-    *,
-    verification_state: "VerificationState | None" = None,
-    orchestrator_tag: str | None = None,
-    config: "CycleConfig | None" = None,
-) -> str:
-    """Shared done-handler logic for both orchestrators.
-
-    Returns the string result to pass back to the orchestrator model.
-    """
-    from kodo import log
-
-    if config is None:
-        config = CycleConfig()
-
-    tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
-
-    log.emit("orchestrator_done_attempt", **tag, summary=summary, success=success)
-    log.tprint(f"🏁 [orchestrator] DONE requested (success={success}): {summary}")
-
-    if not success:
-        done_signal.called = True
-        done_signal.summary = summary
-        done_signal.success = False
-        return "Acknowledged (marked as unsuccessful)."
-
-    # Branch on verification mode
-    rejection: str | None = None
-    verification = config.verification
-    if verification == "skip":
-        log.tprint("⏩ [done] verification=skip — accepting immediately")
-    elif isinstance(verification, list):
-        log.tprint(
-            f"⚡ [done] running {_plural(len(verification), 'quick check')}...",
-        )
-        rejection = _run_quick_checks(verification)
-    else:
-        # "full" — current behavior
-        rejection = verify_done(
-            goal,
-            summary,
-            team,
-            project_dir,
-            state=verification_state,
-            browser_testing=config.browser_testing,
-            verifiers=config.verifiers,
-        )
-
-    if rejection:
-        log.emit("orchestrator_done_rejected", **tag, rejection=rejection[:5000])
-        log.tprint(f"❌ [done] {_DIM}REJECTED — verification found issues{_RESET}")
-        return rejection
-
-    # Auto-commit after successful verification
-    if config.auto_commit:
-        _auto_commit(team, project_dir, summary)
-
-    done_signal.called = True
-    done_signal.summary = summary
-    done_signal.success = True
-    log.emit("orchestrator_done_accepted", **tag, summary=summary)
-
-    log.tprint("🎉 [done] ACCEPTED — all checks pass")
-    return "Verified and accepted. All checks pass."
-
-
-
 class DoneSignal:
     """Shared mutable to communicate between the ``done`` tool and the cycle loop."""
 
@@ -413,450 +311,18 @@ class DoneSignal:
 
 def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
     """Build the user-turn prompt sent to the orchestrator each cycle."""
+    from kodo import log
+
     prompt = f"# Goal\n\n{goal}\n\nProject directory: {project_dir}"
+    log_file = log.get_log_file()
+    if log_file:
+        prompt += f"\nRun log (JSONL): {log_file}"
     if prior_summary:
         prompt += (
             f"\n\n# Previous progress\n\n{prior_summary}"
             "\n\nContinue working toward the goal."
         )
     return prompt
-
-
-def build_mcp_server(
-    team: TeamConfig,
-    project_dir: Path,
-    summarizer,
-    done_signal: "DoneSignal",
-    goal: str,
-    orchestrator_tag: str = "unknown",
-    verification_state: "VerificationState | None" = None,
-    config: "CycleConfig | None" = None,
-):
-    """Build a FastMCP server exposing each team agent as a tool.
-
-    Shared by all orchestrators that use MCP (ClaudeCode, GeminiCli, Codex, Cursor).
-    """
-    from mcp.server.fastmcp import FastMCP
-
-    mcp = FastMCP("team")
-    dead_workers: set[str] = set()
-    total_workers = len(team)
-
-    for name, agent in team.items():
-
-        def _make_handler(agent_name, agent_obj, agent_desc):
-            def handler(task: str, new_conversation: bool = False) -> str:
-                """Delegate a task to this agent."""
-                return handle_agent_call(
-                    agent_name,
-                    agent_obj,
-                    task,
-                    project_dir,
-                    summarizer,
-                    new_conversation=new_conversation,
-                    orchestrator_tag=orchestrator_tag,
-                    dead_workers=dead_workers,
-                    total_workers=total_workers,
-                )
-
-            handler.__name__ = f"ask_{agent_name}"
-            handler.__doc__ = (
-                f"Delegate a task to the {agent_name} agent.\n{agent_desc}"
-            )
-            return handler
-
-        mcp.add_tool(
-            _make_handler(name, agent, agent.description.strip()), name=f"ask_{name}",
-        )
-
-    def done(summary: str, success: bool) -> str:
-        """Signal that the goal is complete. Runs automated verification first — \
-if the tester or architect find issues, the call is rejected and you must fix them."""
-        return handle_done(
-            summary,
-            success,
-            done_signal,
-            goal,
-            team,
-            project_dir,
-            verification_state=verification_state,
-            orchestrator_tag=orchestrator_tag,
-            config=config,
-        )
-
-    mcp.add_tool(done)
-    return mcp
-
-
-_STDIO_BRIDGE_SCRIPT = """\
-import asyncio, sys, json
-from mcp.client.sse import sse_client
-from mcp.server.stdio import stdio_server
-
-async def main():
-    async with sse_client("{url}") as (read_sse, write_sse):
-        async with stdio_server() as (read_stdio, write_stdio):
-            async def sse_to_stdio():
-                async for msg in read_sse:
-                    await write_stdio.send(msg)
-            async def stdio_to_sse():
-                async for msg in read_stdio:
-                    await write_sse.send(msg)
-            await asyncio.gather(sse_to_stdio(), stdio_to_sse())
-
-asyncio.run(main())
-"""
-
-
-class McpServerContext:
-    """Runs a FastMCP server on a random local port for CLI orchestrators.
-
-    Usage::
-
-        mcp = build_mcp_server(team, ...)
-        with McpServerContext(mcp) as ctx:
-            url = ctx.sse_url  # e.g. "http://127.0.0.1:54321/sse"
-            # ... spawn CLI process that connects to this URL ...
-    """
-
-    def __init__(self, mcp) -> None:
-        self._mcp = mcp
-        self._server: Any = None
-        self._thread: threading.Thread | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._exc: Exception | None = None
-        self.port: int = 0
-        self.sse_url: str = ""
-
-    def __enter__(self) -> "McpServerContext":
-        # Find a free port
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            self.port = s.getsockname()[1]
-
-        self.sse_url = f"http://127.0.0.1:{self.port}/sse"
-        self._mcp.settings.host = "127.0.0.1"
-        self._mcp.settings.port = self.port
-
-        ready = threading.Event()
-
-        def _run():
-            try:
-                import uvicorn
-
-                config = uvicorn.Config(
-                    self._mcp.sse_app(),
-                    host="127.0.0.1",
-                    port=self.port,
-                    log_level="error",
-                )
-                server = uvicorn.Server(config)
-                self._server = server
-
-                # Signal ready once server is started
-                original_startup = server.startup
-
-                async def _startup(sockets=None):
-                    await original_startup(sockets)
-                    ready.set()
-
-                server.startup = _startup
-
-                self._loop = asyncio.new_event_loop()
-                self._loop.run_until_complete(server.serve())
-            except RuntimeError as e:
-                # "Event loop is closed" / "Event loop stopped" are expected
-                # when __exit__ asks the loop to stop; suppress them silently.
-                if "event loop" not in str(e).lower():
-                    self._exc = e
-                    ready.set()
-            except Exception as e:
-                self._exc = e
-                ready.set()  # unblock main thread so it can raise
-
-        self._thread = threading.Thread(target=_run, daemon=True)
-        self._thread.start()
-
-        # Wait for the server to be ready (up to 10s)
-        if not ready.wait(timeout=10):
-            if self._server is not None:
-                self._server.should_exit = True
-            if self._thread:
-                self._thread.join(timeout=5)
-            if self._exc:
-                raise self._exc
-            raise RuntimeError("MCP server failed to start within 10s")
-
-        if self._exc:
-            if self._server is not None:
-                self._server.should_exit = True
-            if self._thread:
-                self._thread.join(timeout=5)
-            raise self._exc
-
-        return self
-
-    @property
-    def stdio_bridge_cmd(self) -> list[str]:
-        """Return a command that bridges stdio↔SSE for this MCP server.
-
-        Useful for Codex CLI which only supports stdio MCP transport.
-        Uses ``npx mcp-remote`` if available, or falls back to a Python script.
-        """
-        import shutil
-        import sys
-
-        if shutil.which("npx"):
-            return ["npx", "-y", "mcp-remote", self.sse_url]
-        return [
-            sys.executable,
-            "-u",
-            "-c",
-            _STDIO_BRIDGE_SCRIPT.format(url=self.sse_url),
-        ]
-
-    def __exit__(self, *exc) -> None:
-        if self._server is not None:
-            self._server.should_exit = True
-        # Ask the event loop to stop so run_until_complete() returns
-        # and the thread can exit naturally.
-        if self._loop:
-            try:
-                self._loop.call_soon_threadsafe(self._loop.stop)
-            except RuntimeError:
-                pass  # loop already closed/stopped
-        if self._thread:
-            self._thread.join(timeout=5)
-            if self._thread.is_alive():
-                from kodo import log
-
-                log.tprint("[mcp] server thread did not stop within 5s, retrying...")
-                # Escalation: retry loop.stop and give 2s more
-                if self._loop:
-                    try:
-                        self._loop.call_soon_threadsafe(self._loop.stop)
-                    except RuntimeError:
-                        pass
-                self._thread.join(timeout=2)
-                if self._thread.is_alive():
-                    log.emit(
-                        "mcp_server_thread_stuck",
-                        message="Thread still alive after 7s",
-                    )
-        # Close loop even if thread is stuck — the daemon thread will be
-        # cleaned up at process exit.
-        if self._loop:
-            try:
-                self._loop.close()
-            except (OSError, RuntimeError):
-                pass  # best-effort cleanup
-
-
-@dataclass
-class VerificationState:
-    """Tracks verification attempts within a single cycle.
-
-    Created fresh each ``cycle()`` call. First ``done()`` resets verifier
-    sessions for a clean baseline; subsequent calls reuse the session so
-    verifiers have persistent context from prior reviews.
-    """
-
-    done_attempt: int = 0
-
-
-def _check_passed(report: str) -> bool:
-    """Return True if a verifier report signals acceptance.
-
-    Rejects reports containing "NOT ALL CHECKS PASS" or "NOT MINOR ISSUES FIXED".
-    The signal phrase must appear as the verifier's own assertion — at the start
-    of a line/sentence — not inside a quotation, attribution, or code block like
-    ``The agent said 'ALL CHECKS PASS' but tests fail`` or inside triple backticks.
-    """
-    upper = report.upper()
-    if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:
-        return False
-
-    _SIGNAL = r"(?:ALL CHECKS PASS|MINOR ISSUES FIXED)"
-
-    # Strip fenced code blocks (```...```) — signals inside code are quotations,
-    # not the verifier's own assertion.
-    stripped = re.sub(r"```.*?```", "", upper, flags=re.DOTALL)
-    # Strip inline code (`...`)
-    stripped = re.sub(r"`[^`]+`", "", stripped)
-    # Strip single-quoted and double-quoted strings containing the signal phrase
-    stripped = re.sub(r"'[^']*" + _SIGNAL + r"[^']*'", "", stripped)
-    stripped = re.sub(r'"[^"]*' + _SIGNAL + r'[^"]*"', "", stripped)
-
-    # After stripping, reject if no signal phrase remains
-    if not re.search(_SIGNAL, stripped):
-        return False
-
-    # Accept the signal at: start of text, start of line, or after sentence-ending
-    # punctuation (.!?。).  Reject mid-sentence mentions that follow attribution
-    # words (said, say, cannot, etc.).
-    # Also allow optional ':' after the signal (e.g., "ALL CHECKS PASS:")
-    pattern = re.compile(
-        r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*" + _SIGNAL + r"(?::|\b)",
-        re.MULTILINE,
-    )
-    return bool(pattern.search(stripped))
-
-
-def verify_done(
-    goal: str,
-    summary: str,
-    team: TeamConfig,
-    project_dir: Path,
-    *,
-    state: VerificationState | None = None,
-    browser_testing: bool = False,
-    verifiers: dict | None = None,
-) -> str | None:
-    """Run tester + architect to verify the goal is met.
-
-    Returns None if all checks pass, or a rejection message with issues found.
-    *browser_testing*: when False, browser testers are skipped even if configured.
-    *verifiers*: optional dict with ``testers``, ``browser_testers``, ``reviewers``
-    lists referencing agent keys in *team*.  When ``None``, falls back to legacy
-    hardcoded key lookups (``"tester"``, ``"tester_browser"``, ``"architect"``).
-    """
-    from kodo import log
-
-    if state is None:
-        state = VerificationState()
-
-    state.done_attempt += 1
-    attempt = state.done_attempt
-    reset_session = attempt == 1
-
-    issues = []
-    verification_prompt = (
-        f"The orchestrator claims the following goal is complete:\n\n"
-        f"# Goal\n{goal}\n\n"
-        f"# Orchestrator's summary\n{summary}\n\n"
-    )
-
-    # Resolve which agents to use for each verifier role
-    if verifiers is not None:
-        tester_keys = verifiers.get("testers", [])
-        browser_tester_keys = verifiers.get("browser_testers", [])
-        reviewer_keys = verifiers.get("reviewers", [])
-    else:
-        # Legacy fallback — same behavior as before
-        tester_keys = ["tester"] if "tester" in team else []
-        browser_tester_keys = ["tester_browser"] if "tester_browser" in team else []
-        reviewer_keys = ["architect"] if "architect" in team else []
-
-    # Collect tester agents — include browser testers only when requested
-    tester_agents: list[tuple[str, Agent]] = []
-    for key in tester_keys:
-        if key in team:
-            tester_agents.append((key, team[key]))
-    if browser_testing:
-        for key in browser_tester_keys:
-            if key in team:
-                tester_agents.append((key, team[key]))
-
-    for tester_name, tester_agent in tester_agents:
-        try:
-            log.tprint(
-                f"[done] running {tester_name} verification (attempt {attempt})...",
-            )
-            tester_result = tester_agent.run(
-                verification_prompt + VERIFICATION_INSTRUCTIONS,
-                project_dir,
-                new_conversation=reset_session,
-                agent_name=f"{tester_name}_verification",
-            )
-            tester_report = tester_result.text or ""
-            log.emit(
-                "done_verification", agent=tester_name, report=tester_report[:5000],
-            )
-            if not _check_passed(tester_report):
-                issues.append(
-                    f"**{tester_name} found issues:**\n{tester_report[:3000]}",
-                )
-        except Exception as exc:
-            log.emit("done_verification_error", agent=tester_name, error=str(exc))
-            issues.append(f"**{tester_name} crashed:** {exc}")
-
-    # Run reviewer agents
-    for reviewer_key in reviewer_keys:
-        reviewer_agent = team.get(reviewer_key)
-        if not reviewer_agent:
-            continue
-        try:
-            log.tprint(
-                f"[done] running {reviewer_key} verification (attempt {attempt})...",
-            )
-            reviewer_result = reviewer_agent.run(
-                verification_prompt + VERIFICATION_INSTRUCTIONS,
-                project_dir,
-                new_conversation=reset_session,
-                agent_name=f"{reviewer_key}_verification",
-            )
-            reviewer_report = reviewer_result.text or ""
-            log.emit(
-                "done_verification", agent=reviewer_key, report=reviewer_report[:5000],
-            )
-            if not _check_passed(reviewer_report):
-                label = reviewer_key.replace("_", " ").title()
-                issues.append(f"**{label} found issues:**\n{reviewer_report[:3000]}")
-        except Exception as exc:
-            log.emit("done_verification_error", agent=reviewer_key, error=str(exc))
-            label = reviewer_key.replace("_", " ").title()
-            issues.append(f"**{label} crashed:** {exc}")
-
-    # Fallback: if no dedicated verifiers exist, use a worker in a fresh session
-    has_dedicated_verifiers = (
-        bool(tester_agents)
-        or bool(
-            browser_tester_keys,
-        )  # exist even if skipped due to browser_testing=False
-        or bool(reviewer_keys)
-    )
-    if not has_dedicated_verifiers:
-        # Prefer worker_smart, fall back to any worker
-        verifier = (
-            team.get("worker_smart")
-            or team.get("worker")
-            or next((a for a in team.values()), None)
-        )
-        if verifier:
-            verifier_name = next(
-                (n for n, a in team.items() if a is verifier), "worker",
-            )
-            try:
-                log.tprint(
-                    f"[done] running {verifier_name} as verifier (fresh session)...",
-                )
-                verify_result = verifier.run(
-                    verification_prompt + VERIFICATION_INSTRUCTIONS,
-                    project_dir,
-                    new_conversation=True,
-                    agent_name=f"{verifier_name}_verification",
-                )
-                verify_report = verify_result.text or ""
-                log.emit(
-                    "done_verification",
-                    agent=verifier_name,
-                    report=verify_report[:5000],
-                )
-                if not _check_passed(verify_report):
-                    issues.append(
-                        f"**{verifier_name} (verifier) found issues:**\n{verify_report[:3000]}",
-                    )
-            except Exception as exc:
-                log.emit("done_verification_error", agent=verifier_name, error=str(exc))
-                issues.append(f"**{verifier_name} (verifier) crashed:** {exc}")
-
-    if issues:
-        return (
-            f"DONE REJECTED (attempt {attempt}) — verification found issues that must be fixed:\n\n"
-            + "\n\n".join(issues)
-            + "\n\nFix these issues and try calling done again."
-        )
-    return None
 
 
 def compose_stage_goal(
@@ -918,546 +384,6 @@ def compose_stage_goal(
 def clone_team(team: TeamConfig) -> TeamConfig:
     """Create a deep copy of a team with fresh sessions (no shared state)."""
     return {name: agent.clone() for name, agent in team.items()}
-
-
-def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
-    """Create a git worktree for isolated parallel execution.
-
-    Returns ``(worktree_dir, branch_name)``.  The worktree is placed in a
-    temp directory (outside the repo) and uses a unique branch name to avoid
-    collisions with leftover branches from crashed runs.
-
-    The label is sanitized by replacing special characters (/, @, :, etc.)
-    with underscores to ensure git branch name validity.
-    """
-    import re
-    import tempfile
-    import uuid
-
-    # Sanitize label: replace special characters with underscores
-    # Git branch names cannot contain /, @, :, ^, ~, ?, *, [, \, space, etc.
-    sanitized_label = re.sub(r"[/@:^~?\*\[\\\s]+", "_", label)
-
-    suffix = uuid.uuid4().hex[:8]
-    branch_name = f"kodo-{sanitized_label}-{suffix}"
-    worktree_dir = Path(tempfile.mkdtemp(prefix=f"kodo-{sanitized_label}-"))
-    # mkdtemp already created the dir; git worktree add wants a non-existing
-    # target, so remove the empty dir first.
-    try:
-        worktree_dir.rmdir()
-    except OSError:
-        shutil.rmtree(worktree_dir, ignore_errors=True)
-    subprocess.run(
-        [_git(), "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
-        cwd=project_dir,
-        capture_output=True,
-        check=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    return worktree_dir, branch_name
-
-
-def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> None:
-    """Remove a git worktree and its branch. Robust against partial failures."""
-    from kodo import log
-
-    if not project_dir.is_dir():
-        raise RuntimeError(
-            f"remove_worktree called with non-existent project_dir: {project_dir}"
-        )
-    if not branch_name:
-        raise RuntimeError("remove_worktree called with empty branch_name")
-
-    # 1. Remove worktree from git's index (--force allows dirty state)
-    result = subprocess.run(
-        [_git(), "worktree", "remove", str(worktree_dir), "--force"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if result.returncode != 0 and worktree_dir.exists():
-        log.tprint(
-            f"[worktree] git worktree remove failed ({result.stderr or result.stdout}), "
-            "removing directory directly",
-        )
-        shutil.rmtree(worktree_dir, ignore_errors=True)
-
-    # 2. Delete the branch (may already be gone if worktree remove succeeded)
-    subprocess.run(
-        [_git(), "branch", "-D", branch_name],
-        cwd=project_dir,
-        capture_output=True,
-        timeout=_GIT_TIMEOUT,
-    )
-
-    # 3. Ensure directory is gone
-    if worktree_dir.exists():
-        shutil.rmtree(worktree_dir, ignore_errors=True)
-
-    # 4. Prune stale worktree metadata (rmtree leaves .git/worktrees/ entries)
-    subprocess.run(
-        [_git(), "worktree", "prune"],
-        cwd=project_dir,
-        capture_output=True,
-        timeout=_GIT_TIMEOUT,
-    )
-
-
-
-@dataclass
-class MergeResult:
-    """Result of merging a worktree branch back into the main branch."""
-
-    success: bool
-    had_changes: bool
-    conflict: bool = False
-    error: str = ""
-
-
-_KODO_GIT_ENV = {
-    "GIT_AUTHOR_NAME": "kodo",
-    "GIT_AUTHOR_EMAIL": "noreply@github.com",
-    "GIT_COMMITTER_NAME": "kodo",
-    "GIT_COMMITTER_EMAIL": "noreply@github.com",
-}
-
-
-def _strip_pycache_from_index(repo_dir: Path) -> None:
-    """Remove __pycache__ files from the git index (but not working tree).
-
-    Agents frequently commit __pycache__/.pyc which causes merge conflicts
-    when multiple parallel branches each commit different bytecode.
-    """
-    cached = subprocess.run(
-        [_git(), "ls-files", "--cached", "-z"],
-        cwd=repo_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    pycache_files = [
-        f
-        for f in cached.stdout.split("\0")
-        if f and ("__pycache__/" in f or f.endswith(".pyc"))
-    ]
-    if pycache_files:
-        subprocess.run(
-            [_git(), "rm", "-r", "--cached", "--quiet", "--"] + pycache_files,
-            cwd=repo_dir,
-            capture_output=True,
-            timeout=_GIT_TIMEOUT,
-        )
-
-
-def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
-    """Commit any uncommitted changes in a worktree.
-
-    Returns True if a commit was made.  Used as a safety net before merging —
-    catches changes the agent didn't commit during its run.
-    """
-    from kodo import log
-
-    if not worktree_dir.is_dir():
-        raise RuntimeError(
-            f"commit_worktree_changes called with non-existent worktree: {worktree_dir}"
-        )
-    if not stage_name:
-        raise RuntimeError("commit_worktree_changes called with empty stage_name")
-
-    status = subprocess.run(
-        [_git(), "status", "--porcelain"],
-        cwd=worktree_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if not status.stdout.strip():
-        log.tprint(f"[persist] Stage '{stage_name}': no uncommitted changes")
-        return False
-
-    subprocess.run(
-        [_git(), "add", "-A"],
-        cwd=worktree_dir,
-        capture_output=True,
-        check=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    _strip_pycache_from_index(worktree_dir)
-    result = subprocess.run(
-        [_git(), "commit", "-m", f"kodo: parallel stage '{stage_name}' changes"],
-        cwd=worktree_dir,
-        capture_output=True,
-        text=True,
-        env={**os.environ, **_KODO_GIT_ENV},
-        timeout=_GIT_TIMEOUT,
-    )
-    if result.returncode != 0:
-        log.tprint(f"[persist] Stage '{stage_name}': commit failed: {result.stderr}")
-        return False
-
-    log.tprint(f"[persist] Stage '{stage_name}': committed worktree changes")
-    return True
-
-
-def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
-    """Remove a worktree directory without deleting its branch."""
-    result = subprocess.run(
-        [_git(), "worktree", "remove", str(worktree_dir), "--force"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if result.returncode != 0 and worktree_dir.exists():
-        shutil.rmtree(worktree_dir, ignore_errors=True)
-    subprocess.run(
-        [_git(), "worktree", "prune"],
-        cwd=project_dir,
-        capture_output=True,
-        timeout=_GIT_TIMEOUT,
-    )
-
-
-def _resolve_conflicts_with_agent(
-    project_dir: Path, branch_name: str, stage_name: str,
-) -> bool:
-    """Spin up a Claude Code agent to resolve merge conflicts.
-
-    Returns True if conflicts were resolved and committed.
-    """
-    from kodo import log, make_session
-
-    conflict_files = subprocess.run(
-        [_git(), "diff", "--name-only", "--diff-filter=U"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    files = conflict_files.stdout.strip()
-    if not files:
-        return False
-
-    log.tprint(f"[persist] Resolving conflicts in: {files}")
-    log.emit("persist_conflict_resolve_start", stage_name=stage_name, files=files)
-
-    from kodo.models import CLAUDE_SONNET
-
-    session = None
-    try:
-        session = make_session(
-            backend="claude-code",
-            model=CLAUDE_SONNET,
-            system_prompt=(
-                "You are resolving git merge conflicts. The merge is in progress. "
-                "Conflicting files have <<<<<<< / ======= / >>>>>>> markers. "
-                "Resolve each conflict by keeping BOTH sides' changes integrated "
-                "correctly. Both branches implemented independent features that "
-                "should coexist. After resolving, run `git add` on each file."
-            ),
-        )
-        session.query(
-            f"Resolve the merge conflicts in this project. The conflicting files are:\n"
-            f"{files}\n\n"
-            f"The branch being merged is '{branch_name}' (stage: {stage_name}). "
-            f"Both the current branch and the incoming branch have valid changes "
-            f"that should be combined. Read each conflicting file, resolve the "
-            f"conflict markers, and `git add` the resolved files. "
-            f"Do NOT commit — just resolve and stage.",
-            project_dir=project_dir,
-            max_turns=30,
-        )
-    except Exception as exc:
-        log.emit("persist_conflict_resolve_crash", error=str(exc))
-        log.tprint(f"[persist] Conflict resolver crashed: {exc}")
-        return False
-    finally:
-        if session is not None:
-            session.close()
-
-    # Check if all conflicts are resolved
-    remaining = subprocess.run(
-        [_git(), "diff", "--name-only", "--diff-filter=U"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if remaining.stdout.strip():
-        log.tprint("[persist] Agent failed to resolve all conflicts")
-        log.emit(
-            "persist_conflict_resolve_failed",
-            stage_name=stage_name,
-            remaining=remaining.stdout.strip(),
-        )
-        return False
-
-    # Commit the merge
-    commit = subprocess.run(
-        [_git(), "commit", "--no-edit"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        env={**os.environ, **_KODO_GIT_ENV},
-        timeout=_GIT_TIMEOUT,
-    )
-    if commit.returncode != 0:
-        log.tprint(f"[persist] Merge commit failed: {commit.stderr}")
-        return False
-
-    log.tprint(f"[persist] Agent resolved conflicts for '{stage_name}'")
-    log.emit("persist_conflict_resolve_ok", stage_name=stage_name)
-    return True
-
-
-def merge_worktree_branch(
-    project_dir: Path, branch_name: str, stage_name: str,
-) -> MergeResult:
-    """Merge a worktree branch into the current branch at *project_dir*.
-
-    Uses ``--no-ff`` to preserve branch history.  On conflict, spins up
-    a Claude Code agent to resolve the conflicts.  Falls back to abort
-    if the agent cannot resolve them.
-    """
-    from kodo import log
-
-    # Pre-flight: abort early if the main repo has uncommitted changes.
-    # Running destructive commands (checkout, clean) on a dirty worktree
-    # would silently discard user work.
-    preflight = subprocess.run(
-        [_git(), "status", "--porcelain"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if preflight.stdout.strip():
-        dirty_msg = (
-            f"Stage '{stage_name}': refusing to merge — main repo has uncommitted "
-            f"changes. Commit or stash them first.\n"
-            f"Dirty files:\n{preflight.stdout.strip()[:500]}"
-        )
-        log.tprint(f"[persist] {dirty_msg}")
-        return MergeResult(success=False, had_changes=False, error=dirty_msg)
-
-    # Check if branch has any commits ahead of HEAD
-    diff_check = subprocess.run(
-        [_git(), "log", f"HEAD..{branch_name}", "--oneline"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if diff_check.returncode != 0:
-        log.tprint(f"[persist] Stage '{stage_name}': branch '{branch_name}' not found")
-        return MergeResult(
-            success=False, had_changes=False, error=diff_check.stderr or "",
-        )
-    if not diff_check.stdout.strip():
-        log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
-        return MergeResult(success=True, had_changes=False)
-
-    # Strip __pycache__ from the branch (agents commit bytecode that
-    # causes binary conflicts across parallel branches).
-    rev_parse = subprocess.run(
-        [_git(), "rev-parse", "--abbrev-ref", "HEAD"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if rev_parse.returncode != 0:
-        return MergeResult(
-            success=False, had_changes=False, error=rev_parse.stderr or "",
-        )
-    current_branch = rev_parse.stdout.strip()
-
-    try:
-        subprocess.run(
-            [_git(), "checkout", branch_name],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GIT_TIMEOUT,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        err = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or str(e))
-        log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {branch_name} failed: {err}",
-        )
-        return MergeResult(success=False, had_changes=False, error=err)
-
-    _strip_pycache_from_index(project_dir)
-    status_before = subprocess.run(
-        [_git(), "status", "--porcelain"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if status_before.stdout.strip():
-        subprocess.run(
-            [
-                _git(),
-                "commit",
-                "-m",
-                "kodo: strip __pycache__ before merge",
-            ],
-            cwd=project_dir,
-            capture_output=True,
-            check=True,
-            env={**os.environ, **_KODO_GIT_ENV},
-            timeout=_GIT_TIMEOUT,
-        )
-
-    try:
-        subprocess.run(
-            [_git(), "checkout", current_branch],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=_GIT_TIMEOUT,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        err = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or str(e))
-        log.tprint(
-            f"[persist] Stage '{stage_name}': checkout {current_branch} failed: {err}",
-        )
-        return MergeResult(success=False, had_changes=False, error=err)
-
-    # Strip __pycache__ from current branch too (prior merge may have
-    # brought in bytecode that would conflict with the next branch).
-    _strip_pycache_from_index(project_dir)
-    status_main = subprocess.run(
-        [_git(), "status", "--porcelain"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if status_main.stdout.strip():
-        subprocess.run(
-            [
-                _git(),
-                "commit",
-                "-m",
-                "kodo: strip __pycache__ from main",
-            ],
-            cwd=project_dir,
-            capture_output=True,
-            check=True,
-            env={**os.environ, **_KODO_GIT_ENV},
-            timeout=_GIT_TIMEOUT,
-        )
-
-    # Clean untracked files and dirty state that would block merge.
-    # Skip if user has local changes — don't wipe their data.
-    status_clean = subprocess.run(
-        [_git(), "status", "--porcelain"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if status_clean.stdout.strip():
-        log.tprint(
-            f"[persist] Stage '{stage_name}': skipping checkout/clean — "
-            "untracked or modified files would be lost",
-        )
-    else:
-        co = subprocess.run(
-            [_git(), "checkout", "--", "."],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT,
-        )
-        if co.returncode != 0:
-            log.tprint(
-                f"[persist] Stage '{stage_name}': checkout -- . failed: {co.stderr}",
-            )
-        cl = subprocess.run(
-            [_git(), "clean", "-fd"],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT,
-        )
-        if cl.returncode != 0:
-            log.tprint(f"[persist] Stage '{stage_name}': clean -fd failed: {cl.stderr}")
-
-    result = subprocess.run(
-        [
-            _git(),
-            "merge",
-            branch_name,
-            "--no-ff",
-            "-m",
-            f"Merge kodo parallel stage: {stage_name}",
-        ],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        env={**os.environ, **_KODO_GIT_ENV},
-        timeout=_GIT_TIMEOUT,
-    )
-
-    if result.returncode != 0:
-        is_conflict = "CONFLICT" in (result.stdout + result.stderr)
-
-        if is_conflict:
-            log.tprint(
-                f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution",
-            )
-            resolved = _resolve_conflicts_with_agent(
-                project_dir, branch_name, stage_name,
-            )
-            if resolved:
-                log.tprint(
-                    f"[persist] Stage '{stage_name}': conflicts resolved by agent",
-                )
-                log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
-                return MergeResult(success=True, had_changes=True)
-            # Agent failed — abort the merge
-            log.tprint(
-                f"[persist] Stage '{stage_name}': agent could not resolve conflicts",
-            )
-
-        abort = subprocess.run(
-            [_git(), "merge", "--abort"],
-            cwd=project_dir,
-            capture_output=True,
-            timeout=_GIT_TIMEOUT,
-        )
-        if abort.returncode != 0:
-            log.tprint(
-                f"[persist] Stage '{stage_name}': merge --abort failed: {abort.stderr}",
-            )
-        merge_output = result.stdout + result.stderr
-        log.tprint(
-            f"[persist] Stage '{stage_name}': "
-            f"merge {'conflict' if is_conflict else 'failed'}",
-        )
-        log.emit(
-            "persist_merge_failed",
-            stage_name=stage_name,
-            branch=branch_name,
-            conflict=is_conflict,
-            error=merge_output[:1000],
-        )
-        return MergeResult(
-            success=False,
-            had_changes=True,
-            conflict=is_conflict,
-            error=merge_output,
-        )
-
-    log.tprint(f"[persist] Stage '{stage_name}': merged successfully")
-    log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
-    return MergeResult(success=True, had_changes=True)
 
 
 def execution_groups(plan: GoalPlan) -> list[list[GoalStage]]:
@@ -1948,280 +874,317 @@ class OrchestratorBase:
                     log.tprint("[orchestrator] Stopping run — stage did not complete")
                     break
             else:
-                # Parallel stages run concurrently — each gets the full budget.
-                # Only the longest branch is deducted from remaining_cycles.
-                per_stage_cycles = remaining_cycles
-                stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
-                print()
-                log.tprint(f"{'─' * 40}")
-                log.tprint(f"{_BOLD}PARALLEL GROUP: {stage_labels}{_RESET}")
-                log.emit(
-                    "parallel_group_start",
-                    stages=[s.index for s in group],
-                    per_stage_cycles=per_stage_cycles,
+                parallel_results, cycles_used = self._run_parallel_group(
+                    group,
+                    plan,
+                    project_dir,
+                    team,
+                    stage_summaries,
+                    result,
+                    max_exchanges=max_exchanges,
+                    per_stage_cycles=remaining_cycles,
+                    initial_prior=(
+                        resume.prior_summary
+                        if resume
+                        and resume.current_stage_cycles > 0
+                        and group is remaining_groups[0]
+                        else ""
+                    ),
+                    config=config,
                 )
+                remaining_cycles -= cycles_used
 
-                # Snapshot stage_summaries so all parallel stages see the same
-                # prior context (they shouldn't see each other's results).
-                summaries_snapshot = list(stage_summaries)
-                # When resuming mid-cycle, all stages in the first remaining
-                # group need prior_summary from the interrupted cycle.
-                initial_prior = ""
-                if (
-                    resume
-                    and resume.current_stage_cycles > 0
-                    and group is remaining_groups[0]
-                ):
-                    initial_prior = resume.prior_summary
-                futures_map: dict[concurrent.futures.Future, GoalStage] = {}
+                # Add all parallel summaries to context for subsequent stages
+                for pr in parallel_results:
+                    stage_summaries.append(pr.summary)
 
-                # Each parallel stage gets its own cloned team (fresh
-                # sessions) so agents aren't shared across threads.
-                stage_teams: dict[int, TeamConfig] = {
-                    stage.index: clone_team(team) for stage in group
-                }
+    def _run_parallel_group(
+        self,
+        group: list[GoalStage],
+        plan: GoalPlan,
+        project_dir: Path,
+        team: TeamConfig,
+        stage_summaries: list[str],
+        result: RunResult,
+        *,
+        max_exchanges: int,
+        per_stage_cycles: int,
+        initial_prior: str,
+        config: CycleConfig,
+    ) -> tuple[list[StageResult], int]:
+        """Run a parallel group of stages concurrently.
 
-                # Create git worktrees for isolation.  Each parallel stage
-                # runs in its own worktree so it cannot corrupt the main
-                # working directory even if it writes files.
-                worktrees: dict[int, tuple[Path, str]] = {}
+        Returns ``(parallel_results, cycles_used)`` where *cycles_used* is the
+        max branch length (wall-clock cost).
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-                def _run_in_own_loop(
-                    orchestrator,
+        from kodo import log
+
+        stage_labels = ", ".join(f"{s.index}:{s.name}" for s in group)
+        print()
+        log.tprint(f"{'─' * 40}")
+        log.tprint(f"{_BOLD}PARALLEL GROUP: {stage_labels}{_RESET}")
+        log.emit(
+            "parallel_group_start",
+            stages=[s.index for s in group],
+            per_stage_cycles=per_stage_cycles,
+        )
+
+        # Snapshot stage_summaries so all parallel stages see the same
+        # prior context (they shouldn't see each other's results).
+        summaries_snapshot = list(stage_summaries)
+        futures_map: dict[concurrent.futures.Future, GoalStage] = {}
+
+        # Each parallel stage gets its own cloned team (fresh
+        # sessions) so agents aren't shared across threads.
+        stage_teams: dict[int, TeamConfig] = {
+            stage.index: clone_team(team) for stage in group
+        }
+
+        # Create git worktrees for isolation.  Each parallel stage
+        # runs in its own worktree so it cannot corrupt the main
+        # working directory even if it writes files.
+        worktrees: dict[int, tuple[Path, str]] = {}
+
+        def _run_in_own_loop(
+            orchestrator,
+            stage,
+            plan,
+            stage_dir,
+            stage_team,
+            summaries_snapshot,
+            **kwargs,
+        ):
+            """Wrapper that gives each thread a fresh asyncio event
+            loop so pydantic-ai's run_sync() doesn't collide."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return orchestrator._run_one_stage(
                     stage,
                     plan,
                     stage_dir,
                     stage_team,
                     summaries_snapshot,
                     **kwargs,
-                ):
-                    """Wrapper that gives each thread a fresh asyncio event
-                    loop so pydantic-ai's run_sync() doesn't collide."""
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        return orchestrator._run_one_stage(
-                            stage,
-                            plan,
-                            stage_dir,
-                            stage_team,
-                            summaries_snapshot,
-                            **kwargs,
-                        )
-                    finally:
-                        try:
-                            loop.run_until_complete(orchestrator.close())
-                        except (OSError, RuntimeError) as e:
-                            from kodo import log
-
-                            log.emit("orchestrator_close_error", error=str(e))
-                        finally:
-                            loop.close()
-
-                parallel_results: list[StageResult] = []
+                )
+            finally:
                 try:
-                    worktree_failed = False
-                    for stage in group:
-                        try:
-                            wt_dir, branch = create_worktree(
-                                project_dir, f"stage-{stage.index}",
-                            )
-                            worktrees[stage.index] = (wt_dir, branch)
-                            log.tprint(
-                                f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
-                            )
-                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-                            log.tprint(
-                                f"⚠️  [orchestrator] Worktree creation failed for "
-                                f"stage {stage.index}: {exc}",
-                            )
-                            worktree_failed = True
-                    # If any worktree failed, clean up the ones that succeeded
-                    # and fall back to running stages sequentially to avoid
-                    # multiple agents writing to the same project_dir.
-                    if worktree_failed:
-                        log.tprint(
-                            "⚠️  [orchestrator] Cannot isolate parallel stages — "
-                            "running sequentially instead",
-                        )
-                        for idx, (wt_dir, branch) in list(worktrees.items()):
-                            try:
-                                remove_worktree(project_dir, wt_dir, branch)
-                            except Exception as exc:
-                                log.emit(
-                                    "worktree_cleanup_error",
-                                    stage_index=idx,
-                                    error=str(exc),
-                                )
-                        worktrees.clear()
-                        for stage in group:
-                            stage_res = self._run_one_stage(
-                                stage,
-                                plan,
-                                project_dir,
-                                stage_teams[stage.index],
-                                stage_summaries,
-                                max_exchanges=max_exchanges,
-                                max_cycles_for_stage=per_stage_cycles,
-                                initial_prior_summary=initial_prior,
-                                config=CycleConfig(
-                                    verifiers=config.verifiers,
-                                    auto_commit=(
-                                        stage.persist_changes and config.auto_commit
-                                    ),
-                                ),
-                            )
-                            parallel_results.append(stage_res)
-                            result.cycles.extend(stage_res.cycles)
-                            result.stage_results.append(stage_res)
-                            stage_summaries.append(stage_res.summary)
-                        remaining_cycles -= max(
-                            (len(r.cycles) for r in parallel_results), default=0,
-                        )
-                        continue  # skip the parallel execution below
-                    max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
-                    workers = min(len(group), max_parallel)
-                    with ThreadPoolExecutor(max_workers=workers) as pool:
-                        for stage in group:
-                            stage_dir = (
-                                worktrees[stage.index][0]
-                                if stage.index in worktrees
-                                else project_dir
-                            )
-                            future = pool.submit(
-                                _run_in_own_loop,
-                                self.for_parallel(),
-                                stage,
-                                plan,
-                                stage_dir,
-                                stage_teams[stage.index],
-                                summaries_snapshot,
-                                max_exchanges=max_exchanges,
-                                max_cycles_for_stage=per_stage_cycles,
-                                initial_prior_summary=initial_prior,
-                                config=CycleConfig(
-                                    verifiers=config.verifiers,
-                                    auto_commit=(
-                                        stage.persist_changes and config.auto_commit
-                                    ),
-                                ),
-                            )
-                            futures_map[future] = stage
+                    loop.run_until_complete(orchestrator.close())
+                except (OSError, RuntimeError) as e:
+                    from kodo import log
 
-                        # Collect results as they finish
-                        for future in as_completed(futures_map):
-                            stage = futures_map[future]
-                            try:
-                                stage_res = future.result()
-                            except Exception as exc:
-                                log.tprint(
-                                    f"[orchestrator] Stage {stage.index} "
-                                    f"({stage.name}) crashed: {exc}",
-                                )
-                                log.emit(
-                                    "stage_error",
-                                    stage_index=stage.index,
-                                    error=str(exc),
-                                )
-                                stage_res = StageResult(
-                                    stage_index=stage.index,
-                                    stage_name=stage.name,
-                                    summary=f"Stage crashed: {exc}",
-                                )
-                            parallel_results.append(stage_res)
-                            result.cycles.extend(stage_res.cycles)
-                            result.stage_results.append(stage_res)
+                    log.emit("orchestrator_close_error", error=str(e))
                 finally:
-                    # Clean up cloned sessions and worktrees even on
-                    # KeyboardInterrupt to avoid leaking temp directories.
+                    loop.close()
 
-                    # Build lookup for persist_changes stages
-                    stages_by_idx = {s.index: s for s in group}
-                    finished_indices = (
-                        {pr.stage_index for pr in parallel_results if pr.finished}
-                        if parallel_results
-                        else set()
+        parallel_results: list[StageResult] = []
+        try:
+            worktree_failed = False
+            for stage in group:
+                try:
+                    wt_dir, branch = create_worktree(
+                        project_dir, f"stage-{stage.index}",
                     )
-
-                    # 1. Commit uncommitted changes in persist_changes
-                    #    worktrees (safety net before merge).
-                    branches_to_merge: list[tuple[str, str, int]] = []
-                    for stage_idx, (wt_dir, branch) in worktrees.items():
-                        stg = stages_by_idx.get(stage_idx)
-                        if (
-                            stg
-                            and stg.persist_changes
-                            and stage_idx in finished_indices
-                        ):
-                            try:
-                                commit_worktree_changes(wt_dir, stg.name)
-                                branches_to_merge.append((branch, stg.name, stage_idx))
-                            except Exception as exc:
-                                log.tprint(
-                                    f"[persist] Commit failed for "
-                                    f"stage {stage_idx}: {exc}",
-                                )
-
-                    # 2. Close cloned sessions
-                    for st in stage_teams.values():
-                        for agent in st.values():
-                            agent.close()
-
-                    # 3. Remove worktrees — keep branches that need merging
-                    branches_to_keep = {b for b, _, _ in branches_to_merge}
-                    for stage_idx, (wt_dir, branch) in worktrees.items():
-                        try:
-                            if branch in branches_to_keep:
-                                _remove_worktree_keep_branch(project_dir, wt_dir)
-                            else:
-                                remove_worktree(project_dir, wt_dir, branch)
-                        except Exception as exc:
-                            log.tprint(
-                                f"[orchestrator] Worktree cleanup failed for "
-                                f"stage {stage_idx}: {exc}",
-                            )
-
-                    # 4. Merge persist_changes branches sequentially
-                    branches_to_merge.sort(key=lambda x: x[2])
-                    for branch, stage_name, stage_idx in branches_to_merge:
-                        try:
-                            merge_result = merge_worktree_branch(
-                                project_dir, branch, stage_name,
-                            )
-                            log.emit(
-                                "persist_stage_merge",
-                                stage_index=stage_idx,
-                                success=merge_result.success,
-                                had_changes=merge_result.had_changes,
-                                conflict=merge_result.conflict,
-                            )
-                        except Exception as exc:
-                            log.tprint(
-                                f"[persist] Merge failed for stage {stage_idx}: {exc}",
-                            )
-                        finally:
-                            # Always clean up the branch after merge attempt
-                            subprocess.run(
-                                [_git(), "branch", "-D", branch],
-                                cwd=project_dir,
-                                capture_output=True,
-                                timeout=_GIT_TIMEOUT,
-                            )
-
-                # Sort summaries by stage index for deterministic ordering
-                parallel_results.sort(key=lambda r: r.stage_index)
-                # For parallel work, count the max branch (wall-clock)
-                remaining_cycles -= max(
+                    worktrees[stage.index] = (wt_dir, branch)
+                    log.tprint(
+                        f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
+                    )
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+                    log.tprint(
+                        f"⚠️  [orchestrator] Worktree creation failed for "
+                        f"stage {stage.index}: {exc}",
+                    )
+                    worktree_failed = True
+            # If any worktree failed, clean up the ones that succeeded
+            # and fall back to running stages sequentially to avoid
+            # multiple agents writing to the same project_dir.
+            if worktree_failed:
+                log.tprint(
+                    "⚠️  [orchestrator] Cannot isolate parallel stages — "
+                    "running sequentially instead",
+                )
+                for idx, (wt_dir, branch) in list(worktrees.items()):
+                    try:
+                        remove_worktree(project_dir, wt_dir, branch)
+                    except Exception as exc:
+                        log.emit(
+                            "worktree_cleanup_error",
+                            stage_index=idx,
+                            error=str(exc),
+                        )
+                worktrees.clear()
+                for stage in group:
+                    stage_res = self._run_one_stage(
+                        stage,
+                        plan,
+                        project_dir,
+                        stage_teams[stage.index],
+                        stage_summaries,
+                        max_exchanges=max_exchanges,
+                        max_cycles_for_stage=per_stage_cycles,
+                        initial_prior_summary=initial_prior,
+                        config=CycleConfig(
+                            verifiers=config.verifiers,
+                            auto_commit=(
+                                stage.persist_changes and config.auto_commit
+                            ),
+                        ),
+                    )
+                    parallel_results.append(stage_res)
+                    result.cycles.extend(stage_res.cycles)
+                    result.stage_results.append(stage_res)
+                    stage_summaries.append(stage_res.summary)
+                cycles_used = max(
                     (len(r.cycles) for r in parallel_results), default=0,
                 )
+                return parallel_results, cycles_used
+            max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
+            workers = min(len(group), max_parallel)
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for stage in group:
+                    stage_dir = (
+                        worktrees[stage.index][0]
+                        if stage.index in worktrees
+                        else project_dir
+                    )
+                    future = pool.submit(
+                        _run_in_own_loop,
+                        self.for_parallel(),
+                        stage,
+                        plan,
+                        stage_dir,
+                        stage_teams[stage.index],
+                        summaries_snapshot,
+                        max_exchanges=max_exchanges,
+                        max_cycles_for_stage=per_stage_cycles,
+                        initial_prior_summary=initial_prior,
+                        config=CycleConfig(
+                            verifiers=config.verifiers,
+                            auto_commit=(
+                                stage.persist_changes and config.auto_commit
+                            ),
+                        ),
+                    )
+                    futures_map[future] = stage
 
-                # Add all parallel summaries to context for subsequent stages
-                for pr in parallel_results:
-                    stage_summaries.append(pr.summary)
+                # Collect results as they finish
+                for future in as_completed(futures_map):
+                    stage = futures_map[future]
+                    try:
+                        stage_res = future.result()
+                    except Exception as exc:
+                        log.tprint(
+                            f"[orchestrator] Stage {stage.index} "
+                            f"({stage.name}) crashed: {exc}",
+                        )
+                        log.emit(
+                            "stage_error",
+                            stage_index=stage.index,
+                            error=str(exc),
+                        )
+                        stage_res = StageResult(
+                            stage_index=stage.index,
+                            stage_name=stage.name,
+                            summary=f"Stage crashed: {exc}",
+                        )
+                    parallel_results.append(stage_res)
+                    result.cycles.extend(stage_res.cycles)
+                    result.stage_results.append(stage_res)
+        finally:
+            # Clean up cloned sessions and worktrees even on
+            # KeyboardInterrupt to avoid leaking temp directories.
 
-                log.emit(
-                    "parallel_group_end",
-                    stages=[r.stage_index for r in parallel_results],
-                    total_cycles=sum(len(r.cycles) for r in parallel_results),
-                    all_finished=all(r.finished for r in parallel_results),
-                )
+            # Build lookup for persist_changes stages
+            stages_by_idx = {s.index: s for s in group}
+            finished_indices = (
+                {pr.stage_index for pr in parallel_results if pr.finished}
+                if parallel_results
+                else set()
+            )
+
+            # 1. Commit uncommitted changes in persist_changes
+            #    worktrees (safety net before merge).
+            branches_to_merge: list[tuple[str, str, int]] = []
+            for stage_idx, (wt_dir, branch) in worktrees.items():
+                stg = stages_by_idx.get(stage_idx)
+                if (
+                    stg
+                    and stg.persist_changes
+                    and stage_idx in finished_indices
+                ):
+                    try:
+                        commit_worktree_changes(wt_dir, stg.name)
+                        branches_to_merge.append((branch, stg.name, stage_idx))
+                    except Exception as exc:
+                        log.tprint(
+                            f"[persist] Commit failed for "
+                            f"stage {stage_idx}: {exc}",
+                        )
+
+            # 2. Close cloned sessions
+            for st in stage_teams.values():
+                for agent in st.values():
+                    agent.close()
+
+            # 3. Remove worktrees — keep branches that need merging
+            branches_to_keep = {b for b, _, _ in branches_to_merge}
+            for stage_idx, (wt_dir, branch) in worktrees.items():
+                try:
+                    if branch in branches_to_keep:
+                        _remove_worktree_keep_branch(project_dir, wt_dir)
+                    else:
+                        remove_worktree(project_dir, wt_dir, branch)
+                except Exception as exc:
+                    log.tprint(
+                        f"[orchestrator] Worktree cleanup failed for "
+                        f"stage {stage_idx}: {exc}",
+                    )
+
+            # 4. Merge persist_changes branches sequentially
+            branches_to_merge.sort(key=lambda x: x[2])
+            for branch, stage_name, stage_idx in branches_to_merge:
+                try:
+                    merge_result = merge_worktree_branch(
+                        project_dir, branch, stage_name,
+                    )
+                    log.emit(
+                        "persist_stage_merge",
+                        stage_index=stage_idx,
+                        success=merge_result.success,
+                        had_changes=merge_result.had_changes,
+                        conflict=merge_result.conflict,
+                    )
+                except Exception as exc:
+                    log.tprint(
+                        f"[persist] Merge failed for stage {stage_idx}: {exc}",
+                    )
+                finally:
+                    # Always clean up the branch after merge attempt
+                    subprocess.run(
+                        [_git(), "branch", "-D", branch],
+                        cwd=project_dir,
+                        capture_output=True,
+                        timeout=_GIT_TIMEOUT,
+                    )
+
+        # Sort summaries by stage index for deterministic ordering
+        parallel_results.sort(key=lambda r: r.stage_index)
+        # For parallel work, count the max branch (wall-clock)
+        cycles_used = max(
+            (len(r.cycles) for r in parallel_results), default=0,
+        )
+
+        log.emit(
+            "parallel_group_end",
+            stages=[r.stage_index for r in parallel_results],
+            total_cycles=sum(len(r.cycles) for r in parallel_results),
+            all_finished=all(r.finished for r in parallel_results),
+        )
+
+        return parallel_results, cycles_used
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible re-exports for symbols that moved to mcp_server.py.
