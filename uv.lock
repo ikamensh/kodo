@@ -427,14 +427,14 @@ name = "cohere"
 version = "5.20.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fastavro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "requests" },
-    { name = "tokenizers" },
-    { name = "types-requests" },
-    { name = "typing-extensions" },
+    { name = "fastavro", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic", marker = "sys_platform != 'emscripten'" },
+    { name = "pydantic-core", marker = "sys_platform != 'emscripten'" },
+    { name = "requests", marker = "sys_platform != 'emscripten'" },
+    { name = "tokenizers", marker = "sys_platform != 'emscripten'" },
+    { name = "types-requests", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cf/e9/a977a2f7093912e5bb7065589c913ad6887a5bdb3474886347fca53ed283/cohere-5.20.5.tar.gz", hash = "sha256:9db82263cf3c54a35b9bf44faf39e4b7fc3fc51a32a2634fc3680b99de069f31", size = 184819 }
 wheels = [
@@ -1467,7 +1467,7 @@ wheels = [
 
 [[package]]
 name = "kodo"
-version = "0.4.133"
+version = "0.4.134"
 source = { editable = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
@@ -3293,7 +3293,7 @@ name = "tokenizers"
 version = "0.22.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub" },
+    { name = "huggingface-hub", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/73/6f/f80cfef4a312e1fb34baf7d85c72d4411afde10978d4657f8cdd811d3ccc/tokenizers-0.22.2.tar.gz", hash = "sha256:473b83b915e547aa366d1eee11806deaf419e17be16310ac0a14077f1e28f917", size = 372115 }
 wheels = [
@@ -3373,7 +3373,7 @@ name = "types-requests"
 version = "2.32.4.20260107"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "urllib3" },
+    { name = "urllib3", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0f/f3/a0663907082280664d745929205a89d41dffb29e89a50f753af7d57d0a96/types_requests-2.32.4.20260107.tar.gz", hash = "sha256:018a11ac158f801bfa84857ddec1650750e393df8a004a8a9ae2a9bec6fcb24f", size = 23165 }
 wheels = [

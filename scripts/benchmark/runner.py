@@ -1,0 +1,369 @@
+"""Clone repos, run agents, capture diffs, write predictions JSONL."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from scripts.benchmark.tasks import SWETask
+
+REPO_CACHE_DIR = "repos"
+RUNS_DIR = "runs"
+WORK_DIR = "work"
+
+
+@dataclass
+class TaskResult:
+    instance_id: str
+    arm: str  # "claude", "kodo", "kodo:quick", "kodo:full", etc.
+    patch: str
+    elapsed_s: float
+    status: str  # "ok", "timeout", "error"
+    error: str = ""
+    agent_output: dict = field(default_factory=dict)
+
+
+def parse_arm(arm: str) -> tuple[str, str | None]:
+    """Parse arm string into (base, team). E.g. 'kodo:quick' -> ('kodo', 'quick')."""
+    if ":" in arm:
+        base, team = arm.split(":", 1)
+        return base, team
+    return arm, None
+
+
+def run_benchmark(
+    *,
+    tasks: list[SWETask],
+    arms: list[str],
+    workspace: Path,
+    run_id: str,
+    timeout: int,
+    parallel: int = 1,
+) -> None:
+    """Run all tasks across all arms. Supports resumption."""
+    run_dir = workspace / RUNS_DIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    _save_run_meta(run_dir, tasks, arms, timeout)
+    completed = _load_completed(run_dir)
+    total = len(tasks) * len(arms)
+
+    print(f"Benchmark run {run_id}: {len(tasks)} tasks x {len(arms)} arm(s)")
+    print(f"  Already completed: {len(completed)}/{total}")
+    print(f"  Workspace: {workspace}")
+
+    if parallel > 1:
+        _run_parallel(tasks, arms, workspace, run_dir, timeout, parallel, completed)
+    else:
+        _run_sequential(tasks, arms, workspace, run_dir, timeout, completed)
+
+    print(f"\nRun complete. Results in {run_dir}")
+
+
+def _run_sequential(
+    tasks: list[SWETask],
+    arms: list[str],
+    workspace: Path,
+    run_dir: Path,
+    timeout: int,
+    completed: set[tuple[str, str]],
+) -> None:
+    for i, task in enumerate(tasks):
+        for arm in arms:
+            if (task.instance_id, arm) in completed:
+                continue
+
+            print(f"\n[{i + 1}/{len(tasks)}] {task.instance_id} ({arm})")
+            result = _safe_run(task, arm, workspace, timeout)
+            _append_result(run_dir, result)
+            _append_prediction(run_dir, result)
+            completed.add((task.instance_id, arm))
+
+
+def _run_parallel(
+    tasks: list[SWETask],
+    arms: list[str],
+    workspace: Path,
+    run_dir: Path,
+    timeout: int,
+    parallel: int,
+    completed: set[tuple[str, str]],
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    work = [
+        (task, arm)
+        for task in tasks
+        for arm in arms
+        if (task.instance_id, arm) not in completed
+    ]
+
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        futures = {
+            pool.submit(_safe_run, task, arm, workspace, timeout): (task, arm)
+            for task, arm in work
+        }
+        for future in as_completed(futures):
+            task, arm = futures[future]
+            result = future.result()
+            _append_result(run_dir, result)
+            _append_prediction(run_dir, result)
+            print(
+                f"  {task.instance_id} ({arm}): "
+                f"{result.status} ({result.elapsed_s:.0f}s, "
+                f"{len(result.patch)} chars patch)"
+            )
+
+
+def _safe_run(
+    task: SWETask, arm: str, workspace: Path, timeout: int
+) -> TaskResult:
+    """Run a single task, catching all exceptions."""
+    try:
+        return _run_single_task(task, arm, workspace, timeout)
+    except Exception as exc:
+        return TaskResult(
+            instance_id=task.instance_id,
+            arm=arm,
+            patch="",
+            elapsed_s=0.0,
+            status="error",
+            error=str(exc),
+        )
+
+
+def _run_single_task(
+    task: SWETask, arm: str, workspace: Path, timeout: int
+) -> TaskResult:
+    repo_dir = _prepare_repo(task, workspace, arm)
+    t0 = time.monotonic()
+
+    base, team = parse_arm(arm)
+    if base == "kodo":
+        agent_output, status, error = _run_kodo(task, repo_dir, timeout, team=team)
+    elif base == "claude":
+        agent_output, status, error = _run_claude(task, repo_dir, timeout)
+    else:
+        raise ValueError(f"Unknown arm: {arm}")
+
+    elapsed = time.monotonic() - t0
+    patch = _capture_diff(repo_dir)
+
+    return TaskResult(
+        instance_id=task.instance_id,
+        arm=arm,
+        patch=patch,
+        elapsed_s=elapsed,
+        status=status,
+        error=error,
+        agent_output=agent_output,
+    )
+
+
+# ── Repo Management ──────────────────────────────────────────────────────
+
+
+def _prepare_repo(task: SWETask, workspace: Path, arm: str) -> Path:
+    """Bare-clone cache + shared clone per task/arm."""
+    cache_dir = workspace / REPO_CACHE_DIR
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    repo_slug = task.repo.replace("/", "__")
+    bare_path = cache_dir / f"{repo_slug}.git"
+
+    if not bare_path.exists():
+        print(f"  Cloning {task.repo} (bare)...")
+        subprocess.run(
+            [
+                "git",
+                "clone",
+                "--bare",
+                f"https://github.com/{task.repo}.git",
+                str(bare_path),
+            ],
+            check=True,
+            capture_output=True,
+            timeout=600,
+        )
+
+    work_dir = workspace / WORK_DIR / task.instance_id / arm
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True)
+
+    # Shared clone from bare cache (hardlinks objects, fast)
+    subprocess.run(
+        ["git", "clone", "--shared", str(bare_path), str(work_dir)],
+        check=True,
+        capture_output=True,
+        timeout=300,
+    )
+    subprocess.run(
+        ["git", "checkout", task.base_commit],
+        cwd=str(work_dir),
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+
+    return work_dir
+
+
+# ── Agent Invocations ─────────────────────────────────────────────────────
+
+
+def _build_prompt(task: SWETask) -> str:
+    return (
+        f"Fix the following GitHub issue in this repository.\n\n"
+        f"Issue: {task.instance_id}\n\n"
+        f"{task.problem_statement}\n\n"
+        f"Make the minimal code changes needed to fix this issue. "
+        f"Do not add or modify tests."
+    )
+
+
+def _run_kodo(
+    task: SWETask, repo_dir: Path, timeout: int, *, team: str | None = None
+) -> tuple[dict, str, str]:
+    prompt = _build_prompt(task)
+    cmd = [
+        "kodo",
+        "--goal",
+        prompt,
+        "--skip-intake",
+        "--yes",
+        "--json",
+        "--no-auto-commit",
+        "--project",
+        str(repo_dir),
+    ]
+    if team:
+        cmd.extend(["--team", team])
+    return _run_subprocess(cmd, cwd=None, timeout=timeout)
+
+
+def _run_claude(
+    task: SWETask, repo_dir: Path, timeout: int
+) -> tuple[dict, str, str]:
+    prompt = _build_prompt(task)
+    cmd = [
+        "claude",
+        "--print",
+        "--dangerously-skip-permissions",
+        "-p",
+        prompt,
+        "--output-format",
+        "json",
+    ]
+    return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
+
+
+def _run_subprocess(
+    cmd: list[str], cwd: Path | None, timeout: int
+) -> tuple[dict, str, str]:
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd
+        )
+        output = _parse_json_output(proc.stdout)
+        status = "ok" if proc.returncode == 0 else "error"
+        error = proc.stderr[-500:] if proc.returncode != 0 else ""
+        return output, status, error
+    except subprocess.TimeoutExpired:
+        return {}, "timeout", f"Timed out after {timeout}s"
+
+
+# ── Diff and Persistence ─────────────────────────────────────────────────
+
+
+def _capture_diff(repo_dir: Path) -> str:
+    """Capture all changes (staged + unstaged + untracked) as unified diff."""
+    # Stage everything so we catch new files too
+    subprocess.run(
+        ["git", "add", "-A"], cwd=str(repo_dir), capture_output=True, timeout=30
+    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached"],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.stdout
+    except Exception:
+        return ""
+
+
+def _parse_json_output(stdout: str) -> dict:
+    try:
+        return json.loads(stdout)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+    return {}
+
+
+def _append_result(run_dir: Path, result: TaskResult) -> None:
+    entry = {
+        "instance_id": result.instance_id,
+        "arm": result.arm,
+        "status": result.status,
+        "elapsed_s": round(result.elapsed_s, 1),
+        "error": result.error,
+        "patch_len": len(result.patch),
+        "agent_output": result.agent_output,
+    }
+    with open(run_dir / "results.jsonl", "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _append_prediction(run_dir: Path, result: TaskResult) -> None:
+    # Use arm as model name; sanitize colons for filenames
+    safe_arm = result.arm.replace(":", "_")
+    entry = {
+        "instance_id": result.instance_id,
+        "model_name_or_path": result.arm,
+        "model_patch": result.patch,
+    }
+    with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _load_completed(run_dir: Path) -> set[tuple[str, str]]:
+    completed: set[tuple[str, str]] = set()
+    results_file = run_dir / "results.jsonl"
+    if results_file.exists():
+        for line in results_file.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                completed.add((entry["instance_id"], entry["arm"]))
+            except (json.JSONDecodeError, KeyError):
+                continue
+    return completed
+
+
+def _save_run_meta(
+    run_dir: Path, tasks: list[SWETask], arms: list[str], timeout: int
+) -> None:
+    meta_file = run_dir / "meta.json"
+    if not meta_file.exists():
+        meta = {
+            "task_count": len(tasks),
+            "arms": arms,
+            "timeout": timeout,
+            "instance_ids": [t.instance_id for t in tasks],
+        }
+        meta_file.write_text(json.dumps(meta, indent=2))
