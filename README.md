@@ -66,7 +66,6 @@ kodo lets you set a goal, go to bed, and wake up to working code that's been ind
 <table>
 <tr><td nowrap>🌙 <strong>Overnight runs</strong></td><td>Set a goal, leave it running for hours. Cycles checkpoint progress automatically.</td></tr>
 <tr><td nowrap>🔍 <strong>Built-in verification</strong></td><td>Independent architect + tester agents review work before accepting. Catches bugs the implementing agent is blind to.</td></tr>
-<tr><td nowrap>🔄 <strong>Resume interrupted runs</strong></td><td>ctrl-C'd or crashed? <code>kodo --resume</code> picks up where it left off, with agents resuming their prior conversations.</td></tr>
 <tr><td nowrap>🎭 <strong>Role separation</strong></td><td>Orchestrator making judgment calls, workers building code, independent reviewers catching issues.</td></tr>
 <tr><td nowrap>🧠 <strong>Context efficiency</strong></td><td>Work is spread across multiple agent context windows, so tasks that might overwhelm a single agent's context can succeed when agents take turns with focused scopes.</td></tr>
 </table>
