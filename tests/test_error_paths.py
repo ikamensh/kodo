@@ -298,27 +298,6 @@ class TestSummarizerResilience:
 # ╚═══════════════════════════════════════════════════════════════════════════╝
 
 
-class TestRunDirPathTraversal:
-    """RunDir.create() validates run_id against directory traversal.
-    This validation exists in source but has zero tests."""
-
-    def test_slash_in_run_id_rejected(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="must not contain"):
-            RunDir.create(tmp_path, "../../etc/passwd")
-
-    def test_backslash_in_run_id_rejected(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="must not contain"):
-            RunDir.create(tmp_path, "foo\\bar")
-
-    def test_dotdot_in_run_id_rejected(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="must not contain"):
-            RunDir.create(tmp_path, "run..id")
-
-    def test_valid_run_id_accepted(self, tmp_path: Path):
-        rd = RunDir.create(tmp_path, "20260303_120000")
-        assert rd.run_id == "20260303_120000"
-        assert rd.root.exists()
-
 
 class TestInitAppendValidation:
     """init_append() validates the log file before mutating global state.

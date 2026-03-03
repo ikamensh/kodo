@@ -27,18 +27,9 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
-def _resolve_executable(name: str) -> str:
-    """Resolve an executable via ``shutil.which()`` to avoid PATH manipulation risks.
-
-    Returns the full path if found, otherwise returns *name* unchanged so that
-    ``subprocess.run`` will raise its normal ``FileNotFoundError``.
-    """
-    return shutil.which(name) or name
-
-
 def _git() -> str:
-    """Return the resolved path to the ``git`` executable."""
-    return _resolve_executable("git")
+    """Return the git executable name."""
+    return "git"
 
 
 @dataclass
@@ -358,7 +349,9 @@ def handle_done(
     log.tprint(f"🏁 [orchestrator] DONE requested (success={success}): {summary}")
 
     if not success:
-        done_signal.set_done(summary, success=False)
+        done_signal.called = True
+        done_signal.summary = summary
+        done_signal.success = False
         return "Acknowledged (marked as unsuccessful)."
 
     # Branch on verification mode
@@ -388,18 +381,14 @@ def handle_done(
         log.tprint("❌ [done] REJECTED — verification found issues")
         return rejection
 
-    # Update signal atomically before auto-commit so the orchestrator
-    # loop sees a consistent (called, summary, success) snapshot and is
-    # not blocked by a potentially slow commit.
-    done_signal.set_done(summary, success=True)
-    log.emit("orchestrator_done_accepted", **tag, summary=summary)
-
+    # Auto-commit after successful verification
     if config.auto_commit:
-        threading.Thread(
-            target=_auto_commit,
-            args=(team, project_dir, summary),
-            daemon=True,
-        ).start()
+        _auto_commit(team, project_dir, summary)
+
+    done_signal.called = True
+    done_signal.summary = summary
+    done_signal.success = True
+    log.emit("orchestrator_done_accepted", **tag, summary=summary)
 
     log.tprint("🎉 [done] ACCEPTED — all checks pass")
     return "Verified and accepted. All checks pass."
@@ -411,63 +400,12 @@ MINOR_SIGNAL = "MINOR ISSUES FIXED"
 
 
 class DoneSignal:
-    """Shared mutable to communicate between the ``done`` tool and the cycle loop.
-
-    All attributes are guarded by an internal lock so reads and writes
-    from different threads (MCP handler vs. orchestrator loop) are atomic.
-    """
+    """Shared mutable to communicate between the ``done`` tool and the cycle loop."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._called = False
-        self._summary = ""
-        self._success = False
-
-    @property
-    def called(self) -> bool:
-        with self._lock:
-            return self._called
-
-    @called.setter
-    def called(self, value: bool) -> None:
-        with self._lock:
-            self._called = value
-
-    @property
-    def summary(self) -> str:
-        with self._lock:
-            return self._summary
-
-    @summary.setter
-    def summary(self, value: str) -> None:
-        with self._lock:
-            self._summary = value
-
-    @property
-    def success(self) -> bool:
-        with self._lock:
-            return self._success
-
-    @success.setter
-    def success(self, value: bool) -> None:
-        with self._lock:
-            self._success = value
-
-    def set_done(self, summary: str, success: bool) -> None:
-        """Atomically set all three done-signal fields under one lock.
-
-        This prevents torn reads where ``called`` is ``True`` but
-        ``summary`` / ``success`` have not yet been written.
-        """
-        with self._lock:
-            self._called = True
-            self._summary = summary
-            self._success = success
-
-    def snapshot(self) -> tuple[bool, str, bool]:
-        """Return ``(called, summary, success)`` atomically."""
-        with self._lock:
-            return self._called, self._summary, self._success
+        self.called = False
+        self.summary = ""
+        self.success = False
 
 
 def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
@@ -1068,75 +1006,6 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         timeout=_GIT_TIMEOUT,
     )
 
-
-def cleanup_abandoned_worktrees(project_dir: Path, max_age_hours: int = 24) -> int:
-    """Remove stale kodo worktrees and their branches from a project.
-
-    Identifies worktrees whose directories no longer exist or that are older
-    than *max_age_hours*.  Returns the number of cleaned entries.
-
-    This is safe to call at startup — it only touches kodo-prefixed branches
-    and runs ``git worktree prune`` to sync git's internal state.
-
-    Raises ``ValueError`` if *max_age_hours* is not positive.
-    """
-    if max_age_hours <= 0:
-        raise ValueError(
-            f"max_age_hours must be positive, got {max_age_hours}"
-        )
-    import time
-
-    cleaned = 0
-
-    # 1. Prune worktrees whose directories have already been deleted
-    subprocess.run(
-        [_git(), "worktree", "prune"],
-        cwd=project_dir,
-        capture_output=True,
-        timeout=_GIT_TIMEOUT,
-    )
-
-    # 2. List remaining worktrees and remove stale kodo ones
-    result = subprocess.run(
-        [_git(), "worktree", "list", "--porcelain"],
-        cwd=project_dir,
-        capture_output=True,
-        text=True,
-        timeout=_GIT_TIMEOUT,
-    )
-    if result.returncode != 0:
-        return 0
-
-    cutoff = time.time() - (max_age_hours * 3600)
-    current_worktree = None
-
-    for line in result.stdout.splitlines():
-        if line.startswith("worktree "):
-            current_worktree = Path(line.split(" ", 1)[1])
-        elif line.startswith("branch ") and current_worktree is not None:
-            branch = line.split(" ", 1)[1]
-            # Only clean up kodo-created worktrees (branch refs/heads/kodo-*)
-            branch_name = branch.removeprefix("refs/heads/")
-            if branch_name.startswith("kodo-"):
-                should_clean = False
-                if not current_worktree.exists():
-                    should_clean = True
-                else:
-                    try:
-                        mtime = current_worktree.stat().st_mtime
-                        if mtime < cutoff:
-                            should_clean = True
-                    except OSError:
-                        should_clean = True
-                if should_clean:
-                    try:
-                        remove_worktree(project_dir, current_worktree, branch_name)
-                        cleaned += 1
-                    except (subprocess.SubprocessError, OSError):
-                        pass  # best-effort cleanup
-            current_worktree = None
-
-    return cleaned
 
 
 @dataclass

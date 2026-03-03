@@ -43,14 +43,8 @@ class RunDir:
     @staticmethod
     def create(project_dir: Path, run_id: str | None = None) -> "RunDir":
         rid = run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        # Reject run_id values that could escape the runs directory
-        if "/" in rid or "\\" in rid or ".." in rid:
-            raise ValueError(
-                f"Invalid run_id {rid!r}: must not contain '/', '\\', or '..'"
-            )
         rd = RunDir(project_dir=project_dir, run_id=rid)
-        rd.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        # Defensive chmod — umask may override the mode parameter above.
+        rd.root.mkdir(parents=True, exist_ok=True)
         rd.root.chmod(0o700)
         return rd
 

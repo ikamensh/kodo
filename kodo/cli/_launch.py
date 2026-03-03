@@ -22,7 +22,7 @@ from kodo.factory import (
     preflight_check_backends,
 )
 from kodo.log import RunDir
-from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult, cleanup_abandoned_worktrees
+from kodo.orchestrators.base import GoalPlan, ResumeState, RunResult
 from kodo.team_config import build_team_from_json, load_team_config, validate_verifiers
 
 # ---------------------------------------------------------------------------
@@ -187,14 +187,6 @@ def launch_run(
     max_exchanges = params["max_exchanges"]
     max_cycles = params["max_cycles"]
 
-    # Best-effort cleanup of stale worktrees from previous crashed runs
-    try:
-        cleaned = cleanup_abandoned_worktrees(project_dir)
-        if cleaned and not json_mode:
-            print(f"  Cleaned {_plural(cleaned, 'abandoned worktree')}")
-    except Exception as e:
-        logging.debug("Worktree cleanup failed (non-fatal): %s", e)
-
     team_preset = get_team(params["team"])
     verifiers = None
     team_config = None
@@ -347,14 +339,6 @@ def launch_resume(run_dir: RunDir, state: log.RunState) -> RunResult:
     log.init_append(state.log_file)
 
     project_dir = run_dir.project_dir
-
-    # Best-effort cleanup of stale worktrees from previous crashed runs
-    try:
-        cleaned = cleanup_abandoned_worktrees(project_dir)
-        if cleaned and _original_stdout is None:
-            print(f"  Cleaned {_plural(cleaned, 'abandoned worktree')}")
-    except Exception as e:
-        logging.debug("Worktree cleanup failed (non-fatal): %s", e)
 
     # Load params from run config if available; otherwise reconstruct from RunState
     required_keys = {
