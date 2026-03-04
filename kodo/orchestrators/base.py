@@ -9,31 +9,23 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
-
-if TYPE_CHECKING:
-    pass
+from typing import Literal, Protocol
 
 DoneMode = Literal["legacy", "new"]
 TerminalKind = Literal["goal_done", "end_cycle", "raise_issue", "legacy"]
 
 from kodo.agent import Agent
 from kodo.orchestrators.git_ops import (
+    _GIT,
     _GIT_TIMEOUT,
-    _git,
     _remove_worktree_keep_branch,
     commit_worktree_changes,
     create_worktree,
     merge_worktree_branch,
     remove_worktree,
 )
+from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, RESET as _RESET, plural as _plural
 from kodo.orchestrators.verification import VerificationState, handle_done, verify_done
-
-# ANSI formatting (duplicated from cli._ui to avoid circular import)
-_BOLD = "\033[1m"
-_DIM = "\033[2m"
-_CYAN = "\033[36m"
-_RESET = "\033[0m"
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
@@ -47,11 +39,6 @@ _FATAL_ERROR_PATTERNS = re.compile(
 
 class FatalAgentError(Exception):
     """Raised when all workers have hit unrecoverable errors."""
-
-
-def _plural(n: int, word: str) -> str:
-    """Return e.g. '1 cycle' or '3 cycles'."""
-    return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
 @dataclass
@@ -1194,7 +1181,7 @@ class OrchestratorBase:
                 finally:
                     # Always clean up the branch after merge attempt
                     subprocess.run(
-                        [_git(), "branch", "-D", branch],
+                        [_GIT, "branch", "-D", branch],
                         cwd=project_dir,
                         capture_output=True,
                         timeout=_GIT_TIMEOUT,

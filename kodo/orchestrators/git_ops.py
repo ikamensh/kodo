@@ -21,9 +21,7 @@ _KODO_GIT_ENV = {
 }
 
 
-def _git() -> str:
-    """Return the git executable name."""
-    return "git"
+_GIT = "git"
 
 
 @dataclass
@@ -60,7 +58,7 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
     except OSError:
         shutil.rmtree(worktree_dir, ignore_errors=True)
     subprocess.run(
-        [_git(), "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
+        [_GIT, "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
         cwd=project_dir,
         capture_output=True,
         check=True,
@@ -82,7 +80,7 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
 
     # 1. Remove worktree from git's index (--force allows dirty state)
     result = subprocess.run(
-        [_git(), "worktree", "remove", str(worktree_dir), "--force"],
+        [_GIT, "worktree", "remove", str(worktree_dir), "--force"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -97,7 +95,7 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
 
     # 2. Delete the branch (may already be gone if worktree remove succeeded)
     subprocess.run(
-        [_git(), "branch", "-D", branch_name],
+        [_GIT, "branch", "-D", branch_name],
         cwd=project_dir,
         capture_output=True,
         timeout=_GIT_TIMEOUT,
@@ -109,7 +107,7 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
 
     # 4. Prune stale worktree metadata (rmtree leaves .git/worktrees/ entries)
     subprocess.run(
-        [_git(), "worktree", "prune"],
+        [_GIT, "worktree", "prune"],
         cwd=project_dir,
         capture_output=True,
         timeout=_GIT_TIMEOUT,
@@ -123,20 +121,17 @@ def _strip_pycache_from_index(repo_dir: Path) -> None:
     when multiple parallel branches each commit different bytecode.
     """
     cached = subprocess.run(
-        [_git(), "ls-files", "--cached", "-z"],
+        [_GIT, "ls-files", "--cached", "-z",
+         "*/__pycache__/*", "*.pyc"],
         cwd=repo_dir,
         capture_output=True,
         text=True,
         timeout=_GIT_TIMEOUT,
     )
-    pycache_files = [
-        f
-        for f in cached.stdout.split("\0")
-        if f and ("__pycache__/" in f or f.endswith(".pyc"))
-    ]
+    pycache_files = [f for f in cached.stdout.split("\0") if f]
     if pycache_files:
         subprocess.run(
-            [_git(), "rm", "-r", "--cached", "--quiet", "--"] + pycache_files,
+            [_GIT, "rm", "-r", "--cached", "--quiet", "--"] + pycache_files,
             cwd=repo_dir,
             capture_output=True,
             timeout=_GIT_TIMEOUT,
@@ -159,7 +154,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         raise RuntimeError("commit_worktree_changes called with empty stage_name")
 
     status = subprocess.run(
-        [_git(), "status", "--porcelain"],
+        [_GIT, "status", "--porcelain"],
         cwd=worktree_dir,
         capture_output=True,
         text=True,
@@ -170,7 +165,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
         return False
 
     subprocess.run(
-        [_git(), "add", "-A"],
+        [_GIT, "add", "-A"],
         cwd=worktree_dir,
         capture_output=True,
         check=True,
@@ -178,7 +173,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
     )
     _strip_pycache_from_index(worktree_dir)
     result = subprocess.run(
-        [_git(), "commit", "-m", f"kodo: parallel stage '{stage_name}' changes"],
+        [_GIT, "commit", "-m", f"kodo: parallel stage '{stage_name}' changes"],
         cwd=worktree_dir,
         capture_output=True,
         text=True,
@@ -196,7 +191,7 @@ def commit_worktree_changes(worktree_dir: Path, stage_name: str) -> bool:
 def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
     """Remove a worktree directory without deleting its branch."""
     result = subprocess.run(
-        [_git(), "worktree", "remove", str(worktree_dir), "--force"],
+        [_GIT, "worktree", "remove", str(worktree_dir), "--force"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -205,7 +200,7 @@ def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
     if result.returncode != 0 and worktree_dir.exists():
         shutil.rmtree(worktree_dir, ignore_errors=True)
     subprocess.run(
-        [_git(), "worktree", "prune"],
+        [_GIT, "worktree", "prune"],
         cwd=project_dir,
         capture_output=True,
         timeout=_GIT_TIMEOUT,
@@ -222,7 +217,7 @@ def _resolve_conflicts_with_agent(
     from kodo import log, make_session
 
     conflict_files = subprocess.run(
-        [_git(), "diff", "--name-only", "--diff-filter=U"],
+        [_GIT, "diff", "--name-only", "--diff-filter=U"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -271,7 +266,7 @@ def _resolve_conflicts_with_agent(
 
     # Check if all conflicts are resolved
     remaining = subprocess.run(
-        [_git(), "diff", "--name-only", "--diff-filter=U"],
+        [_GIT, "diff", "--name-only", "--diff-filter=U"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -288,7 +283,7 @@ def _resolve_conflicts_with_agent(
 
     # Commit the merge
     commit = subprocess.run(
-        [_git(), "commit", "--no-edit"],
+        [_GIT, "commit", "--no-edit"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -319,7 +314,7 @@ def merge_worktree_branch(
     # Running destructive commands (checkout, clean) on a dirty worktree
     # would silently discard user work.
     preflight = subprocess.run(
-        [_git(), "status", "--porcelain"],
+        [_GIT, "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -336,7 +331,7 @@ def merge_worktree_branch(
 
     # Check if branch has any commits ahead of HEAD
     diff_check = subprocess.run(
-        [_git(), "log", f"HEAD..{branch_name}", "--oneline"],
+        [_GIT, "log", f"HEAD..{branch_name}", "--oneline"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -354,7 +349,7 @@ def merge_worktree_branch(
     # Strip __pycache__ from the branch (agents commit bytecode that
     # causes binary conflicts across parallel branches).
     rev_parse = subprocess.run(
-        [_git(), "rev-parse", "--abbrev-ref", "HEAD"],
+        [_GIT, "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -368,7 +363,7 @@ def merge_worktree_branch(
 
     try:
         subprocess.run(
-            [_git(), "checkout", branch_name],
+            [_GIT, "checkout", branch_name],
             cwd=project_dir,
             capture_output=True,
             text=True,
@@ -384,7 +379,7 @@ def merge_worktree_branch(
 
     _strip_pycache_from_index(project_dir)
     status_before = subprocess.run(
-        [_git(), "status", "--porcelain"],
+        [_GIT, "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -393,7 +388,7 @@ def merge_worktree_branch(
     if status_before.stdout.strip():
         subprocess.run(
             [
-                _git(),
+                _GIT,
                 "commit",
                 "-m",
                 "kodo: strip __pycache__ before merge",
@@ -407,7 +402,7 @@ def merge_worktree_branch(
 
     try:
         subprocess.run(
-            [_git(), "checkout", current_branch],
+            [_GIT, "checkout", current_branch],
             cwd=project_dir,
             capture_output=True,
             text=True,
@@ -425,7 +420,7 @@ def merge_worktree_branch(
     # brought in bytecode that would conflict with the next branch).
     _strip_pycache_from_index(project_dir)
     status_main = subprocess.run(
-        [_git(), "status", "--porcelain"],
+        [_GIT, "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -434,7 +429,7 @@ def merge_worktree_branch(
     if status_main.stdout.strip():
         subprocess.run(
             [
-                _git(),
+                _GIT,
                 "commit",
                 "-m",
                 "kodo: strip __pycache__ from main",
@@ -449,7 +444,7 @@ def merge_worktree_branch(
     # Clean untracked files and dirty state that would block merge.
     # Skip if user has local changes — don't wipe their data.
     status_clean = subprocess.run(
-        [_git(), "status", "--porcelain"],
+        [_GIT, "status", "--porcelain"],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -462,7 +457,7 @@ def merge_worktree_branch(
         )
     else:
         co = subprocess.run(
-            [_git(), "checkout", "--", "."],
+            [_GIT, "checkout", "--", "."],
             cwd=project_dir,
             capture_output=True,
             text=True,
@@ -473,7 +468,7 @@ def merge_worktree_branch(
                 f"[persist] Stage '{stage_name}': checkout -- . failed: {co.stderr}",
             )
         cl = subprocess.run(
-            [_git(), "clean", "-fd"],
+            [_GIT, "clean", "-fd"],
             cwd=project_dir,
             capture_output=True,
             text=True,
@@ -484,7 +479,7 @@ def merge_worktree_branch(
 
     result = subprocess.run(
         [
-            _git(),
+            _GIT,
             "merge",
             branch_name,
             "--no-ff",
@@ -520,7 +515,7 @@ def merge_worktree_branch(
             )
 
         abort = subprocess.run(
-            [_git(), "merge", "--abort"],
+            [_GIT, "merge", "--abort"],
             cwd=project_dir,
             capture_output=True,
             timeout=_GIT_TIMEOUT,

@@ -276,8 +276,7 @@ def emit(event: str, **data: Any) -> None:
             pass  # best-effort logging; don't crash on write failure
 
 
-_DIM = "\033[2m"
-_RESET = "\033[0m"
+from kodo.formatting import DIM as _DIM, RESET as _RESET
 
 
 def tprint(msg: str) -> None:

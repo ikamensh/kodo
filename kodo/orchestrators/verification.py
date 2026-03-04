@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from kodo.agent import Agent
+from kodo.formatting import DIM as _DIM, RESET as _RESET, plural as _plural
 from kodo.prompts.roles import VERIFICATION_INSTRUCTIONS
 
 if TYPE_CHECKING:
@@ -17,15 +18,6 @@ if TYPE_CHECKING:
         QuickCheck,
         TeamConfig,
     )
-
-# ANSI formatting (duplicated from cli._ui to avoid circular import)
-_DIM = "\033[2m"
-_RESET = "\033[0m"
-
-
-def _plural(n: int, word: str) -> str:
-    """Return e.g. '1 cycle' or '3 cycles'."""
-    return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
 @dataclass
@@ -40,6 +32,22 @@ class VerificationState:
     done_attempt: int = 0
 
 
+_SIGNAL = r"(?:ALL CHECKS PASS|MINOR ISSUES FIXED)"
+_RE_FENCED_CODE = re.compile(r"```.*?```", re.DOTALL)
+_RE_INLINE_CODE = re.compile(r"`[^`]+`")
+_RE_SINGLE_QUOTED = re.compile(r"'[^']*" + _SIGNAL + r"[^']*'")
+_RE_DOUBLE_QUOTED = re.compile(r'"[^"]*' + _SIGNAL + r'[^"]*"')
+_RE_SIGNAL = re.compile(_SIGNAL)
+_MD_FMT = r"(?:[*_]{1,3})?"
+_RE_SIGNAL_AUTHORITATIVE = re.compile(
+    r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*"
+    + _MD_FMT
+    + _SIGNAL
+    + r"(?::|\b)",
+    re.MULTILINE,
+)
+
+
 def _check_passed(report: str) -> bool:
     """Return True if a verifier report signals acceptance.
 
@@ -52,35 +60,23 @@ def _check_passed(report: str) -> bool:
     if "NOT ALL CHECKS PASS" in upper or "NOT MINOR ISSUES FIXED" in upper:
         return False
 
-    _SIGNAL = r"(?:ALL CHECKS PASS|MINOR ISSUES FIXED)"
-
     # Strip fenced code blocks (```...```) — signals inside code are quotations,
     # not the verifier's own assertion.
-    stripped = re.sub(r"```.*?```", "", upper, flags=re.DOTALL)
+    stripped = _RE_FENCED_CODE.sub("", upper)
     # Strip inline code (`...`)
-    stripped = re.sub(r"`[^`]+`", "", stripped)
+    stripped = _RE_INLINE_CODE.sub("", stripped)
     # Strip single-quoted and double-quoted strings containing the signal phrase
-    stripped = re.sub(r"'[^']*" + _SIGNAL + r"[^']*'", "", stripped)
-    stripped = re.sub(r'"[^"]*' + _SIGNAL + r'[^"]*"', "", stripped)
+    stripped = _RE_SINGLE_QUOTED.sub("", stripped)
+    stripped = _RE_DOUBLE_QUOTED.sub("", stripped)
 
     # After stripping, reject if no signal phrase remains
-    if not re.search(_SIGNAL, stripped):
+    if not _RE_SIGNAL.search(stripped):
         return False
 
     # Accept the signal at: start of text, start of line, or after sentence-ending
     # punctuation (.!?。).  Reject mid-sentence mentions that follow attribution
     # words (said, say, cannot, etc.).
-    # Also allow optional ':' after the signal (e.g., "ALL CHECKS PASS:")
-    # Allow optional leading markdown formatting (**, *, __, _) before the signal.
-    _MD_FMT = r"(?:[*_]{1,3})?"
-    pattern = re.compile(
-        r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*"
-        + _MD_FMT
-        + _SIGNAL
-        + r"(?::|\b)",
-        re.MULTILINE,
-    )
-    return bool(pattern.search(stripped))
+    return bool(_RE_SIGNAL_AUTHORITATIVE.search(stripped))
 
 
 def _run_quick_checks(

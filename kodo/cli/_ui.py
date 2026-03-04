@@ -7,20 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import __version__
-
-# ---------------------------------------------------------------------------
-# ANSI helpers
-# ---------------------------------------------------------------------------
-
-_BOLD = "\033[1m"
-_DIM = "\033[2m"
-_CYAN = "\033[36m"
-_GREEN = "\033[32m"
-_RESET = "\033[0m"
-
-def _plural(n: int, word: str) -> str:
-    """Return e.g. '1 cycle' or '3 cycles'. Handles simple English plurals."""
-    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, GREEN as _GREEN, RESET as _RESET, plural as _plural
 
 
 _BACKEND_LABELS = {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import time
 from pathlib import Path
 
@@ -59,49 +58,6 @@ _PYDANTIC_MODEL_MAP: dict[str, str] = {
     GEMINI_API_PRO_V3: f"google-gla:{GEMINI_API_PRO_V3}",
     GEMINI_API_FLASH: f"google-gla:{GEMINI_API_FLASH}",
 }
-
-
-_BASH_TIMEOUT = 120
-_BASH_MAX_OUTPUT = 20_000
-
-
-def _run_bash(command: str, cwd: Path) -> dict:
-    """Run a shell command and return exit code + output.
-
-    Truncates output to _BASH_MAX_OUTPUT chars, keeping head and tail.
-    """
-    log.emit("orchestrator_bash", command=command, cwd=str(cwd))
-    try:
-        proc = subprocess.run(
-            command,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=_BASH_TIMEOUT,
-        )
-        output = (proc.stdout or "") + (proc.stderr or "")
-        exit_code = proc.returncode
-    except subprocess.TimeoutExpired:
-        output = f"Command timed out after {_BASH_TIMEOUT}s"
-        exit_code = -1
-
-    # Truncate large output, keeping head + tail
-    if len(output) > _BASH_MAX_OUTPUT:
-        half = _BASH_MAX_OUTPUT // 2
-        output = (
-            output[:half]
-            + f"\n\n... [{len(output) - _BASH_MAX_OUTPUT} chars truncated] ...\n\n"
-            + output[-half:]
-        )
-
-    log.emit(
-        "orchestrator_bash_result",
-        exit_code=exit_code,
-        output_length=len(output),
-    )
-    return {"exit_code": exit_code, "output": output}
-
 
 
 def _messages_to_text(messages: list) -> str:

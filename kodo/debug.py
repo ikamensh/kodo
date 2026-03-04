@@ -151,11 +151,7 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
 
     session = MockSession(letter)
 
-    # Track how many agent tool calls we've made (not counting done)
-    call_count = 0
-
     def mock_model_fn(messages: list, info: AgentInfo) -> ModelResponse:
-        nonlocal call_count
 
         # Flatten the full message context into text so the mock session
         # can scan for Letter+Number tokens (tracking what the orchestrator
@@ -188,7 +184,6 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
         tool_name = random.choice(agent_tool_names)
         task = f"Task from {token}: do the work"
         args_json = json.dumps({"task": task, "new_conversation": False})
-        call_count += 1
 
         return ModelResponse(
             parts=[ToolCallPart(tool_name=tool_name, args=args_json)],

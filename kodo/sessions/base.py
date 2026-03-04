@@ -143,11 +143,12 @@ class SubprocessSession:
         _STDERR_MAX_LINE = 65536  # 64KB per line to avoid unbounded single-line buffer
 
         def _drain() -> None:
-            buf = ""
+            buf_parts: list[str] = []
             line_count = 0
             while True:
                 chunk = proc.stderr.read(4096)
                 if not chunk:
+                    buf = "".join(buf_parts)
                     if buf and line_count < _STDERR_MAX_LINES:
                         stderr_chunks.append(
                             buf[:_STDERR_MAX_LINE]
@@ -158,7 +159,11 @@ class SubprocessSession:
                             ),
                         )
                     break
-                buf += chunk
+                buf_parts.append(chunk)
+                # Join once per read to scan for newlines; remainder
+                # stays as a single string so no quadratic growth.
+                buf = "".join(buf_parts)
+                buf_parts.clear()
                 while "\n" in buf or len(buf) >= _STDERR_MAX_LINE:
                     if "\n" in buf:
                         line, _, buf = buf.partition("\n")
@@ -172,6 +177,8 @@ class SubprocessSession:
                     elif line_count == _STDERR_MAX_LINES:
                         stderr_chunks.append("\n[... stderr truncated ...]\n")
                         line_count += 1
+                if buf:
+                    buf_parts.append(buf)
 
         thread = threading.Thread(target=_drain, daemon=True)
         thread.start()

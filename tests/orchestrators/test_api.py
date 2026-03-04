@@ -316,56 +316,6 @@ def test_close_releases_http_client():
     mock_client.aclose.assert_awaited_once()
 
 
-# ── _run_bash tests ──────────────────────────────────────────────────────
-
-
-def test_run_bash_returns_exit_code_and_output(tmp_path: Path):
-    """_run_bash returns dict with exit_code and output."""
-    from kodo.orchestrators.api import _run_bash
-
-    log.init(RunDir.create(tmp_path, "bash_basic"))
-    result = _run_bash("echo hello", tmp_path)
-    assert result["exit_code"] == 0
-    assert "hello" in result["output"]
-
-
-def test_run_bash_nonzero_exit(tmp_path: Path):
-    """_run_bash captures non-zero exit codes."""
-    from kodo.orchestrators.api import _run_bash
-
-    log.init(RunDir.create(tmp_path, "bash_fail"))
-    result = _run_bash("exit 42", tmp_path)
-    assert result["exit_code"] == 42
-
-
-def test_run_bash_truncates_large_output(tmp_path: Path):
-    """_run_bash truncates output exceeding _BASH_MAX_OUTPUT."""
-    from kodo.orchestrators.api import _BASH_MAX_OUTPUT, _run_bash
-
-    log.init(RunDir.create(tmp_path, "bash_trunc"))
-    # Generate output larger than the limit
-    big_size = _BASH_MAX_OUTPUT + 5000
-    result = _run_bash(f"python3 -c \"print('x' * {big_size})\"", tmp_path)
-    assert result["exit_code"] == 0
-    assert "truncated" in result["output"]
-    # Output should be roughly _BASH_MAX_OUTPUT + the truncation message
-    assert len(result["output"]) < big_size
-
-
-def test_run_bash_handles_timeout(tmp_path: Path):
-    """_run_bash returns exit_code -1 on timeout."""
-    from unittest.mock import patch as _patch
-
-    from kodo.orchestrators.api import _run_bash
-
-    log.init(RunDir.create(tmp_path, "bash_timeout"))
-    with _patch("kodo.orchestrators.api._BASH_TIMEOUT", 0.001):
-        result = _run_bash("sleep 10", tmp_path)
-    assert result["exit_code"] == -1
-    assert "timed out" in result["output"].lower()
-
-
-
 # ── shared helpers ───────────────────────────────────────────────────────
 
 
