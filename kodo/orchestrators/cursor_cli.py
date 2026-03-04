@@ -210,24 +210,6 @@ class CursorOrchestrator(OrchestratorBase):
                 except OSError:
                     pass
 
-        # Fallback summary
-        if not result.finished and not result.summary:
-            accumulated = self._summarizer.get_accumulated_summary()
-            if accumulated:
-                result.summary = (
-                    f"[Cycle ended: cursor finished. Work so far:]\n{accumulated}"
-                )
-            else:
-                result.summary = "[Cycle ended: no summary available — check logs.]"
-
-        log.emit(
-            "cycle_end",
-            orchestrator="cursor",
-            exchanges=result.exchanges,
-            finished=result.finished,
-            summary=result.summary,
-            cost_usd=result.total_cost_usd,
-            cost_bucket="cursor_subscription",
+        return self._cycle_epilogue(
+            result, cost_bucket="cursor_subscription", context="cursor finished.",
         )
-        self._summarizer.clear()
-        return result

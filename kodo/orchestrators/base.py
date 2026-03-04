@@ -497,6 +497,36 @@ class OrchestratorBase:
     ) -> CycleResult:
         raise NotImplementedError
 
+    def _fallback_summary(self, result: CycleResult, context: str = "") -> None:
+        """Fill result.summary from accumulated agent reports when cycle ended without done."""
+        if result.finished or result.summary:
+            return
+        accumulated = self._summarizer.get_accumulated_summary()
+        tag = f" {context}" if context else ""
+        if accumulated:
+            result.summary = f"[Cycle ended:{tag} Work so far:]\n{accumulated}"
+        else:
+            result.summary = f"[Cycle ended:{tag} No summary available — check logs.]"
+
+    def _cycle_epilogue(
+        self, result: CycleResult, *, cost_bucket: str, context: str = "",
+    ) -> CycleResult:
+        """Shared cycle teardown: fallback summary, cycle_end log, clear summarizer."""
+        from kodo import log
+
+        self._fallback_summary(result, context)
+        log.emit(
+            "cycle_end",
+            orchestrator=self._orchestrator_name,
+            exchanges=result.exchanges,
+            finished=result.finished,
+            summary=result.summary,
+            cost_usd=result.total_cost_usd,
+            cost_bucket=cost_bucket,
+        )
+        self._summarizer.clear()
+        return result
+
     def for_parallel(self) -> "OrchestratorBase":
         """Return a copy safe for use in a parallel thread.
 

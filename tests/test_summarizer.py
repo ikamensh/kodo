@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 from kodo.summarizer import Summarizer
 
 
 def _make_summarizer():
     """Create a summarizer with truncation backend (no external deps)."""
-    with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
-    ):
-        return Summarizer()
+    s = Summarizer()
+    s._backend = "truncate"
+    return s
 
 
 def test_accumulated_summary_collects_truncation() -> None:

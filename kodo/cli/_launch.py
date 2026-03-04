@@ -72,6 +72,41 @@ def _try_auto_fix_team(
     else:
         _fail(f"Team {team_name!r} could not be built: {exc}")
 
+def _build_team_from_config(
+    team_config: dict | None,
+    team_preset,
+    team_name: str,
+    project_dir: Path,
+) -> tuple[dict, str, dict | None]:
+    """Build team from JSON config or built-in preset, with auto-fix on failure."""
+    try:
+        if team_config:
+            team = build_team_from_json(team_config)
+            system_prompt = (
+                team_config.get("orchestrator_prompt") or team_preset.system_prompt
+            )
+            verifiers = validate_verifiers(team_config.get("verifiers"), team)
+            return team, system_prompt, verifiers
+        else:
+            team = team_preset.build_team()
+            return team, team_preset.system_prompt, None
+    except RuntimeError as exc:
+        return _try_auto_fix_team(team_name, project_dir, exc)
+    except (ValueError, KeyError, OSError) as exc:
+        _fail(f"Invalid team config: {exc}")
+
+
+def _resolve_auto_commit(params: dict, project_dir: Path, quiet: bool = False) -> bool:
+    """Resolve auto_commit, disabling it when project_dir has no .git root."""
+    auto_commit = params.get("auto_commit", True)
+    if auto_commit and not (project_dir / ".git").exists():
+        auto_commit = False
+        if not quiet:
+            print("  ℹ  Auto-commit disabled (no .git in project directory)")
+        log.emit("auto_commit_disabled", reason="no_git_root")
+    return auto_commit
+
+
 # Will be set to the real stdout when --json redirects sys.stdout to stderr.
 # Prefer using json_output_redirect() context manager for new code;
 # the module-level variable is kept for backward compatibility with _main.py.
@@ -234,20 +269,11 @@ def launch_run(
         # Try loading a team JSON config; fall back to built-in preset
         try:
             team_config = load_team_config(params["team"], project_dir)
-            if team_config:
-                team = build_team_from_json(team_config)
-                system_prompt = (
-                    team_config.get("orchestrator_prompt") or team_preset.system_prompt
-                )
-                verifiers = validate_verifiers(team_config.get("verifiers"), team)
-            else:
-                team = team_preset.build_team()
-                system_prompt = team_preset.system_prompt
-        except RuntimeError as exc:
-            result = _try_auto_fix_team(params["team"], project_dir, exc)
-            team, system_prompt, verifiers = result
         except (ValueError, KeyError, OSError) as exc:
             _fail(f"Invalid team config: {exc}")
+        team, system_prompt, verifiers = _build_team_from_config(
+            team_config, team_preset, params["team"], project_dir,
+        )
 
         # Snapshot resolved team config for deterministic resume
         if team_config:
@@ -287,16 +313,7 @@ def launch_run(
         print(f"  Log: {log_path}")
         print()
 
-    # Only allow auto-commit when project_dir is a git repo root.
-    # If launched inside a subfolder of another repo, committing would
-    # land changes in the parent — which is never what we want.
-    auto_commit = params.get("auto_commit", True)
-    is_own_git_repo = (project_dir / ".git").exists()
-    if auto_commit and not is_own_git_repo:
-        auto_commit = False
-        if not json_mode:
-            print("  ℹ  Auto-commit disabled (no .git in project directory)")
-        log.emit("auto_commit_disabled", reason="no_git_root")
+    auto_commit = _resolve_auto_commit(params, project_dir, quiet=json_mode)
 
     result = orchestrator.run(
         goal_text,
@@ -440,21 +457,9 @@ def launch_resume(
         except (ValueError, KeyError, OSError):
             team_config = None
 
-    try:
-        if team_config:
-            team = build_team_from_json(team_config)
-            system_prompt = (
-                team_config.get("orchestrator_prompt") or team_preset.system_prompt
-            )
-            verifiers = validate_verifiers(team_config.get("verifiers"), team)
-        else:
-            team = team_preset.build_team()
-            system_prompt = team_preset.system_prompt
-    except RuntimeError as exc:
-        result = _try_auto_fix_team(params["team"], project_dir, exc)
-        team, system_prompt, verifiers = result
-    except (ValueError, KeyError, OSError) as exc:
-        _fail(f"Invalid team config: {exc}")
+    team, system_prompt, verifiers = _build_team_from_config(
+        team_config, team_preset, params["team"], project_dir,
+    )
 
     orchestrator = build_orchestrator(
         params["orchestrator"],
@@ -501,13 +506,7 @@ def launch_resume(
         print(f"Log: {state.log_file}")
         print()
 
-    auto_commit = params.get("auto_commit", True)
-    is_own_git_repo = (project_dir / ".git").exists()
-    if auto_commit and not is_own_git_repo:
-        auto_commit = False
-        if _original_stdout is None:
-            print("  ℹ  Auto-commit disabled (no .git in project directory)")
-        log.emit("auto_commit_disabled", reason="no_git_root")
+    auto_commit = _resolve_auto_commit(params, project_dir, quiet=_original_stdout is not None)
 
     result = orchestrator.run(
         state.goal,

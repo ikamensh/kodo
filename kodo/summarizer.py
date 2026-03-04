@@ -102,12 +102,15 @@ class Summarizer:
 
     def __init__(self) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self._backend: str = "truncate"
+        self._backend: str | None = None  # None = not yet probed
         self._backend_param: str | None = None
         self._summaries: list[str] = []
         self._lock = threading.Lock()
 
-        # Probe backends once at init
+    def _ensure_backend(self) -> None:
+        """Probe backends on first use. Must be called under self._lock."""
+        if self._backend is not None:
+            return
         ollama_model = _probe_ollama()
         if ollama_model:
             self._backend = "ollama"
@@ -120,6 +123,7 @@ class Summarizer:
                 self._backend_param = gemini_key
                 log.tprint("  [summarizer] using gemini")
             else:
+                self._backend = "truncate"
                 log.tprint("  [summarizer] using truncation (no LLM backend available)")
 
     def summarize(self, agent_name: str, task: str, report: str) -> None:
@@ -135,6 +139,8 @@ class Summarizer:
     def _do_summarize(self, agent_name: str, task: str, report: str) -> None:
         task = task or ""
         report = report or ""
+        with self._lock:
+            self._ensure_backend()
         try:
             if self._backend == "ollama":
                 assert self._backend_param is not None

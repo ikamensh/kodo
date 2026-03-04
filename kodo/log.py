@@ -149,22 +149,6 @@ class RunStats:
         with _lock:
             return copy.deepcopy(self.agents), self.orchestrator_cost_usd, self.orchestrator_bucket
 
-    @property
-    def total_exchanges(self) -> int:
-        agents, _, _ = self.snapshot()
-        return sum(s.calls for s in agents.values())
-
-    def cost_by_bucket(self) -> dict[str, float]:
-        agents, orch_cost, orch_bucket = self.snapshot()
-        buckets: dict[str, float] = defaultdict(float)
-        for s in agents.values():
-            buckets[s.cost_bucket] += s.cost_usd
-        buckets[orch_bucket] += orch_cost
-        return dict(buckets)
-
-    def total_cost(self) -> float:
-        agents, orch_cost, _ = self.snapshot()
-        return sum(s.cost_usd for s in agents.values()) + orch_cost
 
 
 _run_stats = RunStats()
@@ -572,6 +556,25 @@ def parse_run(log_file: Path) -> RunState | None:
     )
 
 
+def _extract_project_dir(log_file: Path) -> str | None:
+    """Read first few lines to extract project_dir without full parse."""
+    try:
+        with open(log_file, encoding="utf-8", errors="replace") as fh:
+            for i, raw_line in enumerate(fh):
+                if i > 10:
+                    break
+                try:
+                    evt = json.loads(raw_line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                event = evt.get("event")
+                if event in ("run_start", "cli_args"):
+                    return evt.get("project_dir", "")
+    except (OSError, PermissionError):
+        pass
+    return None
+
+
 def list_runs(project_dir: Path | None = None) -> list[RunState]:
     """Return all parsed runs, newest first. Optionally filter by *project_dir*."""
     candidates: list[Path] = []
@@ -591,6 +594,11 @@ def list_runs(project_dir: Path | None = None) -> list[RunState]:
     resolved = str(project_dir.resolve()) if project_dir else None
     runs: list[RunState] = []
     for f in candidates:
+        # Pre-filter by project_dir without full parse
+        if resolved:
+            run_project = _extract_project_dir(f)
+            if run_project is not None and run_project != resolved:
+                continue
         try:
             state = parse_run(f)
         except OSError as exc:

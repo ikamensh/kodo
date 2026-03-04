@@ -172,24 +172,6 @@ class CodexOrchestrator(OrchestratorBase):
                         proc.kill()
                     proc.wait()
 
-        # Fallback summary
-        if not result.finished and not result.summary:
-            accumulated = self._summarizer.get_accumulated_summary()
-            if accumulated:
-                result.summary = (
-                    f"[Cycle ended: codex finished. Work so far:]\n{accumulated}"
-                )
-            else:
-                result.summary = "[Cycle ended: no summary available — check logs.]"
-
-        log.emit(
-            "cycle_end",
-            orchestrator="codex",
-            exchanges=result.exchanges,
-            finished=result.finished,
-            summary=result.summary,
-            cost_usd=result.total_cost_usd,
-            cost_bucket="codex_subscription",
+        return self._cycle_epilogue(
+            result, cost_bucket="codex_subscription", context="codex finished.",
         )
-        self._summarizer.clear()
-        return result

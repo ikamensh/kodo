@@ -210,24 +210,6 @@ class GeminiCliOrchestrator(OrchestratorBase):
                 except subprocess.TimeoutExpired:
                     pass  # best-effort cleanup
 
-        # Fallback summary from accumulated agent reports
-        if not result.finished and not result.summary:
-            accumulated = self._summarizer.get_accumulated_summary()
-            if accumulated:
-                result.summary = (
-                    f"[Cycle ended: gemini-cli finished. Work so far:]\n{accumulated}"
-                )
-            else:
-                result.summary = "[Cycle ended: no summary available — check logs.]"
-
-        log.emit(
-            "cycle_end",
-            orchestrator="gemini-cli",
-            exchanges=result.exchanges,
-            finished=result.finished,
-            summary=result.summary,
-            cost_usd=result.total_cost_usd,
-            cost_bucket="gemini_cli",
+        return self._cycle_epilogue(
+            result, cost_bucket="gemini_cli", context="gemini-cli finished.",
         )
-        self._summarizer.clear()
-        return result

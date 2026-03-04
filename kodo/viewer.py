@@ -60,14 +60,20 @@ def _build_html(log_path: Path | None, include_index: bool = False) -> str:
         template = template.replace(_INDEX_MARKER, "")
 
     if log_path is not None:
-        lines = log_path.read_text().strip().splitlines()
-        events = []
-        for line in lines:
-            try:
-                events.append(json.loads(line))
-            except (json.JSONDecodeError, ValueError):
-                pass  # skip corrupt lines
-        embed = f"EMBEDDED_DATA = {json.dumps(events)};"
+        # Read JSONL lines, validate JSON, and embed directly as a JSON array
+        # to avoid the memory cost of parse-then-reserialize.
+        valid_lines: list[str] = []
+        with open(log_path, encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    json.loads(raw)  # validate only
+                    valid_lines.append(raw)
+                except (json.JSONDecodeError, ValueError):
+                    pass  # skip corrupt lines
+        embed = "EMBEDDED_DATA = [" + ",\n".join(valid_lines) + "];"
         embed = embed.replace("</script>", "<\\/script>")
         return template.replace(_EMBED_MARKER, embed)
     return template.replace(_EMBED_MARKER, "")

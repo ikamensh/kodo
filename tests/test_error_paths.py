@@ -19,7 +19,7 @@ import signal
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch
+
 
 import pytest
 
@@ -208,11 +208,9 @@ class TestDoneSignalNonAtomicRace:
 
 def _make_summarizer():
     """Create a truncation-only summarizer (no network deps)."""
-    with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
-    ):
-        return Summarizer()
+    s = Summarizer()
+    s._backend = "truncate"
+    return s
 
 
 class TestSummarizerResilience:

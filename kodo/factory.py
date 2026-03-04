@@ -367,18 +367,14 @@ _ROLE_CONFIG: dict[str, tuple[str | None, int]] = {
     "tester_browser": (TESTER_BROWSER_PROMPT, 20),
 }
 
-_BACKEND_CHECKER_NAMES: dict[str, str] = {
-    "claude": "has_claude",
-    "codex": "has_codex",
-    "cursor": "has_cursor",
-    "gemini-cli": "has_gemini_cli",
-}
-
-
 def _is_available(backend: str) -> bool:
     """Check backend availability via has_* functions (respects test patching)."""
-    import kodo.factory as _mod
-    return getattr(_mod, _BACKEND_CHECKER_NAMES[backend])()
+    return {
+        "claude": has_claude,
+        "codex": has_codex,
+        "cursor": has_cursor,
+        "gemini-cli": has_gemini_cli,
+    }[backend]()
 
 
 def _pick_backend(role: str) -> _BackendOption | None:

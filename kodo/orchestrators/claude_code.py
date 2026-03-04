@@ -210,29 +210,8 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
             if not thread.is_alive():
                 loop.close()
 
-        # If we ran out of turns without calling done, build a summary from
-        # the summarizer's accumulated agent reports so the next cycle has context.
-        if not result.finished and not result.summary:
-            accumulated = self._summarizer.get_accumulated_summary()
-            if accumulated:
-                result.summary = (
-                    f"[Cycle ended: hit turn limit after {result.exchanges} exchanges. "
-                    f"Work so far:]\n{accumulated}"
-                )
-            else:
-                result.summary = (
-                    f"[Cycle ended: hit turn limit after {result.exchanges} exchanges. "
-                    f"No summary available — check logs.]"
-                )
-
-        log.emit(
-            "cycle_end",
-            orchestrator="claude_code",
-            exchanges=result.exchanges,
-            finished=result.finished,
-            summary=result.summary,
-            cost_usd=result.total_cost_usd,
+        return self._cycle_epilogue(
+            result,
             cost_bucket="claude_subscription",
+            context=f"hit turn limit after {result.exchanges} exchanges.",
         )
-        self._summarizer.clear()
-        return result
