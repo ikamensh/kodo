@@ -14,6 +14,7 @@ from kodo.orchestrators.base import (
     DoneSignal,
     OrchestratorBase,
     TeamConfig,
+    apply_done_signal,
     build_cycle_prompt,
 )
 from kodo.orchestrators.mcp_server import McpServerContext, build_mcp_server
@@ -161,11 +162,9 @@ class CursorOrchestrator(OrchestratorBase):
                 result.total_cost_usd = 0.0  # subscription-covered
                 log.get_run_stats().record_orchestrator(0.0, "cursor_subscription")
 
-                result.finished = done_signal.called
-                result.success = done_signal.success
-                result.summary = (
-                    (done_signal.summary or "") if done_signal.called else response_text
-                )
+                apply_done_signal(result, done_signal)
+                if not done_signal.called:
+                    result.summary = response_text
 
                 log.emit(
                     "orchestrator_response",

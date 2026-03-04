@@ -449,10 +449,10 @@ class TestHandleDoneQuickCheck:
 
 
 class TestHandleDoneFullVerification:
-    """Verify that verification='full' behaves as before."""
+    """Verify that verification='full' runs the regex-based verify_done gate."""
 
-    def test_full_runs_verifiers(self, tmp_project: Path) -> None:
-        """verification='full' runs agent-based verification."""
+    def test_full_runs_verifiers_and_accepts(self, tmp_project: Path) -> None:
+        """verification='full' runs tester/architect and accepts when they pass."""
         tester = make_agent("ALL CHECKS PASS")
         team = {"tester": tester}
         done_signal = DoneSignal()
@@ -461,15 +461,21 @@ class TestHandleDoneFullVerification:
             config=CycleConfig(verification="full"),
         )
         assert "Verified and accepted" in result
+        assert done_signal.called
+        assert done_signal.success
         assert tester.session.stats.queries == 1
 
-    def test_full_is_default(self, tmp_project: Path) -> None:
-        """When config is not specified, full verification runs."""
-        tester = make_agent("ALL CHECKS PASS")
+    def test_full_rejects_on_tester_failure(self, tmp_project: Path) -> None:
+        """verification='full' rejects when tester reports issues."""
+        tester = make_agent("Tests are failing: ImportError")
         team = {"tester": tester}
         done_signal = DoneSignal()
-        handle_done(SUMMARY, True, done_signal, GOAL, team, tmp_project)
-        assert tester.session.stats.queries == 1
+        result = handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=CycleConfig(verification="full"),
+        )
+        assert "REJECTED" in result
+        assert done_signal.called is False
 
 
 class TestVerificationStateCycleBoundary:

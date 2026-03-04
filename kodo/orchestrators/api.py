@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import httpx
-from pydantic_ai import Agent, Tool
+from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
@@ -35,10 +35,11 @@ from kodo.orchestrators.base import (
     FatalAgentError,
     OrchestratorBase,
     TeamConfig,
+    apply_done_signal,
     build_cycle_prompt,
-    handle_agent_call,
 )
-from kodo.orchestrators.verification import VerificationState, handle_done
+from kodo.orchestrators.tools import build_pydantic_tools
+from kodo.orchestrators.verification import VerificationState
 from kodo.summarizer import Summarizer
 
 # Per-1M-token pricing: (input, output)
@@ -101,70 +102,6 @@ def _run_bash(command: str, cwd: Path) -> dict:
     )
     return {"exit_code": exit_code, "output": output}
 
-
-def _build_tools(
-    team: TeamConfig,
-    project_dir: Path,
-    summarizer: Summarizer,
-    done_signal: DoneSignal,
-    goal: str,
-    verification_state: VerificationState | None = None,
-    config: CycleConfig | None = None,
-) -> list[Tool]:
-    """Build pydantic-ai Tool objects for each team agent + the done tool."""
-    tools: list[Tool] = []
-    dead_workers: set[str] = set()
-    total_workers = len(team)
-
-    for name, agent in team.items():
-
-        def _make_handler(agent_name: str, agent_obj):
-            def handler(task: str, new_conversation: bool = False) -> str:
-                return handle_agent_call(
-                    agent_name,
-                    agent_obj,
-                    task,
-                    project_dir,
-                    summarizer,
-                    new_conversation=new_conversation,
-                    dead_workers=dead_workers,
-                    total_workers=total_workers,
-                )
-
-            return handler
-
-        tools.append(
-            Tool(
-                _make_handler(name, agent),
-                name=f"ask_{name}",
-                description=f"Delegate a task to the {name} agent.\n{agent.description.strip()}",
-                takes_ctx=False,
-            ),
-        )
-
-    def bash(command: str) -> dict:
-        """Run a shell command in the project directory."""
-        return _run_bash(command, project_dir)
-
-    tools.append(Tool(bash, takes_ctx=False))
-
-    def done(summary: str, success: bool) -> str:
-        """Signal that the goal is complete (or cannot be completed).
-        This triggers automated verification by the tester and architect.
-        If they find issues, the call is rejected and you must fix them first."""
-        return handle_done(
-            summary,
-            success,
-            done_signal,
-            goal,
-            team,
-            project_dir,
-            verification_state=verification_state,
-            config=config,
-        )
-
-    tools.append(Tool(done, takes_ctx=False))
-    return tools
 
 
 def _messages_to_text(messages: list) -> str:
@@ -270,13 +207,13 @@ class ApiOrchestrator(OrchestratorBase):
             config = CycleConfig()
         done_signal = DoneSignal()
         verification_state = VerificationState()
-        tools = _build_tools(
+        tools = build_pydantic_tools(
             team,
             project_dir,
             self._summarizer,
             done_signal,
             goal,
-            verification_state,
+            verification_state=verification_state,
             config=config,
         )
         result = CycleResult()
@@ -420,15 +357,14 @@ class ApiOrchestrator(OrchestratorBase):
             result.exchanges = usage.requests
             log.get_run_stats().record_orchestrator(result.total_cost_usd, "api")
 
+        apply_done_signal(result, done_signal)
+
         if done_signal.called:
-            result.finished = True
-            result.success = done_signal.success
-            result.summary = done_signal.summary
             log.emit(
                 "cycle_end",
                 reason="done",
                 exchanges=result.exchanges,
-                finished=True,
+                finished=result.finished,
                 summary=result.summary,
                 cost_usd=result.total_cost_usd,
                 cost_bucket="api",

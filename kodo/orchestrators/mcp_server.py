@@ -33,56 +33,20 @@ def build_mcp_server(
     """
     from mcp.server.fastmcp import FastMCP
 
-    from kodo.orchestrators.base import handle_agent_call
-    from kodo.orchestrators.verification import handle_done
+    from kodo.orchestrators.tools import add_tools_to_mcp
 
     mcp = FastMCP("team")
-    dead_workers: set[str] = set()
-    total_workers = len(team)
-
-    for name, agent in team.items():
-
-        def _make_handler(agent_name, agent_obj, agent_desc):
-            def handler(task: str, new_conversation: bool = False) -> str:
-                """Delegate a task to this agent."""
-                return handle_agent_call(
-                    agent_name,
-                    agent_obj,
-                    task,
-                    project_dir,
-                    summarizer,
-                    new_conversation=new_conversation,
-                    orchestrator_tag=orchestrator_tag,
-                    dead_workers=dead_workers,
-                    total_workers=total_workers,
-                )
-
-            handler.__name__ = f"ask_{agent_name}"
-            handler.__doc__ = (
-                f"Delegate a task to the {agent_name} agent.\n{agent_desc}"
-            )
-            return handler
-
-        mcp.add_tool(
-            _make_handler(name, agent, agent.description.strip()), name=f"ask_{name}",
-        )
-
-    def done(summary: str, success: bool) -> str:
-        """Signal that the goal is complete. Runs automated verification first — \
-if the tester or architect find issues, the call is rejected and you must fix them."""
-        return handle_done(
-            summary,
-            success,
-            done_signal,
-            goal,
-            team,
-            project_dir,
-            verification_state=verification_state,
-            orchestrator_tag=orchestrator_tag,
-            config=config,
-        )
-
-    mcp.add_tool(done)
+    add_tools_to_mcp(
+        mcp,
+        team,
+        project_dir,
+        summarizer,
+        done_signal,
+        goal,
+        orchestrator_tag=orchestrator_tag,
+        verification_state=verification_state,
+        config=config,
+    )
     return mcp
 
 

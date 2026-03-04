@@ -71,8 +71,13 @@ def _check_passed(report: str) -> bool:
     # punctuation (.!?。).  Reject mid-sentence mentions that follow attribution
     # words (said, say, cannot, etc.).
     # Also allow optional ':' after the signal (e.g., "ALL CHECKS PASS:")
+    # Allow optional leading markdown formatting (**, *, __, _) before the signal.
+    _MD_FMT = r"(?:[*_]{1,3})?"
     pattern = re.compile(
-        r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*" + _SIGNAL + r"(?::|\b)",
+        r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*"
+        + _MD_FMT
+        + _SIGNAL
+        + r"(?::|\b)",
         re.MULTILINE,
     )
     return bool(pattern.search(stripped))
@@ -295,6 +300,7 @@ def handle_done(
         done_signal.called = True
         done_signal.summary = summary
         done_signal.success = False
+        done_signal.terminal = "legacy"
         return "Acknowledged (marked as unsuccessful)."
 
     # Branch on verification mode
@@ -308,7 +314,8 @@ def handle_done(
         )
         rejection = _run_quick_checks(verification)
     else:
-        # "full" — current behavior
+        # "full" — run verify_done with regex gate
+        log.tprint("🔍 [done] running full verification...")
         rejection = verify_done(
             goal,
             summary,
@@ -331,6 +338,7 @@ def handle_done(
     done_signal.called = True
     done_signal.summary = summary
     done_signal.success = True
+    done_signal.terminal = "legacy"
     log.emit("orchestrator_done_accepted", **tag, summary=summary)
 
     log.tprint("🎉 [done] ACCEPTED — all checks pass")

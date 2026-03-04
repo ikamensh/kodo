@@ -18,6 +18,8 @@ from tests.conftest import make_agent
 
 def _make_mcp_with_tools():
     """Build an MCP server with worker_fast + tester + done tools."""
+    from kodo.orchestrators.base import CycleConfig
+
     team = {
         "worker_fast": make_agent("ok"),
         "tester": make_agent("ALL CHECKS PASS"),
@@ -28,7 +30,8 @@ def _make_mcp_with_tools():
     ):
         summarizer = Summarizer()
     return build_mcp_server(
-        team, Path("/tmp/proj"), summarizer, DoneSignal(), "Build X"
+        team, Path("/tmp/proj"), summarizer, DoneSignal(), "Build X",
+        config=CycleConfig(done_mode="legacy"),
     )
 
 

@@ -16,6 +16,7 @@ from kodo.orchestrators.base import (
     DoneSignal,
     OrchestratorBase,
     TeamConfig,
+    apply_done_signal,
     build_cycle_prompt,
 )
 from kodo.orchestrators.mcp_server import build_mcp_server
@@ -126,9 +127,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                                 message.total_cost_usd or 0.0,
                                 "claude_subscription",
                             )
-                            if done_signal.called:
-                                result.summary = done_signal.summary or ""
-                            elif message.is_error:
+                            if message.is_error:
                                 result.summary = (
                                     f"[Claude Code error] {message.result or ''}"
                                 )
@@ -145,10 +144,9 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                             )
 
                     if done_signal.called:
-                        result.finished = True
-                        result.success = done_signal.success
+                        apply_done_signal(result, done_signal)
                         log.tprint(
-                            f"✅ [orchestrator] cycle done (done tool called): "
+                            f"✅ [orchestrator] cycle done: "
                             f"{done_signal.summary[:200]}",
                         )
                         break
@@ -174,12 +172,13 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                         break
 
                     log.tprint(
-                        f"🔄 [orchestrator] nudging to call done() "
+                        f"🔄 [orchestrator] nudging to finish "
                         f"(attempt {nudges}/{_MAX_NUDGES})...",
                     )
                     await client.query(
-                        "You must call the done() tool to complete this cycle. "
-                        "Summarize what you've accomplished and call done().",
+                        "You must signal completion to end this cycle. "
+                        "Use the appropriate done tool (goal_done, end_cycle, or done) "
+                        "to summarize what you've accomplished.",
                     )
             finally:
                 try:

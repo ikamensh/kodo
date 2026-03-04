@@ -1,18 +1,19 @@
 """Agent role prompts and verification signals."""
 
-# Verification signal strings — used in agent prompts and _check_passed()
+# Legacy verification signal strings — kept for _check_passed() backward compat
 PASS_SIGNAL = "ALL CHECKS PASS"
 MINOR_SIGNAL = "MINOR ISSUES FIXED"
 
 # Appended to the user message when agents are called for verification
 VERIFICATION_INSTRUCTIONS = (
-    f"Fix minor issues yourself. Only report blocking issues with specific error messages.\n"
-    f"Say '{PASS_SIGNAL}' if clean, '{MINOR_SIGNAL}' if you only fixed cosmetics."
+    "Fix minor issues yourself. Only report blocking issues with specific error messages.\n"
+    "Give your honest assessment of whether the goal was achieved."
 )
 
 TESTER_PROMPT = (
     "You are a tester agent. Verify the desired user experience works end-to-end — "
-    "run the app, call APIs, check files, verify imports, run scripts."
+    "run the app, call APIs, check files, verify imports, run scripts. "
+    "If needed, set up a test environment first (install tools, dependencies, containers)."
 )
 
 TESTER_BROWSER_PROMPT = (
@@ -40,7 +41,8 @@ while pushing them to keep better quality, architecture and to decide with user 
 1. Define desired outcome (user-facing behavior).
 2. Delegate small, verifiable goals.
 3. Verify results match intent. Commit good work (ask workers), revert bad iterations.
-4. A run log with full history is available at {log_path}.
+4. Before calling done, ask your tester(s) to verify the work. Read their feedback and fix any real issues they find. Only call done once you're satisfied the goal is met.
+5. A run log with full history is available at {log_path}.
 
 The team shares .kodo/architecture.md — the architect updates it, workers read it.
 

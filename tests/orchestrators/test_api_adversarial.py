@@ -9,6 +9,7 @@ from kodo import log
 from kodo.agent import Agent
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator, _messages_to_text
+from kodo.orchestrators.base import CycleConfig
 from tests.conftest import FakeRunResult, FakeSession
 
 
@@ -37,7 +38,10 @@ def test_done_with_success_false(tmp_path: Path):
 
     with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
-        result = orch.cycle("build feature", tmp_path, _make_team(), max_exchanges=10)
+        result = orch.cycle(
+            "build feature", tmp_path, _make_team(), max_exchanges=10,
+            config=CycleConfig(done_mode="legacy"),
+        )
 
     assert result.finished is True
     assert result.success is False
@@ -83,7 +87,10 @@ def test_agent_crash_returns_error_string(tmp_path: Path):
 
     with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
-        orch.cycle("build feature", tmp_path, team, max_exchanges=10)
+        orch.cycle(
+            "build feature", tmp_path, team, max_exchanges=10,
+            config=CycleConfig(done_mode="legacy"),
+        )
 
     # Should not crash, and the tool result should contain the error
     assert len(tool_results) == 1
@@ -159,6 +166,9 @@ def test_cost_calculation_with_unknown_model(tmp_path: Path):
 
     with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
         orch = ApiOrchestrator(model="some-unknown-model-2026")
-        result = orch.cycle("goal", tmp_path, _make_team(), max_exchanges=5)
+        result = orch.cycle(
+            "goal", tmp_path, _make_team(), max_exchanges=5,
+            config=CycleConfig(done_mode="legacy"),
+        )
 
     assert result.total_cost_usd == 0.0

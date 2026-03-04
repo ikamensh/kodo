@@ -8,6 +8,7 @@ from unittest.mock import patch
 from kodo import log
 from kodo.log import RunDir
 from kodo.orchestrators.api import ApiOrchestrator, _messages_to_text
+from kodo.orchestrators.base import CycleConfig
 from tests.conftest import FakeRunResult
 
 
@@ -36,7 +37,10 @@ def test_cycle_done_returns_finished(tmp_path: Path):
         patch("kodo.orchestrators.verification.verify_done", return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
-        result = orch.cycle("build feature", tmp_path, team, max_exchanges=10)
+        result = orch.cycle(
+            "build feature", tmp_path, team, max_exchanges=10,
+            config=CycleConfig(done_mode="legacy"),
+        )
 
     assert result.finished is True
     assert result.summary == "all done"
@@ -118,11 +122,11 @@ def test_529_fallback(tmp_path: Path):
 
 
 def test_build_tools_creates_agent_and_done_tools(tmp_path: Path):
-    """_build_tools creates ask_<name> tools for each agent and a done tool."""
+    """build_pydantic_tools creates ask_<name> tools for each agent and a done tool."""
     from unittest.mock import MagicMock
 
-    from kodo.orchestrators.api import _build_tools
-    from kodo.orchestrators.base import DoneSignal
+    from kodo.orchestrators.tools import build_pydantic_tools
+    from kodo.orchestrators.base import CycleConfig, DoneSignal
 
     team = _make_fake_team()
     team["tester"] = _make_fake_team()["worker"]  # add a second agent
@@ -130,28 +134,30 @@ def test_build_tools_creates_agent_and_done_tools(tmp_path: Path):
     done_signal = DoneSignal()
     summarizer = MagicMock()
 
-    tools = _build_tools(team, tmp_path, summarizer, done_signal, "test goal")
+    tools = build_pydantic_tools(
+        team, tmp_path, summarizer, done_signal, "test goal",
+        config=CycleConfig(done_mode="legacy"),
+    )
 
     tool_names = {t.name for t in tools}
     assert "ask_worker" in tool_names
     assert "ask_tester" in tool_names
-    assert "bash" in tool_names
     assert "done" in tool_names
-    assert len(tools) == 4  # 2 agents + bash + done
+    assert len(tools) == 3  # 2 agents + done
 
 
 def test_build_tools_agent_handler_returns_string(tmp_path: Path):
     """Agent tool handlers return a string result (not raise)."""
     from unittest.mock import MagicMock
 
-    from kodo.orchestrators.api import _build_tools
+    from kodo.orchestrators.tools import build_pydantic_tools
     from kodo.orchestrators.base import DoneSignal
 
     team = _make_fake_team()
     done_signal = DoneSignal()
     summarizer = MagicMock()
 
-    tools = _build_tools(team, tmp_path, summarizer, done_signal, "test goal")
+    tools = build_pydantic_tools(team, tmp_path, summarizer, done_signal, "test goal")
     ask_worker = next(t for t in tools if t.name == "ask_worker")
 
     log.init(RunDir.create(tmp_path, "tool_test"))
@@ -163,14 +169,17 @@ def test_build_tools_done_sets_signal(tmp_path: Path):
     """The done tool handler sets the DoneSignal when verification passes."""
     from unittest.mock import MagicMock
 
-    from kodo.orchestrators.api import _build_tools
-    from kodo.orchestrators.base import DoneSignal
+    from kodo.orchestrators.tools import build_pydantic_tools
+    from kodo.orchestrators.base import CycleConfig, DoneSignal
 
     team = _make_fake_team()
     done_signal = DoneSignal()
     summarizer = MagicMock()
 
-    tools = _build_tools(team, tmp_path, summarizer, done_signal, "test goal")
+    tools = build_pydantic_tools(
+        team, tmp_path, summarizer, done_signal, "test goal",
+        config=CycleConfig(done_mode="legacy"),
+    )
     done_tool = next(t for t in tools if t.name == "done")
 
     log.init(RunDir.create(tmp_path, "done_test"))

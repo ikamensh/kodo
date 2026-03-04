@@ -17,6 +17,7 @@ from kodo.orchestrators.api import ApiOrchestrator
 from kodo.orchestrators.base import (
     CycleConfig,
     DoneSignal,
+    QuickCheck,
     _auto_commit,
 )
 from kodo.orchestrators.verification import handle_done
@@ -190,14 +191,19 @@ def test_handle_done_skips_auto_commit_when_disabled(tmp_project: Path) -> None:
     assert len(worker_session.prompts) == 0
 
 
-def test_handle_done_skips_auto_commit_on_rejection(tmp_project: Path) -> None:
-    """handle_done does NOT call _auto_commit when verification rejects."""
-    team = {
-        "tester": make_agent("Bug found: crash on startup"),
-        "architect": make_agent("ALL CHECKS PASS"),
-        "worker_fast": make_agent("Should not be called"),
-    }
+def test_handle_done_skips_auto_commit_on_quick_check_rejection(tmp_project: Path) -> None:
+    """handle_done does NOT call _auto_commit when quick-check rejects."""
+    from kodo.orchestrators.base import QuickCheck
+
+    team = {"worker_fast": make_agent("Should not be called")}
     done_signal = DoneSignal()
+    checks = [
+        QuickCheck(
+            path=str(tmp_project / "nonexistent.md"),
+            description="Required file",
+            error_message="Missing file",
+        ),
+    ]
 
     result = handle_done(
         SUMMARY,
@@ -206,10 +212,10 @@ def test_handle_done_skips_auto_commit_on_rejection(tmp_project: Path) -> None:
         GOAL,
         team,
         tmp_project,
-        config=CycleConfig(auto_commit=True),
+        config=CycleConfig(auto_commit=True, verification=checks),
     )
 
-    assert "DONE REJECTED" in result
+    assert "Quick-check verification failed" in result
     # worker_fast should NOT have been called for commit
     worker_session = team["worker_fast"].session
     assert len(worker_session.prompts) == 0
@@ -282,7 +288,7 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
             tmp_path,
             team,
             max_exchanges=10,
-            config=CycleConfig(auto_commit=True),
+            config=CycleConfig(auto_commit=True, done_mode="legacy"),
         )
 
     assert result.finished is True
@@ -321,7 +327,7 @@ def test_cycle_no_auto_commit_when_disabled(tmp_path: Path) -> None:
             tmp_path,
             team,
             max_exchanges=10,
-            config=CycleConfig(auto_commit=False),
+            config=CycleConfig(auto_commit=False, done_mode="legacy"),
         )
 
     assert result.finished is True
@@ -349,23 +355,24 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
         agent_tools = tools or []
         self.run_sync = fake_run_sync
 
-    with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch(
-            "kodo.orchestrators.verification.verify_done",
-            return_value="DONE REJECTED — tests fail",
-        ),
-    ):
+    # Use quick-check with a missing file to trigger rejection
+    checks = [QuickCheck(
+        path=str(tmp_path / "nonexistent.md"),
+        description="Required file",
+        error_message="Missing file",
+    )]
+
+    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
             GOAL,
             tmp_path,
             team,
             max_exchanges=10,
-            config=CycleConfig(auto_commit=True),
+            config=CycleConfig(auto_commit=True, verification=checks, done_mode="legacy"),
         )
 
-    # Orchestrator didn't finish (done was rejected, model stopped)
+    # Orchestrator didn't finish (done was rejected by quick-check, model stopped)
     assert result.finished is False
     # No commit should have been dispatched
     wf_session = team["worker_fast"].session
@@ -470,7 +477,7 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
             git_project,
             team,
             max_exchanges=10,
-            config=CycleConfig(auto_commit=True),
+            config=CycleConfig(auto_commit=True, done_mode="legacy"),
         )
 
     assert result.finished is True
@@ -532,7 +539,7 @@ def test_no_commit_when_auto_commit_disabled_real_git(
             git_project,
             team,
             max_exchanges=10,
-            config=CycleConfig(auto_commit=False),
+            config=CycleConfig(auto_commit=False, done_mode="legacy"),
         )
 
     assert result.finished is True
