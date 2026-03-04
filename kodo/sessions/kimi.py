@@ -25,11 +25,13 @@ class KimiSession:
         system_prompt: str | None = None,
         resume_session_id: str | None = None,
         session_timeout_s: int | None = None,
+        thinking: bool = True,
     ):
         self.model = model
         self.system_prompt = system_prompt
         self.resume_session_id = resume_session_id
         self._session_timeout_s = session_timeout_s
+        self._thinking = thinking
         self._session = None  # kimi_agent_sdk.Session (created lazily)
         self._project_dir: Path | None = None
         self._session_id: str | None = None
@@ -79,6 +81,56 @@ class KimiSession:
     def session_id(self) -> str | None:
         return self._session_id
 
+    @staticmethod
+    def _build_config():
+        """Build a kimi SDK Config, falling back to KIMI_API_KEY env var.
+
+        Returns None if a config file already exists (SDK will load it).
+        Builds a minimal Config from env var otherwise.
+        """
+        import os
+        from pathlib import Path as StdPath
+
+        # If user already has a config file with models, let the SDK handle it
+        config_file = StdPath.home() / ".kimi" / "config.toml"
+        if config_file.exists():
+            content = config_file.read_text()
+            if "[models." in content:
+                return None  # has model definitions — SDK can load it
+
+        api_key = os.environ.get("KIMI_API_KEY", "")
+        if not api_key:
+            return None  # let the SDK raise its own error
+
+        from kimi_agent_sdk import Config
+
+        return Config(
+            default_model="kimi-k2.5",
+            default_thinking=True,
+            models={
+                "kimi-k2.5": {
+                    "provider": "kimi",
+                    "model": "kimi-k2.5",
+                    "max_context_size": 131072,
+                    "capabilities": {"thinking", "image_in", "video_in"},
+                },
+                "kimi-k2": {
+                    "provider": "kimi",
+                    "model": "kimi-k2",
+                    "max_context_size": 131072,
+                },
+            },
+            providers={
+                "kimi": {
+                    "type": "kimi",
+                    "base_url": os.environ.get(
+                        "KIMI_BASE_URL", "https://api.moonshot.ai/v1",
+                    ),
+                    "api_key": api_key,
+                },
+            },
+        )
+
     def _ensure_session(self, project_dir: Path) -> None:
         """Lazily create the kimi SDK session on first query."""
         if self._session is not None and self._project_dir == project_dir:
@@ -90,13 +142,23 @@ class KimiSession:
         async def _create():
             from kimi_agent_sdk import Session as KimiSdkSession
 
+            try:
+                from kaos.path import KaosPath
+            except ImportError:
+                KaosPath = None  # running under mock SDK in tests
+
+            work_dir = KaosPath(str(project_dir)) if KaosPath else str(project_dir)
+            config = self._build_config()
+
             resume_id = self.resume_session_id
             if resume_id:
                 self.resume_session_id = None  # one-shot
                 session = await KimiSdkSession.resume(
-                    work_dir=str(project_dir),
+                    work_dir=work_dir,
                     session_id=resume_id,
+                    config=config,
                     model=self.model,
+                    thinking=self._thinking,
                     yolo=True,
                 )
                 if session is None:
@@ -105,14 +167,18 @@ class KimiSession:
                         f"⚠️  [kimi] resume failed for {resume_id}, creating new session",
                     )
                     session = await KimiSdkSession.create(
-                        work_dir=str(project_dir),
+                        work_dir=work_dir,
+                        config=config,
                         model=self.model,
+                        thinking=self._thinking,
                         yolo=True,
                     )
             else:
                 session = await KimiSdkSession.create(
-                    work_dir=str(project_dir),
+                    work_dir=work_dir,
+                    config=config,
                     model=self.model,
+                    thinking=self._thinking,
                     yolo=True,
                 )
             self._session = session
@@ -133,6 +199,7 @@ class KimiSession:
             model=self.model,
             system_prompt=self.system_prompt,
             session_timeout_s=self._session_timeout_s,
+            thinking=self._thinking,
         )
 
     def close(self) -> None:
@@ -213,7 +280,7 @@ class KimiSession:
             return QueryResult(
                 text=(
                     f"Kimi session failed to connect: {exc_name}: {exc}\n"
-                    "Check that kimi-cli is installed and MOONSHOT_API_KEY is set."
+                    "Check that kimi-cli is installed and KIMI_API_KEY is set."
                 ),
                 elapsed_s=0.0,
                 is_error=True,

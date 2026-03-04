@@ -24,13 +24,14 @@ from kodo.factory import (
 
 
 @contextmanager
-def _backends(claude=False, cursor=False, codex=False, gemini=False):
+def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False):
     """Patch all has_* helpers at once."""
     with ExitStack() as stack:
         stack.enter_context(patch("kodo.factory.has_claude", return_value=claude))
         stack.enter_context(patch("kodo.factory.has_cursor", return_value=cursor))
         stack.enter_context(patch("kodo.factory.has_codex", return_value=codex))
         stack.enter_context(patch("kodo.factory.has_gemini_cli", return_value=gemini))
+        stack.enter_context(patch("kodo.factory.has_kimi", return_value=kimi))
         stack.enter_context(patch("kodo.factory.make_session"))
         yield
 

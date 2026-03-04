@@ -9,6 +9,7 @@
   <a href="https://cursor.com"><img src="https://img.shields.io/badge/Cursor-supported-orange?logo=cursor&logoColor=white" alt="Cursor"></a>
   <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/Codex-supported-green?logo=openai&logoColor=white" alt="OpenAI Codex"></a>
   <a href="https://github.com/google-gemini/gemini-cli"><img src="https://img.shields.io/badge/Gemini_CLI-supported-blue?logo=google&logoColor=white" alt="Gemini CLI"></a>
+  <a href="https://github.com/nicepkg/kimi-cli"><img src="https://img.shields.io/badge/Kimi-supported-red?logo=data:image/svg+xml;base64,&logoColor=white" alt="Kimi"></a>
 </p>
 
 ---
@@ -109,6 +110,7 @@ You need **at least one** agent backend installed:
 | ⚡ [Cursor](docs/providers.md#cursor-fast-workers--testers) | Fast workers + testers | Comes with Cursor; enable `cursor-agent` in settings |
 | 🟢 [OpenAI Codex](docs/providers.md#openai-codex-fast-workers) | Fast workers (alternative to Cursor) | `npm install -g @openai/codex` |
 | 💎 [Gemini CLI](docs/providers.md#gemini-cli-fast-workers) | Fast workers (free tier available) | `npm install -g @google/gemini-cli` |
+| 🌙 [Kimi](docs/providers.md#kimi-smart-workers) | Smart workers (Moonshot AI) | `pip install kimi-agent-sdk` + `KIMI_API_KEY` |
 
 Claude Code + one fast backend (Cursor, Codex, or Gemini CLI) is recommended. See [docs/providers.md](docs/providers.md) for detailed setup instructions, authentication, and troubleshooting.
 
@@ -210,7 +212,7 @@ kodo teams edit my-team       # edit an existing team
 
 **Key concepts:**
 
-- **Session** — a stateful conversation with a backend (Claude, Cursor, Codex, or Gemini CLI). Tracks token usage, supports reset.
+- **Session** — a stateful conversation with a backend (Claude, Cursor, Codex, Gemini CLI, or Kimi). Tracks token usage, supports reset.
 - **Agent** — a prompt + session + turn budget. Call `agent.run(task, project_dir)` to get work done.
 - **Orchestrator** — an LLM that delegates to a team of agents via tool calls:
   - `ClaudeCodeOrchestrator` — runs on Claude Code with agents as MCP tools. Free on Max subscription.
