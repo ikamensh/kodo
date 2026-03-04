@@ -46,3 +46,9 @@ GEMINI_API_FLASH = "gemini-3-flash-preview"
 # Gemini API (summarizer — lightweight, direct REST)
 # ---------------------------------------------------------------------------
 GEMINI_SUMMARIZER = "gemini-2.5-flash-lite"
+
+# ---------------------------------------------------------------------------
+# Kimi (Moonshot AI)
+# ---------------------------------------------------------------------------
+KIMI_K2_5 = "kimi-k2.5-thinking"
+KIMI_K2 = "kimi-k2"
