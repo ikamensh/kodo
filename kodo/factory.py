@@ -35,6 +35,7 @@ from kodo.models import (
 )
 from kodo.orchestrators.base import TeamConfig
 from kodo.prompts.roles import (
+    AGENT_NOTES_INSTRUCTION,
     ARCHITECT_PROMPT,
     ORCHESTRATOR_SYSTEM_PROMPT,
     TESTER_BROWSER_PROMPT,
@@ -321,7 +322,7 @@ _WORKER_SMART_FULL_EXTRA = (
 # ---------------------------------------------------------------------------
 
 _ARCHITECT_DESC = (
-    "Code reviewer. Updates .kodo/architecture.md with decisions.\n"
+    "Code reviewer. Focuses on key decisions and structural issues.\n"
     "Does not implement features."
 )
 _TESTER_DESC = (
@@ -445,9 +446,10 @@ def _build_team_core(
         if pick is None:
             continue
         sys_prompt, max_turns = _ROLE_CONFIG[role]
+        notes_instruction = AGENT_NOTES_INSTRUCTION.format(role=role)
+        sys_prompt = (sys_prompt + notes_instruction) if sys_prompt else notes_instruction.strip()
         session_kwargs = dict(pick.session_kwargs) if pick.session_kwargs else {}
-        if sys_prompt:
-            session_kwargs["system_prompt"] = sys_prompt
+        session_kwargs["system_prompt"] = sys_prompt
         if role == "tester_browser":
             session_kwargs["chrome"] = True
         session = make_session(pick.backend, pick.model, **session_kwargs)

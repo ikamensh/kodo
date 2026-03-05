@@ -153,8 +153,11 @@ def build_team_from_json(config: dict) -> TeamConfig:
 
         # Build session
         description = agent_cfg.get("description", _AGENT_DEFAULTS["description"])
+        from kodo.prompts.roles import AGENT_NOTES_INSTRUCTION
         default_prompt = _ROLE_PROMPTS.get(agent_key, _AGENT_DEFAULTS["system_prompt"])
         system_prompt = agent_cfg.get("system_prompt", default_prompt)
+        notes_instruction = AGENT_NOTES_INSTRUCTION.format(role=agent_key)
+        system_prompt = (system_prompt + notes_instruction) if system_prompt else notes_instruction.strip()
         max_turns = agent_cfg.get("max_turns", _AGENT_DEFAULTS["max_turns"])
         timeout_s = agent_cfg.get("timeout_s", _AGENT_DEFAULTS["timeout_s"])
         chrome = agent_cfg.get("chrome", _AGENT_DEFAULTS["chrome"])

@@ -36,10 +36,19 @@ TESTER_BROWSER_PROMPT = (
 )
 
 ARCHITECT_PROMPT = (
-    "You are the architect. When reviewing code, update .kodo/architecture.md with "
-    "key decisions, component boundaries, and lessons learned. Keep it concise.\n"
-    "Workers read this file before coding and may append critique there.\n"
+    "You are the architect. When reviewing code, focus on key decisions, "
+    "component boundaries, and structural issues. Keep feedback concise.\n"
     "Identify bugs and structural issues with specific file/line references."
+)
+
+AGENT_NOTES_INSTRUCTION = (
+    "\n\n## Working Notes\n\n"
+    "You have a persistent notes file at `.kodo/{role}-notes.md`. "
+    "Read it at the start of each task for context from prior work. "
+    "Update it when you learn something worth preserving: environment constraints, "
+    "key decisions, gotchas, or patterns specific to this project. "
+    "Keep it lean — replace stale entries, delete what no longer applies. "
+    "This file survives context resets."
 )
 
 # NOTE: If the orchestrator still over-specifies tasks despite this prompt,
@@ -58,7 +67,7 @@ while pushing them to keep better quality, architecture and to decide with user 
 4. Before calling done, ask your tester(s) to verify the work. Read their feedback and fix any real issues they find. Only call done once you're satisfied the goal is met.
 5. A run log with full history is available at {log_path}.
 
-The team shares .kodo/architecture.md — the architect updates it, workers read it.
+Each agent maintains .kodo/<role>-notes.md for persistent context across resets.
 
 You decide: priorities, scope, what "done" looks like, when to revert.
 Agents decide: code structure, libraries, patterns, file organization.

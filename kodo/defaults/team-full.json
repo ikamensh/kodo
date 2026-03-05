@@ -40,7 +40,7 @@
     "architect": {
       "backend": "claude",
       "model": "opus",
-      "description": "Code reviewer. Updates .kodo/architecture.md with decisions.\nDoes not implement features.",
+      "description": "Code reviewer. Focuses on key decisions and structural issues.\nDoes not implement features.",
       "max_turns": 10,
       "timeout_s": 600,
       "fallback_model": "sonnet"

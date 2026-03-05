@@ -234,6 +234,14 @@ def get_run_stats() -> RunStats:
         return _run_stats
 
 
+def get_elapsed_s() -> float | None:
+    """Return seconds since run start, or None if not started."""
+    with _lock:
+        if _start_time is None:
+            return None
+        return time.monotonic() - _start_time
+
+
 def get_log_file() -> Path | None:
     """Return the current log file path, or None if not initialized."""
     with _lock:

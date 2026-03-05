@@ -228,14 +228,14 @@ class TestBuildTeamFromJson:
         }
 
         build_team_from_json(config)
-        mock_make_session.assert_called_once_with(
-            "claude",
-            "opus",
-            system_prompt=None,
-            chrome=True,
-            fallback_model="sonnet",
-            session_timeout_s=7200,
-        )
+        mock_make_session.assert_called_once()
+        call_kwargs = mock_make_session.call_args
+        assert call_kwargs[0] == ("claude", "opus")
+        assert call_kwargs[1]["chrome"] is True
+        assert call_kwargs[1]["fallback_model"] == "sonnet"
+        assert call_kwargs[1]["session_timeout_s"] == 7200
+        # Notes instruction is injected even for agents with no default prompt
+        assert ".kodo/worker-notes.md" in call_kwargs[1]["system_prompt"]
 
 
 # ---------------------------------------------------------------------------

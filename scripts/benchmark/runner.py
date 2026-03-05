@@ -366,7 +366,13 @@ def _run_subprocess(
             env=_clean_env(),
         )
         output = _parse_json_output(proc.stdout)
-        status = "ok" if proc.returncode == 0 else "error"
+        # exit 0 = success, exit 2 = partial (kodo verification unsatisfied but patch exists)
+        if proc.returncode == 0:
+            status = "ok"
+        elif proc.returncode == 2:
+            status = "partial"
+        else:
+            status = "error"
         error = proc.stderr[-500:] if proc.returncode != 0 else ""
         return output, status, error
     except subprocess.TimeoutExpired:
@@ -466,6 +472,7 @@ def _seed_from_prior_runs(
             if key not in needed or key in seeded:
                 continue
             # Skip error/timeout results so they get retried
+            # "partial" (kodo exit 2) still has a valid patch — keep it
             if entry.get("status") in ("error", "timeout"):
                 continue
             # Copy result and prediction into current run

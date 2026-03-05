@@ -336,7 +336,14 @@ def apply_done_signal(result: CycleResult, done_signal: DoneSignal) -> None:
 
 def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
     """Build the user-turn prompt sent to the orchestrator each cycle."""
+    from kodo.orchestrators.run_status import read_run_status
+
     prompt = f"# Goal\n\n{goal}\n\nProject directory: {project_dir}"
+
+    run_status = read_run_status(project_dir)
+    if run_status:
+        prompt += f"\n\n{run_status}"
+
     if prior_summary:
         prompt += (
             f"\n\n# Previous progress\n\n{prior_summary}"
@@ -699,8 +706,13 @@ class OrchestratorBase:
     ) -> None:
         """Original single-goal execution loop."""
         from kodo import log
+        from kodo.orchestrators.run_status import write_run_status
 
         for i in range(start_cycle, max_cycles + 1):
+            write_run_status(
+                project_dir, goal,
+                cycle_num=i, max_cycles=max_cycles,
+            )
             if i > 1:
                 print()
                 log.tprint(f"{'─' * 40}")
@@ -766,9 +778,17 @@ class OrchestratorBase:
             stage_name=stage.name,
         )
 
+        from kodo.orchestrators.run_status import write_run_status
+
         cycles_used = 0
         while cycles_used < max_cycles_for_stage:
             cycles_used += 1
+
+            write_run_status(
+                project_dir, stage_goal,
+                stage_label=f"{stage.index}/{len(plan.stages)}: {stage.name}",
+                cycle_num=cycles_used, max_cycles=max_cycles_for_stage,
+            )
 
             print()
             log.tprint(

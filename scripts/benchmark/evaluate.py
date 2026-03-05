@@ -161,7 +161,7 @@ def _collect_eval_results(
             summary[arm_dir.name] = _parse_pro_results(arm_dir)
     else:
         # swebench writes to logs/run_evaluation/{run_id}_{arm}/{model_name}/...
-        swebench_log_base = Path("logs/run_evaluation")
+        swebench_log_base = Path.cwd() / "logs" / "run_evaluation"
         for log_dir in sorted(swebench_log_base.iterdir()) if swebench_log_base.exists() else []:
             if not log_dir.is_dir() or not log_dir.name.startswith(run_id + "_"):
                 continue
