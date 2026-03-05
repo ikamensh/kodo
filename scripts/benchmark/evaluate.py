@@ -36,7 +36,7 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
         else:
             _evaluate_standard(pred_file, arm, run_dir, run_id, dataset)
 
-    _collect_eval_results(run_dir, is_pro=is_pro)
+    _collect_eval_results(run_dir, is_pro=is_pro, run_id=run_id)
 
 
 # ── SWE-bench Pro (Scale AI tooling) ────────────────────────────────────
@@ -144,20 +144,33 @@ def _evaluate_standard(
 # ── Result Collection ───────────────────────────────────────────────────
 
 
-def _collect_eval_results(run_dir: Path, *, is_pro: bool = False) -> None:
+def _collect_eval_results(
+    run_dir: Path, *, is_pro: bool = False, run_id: str = "",
+) -> None:
     """Parse eval output into eval-summary.json."""
     eval_base = run_dir / "eval"
     if not eval_base.exists():
-        return
+        eval_base.mkdir(parents=True)
 
     summary: dict[str, dict] = {}
-    for arm_dir in sorted(eval_base.iterdir()):
-        if not arm_dir.is_dir():
-            continue
-        if is_pro:
+
+    if is_pro:
+        for arm_dir in sorted(eval_base.iterdir()):
+            if not arm_dir.is_dir():
+                continue
             summary[arm_dir.name] = _parse_pro_results(arm_dir)
-        else:
-            summary[arm_dir.name] = _parse_standard_results(arm_dir)
+    else:
+        # swebench writes to logs/run_evaluation/{run_id}_{arm}/{model_name}/...
+        swebench_log_base = Path("logs/run_evaluation")
+        for log_dir in sorted(swebench_log_base.iterdir()) if swebench_log_base.exists() else []:
+            if not log_dir.is_dir() or not log_dir.name.startswith(run_id + "_"):
+                continue
+            arm = log_dir.name[len(run_id) + 1:]
+            # swebench nests by model_name (= arm), then instance_id
+            for model_dir in log_dir.iterdir():
+                if model_dir.is_dir():
+                    summary[arm] = _parse_standard_results(model_dir)
+                    break
 
     summary_file = run_dir / "eval-summary.json"
     summary_file.write_text(json.dumps(summary, indent=2))
@@ -183,7 +196,10 @@ def _parse_pro_results(eval_dir: Path) -> dict:
 
 
 def _parse_standard_results(eval_dir: Path) -> dict:
-    """Parse standard swebench evaluation logs."""
+    """Parse standard swebench evaluation logs.
+
+    swebench writes report.json as {instance_id: {resolved: bool, ...}}.
+    """
     resolved = []
     failed = []
     errored = []
@@ -196,7 +212,9 @@ def _parse_standard_results(eval_dir: Path) -> dict:
         if report_file.exists():
             try:
                 report = json.loads(report_file.read_text())
-                if report.get("resolved", False):
+                # swebench nests results under the instance_id key
+                instance_data = report.get(instance_id, report)
+                if instance_data.get("resolved", False):
                     resolved.append(instance_id)
                 else:
                     failed.append(instance_id)

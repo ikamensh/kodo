@@ -115,11 +115,12 @@ class TestIntakeInterviewLoop:
                 "builtins.input", side_effect=AssertionError("should not prompt user")
             ),
         ):
-            result = run_intake_chat("claude", run_dir, "Build a game", staged=True)
+            result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
 
         # Initial query + parallelism pass — no user input waited for
         assert session.stats.queries == 2
         assert result is not None
+        assert session_out is not None  # staged GoalPlan keeps session alive
 
 
 class TestIntakeOutputFile:
@@ -145,9 +146,10 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
-            result = run_intake_chat("claude", run_dir, "Build a web app", staged=False)
+            result, session_out = run_intake_chat("claude", run_dir, "Build a web app", staged=False)
 
         assert result == "Refined goal text"
+        assert session_out is None  # non-staged doesn't keep session
         assert session.stats.queries == 3  # initial + answer + finalize
 
     def test_staged_returns_goal_plan(self, project):
@@ -184,11 +186,12 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
-            result = run_intake_chat("claude", run_dir, "Build a game", staged=True)
+            result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
 
         assert result is not None
         assert len(result.stages) == 1
         assert result.stages[0].name == "Setup"
+        assert session_out is not None  # staged GoalPlan keeps session alive
 
     def test_returns_none_when_finalize_fails(self, project):
         """If even finalize doesn't produce a file, return None."""
@@ -204,9 +207,10 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", return_value=session),
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
-            result = run_intake_chat("claude", run_dir, "Vague goal", staged=False)
+            result, session_out = run_intake_chat("claude", run_dir, "Vague goal", staged=False)
 
         assert result is None
+        assert session_out is None
 
 
 class TestIntakeEdgeCases:
@@ -362,9 +366,10 @@ class TestIntakeChatSessionError:
             patch("builtins.input", side_effect=lambda *a: next(inputs)),
         ):
             # Should not raise — loop catches errors and continues
-            result = run_intake_chat("claude", run_dir, "My goal", staged=False)
+            result, session_out = run_intake_chat("claude", run_dir, "My goal", staged=False)
 
         # No output file → returns None
         assert result is None
+        assert session_out is None
         # initial + 2 errors (caught) + finalize = 4 calls
         assert call_count == 4

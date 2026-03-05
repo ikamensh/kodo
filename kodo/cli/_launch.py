@@ -258,6 +258,7 @@ def launch_run(
     plan: GoalPlan | None = None,
     json_mode: bool = False,
     debug: bool = False,
+    intake_session=None,
 ):
     """Build team + orchestrator and run. Returns the RunResult."""
     # Snapshot config and goal into the run directory
@@ -371,25 +372,38 @@ def launch_run(
     effort = params.get("effort", "standard")
 
     # Create advisor for adaptive planning when plan has stages
+    # Priority: intake session (full context) → pydantic-ai advisor → None
     advisor = None
     if plan and plan.stages and not debug:
-        advisor = _build_advisor(params)
+        if intake_session is not None:
+            from kodo.orchestrators.advisor import SessionAdvisor
+
+            advisor = SessionAdvisor(intake_session, project_dir)
+            log.emit("advisor_type", type="session")
+        else:
+            advisor = _build_advisor(params)
+            if advisor:
+                log.emit("advisor_type", type="pydantic-ai")
         # Adaptive mode: bump cycle cap if user didn't explicitly set --cycles
         if advisor and max_cycles == team_preset.default_max_cycles:
             max_cycles = max(max_cycles, 50)
 
-    result = orchestrator.run(
-        goal_text,
-        project_dir,
-        team,
-        max_exchanges=max_exchanges,
-        max_cycles=max_cycles,
-        plan=plan,
-        verifiers=verifiers,
-        auto_commit=auto_commit,
-        effort=effort,
-        advisor=advisor,
-    )
+    try:
+        result = orchestrator.run(
+            goal_text,
+            project_dir,
+            team,
+            max_exchanges=max_exchanges,
+            max_cycles=max_cycles,
+            plan=plan,
+            verifiers=verifiers,
+            auto_commit=auto_commit,
+            effort=effort,
+            advisor=advisor,
+        )
+    finally:
+        if advisor is not None:
+            advisor.close()
 
     if not json_mode:
         log.print_stats_table(final=True)

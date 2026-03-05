@@ -343,6 +343,7 @@ def _main_inner() -> None:
     # Construct --improve goal and staged plan now that we have a run_dir
     # 4. Intake / goal plan
     plan: GoalPlan | None = None
+    intake_session = None  # live session for SessionAdvisor reuse
 
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
@@ -398,7 +399,7 @@ def _main_inner() -> None:
                 if refined:
                     goal_text = refined
             else:
-                intake_result = _offer_intake(run_dir, goal_text)
+                intake_result, intake_session = _offer_intake(run_dir, goal_text)
                 if isinstance(intake_result, GoalPlan):
                     plan = intake_result
                 elif isinstance(intake_result, str):
@@ -455,6 +456,7 @@ def _main_inner() -> None:
     # 6. Launch
     result = launch_run(
         run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug,
+        intake_session=intake_session,
     )
 
     # 7. --improve post-run: report summary

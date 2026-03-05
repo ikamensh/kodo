@@ -357,7 +357,7 @@ class TestGoalMdOserror:
             patch(
                 "kodo.cli._main.get_goal", return_value="Fallback goal from get_goal"
             ),
-            patch("kodo.cli._main._offer_intake", return_value=None),
+            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
             patch("kodo.cli._main._load_or_select_params") as mock_params,
             patch("kodo.cli._main.launch_run") as mock_launch,
             patch("builtins.input", return_value="y"),

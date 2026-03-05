@@ -1092,7 +1092,7 @@ class TestGoalMdOSErrorWarning:
             patch.object(Path, "read_text", patched_read_text),
             patch("kodo.cli._main.get_goal", return_value="Fallback goal"),
             patch("kodo.cli._main.launch_run"),
-            patch("kodo.cli._main._offer_intake", return_value=None),
+            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
             patch(
                 "kodo.cli._main._load_or_select_params",
                 return_value={

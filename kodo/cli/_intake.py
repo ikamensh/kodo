@@ -217,11 +217,14 @@ def run_intake_chat(
     run_dir: RunDir,
     goal_text: str,
     staged: bool = False,
-) -> GoalPlan | str | None:
+) -> tuple[GoalPlan | str | None, object | None]:
     """Interactive intake chat using the Session abstraction.
 
-    Returns GoalPlan if staged + file written, refined goal string if
-    single + file written, or None if user bailed.
+    Returns ``(result, session)`` where *result* is a GoalPlan (staged),
+    refined goal string (single), or None (user bailed).  When the result
+    is a GoalPlan, *session* is the live intake session (caller may reuse
+    it as a SessionAdvisor); otherwise *session* is None and the session
+    has been closed.
     """
     run_dir.root.mkdir(parents=True, exist_ok=True)
     log.init(run_dir)
@@ -234,6 +237,9 @@ def run_intake_chat(
     prompt = _build_intake_prompt(str(output_file), staged)
     model = smart_model_for_backend(backend)
     session = make_session(backend, model, system_prompt=prompt)
+
+    # Track whether we should keep the session alive for the caller
+    keep_session = False
 
     try:
         print(
@@ -258,12 +264,16 @@ def run_intake_chat(
         # skip the conversation loop — no need to make the user type /done.
         if output_file.exists():
             _print_separator()
-            return _read_intake_output(
+            intake_result = _read_intake_output(
                 output_file,
                 staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
+            if staged and isinstance(intake_result, GoalPlan):
+                keep_session = True
+                return intake_result, session
+            return intake_result, None
 
         # Conversation loop
         while True:
@@ -296,12 +306,16 @@ def run_intake_chat(
 
         # Check if output was written during the conversation
         if output_file.exists():
-            return _read_intake_output(
+            intake_result = _read_intake_output(
                 output_file,
                 staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
+            if staged and isinstance(intake_result, GoalPlan):
+                keep_session = True
+                return intake_result, session
+            return intake_result, None
 
         # User ended the interview — ask Claude to finalize and write the output
         finalize_msg = (
@@ -313,17 +327,22 @@ def run_intake_chat(
         _print_agent(result.text)
 
         if output_file.exists():
-            return _read_intake_output(
+            intake_result = _read_intake_output(
                 output_file,
                 staged,
                 session=session if staged else None,
                 project_dir=project_dir if staged else None,
             )
+            if staged and isinstance(intake_result, GoalPlan):
+                keep_session = True
+                return intake_result, session
+            return intake_result, None
 
         print("\nNo output file written; using original goal.")
-        return None
+        return None, None
     finally:
-        _close_session(session)
+        if not keep_session:
+            _close_session(session)
 
 
 def _run_parallelism_pass(session, output_file: Path, project_dir: Path) -> None:
@@ -534,12 +553,19 @@ def run_intake_noninteractive(
 # ---------------------------------------------------------------------------
 
 
-def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
-    """Offer goal refinement before launch. Returns refined goal/plan or None."""
+def _offer_intake(
+    run_dir: RunDir, goal_text: str,
+) -> tuple[GoalPlan | str | None, object | None]:
+    """Offer goal refinement before launch.
+
+    Returns ``(result, intake_session)`` — *intake_session* is the live
+    session when the result is a staged GoalPlan (for SessionAdvisor reuse),
+    otherwise None.
+    """
     backend = preferred_backend()
     if not backend:
         print("\nSkipping refinement (no backends available).")
-        return None
+        return None, None
 
     options = [
         "Quick refine — surfaces implicit constraints, no conversation",
@@ -548,11 +574,11 @@ def _offer_intake(run_dir: RunDir, goal_text: str) -> GoalPlan | str | None:
     ]
     choice = _select_one("\nRefine goal before launch?", options)
     if choice.startswith("Skip"):
-        return None
+        return None, None
 
     if choice.startswith("Quick"):
         refined = run_intake_auto(backend, run_dir, goal_text)
-        return refined
+        return refined, None
 
     # Interview — let user pick backend if multiple are available
     backends = available_backend_names()
