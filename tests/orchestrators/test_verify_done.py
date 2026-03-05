@@ -14,9 +14,11 @@ from kodo.orchestrators.base import (
 )
 from kodo.orchestrators.verification import (
     VerificationState,
+    _build_verification_prompt,
     handle_done,
     verify_done,
 )
+from kodo.prompts.roles import build_orchestrator_prompt, ORCHESTRATOR_SYSTEM_PROMPT
 from tests.conftest import FakeSession, make_agent
 
 GOAL = "Build a hello-world web server."
@@ -509,3 +511,180 @@ class TestVerificationStateCycleBoundary:
         """A newly-created VerificationState always starts at attempt 0."""
         state = VerificationState()
         assert state.done_attempt == 0
+
+
+# --- Criteria-aware verification tests ---
+
+
+SAMPLE_CRITERIA = (
+    "1) Panel.on_draw() draws border rects when border_width > 0.\n"
+    "2) Default Theme colors are updated to dark-blue palette.\n"
+    "3) A PNG rendering shows readable text with no clipping."
+)
+
+
+class TestBuildVerificationPrompt:
+    """Unit tests for _build_verification_prompt."""
+
+    def test_without_criteria_uses_generic_instructions(self) -> None:
+        """No criteria → old-style generic verification instructions."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY)
+        assert GOAL in prompt
+        assert SUMMARY in prompt
+        assert "honest assessment" in prompt
+        assert "Acceptance Criteria" not in prompt
+
+    def test_with_criteria_includes_checklist(self) -> None:
+        """Criteria → structured checklist with per-criterion evaluation."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, SAMPLE_CRITERIA)
+        assert GOAL in prompt
+        assert SUMMARY in prompt
+        assert "Acceptance Criteria" in prompt
+        assert "Panel.on_draw()" in prompt
+        assert "PASS" in prompt
+        assert "FAIL" in prompt
+        # Should NOT contain the generic instruction
+        assert "honest assessment" not in prompt
+
+    def test_with_criteria_instructs_visual_verification(self) -> None:
+        """Criteria prompt tells verifiers to render and READ files."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, SAMPLE_CRITERIA)
+        assert "render" in prompt.lower()
+        assert "READ the file" in prompt
+
+    def test_empty_string_criteria_treated_as_no_criteria(self) -> None:
+        """Empty string acceptance_criteria falls back to generic."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, "")
+        assert "honest assessment" in prompt
+        assert "Acceptance Criteria" not in prompt
+
+
+class TestVerifyDoneWithCriteria:
+    """Integration tests: acceptance_criteria flows into verification prompt."""
+
+    def test_criteria_in_verifier_prompt(self, tmp_project: Path) -> None:
+        """When criteria are provided, verifiers see the checklist."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            acceptance_criteria=SAMPLE_CRITERIA,
+        )
+        prompt = tester.session.prompts[0]
+        assert "Acceptance Criteria" in prompt
+        assert "Panel.on_draw()" in prompt
+        assert "PASS" in prompt and "FAIL" in prompt
+
+    def test_no_criteria_verifier_gets_generic(self, tmp_project: Path) -> None:
+        """Without criteria, verifiers get the old-style generic instructions."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        verify_done(GOAL, SUMMARY, team, tmp_project)
+        prompt = tester.session.prompts[0]
+        assert "honest assessment" in prompt
+        assert "Acceptance Criteria" not in prompt
+
+    def test_criteria_through_handle_done(self, tmp_project: Path) -> None:
+        """Criteria threaded from CycleConfig through handle_done to verify_done."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        config = CycleConfig(
+            verification="full",
+            acceptance_criteria=SAMPLE_CRITERIA,
+        )
+        handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=config,
+        )
+        prompt = tester.session.prompts[0]
+        assert "Acceptance Criteria" in prompt
+        assert "PNG rendering" in prompt
+
+    def test_criteria_still_gates_on_signal(self, tmp_project: Path) -> None:
+        """Even with criteria, _check_passed still requires ALL CHECKS PASS."""
+        tester = make_agent("Criterion 1: PASS\nCriterion 2: FAIL — no borders")
+        team = {"tester": tester}
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            acceptance_criteria=SAMPLE_CRITERIA,
+        )
+        assert result is not None
+        assert "DONE REJECTED" in result
+
+
+# --- Effort-level tests ---
+
+
+class TestEffortLevel:
+    """Tests for effort-level prompt supplements."""
+
+    def test_standard_effort_no_supplement(self) -> None:
+        """Standard effort adds nothing to orchestrator prompt."""
+        prompt = build_orchestrator_prompt(effort="standard")
+        assert prompt == ORCHESTRATOR_SYSTEM_PROMPT
+
+    def test_high_effort_adds_supplement(self) -> None:
+        """High effort appends quality standards to orchestrator prompt."""
+        prompt = build_orchestrator_prompt(effort="high")
+        assert prompt.startswith(ORCHESTRATOR_SYSTEM_PROMPT)
+        assert "Effort Level: HIGH" in prompt
+        assert "NOT sufficient" in prompt
+
+    def test_max_effort_adds_supplement(self) -> None:
+        """Max effort appends aggressive standards to orchestrator prompt."""
+        prompt = build_orchestrator_prompt(effort="max")
+        assert "Effort Level: MAX" in prompt
+        assert "comfort zone" in prompt
+
+    def test_high_effort_in_verification_prompt(self) -> None:
+        """High effort adds skepticism to verification prompt."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, effort="high")
+        assert "HIGH" in prompt
+        assert "actually good" in prompt
+
+    def test_max_effort_in_verification_prompt(self) -> None:
+        """Max effort adds demanding language to verification prompt."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, effort="max")
+        assert "MAX" in prompt
+        assert "skeptical" in prompt
+
+    def test_effort_combined_with_criteria(self) -> None:
+        """Effort supplement stacks with criteria-aware prompt."""
+        prompt = _build_verification_prompt(
+            GOAL, SUMMARY, SAMPLE_CRITERIA, effort="max",
+        )
+        assert "Acceptance Criteria" in prompt
+        assert "MAX" in prompt
+        assert "Panel.on_draw()" in prompt
+
+    def test_effort_threaded_through_handle_done(self, tmp_project: Path) -> None:
+        """Effort flows from CycleConfig through handle_done to verifier prompt."""
+        tester = make_agent("ALL CHECKS PASS")
+        team = {"tester": tester}
+        done_signal = DoneSignal()
+        config = CycleConfig(verification="full", effort="max")
+        handle_done(
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            config=config,
+        )
+        prompt = tester.session.prompts[0]
+        assert "MAX" in prompt
+
+    def test_standard_effort_no_verification_supplement(self) -> None:
+        """Standard effort adds no supplement to verification prompt."""
+        prompt_standard = _build_verification_prompt(GOAL, SUMMARY, effort="standard")
+        prompt_none = _build_verification_prompt(GOAL, SUMMARY)
+        assert prompt_standard == prompt_none
+
+    def test_low_effort_adds_supplement(self) -> None:
+        """Low effort appends simplicity guidance to orchestrator prompt."""
+        prompt = build_orchestrator_prompt(effort="low")
+        assert "Effort Level: LOW" in prompt
+        assert "simple" in prompt.lower()
+
+    def test_low_effort_no_verification_supplement(self) -> None:
+        """Low effort adds no extra verification scrutiny."""
+        prompt_low = _build_verification_prompt(GOAL, SUMMARY, effort="low")
+        prompt_standard = _build_verification_prompt(GOAL, SUMMARY, effort="standard")
+        assert prompt_low == prompt_standard

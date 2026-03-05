@@ -96,6 +96,28 @@ def _build_team_from_config(
         _fail(f"Invalid team config: {exc}")
 
 
+# Map kodo effort levels to Claude SDK effort parameter.
+# "standard" → None (don't override SDK default).
+_EFFORT_TO_SDK: dict[str, str | None] = {
+    "low": "low",
+    "standard": None,
+    "high": "high",
+    "max": "max",
+}
+
+
+def _apply_effort_to_team(team: dict, effort: str) -> None:
+    """Set effort on worker sessions that support it (currently Claude SDK)."""
+    sdk_effort = _EFFORT_TO_SDK.get(effort)
+    if sdk_effort is None:
+        return
+    from kodo.sessions.claude import ClaudeSession
+
+    for agent in team.values():
+        if isinstance(agent.session, ClaudeSession):
+            agent.session.effort = sdk_effort
+
+
 def _resolve_auto_commit(params: dict, project_dir: Path, quiet: bool = False) -> bool:
     """Resolve auto_commit, disabling it when project_dir has no .git root."""
     auto_commit = params.get("auto_commit", True)
@@ -275,6 +297,15 @@ def launch_run(
             team_config, team_preset, params["team"], project_dir,
         )
 
+        # Apply effort-level supplement to orchestrator system prompt
+        effort = params.get("effort", "standard")
+        if effort != "standard":
+            from kodo.prompts.roles import build_orchestrator_prompt
+            system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
+
+        # Propagate effort to worker sessions that support it (e.g. Claude SDK)
+        _apply_effort_to_team(team, effort)
+
         # Snapshot resolved team config for deterministic resume
         if team_config:
             _atomic_write(run_dir.team_file, json.dumps(team_config, indent=2))
@@ -314,6 +345,7 @@ def launch_run(
         print()
 
     auto_commit = _resolve_auto_commit(params, project_dir, quiet=json_mode)
+    effort = params.get("effort", "standard")
 
     result = orchestrator.run(
         goal_text,
@@ -324,6 +356,7 @@ def launch_run(
         plan=plan,
         verifiers=verifiers,
         auto_commit=auto_commit,
+        effort=effort,
     )
 
     if not json_mode:
@@ -461,6 +494,13 @@ def launch_resume(
         team_config, team_preset, params["team"], project_dir,
     )
 
+    # Apply effort-level adjustments (same as launch_run)
+    effort = params.get("effort", "standard")
+    if effort != "standard":
+        from kodo.prompts.roles import build_orchestrator_prompt
+        system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
+    _apply_effort_to_team(team, effort)
+
     orchestrator = build_orchestrator(
         params["orchestrator"],
         params["orchestrator_model"],
@@ -507,6 +547,7 @@ def launch_resume(
         print()
 
     auto_commit = _resolve_auto_commit(params, project_dir, quiet=_original_stdout is not None)
+    effort = params.get("effort", "standard")
 
     result = orchestrator.run(
         state.goal,
@@ -518,6 +559,7 @@ def launch_resume(
         plan=plan,
         verifiers=verifiers,
         auto_commit=auto_commit,
+        effort=effort,
     )
 
     total_cycles = state.completed_cycles + len(result.cycles)

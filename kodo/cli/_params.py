@@ -345,6 +345,11 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         auto_commit = False
     params["auto_commit"] = auto_commit
 
+    # Effort level: CLI flag > project config > "standard"
+    effort = getattr(args, "effort", None)
+    if effort:
+        params["effort"] = effort
+
     try:
         _save_config(project_dir, params)
     except PermissionError:

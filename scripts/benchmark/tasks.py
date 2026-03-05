@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass, field
 
 DATASET_PRO = "ScaleAI/SWE-bench_Pro"
+DATASET_VERIFIED = "princeton-nlp/SWE-bench_Verified"
 DATASET_LITE = "princeton-nlp/SWE-bench_Lite"
 
 

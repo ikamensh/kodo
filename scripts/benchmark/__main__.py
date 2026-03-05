@@ -28,7 +28,7 @@ def main() -> int:
     # Dataset and task selection
     parser.add_argument(
         "--dataset",
-        choices=["pro", "lite"],
+        choices=["pro", "verified", "lite"],
         default="pro",
         help="SWE-bench variant (default: pro)",
     )
@@ -127,11 +127,12 @@ def main() -> int:
     import json as _json
 
     from scripts.benchmark.runner import run_benchmark
-    from scripts.benchmark.tasks import DATASET_LITE, DATASET_PRO, load_tasks
+    from scripts.benchmark.tasks import DATASET_LITE, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
     # Resolve dataset and instance_ids from --subset if provided
     instance_ids = args.instance_ids
-    dataset = DATASET_PRO if args.dataset == "pro" else DATASET_LITE
+    _DATASET_MAP = {"pro": DATASET_PRO, "verified": DATASET_VERIFIED, "lite": DATASET_LITE}
+    dataset = _DATASET_MAP[args.dataset]
     if args.subset:
         subset_data = _json.loads(args.subset.read_text())
         instance_ids = subset_data["instance_ids"]

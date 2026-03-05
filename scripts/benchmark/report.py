@@ -15,7 +15,8 @@ def generate_report(workspace: Path, run_id: str) -> int:
     results = _load_jsonl(run_dir / "results.jsonl")
 
     lines: list[str] = []
-    lines.append("# SWE-bench Lite Benchmark Report")
+    dataset_label = meta.get("dataset", "").rsplit("/", 1)[-1] or "SWE-bench"
+    lines.append(f"# {dataset_label} Benchmark Report")
     lines.append(f"Run: {run_id}")
     lines.append(f"Tasks: {meta.get('task_count', '?')}")
     lines.append("")

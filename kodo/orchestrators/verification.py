@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING
 
 from kodo.agent import Agent
 from kodo.formatting import DIM as _DIM, RESET as _RESET, plural as _plural
-from kodo.prompts.roles import VERIFICATION_INSTRUCTIONS
+from kodo.prompts.roles import (
+    CRITERIA_VERIFICATION_INSTRUCTIONS,
+    VERIFICATION_INSTRUCTIONS,
+    get_verification_effort_supplement,
+)
 
 if TYPE_CHECKING:
     from kodo.orchestrators.base import (
@@ -107,6 +111,32 @@ def _run_quick_checks(
     return None
 
 
+def _build_verification_prompt(
+    goal: str,
+    summary: str,
+    acceptance_criteria: str | None = None,
+    effort: str = "standard",
+) -> str:
+    """Build the verification prompt, optionally with criteria checklist."""
+    parts = [
+        f"The orchestrator claims the following goal is complete:\n\n"
+        f"# Goal\n{goal}\n\n"
+        f"# Orchestrator's summary\n{summary}\n\n",
+    ]
+
+    if acceptance_criteria:
+        parts.append(CRITERIA_VERIFICATION_INSTRUCTIONS)
+        parts.append(f"## Acceptance Criteria\n{acceptance_criteria}\n")
+    else:
+        parts.append(VERIFICATION_INSTRUCTIONS)
+
+    effort_supplement = get_verification_effort_supplement(effort)
+    if effort_supplement:
+        parts.append(effort_supplement)
+
+    return "".join(parts)
+
+
 def verify_done(
     goal: str,
     summary: str,
@@ -116,6 +146,8 @@ def verify_done(
     state: VerificationState | None = None,
     browser_testing: bool = False,
     verifiers: dict | None = None,
+    acceptance_criteria: str | None = None,
+    effort: str = "standard",
 ) -> str | None:
     """Run tester + architect to verify the goal is met.
 
@@ -124,6 +156,11 @@ def verify_done(
     *verifiers*: optional dict with ``testers``, ``browser_testers``, ``reviewers``
     lists referencing agent keys in *team*.  When ``None``, falls back to legacy
     hardcoded key lookups (``"tester"``, ``"tester_browser"``, ``"architect"``).
+    *acceptance_criteria*: when provided, the verification prompt enumerates
+    criteria and requires per-criterion PASS/FAIL verdicts instead of the
+    generic "honest assessment" instructions.
+    *effort*: effort level ("standard", "high", "max") — higher levels add
+    skepticism and thoroughness to the verification prompt.
     """
     from kodo import log
 
@@ -135,10 +172,8 @@ def verify_done(
     reset_session = attempt == 1
 
     issues = []
-    verification_prompt = (
-        f"The orchestrator claims the following goal is complete:\n\n"
-        f"# Goal\n{goal}\n\n"
-        f"# Orchestrator's summary\n{summary}\n\n"
+    verification_prompt = _build_verification_prompt(
+        goal, summary, acceptance_criteria, effort=effort,
     )
 
     # Resolve which agents to use for each verifier role
@@ -168,7 +203,7 @@ def verify_done(
                 f"[done] running {tester_name} verification (attempt {attempt})...",
             )
             tester_result = tester_agent.run(
-                verification_prompt + VERIFICATION_INSTRUCTIONS,
+                verification_prompt,
                 project_dir,
                 new_conversation=reset_session,
                 agent_name=f"{tester_name}_verification",
@@ -195,7 +230,7 @@ def verify_done(
                 f"[done] running {reviewer_key} verification (attempt {attempt})...",
             )
             reviewer_result = reviewer_agent.run(
-                verification_prompt + VERIFICATION_INSTRUCTIONS,
+                verification_prompt,
                 project_dir,
                 new_conversation=reset_session,
                 agent_name=f"{reviewer_key}_verification",
@@ -236,7 +271,7 @@ def verify_done(
                     f"[done] running {verifier_name} as verifier (fresh session)...",
                 )
                 verify_result = verifier.run(
-                    verification_prompt + VERIFICATION_INSTRUCTIONS,
+                    verification_prompt,
                     project_dir,
                     new_conversation=True,
                     agent_name=f"{verifier_name}_verification",
@@ -320,6 +355,8 @@ def handle_done(
             state=verification_state,
             browser_testing=config.browser_testing,
             verifiers=config.verifiers,
+            acceptance_criteria=config.acceptance_criteria,
+            effort=config.effort,
         )
 
     if rejection:

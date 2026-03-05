@@ -35,6 +35,7 @@ class ClaudeSession:
         use_api_key: bool = False,
         resume_session_id: str | None = None,
         session_timeout_s: int | None = None,
+        effort: str | None = None,
     ):
         self.model = model
         self.system_prompt = system_prompt
@@ -43,6 +44,7 @@ class ClaudeSession:
         self.use_api_key = use_api_key
         self.resume_session_id = resume_session_id
         self._session_timeout_s = session_timeout_s
+        self.effort = effort  # "low" | "standard" | "high" | "max" | None
         self._client = None
         self._project_dir: Path | None = None
         self._session_id: str | None = None
@@ -178,6 +180,7 @@ class ClaudeSession:
                 can_use_tool=self._can_use_tool,
                 **({"resume": resume_id} if resume_id else {}),
                 **({"system_prompt": self.system_prompt} if self.system_prompt else {}),
+                **({"effort": self.effort} if self.effort else {}),
             )
             self._client = ClaudeSDKClient(options=options)
 
@@ -208,6 +211,7 @@ class ClaudeSession:
             fallback_model=self.fallback_model,
             use_api_key=self.use_api_key,
             session_timeout_s=self._session_timeout_s,
+            effort=self.effort,
         )
 
     def _get_subprocess_pid(self) -> int | None:

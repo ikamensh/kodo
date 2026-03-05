@@ -78,6 +78,7 @@ def _fake_build_orchestrator(*args, **kwargs):
         plan=None,
         verifiers=None,
         auto_commit=True,
+        effort="standard",
     ):
         log.emit(
             "run_start",

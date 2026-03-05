@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.149"
+__version__ = "0.4.150"
 
 from kodo import log
 from kodo.agent import Agent, AgentResult
@@ -30,6 +30,7 @@ def make_session(
     fallback_model: str | None = None,
     use_api_key: bool = False,
     session_timeout_s: int = 7200,
+    effort: str | None = None,
 ) -> Session:
     """Create a worker session for the given backend.
 
@@ -70,6 +71,7 @@ def make_session(
         fallback_model=fallback_model,
         use_api_key=use_api_key,
         session_timeout_s=session_timeout_s,
+        effort=effort,
     )
 
 

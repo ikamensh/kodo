@@ -170,6 +170,14 @@ def _main_inner() -> None:
         help="Skip all confirmation prompts.",
     )
     parser.add_argument(
+        "--effort",
+        type=str,
+        default=None,
+        choices=["low", "standard", "high", "max"],
+        help="Effort level: low (simple tasks), standard (default), "
+        "high (thorough verification), max (aggressive iteration).",
+    )
+    parser.add_argument(
         "--no-auto-commit",
         action="store_true",
         default=False,

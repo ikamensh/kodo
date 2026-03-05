@@ -82,6 +82,8 @@ class CycleConfig:
     auto_commit: bool = False
     verification: Literal["full", "skip"] | list[QuickCheck] = "full"
     done_mode: DoneMode = "new"
+    acceptance_criteria: str | None = None
+    effort: str = "standard"  # "low" | "standard" | "high" | "max"
 
 
 @dataclass
@@ -469,6 +471,7 @@ class Orchestrator(Protocol):
         plan: GoalPlan | None = None,
         verifiers: dict | None = None,
         auto_commit: bool = False,
+        effort: str = "standard",
     ) -> RunResult:
         """Run multiple cycles until done or limit reached."""
         ...
@@ -555,6 +558,7 @@ class OrchestratorBase:
         plan: GoalPlan | None = None,
         verifiers: dict | None = None,
         auto_commit: bool = False,
+        effort: str = "standard",
     ) -> RunResult:
         from kodo import log
         from kodo.sessions.claude import ClaudeSession
@@ -602,7 +606,7 @@ class OrchestratorBase:
             num_stages=len(plan.stages) if plan else 0,
         )
         result = RunResult()
-        run_config = CycleConfig(verifiers=verifiers, auto_commit=auto_commit)
+        run_config = CycleConfig(verifiers=verifiers, auto_commit=auto_commit, effort=effort)
 
         try:
             if plan and not plan.stages:
@@ -766,6 +770,8 @@ class OrchestratorBase:
                 verifiers=config.verifiers,
                 auto_commit=config.auto_commit,
                 verification=stage.verification,
+                acceptance_criteria=stage.acceptance_criteria or None,
+                effort=config.effort,
             )
             cycle_result = self.cycle(
                 stage_goal,
