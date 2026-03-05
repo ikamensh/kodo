@@ -7,9 +7,10 @@ system prompts tailored to the specific knowledge task.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
 
 from pydantic_ai import Agent as PydanticAgent
+
+from kodo.utils import strip_markdown_fences
 
 from kodo.knowledge.models import (
     AgentRole,
@@ -20,9 +21,6 @@ from kodo.knowledge.models import (
     _EFFORT_DEFAULTS,
 )
 from kodo.knowledge.prompts import TEAM_DESIGNER_PROMPT
-
-if TYPE_CHECKING:
-    pass
 
 
 def design_team(
@@ -71,14 +69,7 @@ def design_team(
 
 def _parse_team_design(raw: str) -> TeamDesign:
     """Parse the LLM's JSON response into a TeamDesign."""
-    # Strip markdown code fences if present
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        # Remove first and last fence lines
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
-
+    text = strip_markdown_fences(raw)
     data = json.loads(text)
 
     roles = [

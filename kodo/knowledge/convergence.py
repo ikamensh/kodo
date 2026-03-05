@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-import threading
 
 from pydantic_ai import Agent
 
 from kodo.knowledge.prompts import CONVERGENCE_ASSESSOR_PROMPT
+from kodo.models import make_fresh_model
+from kodo.utils import run_in_thread, strip_markdown_fences
 
 
 def assess(
@@ -44,33 +44,17 @@ def assess(
         round_number=round_number,
     )
 
-    result_holder: list = []
-    error_holder: list = []
+    def _run():
+        fresh_model = make_fresh_model(model)
+        agent = Agent(fresh_model, system_prompt="You are a convergence assessor. Respond only with valid JSON.")
+        return agent.run_sync(prompt)
 
-    def _run() -> None:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            from kodo.knowledge.sessions import _make_fresh_model
-            fresh_model = _make_fresh_model(model)
-            agent = Agent(fresh_model, system_prompt="You are a convergence assessor. Respond only with valid JSON.")
-            result = loop.run_until_complete(agent.run(prompt))
-            result_holder.append(result)
-        except BaseException as exc:
-            error_holder.append(exc)
-        finally:
-            loop.close()
+    try:
+        result = run_in_thread(_run, timeout=120)
+    except Exception as exc:
+        return _fallback(f"Assessment error: {exc}")
 
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    thread.join(timeout=120)
-
-    if error_holder:
-        return _fallback(f"Assessment error: {error_holder[0]}")
-    if not result_holder:
-        return _fallback("Assessment timed out")
-
-    return _parse_assessment(result_holder[0].output)
+    return _parse_assessment(result.output)
 
 
 def _fallback(reason: str) -> dict:
@@ -86,11 +70,7 @@ def _fallback(reason: str) -> dict:
 
 def _parse_assessment(raw: str) -> dict:
     """Parse the LLM's convergence assessment."""
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
+    text = strip_markdown_fences(raw)
 
     try:
         data = json.loads(text)

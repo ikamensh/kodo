@@ -30,8 +30,7 @@ from kodo.knowledge.tools import build_knowledge_tools
 from kodo.orchestrators.base import DoneSignal, apply_done_signal, CycleResult
 from kodo.summarizer import Summarizer
 
-# Reuse the model maps and pricing from the API orchestrator
-from kodo.orchestrators.api import _MODEL_PRICING, _PYDANTIC_MODEL_MAP
+from kodo.models import MODEL_PRICING, PYDANTIC_MODEL_MAP
 
 
 class KnowledgeOrchestrator:
@@ -45,9 +44,9 @@ class KnowledgeOrchestrator:
         max_context_tokens: int = 100_000,
     ):
         self.model = model
-        self._pydantic_model = _PYDANTIC_MODEL_MAP.get(model, model)
+        self._pydantic_model = PYDANTIC_MODEL_MAP.get(model, model)
         # Designer can be cheap — it just picks team structure
-        self._designer_model = _PYDANTIC_MODEL_MAP.get(
+        self._designer_model = PYDANTIC_MODEL_MAP.get(
             designer_model or model,
             designer_model or self._pydantic_model,
         )
@@ -389,7 +388,7 @@ class KnowledgeOrchestrator:
         # Extract cost
         if run_result is not None:
             usage = run_result.usage()
-            price_in, price_out = _MODEL_PRICING.get(self.model, (0, 0))
+            price_in, price_out = MODEL_PRICING.get(self.model, (0, 0))
             result.total_cost_usd = (
                 usage.input_tokens * price_in + usage.output_tokens * price_out
             ) / 1_000_000

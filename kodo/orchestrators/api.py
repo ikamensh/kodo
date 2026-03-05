@@ -21,10 +21,8 @@ from pydantic_ai_summarization import create_summarization_processor
 from kodo import log
 from kodo.models import (
     CLAUDE_OPUS_FULL,
-    CLAUDE_SONNET_FULL,
-    GEMINI_API_FLASH,
-    GEMINI_API_PRO,
-    GEMINI_API_PRO_V3,
+    MODEL_PRICING,
+    PYDANTIC_MODEL_MAP,
 )
 from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
@@ -41,23 +39,9 @@ from kodo.orchestrators.tools import build_pydantic_tools
 from kodo.orchestrators.verification import VerificationState
 from kodo.summarizer import Summarizer
 
-# Per-1M-token pricing: (input, output)
-_MODEL_PRICING: dict[str, tuple[float, float]] = {
-    CLAUDE_OPUS_FULL: (5, 25),
-    CLAUDE_SONNET_FULL: (3, 15),
-    GEMINI_API_PRO: (2.0, 12.0),
-    GEMINI_API_PRO_V3: (2.0, 12.0),
-    GEMINI_API_FLASH: (0.50, 3.0),
-}
-
-# Map our model IDs to pydantic-ai model strings (provider:model).
-_PYDANTIC_MODEL_MAP: dict[str, str] = {
-    CLAUDE_OPUS_FULL: f"anthropic:{CLAUDE_OPUS_FULL}",
-    CLAUDE_SONNET_FULL: f"anthropic:{CLAUDE_SONNET_FULL}",
-    GEMINI_API_PRO: f"google-gla:{GEMINI_API_PRO}",
-    GEMINI_API_PRO_V3: f"google-gla:{GEMINI_API_PRO_V3}",
-    GEMINI_API_FLASH: f"google-gla:{GEMINI_API_FLASH}",
-}
+# Backwards-compatible aliases for any external importers
+_MODEL_PRICING = MODEL_PRICING
+_PYDANTIC_MODEL_MAP = PYDANTIC_MODEL_MAP
 
 
 def _messages_to_text(messages: list) -> str:
@@ -95,10 +79,10 @@ class ApiOrchestrator(OrchestratorBase):
         self._orchestrator_name = "api"
         self.max_context_tokens = max_context_tokens
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
-        self._pydantic_model = _PYDANTIC_MODEL_MAP.get(model, model)
+        self._pydantic_model = PYDANTIC_MODEL_MAP.get(model, model)
         self._fallback_model = fallback_model
         self._fallback_pydantic = (
-            _PYDANTIC_MODEL_MAP.get(fallback_model, fallback_model)
+            PYDANTIC_MODEL_MAP.get(fallback_model, fallback_model)
             if fallback_model
             else None
         )
@@ -115,7 +99,7 @@ class ApiOrchestrator(OrchestratorBase):
         explicit ``Model`` instance with its own HTTP client, bypassing the
         cache entirely.
         """
-        from pydantic_ai.models import infer_model
+        from kodo.models import make_fresh_model
 
         copy = ApiOrchestrator(
             model=self.model,
@@ -123,24 +107,12 @@ class ApiOrchestrator(OrchestratorBase):
             system_prompt=self._system_prompt,
             fallback_model=self._fallback_model,
         )
-        # Replace the model string with an explicit Model instance that owns
-        # its own httpx.AsyncClient (no shared cache).
-        base_model = infer_model(self._pydantic_model)
-        if hasattr(base_model, "client"):
-            # Google/Gemini models — recreate with a fresh HTTP client
-            from pydantic_ai.providers.google import GoogleProvider
-
-            http_client = httpx.AsyncClient(timeout=60.0)
-            copy._http_client = http_client
-            provider = GoogleProvider(http_client=http_client)
-            type_of_model = type(base_model)
-            copy._pydantic_model = type_of_model(
-                base_model._model_name, provider=provider,
-            )
+        pydantic_model_str = self._pydantic_model
+        if isinstance(pydantic_model_str, str):
+            copy._pydantic_model = make_fresh_model(pydantic_model_str)
         else:
-            # Anthropic/other models — infer_model already creates a new
-            # instance; the cache issue is specific to Google providers.
-            copy._pydantic_model = base_model
+            # Already a Model instance — just use it directly
+            copy._pydantic_model = pydantic_model_str
         return copy
 
     async def close(self) -> None:
@@ -306,7 +278,7 @@ class ApiOrchestrator(OrchestratorBase):
 
         if run_result is not None:
             usage = run_result.usage()
-            price_in, price_out = _MODEL_PRICING.get(self.model, (0, 0))
+            price_in, price_out = MODEL_PRICING.get(self.model, (0, 0))
             result.total_cost_usd = (
                 usage.input_tokens * price_in + usage.output_tokens * price_out
             ) / 1_000_000
