@@ -327,6 +327,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         if key_err:
             _fail(key_err)
 
+    cycles_explicit = bool(args.cycles and args.cycles > 0)
     params = {
         "team": team_name,
         "orchestrator": orchestrator,
@@ -335,7 +336,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         if args.exchanges and args.exchanges > 0
         else team_preset.default_max_exchanges,
         "max_cycles": args.cycles
-        if args.cycles and args.cycles > 0
+        if cycles_explicit
         else team_preset.default_max_cycles,
     }
 

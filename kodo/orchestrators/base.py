@@ -345,6 +345,22 @@ def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") ->
     return prompt
 
 
+def _handle_stage_crash(stage: GoalStage, exc: Exception) -> StageResult:
+    """Log and wrap a stage crash into a StageResult."""
+    from kodo import log
+
+    log.tprint(
+        f"[orchestrator] Stage {stage.index} "
+        f"({stage.name}) crashed: {exc}",
+    )
+    log.emit("stage_error", stage_index=stage.index, error=str(exc))
+    return StageResult(
+        stage_index=stage.index,
+        stage_name=stage.name,
+        summary=f"Stage crashed: {exc}",
+    )
+
+
 def compose_stage_goal(
     plan: GoalPlan,
     stage_index: int,
@@ -472,6 +488,7 @@ class Orchestrator(Protocol):
         verifiers: dict | None = None,
         auto_commit: bool = False,
         effort: str = "standard",
+        advisor: "Advisor | None" = None,
     ) -> RunResult:
         """Run multiple cycles until done or limit reached."""
         ...
@@ -559,6 +576,7 @@ class OrchestratorBase:
         verifiers: dict | None = None,
         auto_commit: bool = False,
         effort: str = "standard",
+        advisor: "Advisor | None" = None,
     ) -> RunResult:
         from kodo import log
         from kodo.sessions.claude import ClaudeSession
@@ -626,6 +644,7 @@ class OrchestratorBase:
                     max_cycles=max_cycles,
                     resume=resume,
                     config=run_config,
+                    advisor=advisor,
                 )
             else:
                 self._run_single(
@@ -821,6 +840,86 @@ class OrchestratorBase:
 
         return stage_res
 
+    def _run_adaptive(
+        self,
+        goal: str,
+        project_dir: Path,
+        team: TeamConfig,
+        plan: GoalPlan,
+        result: RunResult,
+        *,
+        stage_summaries: list[str],
+        max_exchanges: int,
+        remaining_cycles: int,
+        start_stage_idx: int,
+        config: CycleConfig,
+        advisor: "Advisor",
+    ) -> None:
+        """Adaptive execution: advisor generates stages one at a time."""
+        from kodo import log
+
+        # Use a separate plan for compose_stage_goal — only advisor-generated stages
+        adaptive_plan = GoalPlan(context=plan.context, stages=[])
+        completed_count = start_stage_idx
+        next_index = completed_count + 1
+
+        while remaining_cycles > 0 and completed_count < advisor.max_stages:
+            decision = advisor.assess(
+                goal, plan, stage_summaries, completed_count,
+            )
+
+            if decision.action == "done":
+                log.tprint(
+                    f"[advisor] Goal complete after "
+                    f"{_plural(completed_count, 'stage')}: {decision.summary}",
+                )
+                log.emit(
+                    "advisor_done",
+                    completed_stages=completed_count,
+                    summary=decision.summary,
+                )
+                # Mark run as finished
+                if result.stage_results:
+                    result.stage_results[-1].finished = True
+                break
+
+            stage = advisor.make_stage(decision, next_index)
+            adaptive_plan.stages.append(stage)
+
+            log.tprint(f"[advisor] Next: Stage {next_index} — {stage.name}")
+
+            try:
+                stage_res = self._run_one_stage(
+                    stage,
+                    adaptive_plan,
+                    project_dir,
+                    team,
+                    stage_summaries,
+                    max_exchanges=max_exchanges,
+                    max_cycles_for_stage=remaining_cycles,
+                    config=config,
+                )
+            except Exception as exc:
+                stage_res = _handle_stage_crash(stage, exc)
+
+            remaining_cycles -= len(stage_res.cycles)
+            result.cycles.extend(stage_res.cycles)
+            result.stage_results.append(stage_res)
+
+            if stage_res.finished:
+                stage_summaries.append(stage_res.summary)
+                completed_count += 1
+                next_index += 1
+            else:
+                log.tprint("[orchestrator] Stopping run — stage did not complete")
+                break
+
+        if completed_count >= advisor.max_stages:
+            log.tprint(
+                f"[advisor] Safety limit reached ({advisor.max_stages} stages)",
+            )
+            log.emit("advisor_safety_limit", max_stages=advisor.max_stages)
+
     def _run_staged(
         self,
         goal: str,
@@ -833,8 +932,13 @@ class OrchestratorBase:
         max_cycles: int,
         resume: ResumeState | None = None,
         config: CycleConfig,
+        advisor: "Advisor | None" = None,
     ) -> None:
         """Staged execution: iterate over plan stages with a shared cycle limit.
+
+        When *advisor* is provided, uses adaptive planning: the advisor
+        decides the next stage after each completion. When ``None``, falls
+        back to the original waterfall execution.
 
         Supports parallel execution: stages with the same ``parallel_group``
         run concurrently via ThreadPoolExecutor.  Each parallel stage runs in
@@ -854,6 +958,26 @@ class OrchestratorBase:
             start_stage_idx = len(resume.completed_stages)
             stage_summaries = list(resume.stage_summaries)
 
+        remaining_cycles = max_cycles - (resume.completed_cycles if resume else 0)
+
+        # === ADAPTIVE MODE ===
+        if advisor is not None:
+            self._run_adaptive(
+                goal,
+                project_dir,
+                team,
+                plan,
+                result,
+                stage_summaries=stage_summaries,
+                max_exchanges=max_exchanges,
+                remaining_cycles=remaining_cycles,
+                start_stage_idx=start_stage_idx,
+                config=config,
+                advisor=advisor,
+            )
+            return
+
+        # === WATERFALL MODE ===
         # Build execution groups, then skip already-completed ones.
         # Each group is [stage] (sequential) or [stage, stage, ...] (parallel).
         groups = execution_groups(plan)
@@ -864,9 +988,6 @@ class OrchestratorBase:
             max_idx = max(s.index for s in group)
             if max_idx > start_stage_idx:
                 remaining_groups.append(group)
-
-        # Divide remaining cycles across remaining groups
-        remaining_cycles = max_cycles - (resume.completed_cycles if resume else 0)
 
         for group in remaining_groups:
             if remaining_cycles <= 0:
@@ -903,20 +1024,7 @@ class OrchestratorBase:
                         config=config,
                     )
                 except Exception as exc:
-                    log.tprint(
-                        f"[orchestrator] Stage {stage.index} "
-                        f"({stage.name}) crashed: {exc}",
-                    )
-                    log.emit(
-                        "stage_error",
-                        stage_index=stage.index,
-                        error=str(exc),
-                    )
-                    stage_res = StageResult(
-                        stage_index=stage.index,
-                        stage_name=stage.name,
-                        summary=f"Stage crashed: {exc}",
-                    )
+                    stage_res = _handle_stage_crash(stage, exc)
 
                 remaining_cycles -= len(stage_res.cycles)
                 result.cycles.extend(stage_res.cycles)
@@ -1129,20 +1237,7 @@ class OrchestratorBase:
                     try:
                         stage_res = future.result()
                     except Exception as exc:
-                        log.tprint(
-                            f"[orchestrator] Stage {stage.index} "
-                            f"({stage.name}) crashed: {exc}",
-                        )
-                        log.emit(
-                            "stage_error",
-                            stage_index=stage.index,
-                            error=str(exc),
-                        )
-                        stage_res = StageResult(
-                            stage_index=stage.index,
-                            stage_name=stage.name,
-                            summary=f"Stage crashed: {exc}",
-                        )
+                        stage_res = _handle_stage_crash(stage, exc)
                     parallel_results.append(stage_res)
                     result.cycles.extend(stage_res.cycles)
                     result.stage_results.append(stage_res)

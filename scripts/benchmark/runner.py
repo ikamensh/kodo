@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -188,6 +189,9 @@ def _run_single_task(
 
 # ── Repo Management ──────────────────────────────────────────────────────
 
+_clone_locks: dict[str, threading.Lock] = {}
+_clone_locks_lock = threading.Lock()
+
 
 def _prepare_repo(task: SWETask, workspace: Path, arm: str) -> Path:
     """Bare-clone cache + shared clone per task/arm."""
@@ -197,20 +201,27 @@ def _prepare_repo(task: SWETask, workspace: Path, arm: str) -> Path:
     repo_slug = task.repo.replace("/", "__")
     bare_path = cache_dir / f"{repo_slug}.git"
 
-    if not bare_path.exists():
-        print(f"  Cloning {task.repo} (bare)...")
-        subprocess.run(
-            [
-                "git",
-                "clone",
-                "--bare",
-                f"https://github.com/{task.repo}.git",
-                str(bare_path),
-            ],
-            check=True,
-            capture_output=True,
-            timeout=600,
-        )
+    # Serialize bare clones per repo to avoid parallel race conditions
+    with _clone_locks_lock:
+        if repo_slug not in _clone_locks:
+            _clone_locks[repo_slug] = threading.Lock()
+        repo_lock = _clone_locks[repo_slug]
+
+    with repo_lock:
+        if not bare_path.exists():
+            print(f"  Cloning {task.repo} (bare)...")
+            subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--bare",
+                    f"https://github.com/{task.repo}.git",
+                    str(bare_path),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=600,
+            )
 
     work_dir = workspace / WORK_DIR / task.instance_id / arm
     if work_dir.exists():
@@ -453,6 +464,9 @@ def _seed_from_prior_runs(
             except (json.JSONDecodeError, KeyError):
                 continue
             if key not in needed or key in seeded:
+                continue
+            # Skip error/timeout results so they get retried
+            if entry.get("status") in ("error", "timeout"):
                 continue
             # Copy result and prediction into current run
             _append_result_raw(run_dir, line)

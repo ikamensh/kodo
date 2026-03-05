@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import NoReturn
 
@@ -127,6 +128,28 @@ def _resolve_auto_commit(params: dict, project_dir: Path, quiet: bool = False) -
             print("  ℹ  Auto-commit disabled (no .git in project directory)")
         log.emit("auto_commit_disabled", reason="no_git_root")
     return auto_commit
+
+
+def _build_advisor(params: dict):
+    """Create an Advisor for adaptive planning, or None if no API key."""
+    import os
+
+    from kodo.models import GEMINI_API_FLASH
+    from kodo.orchestrators.api import _PYDANTIC_MODEL_MAP
+
+    # Prefer Gemini Flash (cheapest)
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        advisor_model = f"google-gla:{GEMINI_API_FLASH}"
+    elif os.environ.get("ANTHROPIC_API_KEY"):
+        # Fall back to orchestrator model
+        orch_model = params.get("orchestrator_model", "")
+        advisor_model = _PYDANTIC_MODEL_MAP.get(orch_model, orch_model)
+    else:
+        return None
+
+    from kodo.orchestrators.advisor import Advisor
+
+    return Advisor(model=advisor_model)
 
 
 # Will be set to the real stdout when --json redirects sys.stdout to stderr.
@@ -347,6 +370,14 @@ def launch_run(
     auto_commit = _resolve_auto_commit(params, project_dir, quiet=json_mode)
     effort = params.get("effort", "standard")
 
+    # Create advisor for adaptive planning when plan has stages
+    advisor = None
+    if plan and plan.stages and not debug:
+        advisor = _build_advisor(params)
+        # Adaptive mode: bump cycle cap if user didn't explicitly set --cycles
+        if advisor and max_cycles == team_preset.default_max_cycles:
+            max_cycles = max(max_cycles, 50)
+
     result = orchestrator.run(
         goal_text,
         project_dir,
@@ -357,29 +388,47 @@ def launch_run(
         verifiers=verifiers,
         auto_commit=auto_commit,
         effort=effort,
+        advisor=advisor,
     )
 
     if not json_mode:
-        print(f"\n{'=' * 50}")
-        if result.stage_results:
-            completed = sum(1 for sr in result.stage_results if sr.finished)
-            print(
-                f"Done: {completed}/{_plural(len(result.stage_results), 'stage')} completed, "
-                f"{_plural(len(result.cycles), 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, "
-                f"${result.total_cost_usd:.4f}",
-            )
-        else:
-            print(
-                f"Done: {_plural(len(result.cycles), 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, ${result.total_cost_usd:.4f}",
-            )
-        if result.summary:
-            print(f"  {result.summary[:300]}")
+        log.print_stats_table(final=True)
+        _print_run_summary(result)
 
     # Debug mode: print token flow summary
     if debug and debug_sessions is not None:
         _print_debug_summary(orchestrator, debug_sessions)
 
     return result
+
+
+def _print_run_summary(result: RunResult, total_cycles: int | None = None) -> None:
+    """Print end-of-run summary with stages and wall-clock time."""
+    cycles = total_cycles if total_cycles is not None else len(result.cycles)
+    elapsed = log._fmt_time(time.monotonic() - (log._start_time or time.monotonic()))
+
+    print(f"{'=' * 50}")
+    if result.stage_results:
+        completed = sum(1 for sr in result.stage_results if sr.finished)
+        print(
+            f"Done: {completed}/{_plural(len(result.stage_results), 'stage')} completed, "
+            f"{_plural(cycles, 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, "
+            f"${result.total_cost_usd:.4f}, {elapsed}",
+        )
+        for sr in result.stage_results:
+            mark = "+" if sr.finished else "-"
+            label = f"  {mark} Stage {sr.stage_index}: {sr.stage_name}"
+            if sr.summary:
+                label += f" — {sr.summary[:120]}"
+            print(label)
+    else:
+        print(
+            f"Done: {_plural(cycles, 'cycle')}, {_plural(result.total_exchanges, 'exchange')}, "
+            f"${result.total_cost_usd:.4f}, {elapsed}",
+        )
+
+    if result.summary:
+        print(f"  {result.summary[:300]}")
 
 
 def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
@@ -549,6 +598,13 @@ def launch_resume(
     auto_commit = _resolve_auto_commit(params, project_dir, quiet=_original_stdout is not None)
     effort = params.get("effort", "standard")
 
+    # Create fresh advisor for adaptive planning on resume
+    advisor = None
+    if plan and plan.stages:
+        advisor = _build_advisor(params)
+        if advisor and max_cycles == team_preset.default_max_cycles:
+            max_cycles = max(max_cycles, 50)
+
     result = orchestrator.run(
         state.goal,
         Path(state.project_dir),
@@ -560,16 +616,12 @@ def launch_resume(
         verifiers=verifiers,
         auto_commit=auto_commit,
         effort=effort,
+        advisor=advisor,
     )
 
-    total_cycles = state.completed_cycles + len(result.cycles)
     if _original_stdout is None:
-        print(f"\n{'=' * 50}")
-        print(
-            f"Done: {_plural(total_cycles, 'total cycle')}, {_plural(result.total_exchanges, 'exchange')} (this session), "
-            f"${result.total_cost_usd:.4f}",
-        )
-        if result.summary:
-            print(f"  {result.summary[:300]}")
+        log.print_stats_table(final=True)
+        total_cycles = state.completed_cycles + len(result.cycles)
+        _print_run_summary(result, total_cycles=total_cycles)
 
     return result

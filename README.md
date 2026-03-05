@@ -174,6 +174,7 @@ Configuration:
   --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
 
 Behavior:
+  --effort LEVEL            low | standard (default) | high | max
   --skip-intake             Skip AI goal refinement
   --auto-refine             Auto-refine goal (no human input, for overnight runs)
   --yes, -y                 Skip confirmation prompts
@@ -208,6 +209,22 @@ kodo teams edit my-team       # edit an existing team
  ├── ⚡ worker_fast       Quick tasks, iterations (Cursor, Codex, or Gemini CLI)
  ├── 🧪 tester           Run tests, verify behavior
  └── 🌐 tester_browser   Browser-based UI testing
+```
+
+### Effort levels
+
+Control how hard agents work and how strict verification is:
+
+| Level | Orchestrator behavior | Verification | Claude workers |
+|-------|----------------------|-------------|----------------|
+| `low` | Do exactly what's asked, don't over-engineer | Basic — tests passing is sufficient | `--effort low` |
+| `standard` | Default behavior | Default | SDK default |
+| `high` | Push agents to iterate, reject mediocre results | Thorough — verify each criterion with evidence | `--effort high` |
+| `max` | Tackle hardest parts first, iterate aggressively | Skeptical — reject technically correct but mediocre work | `--effort max` |
+
+Set via CLI (`--effort max`) or project config (`.kodo/config.json`):
+```json
+{ "effort": "max" }
 ```
 
 **Key concepts:**
