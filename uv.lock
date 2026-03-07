@@ -165,7 +165,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.81.0"
+version = "0.84.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -177,9 +177,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/c2/d2bb9b3c82c386abf3b2c32ae0452a8dcb89ed2809d875e1420bea22e318/anthropic-0.81.0.tar.gz", hash = "sha256:bab2d4e45c2e81a0668fdc2da2f7fd665ed8a0295ba3c86450f9dcc3a7804524", size = 532935 }
+sdist = { url = "https://files.pythonhosted.org/packages/04/ea/0869d6df9ef83dcf393aeefc12dd81677d091c6ffc86f783e51cf44062f2/anthropic-0.84.0.tar.gz", hash = "sha256:72f5f90e5aebe62dca316cb013629cfa24996b0f5a4593b8c3d712bc03c43c37", size = 539457 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/27/a18e1613da66b3c9c7565c92457a60de15e824a6dd2ed9bce0fbfe615ded/anthropic-0.81.0-py3-none-any.whl", hash = "sha256:ac54407e9a1f9b35e6e6c86f75bf403f0e54d60944f99f15f685a38d6829f20b", size = 455627 },
+    { url = "https://files.pythonhosted.org/packages/64/ca/218fa25002a332c0aa149ba18ffc0543175998b1f65de63f6d106689a345/anthropic-0.84.0-py3-none-any.whl", hash = "sha256:861c4c50f91ca45f942e091d83b60530ad6d4f98733bfe648065364da05d29e7", size = 455156 },
 ]
 
 [[package]]
@@ -1659,7 +1659,7 @@ wheels = [
 
 [[package]]
 name = "kodo"
-version = "0.4.154"
+version = "0.4.167"
 source = { editable = "." }
 dependencies = [
     { name = "claude-agent-sdk" },
@@ -3595,14 +3595,14 @@ wheels = [
 
 [[package]]
 name = "summarization-pydantic-ai"
-version = "0.0.3"
+version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic-ai-slim" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/af/be/24a880b1c10558644cadd7b0116d77110ab17bfca0bdedffd36f8c360a21/summarization_pydantic_ai-0.0.3.tar.gz", hash = "sha256:1855c5ed551ef1418cca9e6ca2abcf307b388ef5c579324908d5bd14cb45ea0d", size = 266452 }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/0a/cddb9e6e1a3d0a17e19448b69a8a0b312ef5e78362c1944b788adbeb7748/summarization_pydantic_ai-0.0.4.tar.gz", hash = "sha256:2c27c53d8b0ca85f75a6e2da6bf302d326245cc1b76090ff489fc8ca0f20859e", size = 281429 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/47/7398576ff9f0df8a0ff8a986f3900c3924850fc2e3d3f6163045154fe5d1/summarization_pydantic_ai-0.0.3-py3-none-any.whl", hash = "sha256:765511706da58fb957a059528dd2723f624ff2c5f88ce84d579abecad5e54254", size = 20896 },
+    { url = "https://files.pythonhosted.org/packages/e8/cd/126baf08ded3843cc5e726e4707aa32e529623bb76afd97d700bcf7b4e1f/summarization_pydantic_ai-0.0.4-py3-none-any.whl", hash = "sha256:f7d7c040d132edcf2e788c0815263a53f5728bf8950a3baf24b57ba19d8bd84d", size = 24590 },
 ]
 
 [[package]]
