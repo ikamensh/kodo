@@ -688,3 +688,393 @@ class TestEffortLevel:
         prompt_low = _build_verification_prompt(GOAL, SUMMARY, effort="low")
         prompt_standard = _build_verification_prompt(GOAL, SUMMARY, effort="standard")
         assert prompt_low == prompt_standard
+
+
+# --- _check_passed edge cases ---
+
+
+class TestCheckPassedEdgeCases:
+    """Test the _check_passed regex logic with tricky inputs."""
+
+    def test_signal_in_fenced_code_rejected(self) -> None:
+        """Signal inside fenced code blocks should be ignored."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = """
+        Tests are failing. Here's the expected output:
+        ```
+        ALL CHECKS PASS
+        ```
+        But actual output shows errors.
+        """
+        assert _check_passed(report) is False
+
+    def test_signal_in_inline_code_rejected(self) -> None:
+        """Signal inside inline code ticks should be ignored."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "The agent claimed `ALL CHECKS PASS` but tests fail."
+        assert _check_passed(report) is False
+
+    def test_signal_in_single_quotes_rejected(self) -> None:
+        """Signal inside single quotes should be rejected."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Worker said 'ALL CHECKS PASS' but I found bugs."
+        assert _check_passed(report) is False
+
+    def test_signal_in_double_quotes_rejected(self) -> None:
+        """Signal inside double quotes should be rejected."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = 'The message was "ALL CHECKS PASS" however tests fail.'
+        assert _check_passed(report) is False
+
+    def test_signal_mid_sentence_after_attribution_rejected(self) -> None:
+        """Signal mid-sentence after 'said', 'cannot', etc should be rejected."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "The worker cannot ALL CHECKS PASS in this case."
+        # This should be rejected because it's mid-sentence, not authoritative
+        assert _check_passed(report) is False
+
+    def test_signal_at_start_of_line_accepted(self) -> None:
+        """Signal at start of line is accepted."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Tests ran successfully.\n\nALL CHECKS PASS"
+        assert _check_passed(report) is True
+
+    def test_signal_after_period_accepted(self) -> None:
+        """Signal after sentence-ending period is accepted."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Tests completed. ALL CHECKS PASS."
+        assert _check_passed(report) is True
+
+    def test_signal_after_exclamation_accepted(self) -> None:
+        """Signal after exclamation is accepted."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Great! ALL CHECKS PASS!"
+        assert _check_passed(report) is True
+
+    def test_signal_after_question_accepted(self) -> None:
+        """Signal after question mark is accepted."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Ready? ALL CHECKS PASS."
+        assert _check_passed(report) is True
+
+    def test_minor_issues_fixed_signal_accepted(self) -> None:
+        """MINOR ISSUES FIXED is also an acceptance signal."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "Fixed formatting issues. MINOR ISSUES FIXED."
+        assert _check_passed(report) is True
+
+    def test_not_minor_issues_fixed_rejected(self) -> None:
+        """NOT MINOR ISSUES FIXED should be rejected."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "NOT MINOR ISSUES FIXED - major bugs remain."
+        assert _check_passed(report) is False
+
+    def test_signal_with_markdown_formatting_accepted(self) -> None:
+        """Signal with markdown bold/italic should work."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "**ALL CHECKS PASS**"
+        assert _check_passed(report) is True
+
+    def test_signal_with_colon_accepted(self) -> None:
+        """Signal followed by colon should be accepted."""
+        from kodo.orchestrators.verification import _check_passed
+
+        report = "ALL CHECKS PASS: tests ran successfully"
+        assert _check_passed(report) is True
+
+
+# --- _run_quick_checks tests ---
+
+
+class TestRunQuickChecks:
+    """Test the _run_quick_checks function directly."""
+
+    def test_all_checks_pass_returns_none(self, tmp_project: Path) -> None:
+        """When all quick checks pass, return None."""
+        from kodo.orchestrators.base import QuickCheck
+        from kodo.orchestrators.verification import _run_quick_checks
+
+        # Create the files
+        file1 = tmp_project / "output.txt"
+        file2 = tmp_project / "results.json"
+        file1.write_text("data")
+        file2.write_text("{}")
+
+        checks = [
+            QuickCheck(
+                path=str(file1),
+                description="Output file",
+                error_message="Missing output",
+            ),
+            QuickCheck(
+                path=str(file2),
+                description="Results file",
+                error_message="Missing results",
+            ),
+        ]
+
+        result = _run_quick_checks(checks)
+        assert result is None
+
+    def test_missing_file_returns_error(self, tmp_project: Path) -> None:
+        """When a file is missing, return error message."""
+        from kodo.orchestrators.base import QuickCheck
+        from kodo.orchestrators.verification import _run_quick_checks
+
+        missing = str(tmp_project / "nonexistent.txt")
+        checks = [
+            QuickCheck(
+                path=missing,
+                description="Output file",
+                error_message="Missing output.txt",
+            ),
+        ]
+
+        result = _run_quick_checks(checks)
+        assert result is not None
+        assert "Quick-check verification failed" in result
+        assert "Missing output.txt" in result
+
+    def test_run_dir_placeholder_resolved(self, tmp_project: Path) -> None:
+        """The {run_dir} placeholder should be resolved."""
+        from kodo import log
+        from kodo.orchestrators.base import QuickCheck
+        from kodo.orchestrators.verification import _run_quick_checks
+
+        # Get the current run's log file and its directory
+        log_file = log.get_log_file()
+        if log_file:
+            run_dir = log_file.parent
+            check_file = run_dir / "findings.md"
+            check_file.write_text("findings")
+
+            checks = [
+                QuickCheck(
+                    path="{run_dir}/findings.md",
+                    description="Findings",
+                    error_message="Missing findings",
+                ),
+            ]
+
+            result = _run_quick_checks(checks)
+            assert result is None  # Should pass
+        else:
+            # If no log file, the placeholder won't resolve - test the fallback
+            checks = [
+                QuickCheck(
+                    path="{run_dir}/findings.md",
+                    description="Findings",
+                    error_message="Missing findings",
+                ),
+            ]
+            result = _run_quick_checks(checks)
+            # Should fail because {run_dir} resolves to empty string
+            assert result is not None
+
+
+# --- handle_done edge cases ---
+
+
+class TestHandleDoneEdgeCases:
+    """Test edge cases in handle_done function."""
+
+    def test_handle_done_with_custom_orchestrator_tag(self, tmp_project: Path) -> None:
+        """orchestrator_tag should be included in log emissions."""
+        from unittest.mock import patch
+
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+        done_signal = DoneSignal()
+
+        with patch("kodo.log.emit") as mock_emit:
+            result = handle_done(
+                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                orchestrator_tag="custom_orch",
+                config=CycleConfig(verification="full"),
+            )
+
+        # Verify the done signal was set (verification passed)
+        assert done_signal.called
+        assert "Verified and accepted" in result
+
+        # Check that emit was called
+        assert mock_emit.call_count > 0
+
+    def test_handle_done_auto_commit_when_enabled(self, tmp_project: Path) -> None:
+        """auto_commit=True should trigger _auto_commit."""
+        from unittest.mock import patch
+
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+        done_signal = DoneSignal()
+
+        with patch("kodo.orchestrators.base._auto_commit") as mock_commit:
+            handle_done(
+                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                config=CycleConfig(verification="skip", auto_commit=True),
+            )
+
+        mock_commit.assert_called_once_with(team, tmp_project, SUMMARY)
+
+    def test_handle_done_no_auto_commit_when_disabled(self, tmp_project: Path) -> None:
+        """auto_commit=False should not trigger _auto_commit."""
+        from unittest.mock import patch
+
+        team = {"tester": make_agent("ALL CHECKS PASS")}
+        done_signal = DoneSignal()
+
+        with patch("kodo.orchestrators.base._auto_commit") as mock_commit:
+            handle_done(
+                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                config=CycleConfig(verification="skip", auto_commit=False),
+            )
+
+        mock_commit.assert_not_called()
+
+
+# --- verify_done with verifiers dict ---
+
+
+class TestVerifyDoneWithVerifiersDict:
+    """Test verify_done with custom verifiers dict (not legacy keys)."""
+
+    def test_custom_tester_keys(self, tmp_project: Path) -> None:
+        """Custom tester keys from verifiers dict should be used."""
+        team = {
+            "test_runner": make_agent("ALL CHECKS PASS"),
+            "code_reviewer": make_agent("ALL CHECKS PASS"),
+        }
+        verifiers = {
+            "testers": ["test_runner"],
+            "reviewers": ["code_reviewer"],
+        }
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            verifiers=verifiers,
+        )
+        assert result is None
+
+    def test_custom_browser_tester_keys(self, tmp_project: Path) -> None:
+        """Custom browser_tester keys should work when browser_testing=True."""
+        team = {
+            "e2e_tester": make_agent("ALL CHECKS PASS"),
+            "reviewer": make_agent("ALL CHECKS PASS"),
+        }
+        verifiers = {
+            "browser_testers": ["e2e_tester"],
+            "reviewers": ["reviewer"],
+        }
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            browser_testing=True,
+            verifiers=verifiers,
+        )
+        assert result is None
+
+    def test_custom_verifier_failure(self, tmp_project: Path) -> None:
+        """Custom verifier finding issues should reject."""
+        team = {
+            "custom_checker": make_agent("Found critical bugs"),
+        }
+        verifiers = {
+            "testers": ["custom_checker"],
+        }
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            verifiers=verifiers,
+        )
+        assert result is not None
+        assert "custom_checker found issues" in result
+
+    def test_empty_verifiers_dict_uses_fallback(self, tmp_project: Path) -> None:
+        """Empty verifiers dict should trigger fallback to worker."""
+        team = {"worker": make_agent("done")}
+        verifiers = {
+            "testers": [],
+            "browser_testers": [],
+            "reviewers": [],
+        }
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            verifiers=verifiers,
+        )
+        # Fallback worker should run (and fail the check since response is "done")
+        assert result is not None
+        assert "worker" in result.lower()
+
+    def test_missing_verifier_key_skipped(self, tmp_project: Path) -> None:
+        """Verifier keys that don't exist in team should be skipped."""
+        team = {
+            "tester": make_agent("ALL CHECKS PASS"),
+        }
+        verifiers = {
+            "testers": ["tester", "nonexistent_tester"],
+            "reviewers": [],
+        }
+        result = verify_done(
+            GOAL, SUMMARY, team, tmp_project,
+            verifiers=verifiers,
+        )
+        # Should pass because tester passed (nonexistent is skipped)
+        assert result is None
+
+
+# --- Fallback verifier tests ---
+
+
+class TestFallbackVerifier:
+    """Test the fallback verifier logic when no dedicated verifiers exist."""
+
+    def test_worker_smart_preferred_as_fallback(self, tmp_project: Path) -> None:
+        """worker_smart should be preferred over worker as fallback."""
+        worker_smart = make_agent("ALL CHECKS PASS")
+        worker = make_agent("THIS SHOULD NOT RUN")
+        team = {
+            "worker": worker,
+            "worker_smart": worker_smart,
+        }
+        result = verify_done(GOAL, SUMMARY, team, tmp_project)
+        assert result is None
+        # worker_smart should have been used
+        assert worker_smart.session.stats.queries == 1
+        assert worker.session.stats.queries == 0
+
+    def test_worker_used_if_no_worker_smart(self, tmp_project: Path) -> None:
+        """worker should be used if worker_smart doesn't exist."""
+        worker = make_agent("done")  # Will fail verification
+        team = {"worker": worker}
+        result = verify_done(GOAL, SUMMARY, team, tmp_project)
+        assert result is not None
+        assert "worker" in result.lower()
+
+    def test_any_agent_used_if_no_worker_keys(self, tmp_project: Path) -> None:
+        """Any agent from team should be used if neither worker key exists."""
+        some_agent = make_agent("ALL CHECKS PASS")
+        team = {"some_agent": some_agent}
+        result = verify_done(GOAL, SUMMARY, team, tmp_project)
+        assert result is None
+        assert some_agent.session.stats.queries == 1
+
+    def test_fallback_uses_fresh_session(self, tmp_project: Path) -> None:
+        """Fallback verifier should use new_conversation=True."""
+        worker = make_agent("ALL CHECKS PASS")
+        team = {"worker": worker}
+
+        # Dirty the session
+        worker.run("prior work", tmp_project, agent_name="worker")
+        assert worker.session.stats.queries == 1
+
+        verify_done(GOAL, SUMMARY, team, tmp_project)
+
+        # Should still be 1 (fresh session for verification)
+        assert worker.session.stats.queries == 1
