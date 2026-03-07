@@ -66,6 +66,20 @@ def main() -> None:
         raise
 
 
+class _JSONArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that outputs JSON errors when --json is in sys.argv."""
+
+    def error(self, message: str) -> None:
+        """Override error to output JSON when --json flag is present."""
+        if "--json" in sys.argv:
+            # Output JSON error and exit
+            print(json.dumps({"status": "error", "error": message}))
+            sys.exit(EXIT_ERROR)
+        else:
+            # Default behavior: print usage and exit
+            super().error(message)
+
+
 def _main_inner() -> None:
     # Handle subcommands before argparse (accept singular and plural forms)
     _SUBCOMMAND_MAP = {
@@ -78,7 +92,7 @@ def _main_inner() -> None:
         _SUBCOMMAND_MAP[sys.argv[1]]()
         return
 
-    parser = argparse.ArgumentParser(
+    parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
         epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -205,13 +219,41 @@ def _main_inner() -> None:
     )
     args = parser.parse_args()
 
+    # ── Activate JSON mode early so _fail() outputs JSON ─────────────────
+    import kodo.cli._launch as _launch_mod
+
+    _json_stack = contextlib.ExitStack()
+    _launch_mod._original_stdout = None
+    if args.json:
+        _json_stack.enter_context(json_output_redirect())
+        os.environ["KODO_NO_VIEWER"] = "1"
+
     # ── Early input validation ───────────────────────────────────────────
     if args.goal is not None and not args.goal.strip():
         _fail("--goal must not be empty or whitespace-only.")
     if args.exchanges is not None and args.exchanges <= 0:
         _fail("--exchanges must be a positive integer.")
+    if args.exchanges is not None and args.exchanges > 1000:
+        _fail("--exchanges must not exceed 1000.")
     if args.cycles is not None and args.cycles <= 0:
         _fail("--cycles must be a positive integer.")
+    if args.cycles is not None and args.cycles > 100:
+        _fail("--cycles must not exceed 100.")
+
+    # --project must exist and be a directory
+    _project_path = Path(args.project).resolve()
+    if not _project_path.exists():
+        _fail(f"--project path does not exist: {_project_path}")
+    if not _project_path.is_dir():
+        _fail(f"--project path is not a directory: {_project_path}")
+
+    # --resume must not be an empty string
+    if args.resume is not None and args.resume == "":
+        _fail("--resume must not be an empty string. Omit the value to resume the latest run.")
+
+    # --focus must not be empty if provided
+    if args.focus is not None and not args.focus.strip():
+        _fail("--focus must not be empty or whitespace-only.")
 
     # --focus requires --improve
     if args.focus and not args.improve:
@@ -222,6 +264,21 @@ def _main_inner() -> None:
         args.goal or args.goal_file or args.improve
     ):
         _fail("--skip-intake and --auto-refine require --goal, --goal-file, or --improve.")
+
+    # Orchestrator / model compatibility
+    _GEMINI_MODELS = {GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH}
+    _CLAUDE_MODELS = {CLAUDE_OPUS, CLAUDE_SONNET}
+    if args.orchestrator and args.orchestrator_model:
+        if args.orchestrator == "claude-code" and args.orchestrator_model in _GEMINI_MODELS:
+            _fail(
+                f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
+                f"--orchestrator 'claude-code'. Use {', '.join(sorted(_CLAUDE_MODELS))} instead."
+            )
+        if args.orchestrator == "gemini-cli" and args.orchestrator_model in _CLAUDE_MODELS:
+            _fail(
+                f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
+                f"--orchestrator 'gemini-cli'. Use {', '.join(sorted(_GEMINI_MODELS))} instead."
+            )
 
     # --json and --auto-refine imply --yes
     if args.json or args.auto_refine:
@@ -238,17 +295,6 @@ def _main_inner() -> None:
         args.goal is not None or args.goal_file is not None or args.improve
     )
     skip_prompts = non_interactive or args.yes
-
-    # In JSON mode, redirect prints to stderr so stdout stays clean for JSON.
-    # We use an ExitStack so the context manager stays active for the rest of
-    # the function without indenting the entire body.
-    import kodo.cli._launch as _launch_mod
-
-    _json_stack = contextlib.ExitStack()
-    _launch_mod._original_stdout = None
-    if args.json:
-        _json_stack.enter_context(json_output_redirect())
-        os.environ["KODO_NO_VIEWER"] = "1"
 
     if not args.json:
         _print_banner()
