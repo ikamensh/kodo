@@ -461,3 +461,121 @@ class TestErrorMessages:
         ])
         assert "incompatible" in msg
         assert "gemini-cli" in msg
+
+
+# ---------------------------------------------------------------------------
+# 8. _fail() prefix parameter and _cancel() helper
+# ---------------------------------------------------------------------------
+
+
+class TestFailPrefixBehavior:
+    """Verify _fail() prefix parameter and _cancel() convenience helper."""
+
+    def test_default_prefix_is_error(self):
+        """_fail('msg') should print 'Error: msg' to stderr."""
+        import io
+
+        import kodo.cli._launch as _launch_mod
+
+        _launch_mod._original_stdout = None
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stderr", captured),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _launch_mod._fail("something broke")
+
+        assert exc_info.value.code == 1
+        assert captured.getvalue() == "Error: something broke\n"
+
+    def test_custom_prefix(self):
+        """_fail('msg', prefix='Warning: ') should use the custom prefix."""
+        import io
+
+        import kodo.cli._launch as _launch_mod
+
+        _launch_mod._original_stdout = None
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stderr", captured),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _launch_mod._fail("careful", prefix="Warning: ")
+
+        assert exc_info.value.code == 1
+        assert captured.getvalue() == "Warning: careful\n"
+
+    def test_empty_prefix(self):
+        """_fail('Cancelled.', prefix='') should print without 'Error: ' prefix."""
+        import io
+
+        import kodo.cli._launch as _launch_mod
+
+        _launch_mod._original_stdout = None
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stderr", captured),
+            pytest.raises(SystemExit),
+        ):
+            _launch_mod._fail("Cancelled.", prefix="")
+
+        assert captured.getvalue() == "Cancelled.\n"
+
+    def test_cancel_helper_prints_cancelled(self):
+        """_cancel() should print 'Cancelled.' to stderr without 'Error: ' prefix."""
+        import io
+
+        import kodo.cli._launch as _launch_mod
+
+        _launch_mod._original_stdout = None
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stderr", captured),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _launch_mod._cancel()
+
+        assert exc_info.value.code == 1
+        assert captured.getvalue() == "Cancelled.\n"
+
+    def test_cancel_custom_message(self):
+        """_cancel('Aborted.') should print 'Aborted.' to stderr."""
+        import io
+
+        import kodo.cli._launch as _launch_mod
+
+        _launch_mod._original_stdout = None
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stderr", captured),
+            pytest.raises(SystemExit),
+        ):
+            _launch_mod._cancel("Aborted.")
+
+        assert captured.getvalue() == "Aborted.\n"
+
+    def test_fail_json_mode_ignores_prefix(self):
+        """In JSON mode, _fail() should output JSON regardless of prefix."""
+        import io
+        import json
+
+        import kodo.cli._launch as _launch_mod
+
+        fake_stdout = io.StringIO()
+        _launch_mod._original_stdout = fake_stdout
+
+        try:
+            with pytest.raises(SystemExit) as exc_info:
+                _launch_mod._fail("oops", prefix="")
+
+            assert exc_info.value.code == 1
+            output = json.loads(fake_stdout.getvalue())
+            assert output["status"] == "error"
+            assert output["error"] == "oops"
+        finally:
+            _launch_mod._original_stdout = None

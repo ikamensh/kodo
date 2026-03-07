@@ -525,9 +525,9 @@ class TestCmdTeamsAuto:
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("nonexistent")
 
-        out = capsys.readouterr().out
-        assert "No template found" in out
-        assert "nonexistent" in out
+        err = capsys.readouterr().err
+        assert "No template found" in err
+        assert "nonexistent" in err
 
     def test_filters_unavailable_agents(self, tmp_path, capsys):
         """Agents with unavailable backends should be skipped."""
@@ -664,8 +664,8 @@ class TestCmdTeamsAuto:
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("test")
 
-        out = capsys.readouterr().out
-        assert "Could not create any agents" in out
+        err = capsys.readouterr().err
+        assert "Could not create any agents" in err
 
     def test_successful_auto_generates_config(self, tmp_path, capsys):
         """Successful auto generation should create proper config structure."""
@@ -726,8 +726,8 @@ class TestCmdTeamsAutoAll:
             from kodo.cli._subcommands import _cmd_teams_auto_all
             _cmd_teams_auto_all()
 
-        out = capsys.readouterr().out
-        assert "No built-in team templates found" in out
+        err = capsys.readouterr().err
+        assert "No built-in team templates found" in err
 
     def test_calls_auto_for_each_template(self, capsys):
         """Should call _cmd_teams_auto for each built-in template."""
@@ -879,8 +879,8 @@ class TestCmdTeamsAutoOverwrite:
             _cmd_teams_auto("myteam")
 
         mock_save.assert_not_called()
-        out = capsys.readouterr().out
-        assert "Cancelled" in out
+        err = capsys.readouterr().err
+        assert "Cancelled" in err
 
 
 class TestTeamsDir:
@@ -1260,9 +1260,9 @@ class TestCmdTeamsAdd:
         ):
             _cmd_teams_add("myteam")
 
-        out = capsys.readouterr().out
-        assert "already exists" in out
-        assert "kodo teams edit" in out
+        err = capsys.readouterr().err
+        assert "already exists" in err
+        assert "kodo teams edit" in err
 
     def test_happy_path_single_agent(self, tmp_path, capsys):
         """Create a team with one agent — no verifier prompts (skipped for single agent)."""
@@ -1505,8 +1505,8 @@ class TestCmdTeamsEdit:
         ):
             _cmd_teams_edit("nonexistent")
 
-        out = capsys.readouterr().out
-        assert "not found" in out
+        err = capsys.readouterr().err
+        assert "not found" in err
 
     def test_builtin_team_shows_copy_message(self, capsys):
         """Editing a built-in team should show a copy-to-user-dir message."""
@@ -1567,8 +1567,8 @@ class TestCmdTeamsEdit:
         ):
             _cmd_teams_edit("test-team")
 
-        out = capsys.readouterr().out
-        assert "not saved" in out
+        err = capsys.readouterr().err
+        assert "not saved" in err
         mock_save.assert_not_called()
 
     def test_add_agent(self, capsys):
@@ -1864,8 +1864,8 @@ class TestCmdTeamsEdit:
         ):
             _cmd_teams_edit("test-team")
 
-        out = capsys.readouterr().out
-        assert "Invalid max_exchanges" in out
+        err = capsys.readouterr().err
+        assert "Invalid max_exchanges" in err
         # Should still save (continue triggered, next action is Save)
         mock_save.assert_called_once()
 
@@ -1899,8 +1899,8 @@ class TestCmdTeamsEdit:
         ):
             _cmd_teams_edit("test-team")
 
-        out = capsys.readouterr().out
-        assert "Invalid max_cycles" in out
+        err = capsys.readouterr().err
+        assert "Invalid max_cycles" in err
         mock_save.assert_called_once()
 
     def test_edit_verifiers(self, capsys):

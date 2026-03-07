@@ -706,8 +706,8 @@ class TestSelectParams:
         ):
             select_params()
 
-        out = capsys.readouterr().out
-        assert "ANTHROPIC_API_KEY not set" in out
+        captured = capsys.readouterr()
+        assert "ANTHROPIC_API_KEY not set" in captured.err
 
     def test_user_teams_listed(self):
         """User JSON teams should appear in team options."""

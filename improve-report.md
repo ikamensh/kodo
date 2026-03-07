@@ -798,3 +798,81 @@ Verified that session lifecycle correctly handles:
 ---
 
 **Total test count after all audits:** 1,261 tests (100% pass rate, 41 deselected)
+
+---
+
+## Phase 3: CLI Error Output Standardization (2026-03-07)
+
+### Stage 1: CLI Argument Validation (Completed Earlier)
+
+Added 7 early validation checks to `kodo/cli/_main.py`:
+- JSON mode activation before validation (so `_fail()` outputs JSON for `--json` users)
+- `--project` path existence and directory checks
+- `--resume` empty string check
+- Upper bounds: `--exchanges` max 1000, `--cycles` max 100
+- `--focus` empty/whitespace check
+- Orchestrator/model compatibility (claude-code ↔ gemini models)
+- 36 new tests in `tests/cli/test_argument_audit.py`
+
+### Stage 2: Standardize Error Output via `_fail()` (2026-03-07)
+
+**Problem:** 31 instances of raw `print(...) + sys.exit(1)` scattered across `_subcommands.py` (25), `_params.py` (5), and `_intake.py` (1). These bypassed the JSON-mode–aware `_fail()` helper, so errors were invisible to `--json` consumers. Messages lacked consistent formatting — some said `"Error: ..."`, some just printed bare text, and cancellations printed `"Cancelled."` to stdout instead of stderr.
+
+**Solution:**
+
+1. **Extended `_fail()` signature** in `kodo/cli/_launch.py`:
+   - Added optional `prefix` parameter (default `"Error: "`)
+   - All existing callers unchanged (rely on default prefix)
+
+2. **Added `_cancel()` convenience** in `kodo/cli/_launch.py`:
+   - `_cancel(msg="Cancelled.")` — delegates to `_fail(msg, prefix="")`
+   - Keeps cancellation sites terse
+
+3. **Converted `_params.py`** (5 sites):
+   - 3 cancellations (`_select_one`, `_select_numeric`) → `_cancel()`
+   - 1 "no backends" multi-line error → `_fail("No worker backends found.\n...")`
+   - 1 API key error → `_fail(f"{key_err}\n  Set the key...")`
+   - Updated local `_fail()` wrapper to forward `prefix` kwarg
+
+4. **Converted `_subcommands.py`** (25 sites):
+   - Added `from kodo.cli._launch import _cancel, _fail` (top-level, no circular dep)
+   - 12 error exits → `_fail()` (Usage errors, team not found, invalid values, etc.)
+   - 12 cancellation exits → `_cancel()` (questionary None returns)
+   - 1 soft cancellation (edit loop, uses `return` not `sys.exit`) → `print(..., file=sys.stderr)` + `return`
+   - 2 soft validation errors (edit loop `continue`) → redirected to stderr
+
+5. **Converted `_intake.py`** (1 site):
+   - `get_goal()` empty input → lazy import `_fail("No goal provided.")`
+
+6. **Updated tests** (9 assertion changes + 6 new tests):
+   - `tests/cli/test_params.py`: 1 assertion `.out` → `.err`
+   - `tests/cli/test_subcommands.py`: 9 assertions `.out` → `.err`
+   - `tests/cli/test_argument_audit.py`: Added `TestFailPrefixBehavior` class with 6 tests:
+     - Default prefix (`"Error: "`)
+     - Custom prefix
+     - Empty prefix (no prefix)
+     - `_cancel()` helper output
+     - `_cancel()` custom message
+     - JSON mode ignores prefix (outputs JSON regardless)
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `kodo/cli/_launch.py` | Extended `_fail()` with `prefix` kwarg, added `_cancel()` |
+| `kodo/cli/_params.py` | Updated `_fail()` wrapper, added `_cancel()`, converted 5 sites |
+| `kodo/cli/_subcommands.py` | Added imports, converted 25 `sys.exit(1)` sites |
+| `kodo/cli/_intake.py` | Converted 1 `sys.exit(1)` site |
+| `tests/cli/test_params.py` | Fixed 1 assertion (stdout → stderr) |
+| `tests/cli/test_subcommands.py` | Fixed 9 assertions (stdout → stderr) |
+| `tests/cli/test_argument_audit.py` | Added 6 new tests for prefix/cancel behavior |
+
+**Result:**
+- Zero `sys.exit(1)` calls remain in `_params.py`, `_subcommands.py`, or `_intake.py`
+- All error messages consistently go to stderr with `"Error: "` prefix
+- All cancellation messages consistently go to stderr without prefix
+- JSON mode (`--json`) captures all errors as structured JSON output
+- **1,300 tests pass** (3 skipped, 41 deselected — all pre-existing)
+
+---
+
+**Phase 3 Status: COMPLETE ✅**

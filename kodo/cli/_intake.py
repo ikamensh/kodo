@@ -111,8 +111,9 @@ def get_goal() -> str:
         lines.append(line)
     text = "\n".join(lines).strip()
     if not text:
-        print("No goal provided. Exiting.")
-        sys.exit(1)
+        from kodo.cli._launch import _fail
+
+        _fail("No goal provided.")
     return text
 
 

@@ -180,14 +180,19 @@ def json_output_redirect():
 # ---------------------------------------------------------------------------
 
 
-def _fail(msg: str, code: int = 1) -> NoReturn:
+def _fail(msg: str, code: int = 1, *, prefix: str = "Error: ") -> NoReturn:
     """Print error and exit. In JSON mode, outputs JSON to original stdout."""
     if _original_stdout is not None:
         sys.stdout = _original_stdout
         print(json.dumps(_format_json_output(error=msg)))
         sys.exit(EXIT_ERROR)
-    print(f"Error: {msg}", file=sys.stderr)
+    print(f"{prefix}{msg}", file=sys.stderr)
     sys.exit(code)
+
+
+def _cancel(msg: str = "Cancelled.") -> NoReturn:
+    """Print cancellation message to stderr and exit."""
+    _fail(msg, prefix="")
 
 
 def _emit_json_and_exit(args, result, improve_report: str | None = None) -> None:

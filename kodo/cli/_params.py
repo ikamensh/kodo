@@ -48,8 +48,7 @@ def _select_one(title: str, options: list[str], default_index: int = 0) -> str:
     choices = _labeled_choices(options, default_index)
     result = questionary.select(title, choices=choices).ask()
     if result is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
     return result
 
 
@@ -61,15 +60,13 @@ def _select_numeric(
     choices = _labeled_choices(all_options, default_index)
     result = questionary.select(title, choices=choices).ask()
     if result is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
     if result != "Custom...":
         return result
     while True:
         raw = questionary.text("  Enter value:").ask()
         if raw is None:
-            print("Cancelled.")
-            sys.exit(1)
+            _cancel()
         raw = raw.strip()
         try:
             type_fn(raw)
@@ -93,22 +90,14 @@ def select_params() -> dict:
     _avail_backends.cache_clear()
     _backends = _avail_backends()
     if not any(_backends.values()):
-        print("Error: no worker backends found.", file=sys.stderr)
-        print("  Install at least one of:", file=sys.stderr)
-        print(
-            "    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code",
-            file=sys.stderr,
+        _fail(
+            "No worker backends found.\n"
+            "  Install at least one of:\n"
+            "    Claude Code CLI  — https://docs.anthropic.com/en/docs/claude-code\n"
+            "    Cursor CLI       — https://docs.cursor.com/agent\n"
+            "    Codex CLI        — https://github.com/openai/codex\n"
+            "    Gemini CLI       — https://github.com/google-gemini/gemini-cli"
         )
-        print("    Cursor CLI       — https://docs.cursor.com/agent", file=sys.stderr)
-        print(
-            "    Codex CLI        — https://github.com/openai/codex",
-            file=sys.stderr,
-        )
-        print(
-            "    Gemini CLI       — https://github.com/google-gemini/gemini-cli",
-            file=sys.stderr,
-        )
-        sys.exit(1)
     _BACKEND_LABELS = {
         "claude": "Claude Code",
         "codex": "Codex",
@@ -176,9 +165,7 @@ def select_params() -> dict:
     # Validate API key early
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:
-        print(f"\n  Error: {key_err}")
-        print("  Set the key in your environment or .env file and try again.")
-        sys.exit(1)
+        _fail(f"{key_err}\n  Set the key in your environment or .env file and try again.")
 
     print(
         "\n  An exchange = one orchestrator turn: think, delegate to agent, read result.",
@@ -358,9 +345,14 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     return params
 
 
-def _fail(msg: str, code: int = 1) -> None:
+def _fail(msg: str, code: int = 1, *, prefix: str = "Error: ") -> None:
     """Print error and exit. Defers to _launch._fail for JSON mode."""
     # Import lazily to avoid circular imports
     from kodo.cli._launch import _fail as _launch_fail
 
-    _launch_fail(msg, code)
+    _launch_fail(msg, code, prefix=prefix)
+
+
+def _cancel(msg: str = "Cancelled.") -> None:
+    """Print cancellation message to stderr and exit."""
+    _fail(msg, prefix="")

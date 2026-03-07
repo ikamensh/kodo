@@ -9,6 +9,7 @@ from typing import Any
 import questionary
 
 from kodo import log
+from kodo.cli._launch import _cancel, _fail
 from kodo.cli._ui import _plural
 from kodo.models import (
     CLAUDE_OPUS,
@@ -91,8 +92,7 @@ def _cmd_logs() -> None:
     if args.logfile:
         log_path = Path(args.logfile)
         if not log_path.exists():
-            print(f"File not found: {log_path}", file=sys.stderr)
-            sys.exit(1)
+            _fail(f"File not found: {log_path}")
 
     _serve(args.port, log_path)
 
@@ -201,13 +201,11 @@ def _cmd_teams() -> None:
     subcmd = args[0]
     if subcmd == "add":
         if len(args) < 2:
-            print("Usage: kodo teams add <name>")
-            sys.exit(1)
+            _fail("Usage: kodo teams add <name>")
         _cmd_teams_add(args[1])
     elif subcmd == "edit":
         if len(args) < 2:
-            print("Usage: kodo teams edit <name>")
-            sys.exit(1)
+            _fail("Usage: kodo teams edit <name>")
         _cmd_teams_edit(args[1])
     elif subcmd == "auto":
         mode_name = args[1] if len(args) >= 2 else None
@@ -216,9 +214,10 @@ def _cmd_teams() -> None:
         else:
             _cmd_teams_auto_all()
     else:
-        print(f"Unknown teams subcommand: {subcmd}")
-        print("Usage: kodo teams [add <name> | edit <name> | auto [mode]]")
-        sys.exit(1)
+        _fail(
+            f"Unknown teams subcommand: {subcmd}\n"
+            "Usage: kodo teams [add <name> | edit <name> | auto [mode]]"
+        )
 
 
 def _cmd_teams_list() -> None:
@@ -286,8 +285,7 @@ def _cmd_teams_auto_all() -> None:
         name for name, source, *_ in list_available_teams() if source == "built-in"
     ]
     if not built_in_names:
-        print("No built-in team templates found.")
-        sys.exit(1)
+        _fail("No built-in team templates found.")
 
     for name in built_in_names:
         _cmd_teams_auto(name)
@@ -306,10 +304,11 @@ def _cmd_teams_auto(mode_name: str) -> None:
     any_available = any(has.values())
 
     if not any_available:
-        print("No backends available. Install at least one of:")
-        print("  claude, cursor, codex, gemini-cli")
-        print("Run 'kodo backends' for install links.")
-        sys.exit(1)
+        _fail(
+            "No backends available. Install at least one of:\n"
+            "  claude, cursor, codex, gemini-cli\n"
+            "Run 'kodo backends' for install links."
+        )
 
     # Find the base template (built-in or user team matching mode_name)
     base_config = None
@@ -319,9 +318,8 @@ def _cmd_teams_auto(mode_name: str) -> None:
             break
 
     if base_config is None:
-        print(f"No template found for mode {mode_name!r}.")
-        print("Available templates:", ", ".join(t[0] for t in list_available_teams()))
-        sys.exit(1)
+        available = ", ".join(t[0] for t in list_available_teams())
+        _fail(f"No template found for mode {mode_name!r}.\nAvailable templates: {available}")
 
     # Filter agents to only those with available backends
     src_agents = base_config.get("agents", {})
@@ -396,8 +394,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
                     agents[role].pop("fallback_model", None)
 
     if not agents:
-        print("Could not create any agents with available backends.")
-        sys.exit(1)
+        _fail("Could not create any agents with available backends.")
 
     # Build verifiers from agents that are actually present
     src_verifiers = base_config.get("verifiers", {})
@@ -433,7 +430,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
             f"Team {mode_name!r} already exists at {existing_path}. Overwrite? [y/N] "
         ).strip().lower()
         if confirm not in ("y", "yes"):
-            print("Cancelled.")
+            print("Cancelled.", file=sys.stderr)
             return
 
     _save_team(mode_name, config)
@@ -467,8 +464,7 @@ def _ask_agent_fields(
         choices=backends,
     ).ask()
     if backend is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     # Suggest common models for the chosen backend
     _BACKEND_MODELS: dict[str, list[str]] = {
@@ -489,55 +485,47 @@ def _ask_agent_fields(
         model_choices.append("(custom)")
         model = questionary.select("Model:", choices=model_choices).ask()
         if model is None:
-            print("Cancelled.")
-            sys.exit(1)
+            _cancel()
         if model == "(custom)":
             model = questionary.text("Model name:", default=prev_model).ask()
             if model is None:
-                print("Cancelled.")
-                sys.exit(1)
+                _cancel()
     else:
         model = questionary.text("Model:", default=prev_model).ask()
         if model is None:
-            print("Cancelled.")
-            sys.exit(1)
+            _cancel()
 
     description = questionary.text(
         "Description (tool description for orchestrator):",
         default=d.get("description", _AGENT_DEFAULTS["description"]),
     ).ask()
     if description is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     system_prompt = questionary.text(
         "System prompt (Enter to skip):",
         default=d.get("system_prompt") or "",
     ).ask()
     if system_prompt is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     max_turns = questionary.text(
         "Max turns:", default=str(d.get("max_turns", _AGENT_DEFAULTS["max_turns"])),
     ).ask()
     if max_turns is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     timeout_raw = questionary.text(
         "Timeout (seconds, empty for none):",
         default=str(d.get("timeout_s") or ""),
     ).ask()
     if timeout_raw is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     try:
         max_turns_int = int(max_turns)
     except ValueError:
-        print(f"Invalid max_turns value: {max_turns!r} (must be an integer)")
-        sys.exit(1)
+        _fail(f"Invalid max_turns value: {max_turns!r} (must be an integer)")
     agent: dict[str, Any] = {
         "backend": backend,
         "model": model.strip(),
@@ -550,8 +538,7 @@ def _ask_agent_fields(
         try:
             agent["timeout_s"] = int(timeout_raw)
         except ValueError:
-            print(f"Invalid timeout value: {timeout_raw!r} (must be an integer)")
-            sys.exit(1)
+            _fail(f"Invalid timeout value: {timeout_raw!r} (must be an integer)")
 
     # Optional fields
     if backend == "claude":
@@ -584,41 +571,34 @@ def _cmd_teams_add(name: str) -> None:
     """Interactive wizard to create a new team."""
     path = _teams_dir() / f"{name}.json"
     if path.exists():
-        print(f"Team {name!r} already exists at {path}")
-        print(f"Use 'kodo teams edit {name}' to modify it.")
-        sys.exit(1)
+        _fail(f"Team {name!r} already exists at {path}\nUse 'kodo teams edit {name}' to modify it.")
 
     print(f"Creating team: {name}\n")
 
     description = questionary.text("Team description:").ask()
     if description is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     max_exchanges = questionary.text("Max exchanges:", default="20").ask()
     if max_exchanges is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     max_cycles = questionary.text("Max cycles:", default="1").ask()
     if max_cycles is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     orch_prompt = questionary.text(
         "Orchestrator prompt (Enter to use default):", default="",
     ).ask()
     if orch_prompt is None:
-        print("Cancelled.")
-        sys.exit(1)
+        _cancel()
 
     agents: dict[str, dict[str, Any]] = {}
     while True:
         print(f"\n--- Add agent ({len(agents)} so far) ---")
         agent_key = questionary.text("Agent key name (empty to finish):").ask()
         if agent_key is None:
-            print("Cancelled.")
-            sys.exit(1)
+            _cancel()
         if not agent_key.strip():
             if not agents:
                 print("A team needs at least one agent.")
@@ -686,11 +666,10 @@ def _cmd_teams_edit(name: str) -> None:
             break
 
     if config is None:
-        print(f"Team {name!r} not found.")
-        print("Available teams:")
-        for tname, tsource, *_ in list_available_teams():
-            print(f"  {tname} ({tsource})")
-        sys.exit(1)
+        teams_list = "\n".join(
+            f"  {tname} ({tsource})" for tname, tsource, *_ in list_available_teams()
+        )
+        _fail(f"Team {name!r} not found.\nAvailable teams:\n{teams_list}")
 
     if source == "built-in":
         print(f"Copying built-in team {name!r} to user directory for editing.")
@@ -727,7 +706,7 @@ def _cmd_teams_edit(name: str) -> None:
         ]
         action = questionary.select("Action:", choices=actions).ask()
         if action is None:
-            print("Cancelled (changes not saved).")
+            print("Cancelled (changes not saved).", file=sys.stderr)
             return
 
         if action == "Add agent":
@@ -783,7 +762,7 @@ def _cmd_teams_edit(name: str) -> None:
                 try:
                     config["max_exchanges"] = int(exc)
                 except ValueError:
-                    print(f"Invalid max_exchanges value: {exc!r} (must be an integer)")
+                    print(f"Invalid max_exchanges value: {exc!r} (must be an integer)", file=sys.stderr)
                     continue
 
             cyc = questionary.text(
@@ -794,7 +773,7 @@ def _cmd_teams_edit(name: str) -> None:
                 try:
                     config["max_cycles"] = int(cyc)
                 except ValueError:
-                    print(f"Invalid max_cycles value: {cyc!r} (must be an integer)")
+                    print(f"Invalid max_cycles value: {cyc!r} (must be an integer)", file=sys.stderr)
                     continue
 
             orch_prompt = questionary.text(
