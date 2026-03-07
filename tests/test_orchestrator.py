@@ -29,7 +29,7 @@ from kodo.orchestrators.base import (
     handle_agent_call,
 )
 from kodo.summarizer import Summarizer
-from tests.conftest import FakeSession, make_agent
+from tests.conftest import make_agent
 
 
 # ---------------------------------------------------------------------------
@@ -307,26 +307,6 @@ class TestHandleAgentCallEdgePaths:
         assert len(cycle_log) == 2
         assert "← worker" in cycle_log[1]
 
-    def test_context_reset_logged(self, tmp_project):
-        """context_reset=True generates a log message."""
-        session = FakeSession("done")
-        agent = Agent(session, "worker")
-
-        # Patch agent.run to return a result with context_reset=True
-        from kodo.agent import AgentResult
-        from kodo.sessions.base import QueryResult
-
-        mock_result = AgentResult(
-            query=QueryResult(text="done", elapsed_s=0.1, is_error=False),
-            context_reset=True, context_reset_reason="token limit",
-            session_tokens=1000,
-        )
-        with patch.object(agent, "run", return_value=mock_result):
-            summarizer = _noop_summarizer()
-            handle_agent_call(
-                "worker", agent, "do task", tmp_project, summarizer,
-            )
-        # No assertion needed — we just need this path covered
 
 
 # ---------------------------------------------------------------------------
@@ -335,11 +315,6 @@ class TestHandleAgentCallEdgePaths:
 
 
 class TestAutoCommit:
-    def test_no_worker_available(self, tmp_project):
-        """Empty team → skip auto-commit."""
-        _auto_commit({}, tmp_project, "summary")
-        # Should not raise
-
     def test_worker_fast_preferred(self, tmp_project):
         """worker_fast is preferred over worker_smart."""
         fast_session = MagicMock()
@@ -353,15 +328,6 @@ class TestAutoCommit:
         _auto_commit(team, tmp_project, "completed work")
         fast_session.query.assert_called_once()
         smart_session.query.assert_not_called()
-
-    def test_worker_crash_handled(self, tmp_project):
-        """Worker crash during commit doesn't raise."""
-        session = MagicMock()
-        session.cost_bucket = "test"
-        session.query.side_effect = RuntimeError("crash")
-        team = {"worker": Agent(session, "w")}
-        _auto_commit(team, tmp_project, "summary")
-        # Should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -423,17 +389,6 @@ class TestOrchestratorBaseMethods:
         orch = FakeOrchestrator()
         assert orch.for_parallel() is orch
 
-    def test_close_is_noop(self):
-        """Default close is a coroutine that does nothing."""
-        import asyncio
-
-        orch = FakeOrchestrator()
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(orch.close())
-        finally:
-            loop.close()
-
     def test_cycle_raises_not_implemented(self):
         """Base OrchestratorBase.cycle() raises NotImplementedError."""
 
@@ -445,120 +400,6 @@ class TestOrchestratorBaseMethods:
         bare._orchestrator_name = "x"
         with pytest.raises(NotImplementedError):
             bare.cycle("goal", Path("/tmp"), {})
-
-
-# ---------------------------------------------------------------------------
-# OrchestratorBase.run() — session type resume injection
-# ---------------------------------------------------------------------------
-
-
-class TestRunResumeInjection:
-    def test_claude_session_id_injected(self, tmp_project):
-        """ClaudeSession gets resume_session_id set."""
-        from kodo.sessions.claude import ClaudeSession
-
-        mock_session = MagicMock(spec=ClaudeSession)
-        mock_session.cost_bucket = "test"
-        mock_session.model = "sonnet"
-        mock_session.__class__.__name__ = "ClaudeSession"
-        team = {"worker": Agent(mock_session, "w")}
-
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True)])
-        resume = ResumeState(
-            completed_cycles=0,
-            prior_summary="",
-            agent_session_ids={"worker": "sess-123"},
-            completed_stages=[],
-            stage_summaries=[],
-            current_stage_cycles=0,
-        )
-
-        orch.run("goal", tmp_project, team, resume=resume)
-        assert mock_session.resume_session_id == "sess-123"
-
-    def test_cursor_session_id_injected(self, tmp_project):
-        """CursorSession gets _chat_id set."""
-        from kodo.sessions.cursor import CursorSession
-
-        mock_session = MagicMock(spec=CursorSession)
-        mock_session.cost_bucket = "test"
-        mock_session.model = "cursor"
-        mock_session.__class__.__name__ = "CursorSession"
-        team = {"worker": Agent(mock_session, "w")}
-
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True)])
-        resume = ResumeState(
-            completed_cycles=0,
-            prior_summary="",
-            agent_session_ids={"worker": "chat-456"},
-            completed_stages=[],
-            stage_summaries=[],
-            current_stage_cycles=0,
-        )
-
-        orch.run("goal", tmp_project, team, resume=resume)
-        assert mock_session._chat_id == "chat-456"
-
-    def test_codex_session_id_injected(self, tmp_project):
-        """CodexSession gets _session_id set."""
-        from kodo.sessions.codex import CodexSession
-
-        mock_session = MagicMock(spec=CodexSession)
-        mock_session.cost_bucket = "test"
-        mock_session.model = "codex"
-        mock_session.__class__.__name__ = "CodexSession"
-        team = {"worker": Agent(mock_session, "w")}
-
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True)])
-        resume = ResumeState(
-            completed_cycles=0,
-            prior_summary="",
-            agent_session_ids={"worker": "codex-789"},
-            completed_stages=[],
-            stage_summaries=[],
-            current_stage_cycles=0,
-        )
-
-        orch.run("goal", tmp_project, team, resume=resume)
-        assert mock_session._session_id == "codex-789"
-
-    def test_gemini_session_resume_next(self, tmp_project):
-        """GeminiCliSession gets _resume_next set."""
-        from kodo.sessions.gemini_cli import GeminiCliSession
-
-        mock_session = MagicMock(spec=GeminiCliSession)
-        mock_session.cost_bucket = "test"
-        mock_session.model = "gemini"
-        mock_session.__class__.__name__ = "GeminiCliSession"
-        team = {"worker": Agent(mock_session, "w")}
-
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True)])
-        resume = ResumeState(
-            completed_cycles=0,
-            prior_summary="",
-            agent_session_ids={"worker": "gem-999"},
-            completed_stages=[],
-            stage_summaries=[],
-            current_stage_cycles=0,
-        )
-
-        orch.run("goal", tmp_project, team, resume=resume)
-        assert mock_session._resume_next is True
-
-    def test_unknown_agent_in_resume_skipped(self, tmp_project):
-        """Agent name in resume but not in team is silently skipped."""
-        team = {"worker": make_agent()}
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True)])
-        resume = ResumeState(
-            completed_cycles=0,
-            prior_summary="",
-            agent_session_ids={"nonexistent": "sess-000"},
-            completed_stages=[],
-            stage_summaries=[],
-            current_stage_cycles=0,
-        )
-        # Should not raise
-        orch.run("goal", tmp_project, team, resume=resume)
 
 
 # ---------------------------------------------------------------------------

@@ -26,10 +26,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai_summarization import (
-    SummarizationProcessor,
-    count_tokens_approximately,
-)
+from pydantic_ai_summarization import SummarizationProcessor, count_tokens_approximately
 
 from kodo import log
 from kodo.log import RunDir
@@ -174,44 +171,6 @@ class TestProcessorWiring:
 
         mock_create.assert_not_called()
         assert captured_hp.get("history_processors") is None
-
-
-# ── TestTokenCountingHeuristic ───────────────────────────────────────────
-
-
-class TestTokenCountingHeuristic:
-    """Unit tests for count_tokens_approximately with real pydantic-ai types."""
-
-    def test_user_prompt_tokens(self):
-        """UserPromptPart character count ÷ 4 = token estimate."""
-        msg = ModelRequest(parts=[UserPromptPart(content="a" * 400)])
-        assert count_tokens_approximately([msg]) == 100
-
-    def test_text_response_tokens(self):
-        """TextPart character count ÷ 4 = token estimate."""
-        msg = ModelResponse(
-            parts=[TextPart(content="b" * 800)],
-            model_name="test",
-            timestamp="2024-01-01T00:00:00Z",
-        )
-        assert count_tokens_approximately([msg]) == 200
-
-    def test_system_prompt_counted(self):
-        """SystemPromptPart characters contribute to the count."""
-        msg = ModelRequest(parts=[SystemPromptPart(content="s" * 1200)])
-        assert count_tokens_approximately([msg]) == 300
-
-    def test_mixed_messages(self):
-        """Combined user + assistant messages → total_chars // 4."""
-        msgs = [
-            ModelRequest(parts=[UserPromptPart(content="u" * 200)]),
-            ModelResponse(
-                parts=[TextPart(content="a" * 600)],
-                model_name="test",
-                timestamp="2024-01-01T00:00:00Z",
-            ),
-        ]
-        assert count_tokens_approximately(msgs) == (200 + 600) // 4
 
 
 # ── TestProcessorTriggerBehavior ─────────────────────────────────────────

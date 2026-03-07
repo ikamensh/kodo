@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -146,6 +147,16 @@ def _evaluate_standard(
             "Install with: uv pip install 'swebench>=1.0'"
         )
 
+    # Copy swebench logs into the run's eval dir so results persist
+    safe_key = _docker_safe(f"{run_id}_{arm}")
+    swebench_log_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
+    if swebench_log_dir.exists():
+        dest = eval_dir / "swebench_logs"
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(swebench_log_dir, dest)
+        print(f"  Copied swebench logs to {dest}")
+
 
 # ── Result Collection ───────────────────────────────────────────────────
 
@@ -166,13 +177,27 @@ def _collect_eval_results(
                 continue
             summary[arm_dir.name] = _parse_pro_results(arm_dir)
     else:
-        # swebench writes to logs/run_evaluation/{safe_run_id}_{safe_arm}/{model_name}/...
+        # First try the copied logs inside the run dir (persistent),
+        # then fall back to swebench's default log location in cwd.
+        for arm_dir in sorted(eval_base.iterdir()) if eval_base.exists() else []:
+            if not arm_dir.is_dir():
+                continue
+            copied_logs = arm_dir / "swebench_logs"
+            if copied_logs.exists():
+                for model_dir in copied_logs.iterdir():
+                    if model_dir.is_dir():
+                        summary[arm_dir.name] = _parse_standard_results(model_dir)
+                        break
+
+        # Fall back to swebench's cwd logs for any arms not yet collected
         swebench_log_base = Path.cwd() / "logs" / "run_evaluation"
         safe_run_id = _docker_safe(run_id)
         for log_dir in sorted(swebench_log_base.iterdir()) if swebench_log_base.exists() else []:
             if not log_dir.is_dir() or not log_dir.name.startswith(safe_run_id + "_"):
                 continue
             safe_arm = log_dir.name[len(safe_run_id) + 1:]
+            if safe_arm in summary:
+                continue
             # swebench nests by model_name (= arm), then instance_id
             for model_dir in log_dir.iterdir():
                 if model_dir.is_dir():

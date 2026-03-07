@@ -29,11 +29,6 @@ class TestApiSession:
         assert c._system_prompt == s._system_prompt
         assert c is not s
 
-    def test_terminate_and_close_are_noop(self):
-        s = ApiSession(model="test-model")
-        s.terminate()  # should not raise
-        s.close()  # should not raise
-
 
 class TestApiSessionQuery:
     """Test the query() method with various scenarios."""

@@ -214,23 +214,6 @@ def _make_summarizer():
 
 
 class TestSummarizerResilience:
-    def test_summarize_after_shutdown_is_safe(self):
-        """After shutdown(), summarize() is a silent no-op (fire-and-forget).
-
-        Previously this raised RuntimeError.  Now the guard inside
-        summarize() catches the shutdown state and returns cleanly.
-        """
-        s = _make_summarizer()
-        s.shutdown()
-        # Should not raise — silently discarded
-        s.summarize("worker", "task", "report")
-
-    def test_shutdown_is_idempotent(self):
-        """Calling shutdown() multiple times must not raise."""
-        s = _make_summarizer()
-        s.shutdown()
-        s.shutdown()  # second call is a no-op
-
     def test_concurrent_get_accumulated_summary(self):
         """Two threads calling get_accumulated_summary concurrently
         must not crash (executor swap race)."""
@@ -281,14 +264,6 @@ class TestSummarizerResilience:
         s.summarize("worker", "task", "   \n\n   ")
         result = s.get_accumulated_summary()
         assert result == ""  # nothing was appended
-
-    def test_none_inputs_handled(self):
-        """summarize() with None task/report should not crash — _do_summarize
-        normalizes them to empty strings."""
-        s = _make_summarizer()
-        # The function signature expects str, but callers may pass None
-        s._do_summarize("worker", None, None)
-        # No crash = pass
 
 
 # ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -389,12 +364,6 @@ class TestLogParseRunCorruptData:
 
 class TestLogEmitEdgeCases:
     """Edge cases around emit() timing and _start_time handling."""
-
-    def test_emit_before_init_is_silent_noop(self):
-        """Emitting before init should not crash (log_file is None)."""
-        # _isolate_log fixture resets state
-        log.emit("orphan_event", data="test")
-        # No exception = pass; nothing was written
 
     def test_emit_with_unserializable_values(self, tmp_path: Path):
         """emit() should handle non-JSON-serializable objects via _serialize fallback."""

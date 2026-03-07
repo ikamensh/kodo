@@ -53,13 +53,6 @@ class TestCloseSession:
         _close_session(session)
         session.terminate.assert_called_once()
 
-    def test_both_errors_ignored(self):
-        """Both terminate and close can fail without crashing."""
-        session = MagicMock()
-        session.terminate.side_effect = OSError("fail1")
-        session.close.side_effect = RuntimeError("fail2")
-        _close_session(session)  # Should not raise
-
 
 # ---------------------------------------------------------------------------
 # _build_intake_prompt

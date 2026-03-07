@@ -536,7 +536,9 @@ def _save_run_meta(
 ) -> None:
     meta_file = run_dir / "meta.json"
     if not meta_file.exists():
+        from kodo import __version__ as kodo_version
         meta = {
+            "kodo_version": kodo_version,
             "task_count": len(tasks),
             "arms": arms,
             "timeout": timeout,

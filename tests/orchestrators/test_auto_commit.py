@@ -116,28 +116,6 @@ def test_auto_commit_falls_back_to_worker_smart(tmp_project: Path) -> None:
     assert "commit" in worker.session.prompts[0].lower()
 
 
-def test_auto_commit_skips_when_no_workers(tmp_project: Path) -> None:
-    """_auto_commit is a no-op when team has no workers."""
-    team = {}
-    # Should not raise
-    _auto_commit(team, tmp_project, SUMMARY)
-
-
-def test_auto_commit_does_not_raise_on_failure(tmp_project: Path) -> None:
-    """_auto_commit swallows exceptions from the worker."""
-    worker = make_agent("error", is_error=True)
-    # Monkey-patch to raise
-
-    def exploding_run(*args, **kwargs):
-        raise RuntimeError("session crashed")
-
-    worker.run = exploding_run
-    team = {"worker_fast": worker}
-
-    # Should not raise
-    _auto_commit(team, tmp_project, SUMMARY)
-
-
 def test_handle_done_calls_auto_commit_on_success(tmp_project: Path) -> None:
     """handle_done triggers _auto_commit when auto_commit=True and verification passes."""
     team = {

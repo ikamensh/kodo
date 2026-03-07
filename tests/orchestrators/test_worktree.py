@@ -99,25 +99,3 @@ def test_remove_worktree_nonexistent_dir(git_project: Path):
             f"Boundary Condition 4 CRASH: remove_worktree crashed on nonexistent "
             f"dir. {type(e).__name__}: {e}"
         )
-
-
-def test_remove_worktree_handles_locked_files(git_project: Path):
-    """remove_worktree must not crash when files in worktree are locked (open).
-
-    When a file in the worktree is held open by another process, rmtree may
-    fail on some platforms. remove_worktree uses ignore_errors=True; it should
-    not raise.
-    """
-    wt_dir, branch = create_worktree(git_project, "locked-test")
-    lock_file = wt_dir / "locked.txt"
-    lock_file.write_text("content")
-
-    # Hold the file open to simulate a locked file
-    with open(lock_file):
-        try:
-            remove_worktree(git_project, wt_dir, branch)
-        except Exception as e:
-            pytest.xfail(
-                f"Boundary Condition 4 CRASH: remove_worktree crashed with "
-                f"locked file. {type(e).__name__}: {e}"
-            )

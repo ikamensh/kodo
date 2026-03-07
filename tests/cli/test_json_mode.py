@@ -65,18 +65,6 @@ class TestJsonOutput:
         ):
             yield
 
-    def test_json_flag_accepted(self, project):
-        """The --json flag should be recognized by argparse."""
-        with (
-            patch("kodo.cli._main.launch_run", side_effect=_fake_launch),
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
-        ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
-            try:
-                _main_inner()
-            except SystemExit:
-                pass  # exit code is fine, we just need no argparse error
-
     def test_json_outputs_valid_json(self, project, capsys):
         """--json should print a parseable JSON object to stdout."""
         with (

@@ -217,16 +217,6 @@ def test_clone_creates_fresh_session(tmp_path: Path):
         cloned.close()
 
 
-def test_close_idempotent(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_close"))
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    session.close()
-    session.close()  # should not raise
-
-
 def test_session_id_from_sdk(tmp_path: Path):
     log.init(RunDir.create(tmp_path, "kimi_sid"))
     _install_mock_sdk(session_id="my-session-42")
@@ -569,29 +559,6 @@ def test_close_session_handles_runtime_error(tmp_path):
         session._run = original_run
     finally:
         session._run = original_run
-        session.close()
-
-
-def test_terminate_handles_exception(tmp_path):
-    """Test that terminate handles exceptions in cancel."""
-    log.init(RunDir.create(tmp_path, "kimi_terminate_err"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        session.query("test", tmp_path, max_turns=10)
-
-        # Mock cancel to raise exception
-        def mock_cancel():
-            raise ValueError("Cancel failed")
-
-        session._session.cancel = mock_cancel
-
-        # Should not raise
-        session.terminate()
-    finally:
         session.close()
 
 

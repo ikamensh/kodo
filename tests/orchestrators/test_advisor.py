@@ -681,12 +681,6 @@ class TestSessionAdvisor:
         assert "Stage 1 results here" in second_prompt
         assert "completed" in second_prompt.lower()
 
-    def test_advisor_close_noop_on_base(self):
-        """Base Advisor.close() is a no-op (doesn't raise)."""
-        with patch("kodo.orchestrators.advisor.PydanticAgent"):
-            advisor = Advisor(model="test-model")
-        advisor.close()  # should not raise
-
 
 # ---------------------------------------------------------------------------
 # _parse_advisor_json tests

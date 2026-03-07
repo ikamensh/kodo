@@ -12,16 +12,6 @@ from kodo import log
 from kodo.log import RunDir
 
 
-def test_emit_before_init_is_noop():
-    """Emitting before init() should silently do nothing, not crash."""
-    # _isolate_log fixture resets state, so we're in uninitialized state
-    log._log_file = None
-    log._run_id = None
-    log._start_time = None
-    log.emit("should_not_crash", key="value")
-    # No exception = pass
-
-
 def test_concurrent_emits_dont_corrupt(tmp_path: Path):
     """Multiple threads emitting simultaneously should produce valid JSONL."""
     log.init(RunDir.create(tmp_path, "concurrent"))

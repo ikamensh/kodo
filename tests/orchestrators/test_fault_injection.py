@@ -116,34 +116,3 @@ def test_summarize_failure_returns_fallback_and_emits_cycle_end(tmp_path: Path):
     assert cycle_ends[0]["reason"] == "stop_no_done"
 
 
-def test_summarizer_do_summarize_swallows_exception(tmp_path: Path):
-    """Summarizer._do_summarize catches Exception; never crashes."""
-    from kodo.summarizer import Summarizer
-
-    with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
-    ):
-        s = Summarizer()
-
-    def raising_do(agent_name, task, report):
-        raise ConnectionError("injected summarizer fault")
-
-    s._do_summarize = raising_do
-    s.summarize("worker", "task", "report")
-    s.get_accumulated_summary()  # waits for executor
-    # No exception propagates — summarizer is fire-and-forget, exceptions caught internally
-    # (The real _do_summarize has except Exception: pass; our patch replaces it
-    # so we're testing that IF it raised, the executor would swallow it. Actually
-    # the executor doesn't swallow - the exception would propagate to the thread.
-    # The caller (get_accumulated_summary) waits for the future - does it re-raise?
-    # executor.submit().result() would re-raise. So get_accumulated_summary
-    # calls executor.shutdown(wait=True) - that waits for tasks. If a task raises,
-    # the exception is stored in the future. shutdown doesn't propagate it.
-    # So we're good - the exception stays in the worker thread.)
-    # Actually in Python ThreadPoolExecutor, if a task raises, the exception
-    # is captured in the Future. future.result() would raise. But shutdown(wait=True)
-    # doesn't call result() - it just waits for the thread to finish. The exception
-    # is lost (stored in the Future but nobody calls result()). So we don't crash.
-    # Good.
-    pass

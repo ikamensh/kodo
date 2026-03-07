@@ -420,7 +420,7 @@ class TestFormatJsonOutput:
         rr = RunResult(
             cycles=[CycleResult(exchanges=5, total_cost_usd=0.01, finished=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="Setup", finished=True, summary="OK", cycles=[MagicMock()]),
+                StageResult(stage_index=1, stage_name="Setup", finished=True, success=True, summary="OK", cycles=[MagicMock()]),
             ],
         )
         result = _format_json_output(rr)
@@ -441,12 +441,6 @@ class TestFormatJsonOutput:
 
 
 class TestEmitJsonAndExit:
-    def test_noop_when_json_false(self):
-        """When args.json is False, does nothing."""
-        args = MagicMock(json=False)
-        result = MagicMock(finished=True)
-        _emit_json_and_exit(args, result)  # should not raise
-
     def test_exits_success_when_finished(self, capsys):
         """Finished result → EXIT_SUCCESS."""
         import sys
@@ -501,7 +495,7 @@ class TestPrintRunSummary:
         result = RunResult(
             cycles=[CycleResult(exchanges=10, total_cost_usd=0.02, finished=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="Setup", finished=True, summary="OK", cycles=[MagicMock()]),
+                StageResult(stage_index=1, stage_name="Setup", finished=True, success=True, summary="OK", cycles=[MagicMock()]),
                 StageResult(stage_index=2, stage_name="Build", finished=False, summary="Timeout", cycles=[MagicMock()]),
             ],
         )

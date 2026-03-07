@@ -424,7 +424,8 @@ def _main_inner() -> None:
                 print("  Discovery unavailable; using default plan.")
             plan = _build_fallback_plan(str(report_path), prior, focus=focus)
     elif non_interactive:
-        assert goal_text is not None  # set in the non-improve branch above
+        if goal_text is None:  # pragma: no cover – defensive; set in the non-improve branch above
+            _fail("Internal error: goal_text is not set.")
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:
             plan = existing_plan
@@ -439,7 +440,8 @@ def _main_inner() -> None:
         elif not args.skip_intake:
             plan = run_intake_noninteractive(run_dir, goal_text)
     else:
-        assert goal_text is not None  # set in the interactive branch above
+        if goal_text is None:  # pragma: no cover – defensive; set in the interactive branch above
+            _fail("Internal error: goal_text is not set.")
         # Check for existing goal plan first
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:
@@ -471,7 +473,8 @@ def _main_inner() -> None:
 
     # By this point, goal_text is always a str (None paths call _fail() or
     # _fail() is unreachable in --improve where it's set on line 410).
-    assert goal_text is not None, "goal_text should be set by now"
+    if goal_text is None:  # pragma: no cover – defensive; all code paths set goal_text or call _fail()
+        _fail("Internal error: goal_text is not set.")
 
     # 5. Summary and confirm
     team_name = params.get("team")

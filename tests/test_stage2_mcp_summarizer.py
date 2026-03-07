@@ -219,13 +219,13 @@ def test_enter_raises_on_startup_timeout():
     mcp = _make_mcp_with_tools()
 
     def fake_uvicorn_server(config):
-        """Fake server that never signals ready."""
+        """Fake server that never signals ready but exits when told."""
         s = MagicMock()
         s.should_exit = False
 
         async def slow_startup(sockets=None):
-            # Never completes, simulating hung startup
-            await asyncio.sleep(100)
+            while not s.should_exit:
+                await asyncio.sleep(0.01)
 
         s.startup = slow_startup
 
@@ -235,8 +235,6 @@ def test_enter_raises_on_startup_timeout():
         s.serve = serve
         return s
 
-    # We need to mock the ready event's wait to return False without
-    # breaking thread internals. Let's use a side_effect on Event creation.
     original_event_class = threading.Event
     event_count = [0]
 
@@ -244,9 +242,12 @@ def test_enter_raises_on_startup_timeout():
         event_count[0] += 1
         evt = original_event_class()
         if event_count[0] == 1:
-            # First Event is the 'ready' event in __enter__
-            # Mock its wait to return False (timeout)
-            evt.wait = lambda timeout=None: False
+            # Mock wait to return False (timeout) after a tiny delay
+            # so the thread has time to set self._server
+            def _fake_wait(timeout=None):
+                time.sleep(0.05)
+                return False
+            evt.wait = _fake_wait
         return evt
 
     with (

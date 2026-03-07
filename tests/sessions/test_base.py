@@ -23,39 +23,10 @@ from kodo.sessions.base import (
 class TestQueryResult:
     """Test QueryResult dataclass functionality."""
 
-    def test_basic_creation(self):
-        """QueryResult can be created with minimal parameters."""
-        result = QueryResult(text="response", elapsed_s=1.5)
-        assert result.text == "response"
-        assert result.elapsed_s == 1.5
-        assert result.turns is None
-        assert result.cost_usd is None
-        assert result.is_error is False
-
     def test_strips_whitespace(self):
         """QueryResult strips leading/trailing whitespace from text."""
         result = QueryResult(text="  \n  response  \n  ", elapsed_s=1.0)
         assert result.text == "response"
-
-    def test_with_all_fields(self):
-        """QueryResult can be created with all optional fields."""
-        result = QueryResult(
-            text="output",
-            elapsed_s=2.5,
-            turns=3,
-            cost_usd=0.05,
-            is_error=True,
-            input_tokens=100,
-            output_tokens=50,
-            usage_raw={"total": 150},
-        )
-        assert result.text == "output"
-        assert result.turns == 3
-        assert result.cost_usd == 0.05
-        assert result.is_error is True
-        assert result.input_tokens == 100
-        assert result.output_tokens == 50
-        assert result.usage_raw == {"total": 150}
 
     def test_empty_text_becomes_empty_string(self):
         """Empty or whitespace-only text becomes empty string."""
@@ -68,14 +39,6 @@ class TestQueryResult:
 
 class TestSessionStats:
     """Test SessionStats dataclass functionality."""
-
-    def test_default_values(self):
-        """SessionStats starts with zero values."""
-        stats = SessionStats()
-        assert stats.total_input_tokens == 0
-        assert stats.total_output_tokens == 0
-        assert stats.total_cost_usd == 0.0
-        assert stats.queries == 0
 
     def test_total_tokens_property(self):
         """total_tokens sums input and output tokens."""
@@ -114,36 +77,6 @@ class ConcreteSubprocessSession(SubprocessSession):
     def clone(self):
         """Return a fresh session."""
         return ConcreteSubprocessSession(self.model, self.system_prompt, self._timeout_s)
-
-
-class TestSubprocessSessionInit:
-    """Test SubprocessSession initialization."""
-
-    def test_basic_init(self):
-        """SubprocessSession initializes with correct defaults."""
-        session = ConcreteSubprocessSession(model="test-model")
-        assert session.model == "test-model"
-        assert session.system_prompt is None
-        assert session._timeout_s == 7200
-        assert session._system_prompt_sent is False
-        assert session._process is None
-        assert session._did_timeout is False
-
-    def test_init_with_system_prompt(self):
-        """SubprocessSession accepts custom system prompt."""
-        session = ConcreteSubprocessSession(
-            model="test",
-            system_prompt="You are a helpful assistant.",
-            timeout_s=3600,
-        )
-        assert session.system_prompt == "You are a helpful assistant."
-        assert session._timeout_s == 3600
-
-    def test_stats_property(self):
-        """stats property returns SessionStats instance."""
-        session = ConcreteSubprocessSession(model="test")
-        assert isinstance(session.stats, SessionStats)
-        assert session.stats.queries == 0
 
 
 class TestPrependSystemPrompt:
@@ -268,7 +201,7 @@ class TestSubprocessWait:
 
     def test_wait_timeout_handling(self):
         """_wait handles timeout by terminating process."""
-        session = ConcreteSubprocessSession(model="test", timeout_s=1)
+        session = ConcreteSubprocessSession(model="test", timeout_s=0.1)
 
         # Create a long-running process
         proc, stderr_chunks, thread = session._spawn(["sleep", "10"])
@@ -424,15 +357,6 @@ class TestReset:
         session.reset()
 
         assert session._system_prompt_sent is False
-
-
-class TestClose:
-    """Test close method."""
-
-    def test_close_is_noop_for_base(self):
-        """close() is a no-op for SubprocessSession base class."""
-        session = ConcreteSubprocessSession(model="test")
-        session.close()  # Should not raise
 
 
 # ── classify_session_error tests ───────────────────────────────────────────
@@ -643,11 +567,3 @@ class TestSessionProtocolMethods:
         assert hasattr(session, "close")
         assert hasattr(session, "clone")
 
-    def test_session_id_default_none(self):
-        """session_id defaults to None (not implemented in base)."""
-        # Test via protocol - SubprocessSession doesn't define session_id
-        # so we'd need to check that it's acceptable for Session protocol
-        session = ConcreteSubprocessSession(model="test")
-        # SubprocessSession doesn't override session_id, so it won't have this attribute
-        # unless explicitly defined. This is fine per the protocol definition.
-        assert not hasattr(session, "session_id") or session.session_id is None

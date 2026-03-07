@@ -180,6 +180,7 @@ class OrchestratorBase:
                 verifiers=verifiers, auto_commit=auto_commit, effort=effort,
             )
 
+        _run_error: BaseException | None = None
         try:
             if plan and not plan.stages:
                 log.tprint(
@@ -212,6 +213,9 @@ class OrchestratorBase:
                     prior_summary=prior_summary,
                     config=run_config,
                 )
+        except BaseException as exc:
+            _run_error = exc
+            raise
         finally:
             self._summarizer.shutdown()
 
@@ -228,6 +232,8 @@ class OrchestratorBase:
                 total_exchanges=result.total_exchanges,
                 summary=result.summary,
                 stages_completed=len(result.stage_results),
+                **({"error": f"{type(_run_error).__name__}: {_run_error}"}
+                   if _run_error is not None else {}),
             )
             log.print_stats_table(final=True)
 
@@ -271,14 +277,23 @@ class OrchestratorBase:
                 max_cycles=max_cycles,
             )
 
-            cycle_result = self.cycle(
-                goal,
-                project_dir,
-                team,
-                max_exchanges=max_exchanges,
-                prior_summary=prior_summary,
-                config=config,
-            )
+            try:
+                cycle_result = self.cycle(
+                    goal,
+                    project_dir,
+                    team,
+                    max_exchanges=max_exchanges,
+                    prior_summary=prior_summary,
+                    config=config,
+                )
+            except Exception as exc:
+                log.emit(
+                    "cycle_error",
+                    orchestrator=self._orchestrator_name,
+                    cycle=i,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                raise
             result.cycles.append(cycle_result)
 
             if cycle_result.finished:
@@ -373,6 +388,7 @@ class OrchestratorBase:
 
             if cycle_result.finished:
                 stage_res.finished = True
+                stage_res.success = True
                 stage_res.summary = cycle_result.summary
                 log.emit(
                     "stage_end",
@@ -461,6 +477,7 @@ class OrchestratorBase:
                 # Mark run as finished
                 if result.stage_results:
                     result.stage_results[-1].finished = True
+                    result.stage_results[-1].success = True
                 else:
                     # Advisor said "done" before any stages ran — create synthetic completed stage
                     result.stage_results.append(
@@ -468,6 +485,7 @@ class OrchestratorBase:
                             stage_index=0,
                             stage_name="(advisor confirmed done)",
                             finished=True,
+                            success=True,
                             summary=decision.summary,
                         )
                     )
