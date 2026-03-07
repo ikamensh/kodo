@@ -1468,7 +1468,7 @@ def _apply_result(self, result, done_signal, response_text, *, is_error):
 
 **Overall Results:**
 - **Lines eliminated from base.py:** ~577 lines (44% reduction)
-- **New modules created:** 2 (`resume.py`, `parallel.py`)
+- **New modules created:** 6 (`types.py`, `agent_tools.py`, `cycle_utils.py`, `stage_planning.py`, `resume.py`, `parallel.py`)
 - **Net code reduction:** ~278 lines (21% reduction in total orchestrator code)
 - **All tests passing:** 1,175 tests continue to pass with zero regressions
 
