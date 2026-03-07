@@ -24,13 +24,19 @@ class MockCodexProcess:
         cmd: list[str],
         *,
         result_text: str = "Task completed.",
-        session_id: str = "thread-abc-123",
+        session_id: str | None = "thread-abc-123",
         returncode: int = 0,
         input_tokens: int = 100,
         output_tokens: int = 50,
         extra_messages: list[dict[str, Any]] | None = None,
         stderr_text: str = "",
         error_message: str | None = None,
+        background_error: str | None = None,
+        malformed_json: bool = False,
+        empty_lines: bool = False,
+        nested_format: bool = False,
+        legacy_tokens: bool = False,
+        legacy_item: bool = False,
         **kwargs: Any,
     ):
         self.cmd = cmd
@@ -39,12 +45,20 @@ class MockCodexProcess:
         if error_message:
             msgs.append({"type": "error", "message": error_message})
             result_text = ""
+        if background_error:
+            msgs.append({"type": "background_event", "message": background_error})
+            result_text = ""
         self._build_stdout(
             result_text,
             session_id,
             input_tokens,
             output_tokens,
             msgs,
+            malformed_json,
+            empty_lines,
+            nested_format,
+            legacy_tokens,
+            legacy_item,
         )
         self.stderr = io.StringIO(stderr_text)
         self.pid = 12345
@@ -62,52 +76,103 @@ class MockCodexProcess:
     def _build_stdout(
         self,
         result_text: str,
-        session_id: str,
+        session_id: str | None,
         input_tokens: int,
         output_tokens: int,
         extra_messages: list[dict[str, Any]],
+        malformed_json: bool,
+        empty_lines: bool,
+        nested_format: bool,
+        legacy_tokens: bool,
+        legacy_item: bool,
     ) -> None:
         lines: list[str] = []
 
+        if empty_lines:
+            lines.append("")
+            lines.append("   ")
+
         # thread.started — provides session ID
-        lines.append(
-            json.dumps(
-                {
-                    "type": "thread.started",
-                    "thread_id": session_id,
-                }
+        if session_id:
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "thread.started",
+                        "thread_id": session_id,
+                    }
+                )
             )
-        )
 
         # Extra messages (e.g. tool calls, intermediate items)
         for msg in extra_messages:
             lines.append(json.dumps(msg))
 
-        # item.completed — assistant response
-        lines.append(
-            json.dumps(
-                {
-                    "type": "item.completed",
-                    "item": {
-                        "role": "assistant",
-                        "content": [{"type": "text", "text": result_text}],
-                    },
-                }
-            )
-        )
+        if malformed_json:
+            lines.append("not valid json {]")
 
-        # turn.completed — usage stats
-        lines.append(
-            json.dumps(
-                {
-                    "type": "turn.completed",
-                    "usage": {
+        # Result message format
+        if nested_format:
+            # New nested format: {"msg": {"type": "agent_message", ...}}
+            lines.append(json.dumps({
+                "id": "0",
+                "msg": {
+                    "type": "agent_message",
+                    "message": result_text,
+                }
+            }))
+            if input_tokens or output_tokens:
+                lines.append(json.dumps({
+                    "id": "1",
+                    "msg": {
+                        "type": "token_count",
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
-                    },
-                }
+                    }
+                }))
+        elif legacy_item:
+            # Legacy format: item.completed
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": result_text}],
+                        },
+                    }
+                )
             )
-        )
+        else:
+            # Current format: agent_message (top-level)
+            lines.append(json.dumps({
+                "type": "agent_message",
+                "message": result_text,
+            }))
+
+        # Token counts
+        if legacy_tokens:
+            # Legacy: turn.completed with usage
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "turn.completed",
+                        "usage": {
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                        },
+                    }
+                )
+            )
+        elif not nested_format and (input_tokens or output_tokens):
+            # Current: token_count (top-level)
+            lines.append(json.dumps({
+                "type": "token_count",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+            }))
+
+        if empty_lines:
+            lines.append("")
 
         self.stdout = io.StringIO("\n".join(lines) + "\n")
 

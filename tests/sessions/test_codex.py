@@ -168,3 +168,276 @@ def test_bad_model_returns_error(tmp_path: Path):
     assert result.is_error is True
     assert result.text
     assert "not supported" in result.text or "does not exist" in result.text
+
+
+def test_clone_creates_fresh_session(tmp_path: Path):
+    """clone() creates a new session with same config but no state."""
+    log.init(RunDir.create(tmp_path, "codex_clone"))
+    session = CodexSession(
+        model="o4-mini",
+        system_prompt="Test prompt",
+        resume_session_id="original-session",
+        sandbox="workspace-write",
+        timeout_s=3600,
+    )
+
+    clone = session.clone()
+
+    assert clone.model == session.model
+    assert clone.system_prompt == session.system_prompt
+    assert clone._sandbox == session._sandbox
+    assert clone._timeout_s == session._timeout_s
+    # Clone should NOT have the session_id (fresh state)
+    assert clone._session_id is None
+    assert clone.stats.queries == 0
+
+
+def test_cost_bucket_is_codex_subscription():
+    """cost_bucket property returns 'codex_subscription'."""
+    session = CodexSession(model="o4-mini")
+    assert session.cost_bucket == "codex_subscription"
+
+
+def test_session_id_property():
+    """session_id property returns current session ID."""
+    session = CodexSession(model="o4-mini")
+    assert session.session_id is None
+
+    session._session_id = "thread-123"
+    assert session.session_id == "thread-123"
+
+
+def test_custom_sandbox_parameter():
+    """Can initialize session with custom sandbox."""
+    session = CodexSession(model="o4-mini", sandbox="full-auto")
+    assert session._sandbox == "full-auto"
+
+
+def test_json_decode_error_skipped(tmp_path: Path):
+    """Malformed JSON lines are skipped without crashing."""
+    log.init(RunDir.create(tmp_path, "codex_bad_json"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="final result",
+            session_id="t1",
+            malformed_json=True,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    # Should still get the result despite malformed JSON
+    assert result.text == "final result"
+
+
+def test_nested_message_format(tmp_path: Path):
+    """Codex nested message format {"msg": {...}} is handled."""
+    log.init(RunDir.create(tmp_path, "codex_nested"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="nested result",
+            session_id="t1",
+            nested_format=True,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.text == "nested result"
+
+
+def test_legacy_turn_completed_tokens(tmp_path: Path):
+    """Legacy turn.completed format for token counts is handled."""
+    log.init(RunDir.create(tmp_path, "codex_legacy_tokens"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="done",
+            session_id="t1",
+            legacy_tokens=True,
+            input_tokens=300,
+            output_tokens=150,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.input_tokens == 300
+    assert result.output_tokens == 150
+
+
+def test_legacy_item_completed_format(tmp_path: Path):
+    """Legacy item.completed format for result text is handled."""
+    log.init(RunDir.create(tmp_path, "codex_legacy_item"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="assistant response",
+            session_id="t1",
+            legacy_item=True,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.text == "assistant response"
+
+
+def test_error_message_captured(tmp_path: Path):
+    """Error messages from Codex are captured and surfaced."""
+    log.init(RunDir.create(tmp_path, "codex_error_msg"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="",
+            session_id="t1",
+            error_message="API request failed: status 429",
+            returncode=0,  # Codex exits 0 even on API failure
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.is_error is True
+    assert "429" in result.text or "failed" in result.text.lower()
+
+
+def test_background_event_errors_captured(tmp_path: Path):
+    """background_event messages with errors are captured."""
+    log.init(RunDir.create(tmp_path, "codex_bg_error"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="",
+            session_id="t1",
+            background_error="error: Retry failed: status 500",
+            returncode=0,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    # Codex detects errors even with returncode=0 when error_messages exist
+    assert result.is_error is True
+    assert "500" in result.text or "retry" in result.text.lower() or "failed" in result.text.lower()
+
+
+def test_model_not_supported_hint(tmp_path: Path):
+    """'not supported' error gets actionable hint."""
+    log.init(RunDir.create(tmp_path, "codex_unsupported"))
+    session = CodexSession(model="bad-model")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            error_message="model not supported for your account",
+            returncode=0,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.is_error is True
+    assert "login" in result.text.lower() or "check" in result.text.lower()
+
+
+def test_spawn_error_returns_error_result(tmp_path: Path):
+    """FileNotFoundError when spawning returns error QueryResult."""
+    log.init(RunDir.create(tmp_path, "codex_spawn_err"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        side_effect=FileNotFoundError("codex: command not found"),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.is_error is True
+    assert "codex" in result.text or "not found" in result.text.lower()
+
+
+def test_permission_error_on_spawn(tmp_path: Path):
+    """PermissionError when spawning returns error QueryResult."""
+    log.init(RunDir.create(tmp_path, "codex_perm_err"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        side_effect=PermissionError("Permission denied"),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.is_error is True
+    assert result.elapsed_s >= 0
+
+
+def test_error_classification_on_failure(tmp_path: Path):
+    """classify_session_error hint is used when process fails."""
+    log.init(RunDir.create(tmp_path, "codex_classify"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="",
+            session_id=None,
+            returncode=1,
+            stderr_text="Subscription expired",
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.is_error is True
+    # Should have classified the error
+    assert "subscription" in result.text.lower() or "billing" in result.text.lower()
+
+
+def test_empty_lines_skipped(tmp_path: Path):
+    """Empty lines in JSON stream are skipped."""
+    log.init(RunDir.create(tmp_path, "codex_empty"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="success",
+            session_id="t1",
+            empty_lines=True,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.text == "success"
+
+
+def test_command_construction(tmp_path: Path):
+    """Verify command is constructed correctly with all parameters."""
+    log.init(RunDir.create(tmp_path, "codex_cmd"))
+    session = CodexSession(model="o4-mini", sandbox="full-auto")
+
+    calls = []
+
+    def capturing_factory(cmd, **kwargs):
+        calls.append(cmd)
+        return MockCodexProcess(cmd, result_text="ok", session_id="t1", **kwargs)
+
+    with patch("kodo.sessions.base.subprocess.Popen", capturing_factory):
+        session.query("test task", tmp_path, max_turns=10)
+
+    cmd = calls[0]
+    assert "codex" in cmd
+    assert "exec" in cmd
+    assert "--full-auto" in cmd
+    assert "--json" in cmd
+    assert "--sandbox" in cmd
+    assert "full-auto" in cmd
+    assert "-m" in cmd
+    assert "o4-mini" in cmd
+    assert str(tmp_path) in cmd
