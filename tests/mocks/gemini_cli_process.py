@@ -25,11 +25,21 @@ class MockGeminiCliProcess:
         output_tokens: int = 50,
         error: dict[str, Any] | None = None,
         stderr_text: str = "",
+        json_data: dict[str, Any] | None = None,
+        stdout_text: str | None = None,
         **kwargs: Any,
     ):
         self.cmd = cmd
         self.returncode = returncode
-        self._build_stdout(result_text, input_tokens, output_tokens, error)
+
+        # Allow raw stdout override or custom JSON data
+        if stdout_text is not None:
+            self.stdout = io.StringIO(stdout_text)
+        elif json_data is not None:
+            self.stdout = io.StringIO(json.dumps(json_data) + "\n")
+        else:
+            self._build_stdout(result_text, input_tokens, output_tokens, error)
+
         self.stderr = io.StringIO(stderr_text)
         self.pid = 12345
 
