@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
 from kodo import log
 from kodo.models import CURSOR_COMPOSER
-from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
+from kodo.sessions.base import QueryResult, SubprocessSession, _SpawnedResult, classify_session_error
 
 
 class CursorSession(SubprocessSession):
@@ -80,27 +79,13 @@ class CursorSession(SubprocessSession):
             project_dir=str(project_dir),
         )
 
-        t0 = time.monotonic()
-        result_text = ""
         raw_messages: list[dict] = []
 
-        try:
-            proc, stderr_chunks, stderr_thread = self._spawn(cmd)
-        except (FileNotFoundError, PermissionError, OSError) as exc:
-            elapsed = time.monotonic() - t0
-            error_msg = classify_session_error(
-                -1, str(exc), backend="cursor",
-            ) or f"Failed to spawn cursor-agent: {exc}"
-            log.emit(
-                "session_query_end", session="cursor", elapsed_s=elapsed,
-                is_error=True, error=str(exc),
-            )
-            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
+        def _parse_stdout(proc):
+            result_text = ""
+            input_tokens = 0
+            output_tokens = 0
 
-        input_tokens = 0
-        output_tokens = 0
-
-        try:
             for line in proc.stdout:
                 line = line.strip()
                 if not line:
@@ -133,17 +118,29 @@ class CursorSession(SubprocessSession):
                     self._chat_id = msg["chat_id"]
                 elif "session_id" in msg:
                     self._chat_id = msg["session_id"]
-        finally:
-            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
-        elapsed = time.monotonic() - t0
 
-        is_error = proc.returncode != 0
+            return result_text, input_tokens, output_tokens
+
+        r = self._query_template(cmd, parse_stdout=_parse_stdout)
+        if isinstance(r, QueryResult):
+            # Spawn failed — log and return early
+            log.emit(
+                "session_query_end", session="cursor", elapsed_s=r.elapsed_s,
+                is_error=True, error=r.text,
+            )
+            return r
+
+        # Session-specific post-processing
+        is_error = r.returncode != 0
+        result_text = r.result_text
+        stderr_text = r.stderr_text
+
         if not is_error:
             stderr_text = ""
         elif not result_text:
             hint = classify_session_error(
-                proc.returncode,
-                stderr_text,
+                r.returncode,
+                r.stderr_text,
                 backend="cursor",
                 did_timeout=self._did_timeout,
                 timeout_s=self._timeout_s,
@@ -151,20 +148,16 @@ class CursorSession(SubprocessSession):
             if hint:
                 result_text = hint
 
-        self._stats.queries += 1
-        self._stats.total_input_tokens += input_tokens
-        self._stats.total_output_tokens += output_tokens
-
         log.emit(
             "session_query_end",
             session="cursor",
             model=self.model,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
             chat_id=self._chat_id,
-            returncode=proc.returncode,
-            input_tokens=input_tokens or None,
-            output_tokens=output_tokens or None,
+            returncode=r.returncode,
+            input_tokens=r.input_tokens or None,
+            output_tokens=r.output_tokens or None,
             response_text=result_text or stderr_text,
             raw_messages=raw_messages,
         )
@@ -172,8 +165,8 @@ class CursorSession(SubprocessSession):
         text_out = result_text if result_text else stderr_text
         return QueryResult(
             text=text_out,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
-            input_tokens=input_tokens or None,
-            output_tokens=output_tokens or None,
+            input_tokens=r.input_tokens or None,
+            output_tokens=r.output_tokens or None,
         )

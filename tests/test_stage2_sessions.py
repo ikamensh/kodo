@@ -81,7 +81,7 @@ def test_gemini_garbled_json_uses_raw_stdout(tmp_path: Path):
             "kodo.orchestrators.gemini_cli.subprocess.run",
             side_effect=_gemini_fake_run("not valid json {{{"),
         ),
-        patch("kodo.orchestrators.gemini_cli.McpServerContext") as mock_ctx,
+        patch("kodo.orchestrators.cli_base.McpServerContext") as mock_ctx,
         patch("kodo.log.init"),
     ):
         mock_ctx.return_value.__enter__.return_value = ctx_obj
@@ -110,7 +110,7 @@ def test_gemini_timeout_sets_finished_false(tmp_path: Path):
 
     with (
         patch("kodo.orchestrators.gemini_cli.subprocess.run", side_effect=fake_run),
-        patch("kodo.orchestrators.gemini_cli.McpServerContext") as mock_ctx,
+        patch("kodo.orchestrators.cli_base.McpServerContext") as mock_ctx,
         patch("kodo.log.init"),
     ):
         mock_ctx.return_value.__enter__.return_value = ctx_obj

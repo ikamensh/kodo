@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
 from kodo import log
 from kodo.models import GEMINI_CLI_FLASH
-from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
+from kodo.sessions.base import QueryResult, SubprocessSession, _SpawnedResult, classify_session_error
 
 
 class GeminiCliSession(SubprocessSession):
@@ -81,85 +80,83 @@ class GeminiCliSession(SubprocessSession):
             project_dir=str(project_dir),
         )
 
-        t0 = time.monotonic()
-
-        try:
-            proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=str(project_dir))
-        except (FileNotFoundError, PermissionError, OSError) as exc:
-            elapsed = time.monotonic() - t0
-            error_msg = classify_session_error(
-                -1, str(exc), backend="gemini",
-            ) or f"Failed to spawn gemini: {exc}"
-            log.emit(
-                "session_query_end", session="gemini-cli", elapsed_s=elapsed,
-                is_error=True, error=str(exc),
-            )
-            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
-
-        try:
-            stdout_text = proc.stdout.read()
-        finally:
-            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
-        elapsed = time.monotonic() - t0
-
-        is_error = proc.returncode != 0
-
-        # Parse the JSON response
-        result_text = ""
-        input_tokens = 0
-        output_tokens = 0
+        # Closure state for post-processing
         usage_raw = None
+        stdout_text = ""
+        has_json_error = False  # set True when JSON payload contains an error
+        parsed_data: dict | None = None  # parsed JSON for tool-call fallback
 
-        if stdout_text.strip():
-            try:
-                data = json.loads(stdout_text)
-                r = data.get("response", "")
-                result_text = str(r) if r is not None else ""
-                # Extract token stats from stats.models
-                stats_models = data.get("stats", {}).get("models", {})
-                for model_stats in stats_models.values():
-                    tokens = model_stats.get("tokens", {})
-                    input_tokens += tokens.get("prompt", 0)
-                    output_tokens += tokens.get("candidates", 0)
-                usage_raw = data.get("stats")
+        def _parse_stdout(proc):
+            nonlocal usage_raw, stdout_text, has_json_error, parsed_data
 
-                # Check for error in response
-                err = data.get("error")
-                if err:
-                    is_error = True
-                    result_text = result_text or err.get("message", str(err))
+            stdout_text = proc.stdout.read()
+            result_text = ""
+            input_tokens = 0
+            output_tokens = 0
 
-                # When response is empty but tool calls happened (file writes,
-                # shell commands), gemini-cli did work but the final model turn
-                # was a tool call, not text.  Report a fallback so the
-                # orchestrator knows something happened.
-                if not result_text and not is_error and output_tokens > 0:
-                    tool_stats = data.get("stats", {}).get("tools", {})
-                    total_calls = tool_stats.get("totalCalls", 0)
-                    if total_calls:
-                        result_text = (
-                            f"[completed {total_calls} tool call(s), no text response]"
-                        )
-                    else:
-                        result_text = "[completed, no text response]"
-            except json.JSONDecodeError:
-                # Fall back to raw text
-                result_text = stdout_text.strip()
+            if stdout_text.strip():
+                try:
+                    data = json.loads(stdout_text)
+                    parsed_data = data
+                    r = data.get("response", "")
+                    result_text = str(r) if r is not None else ""
+                    # Extract token stats from stats.models
+                    stats_models = data.get("stats", {}).get("models", {})
+                    for model_stats in stats_models.values():
+                        tokens = model_stats.get("tokens", {})
+                        input_tokens += tokens.get("prompt", 0)
+                        output_tokens += tokens.get("candidates", 0)
+                    usage_raw = data.get("stats")
+
+                    # Check for error in response
+                    err = data.get("error")
+                    if err:
+                        has_json_error = True
+                        result_text = result_text or err.get("message", str(err))
+                except json.JSONDecodeError:
+                    # Fall back to raw text
+                    result_text = stdout_text.strip()
+
+            return result_text, input_tokens, output_tokens
+
+        r = self._query_template(cmd, cwd=str(project_dir), parse_stdout=_parse_stdout)
+        if isinstance(r, QueryResult):
+            # Spawn failed — log and return early
+            log.emit(
+                "session_query_end", session="gemini-cli", elapsed_s=r.elapsed_s,
+                is_error=True, error=r.text,
+            )
+            return r
+
+        # Session-specific post-processing
+        is_error = r.returncode != 0 or has_json_error
+        result_text = r.result_text
+
+        # When response is empty but tool calls happened (file writes,
+        # shell commands), gemini-cli did work but the final model turn
+        # was a tool call, not text.  Report a fallback so the
+        # orchestrator knows something happened.
+        if not result_text and not is_error and r.output_tokens > 0 and parsed_data:
+            tool_stats = parsed_data.get("stats", {}).get("tools", {})
+            total_calls = tool_stats.get("totalCalls", 0)
+            if total_calls:
+                result_text = (
+                    f"[completed {total_calls} tool call(s), no text response]"
+                )
+            else:
+                result_text = "[completed, no text response]"
 
         if is_error and not result_text:
             hint = classify_session_error(
-                proc.returncode,
-                stderr_text,
+                r.returncode,
+                r.stderr_text,
                 stdout_text,
                 "gemini",
                 did_timeout=self._did_timeout,
                 timeout_s=self._timeout_s,
             )
-            result_text = hint or stderr_text
+            result_text = hint or r.stderr_text
 
-        self._stats.queries += 1
-        self._stats.total_input_tokens += input_tokens
-        self._stats.total_output_tokens += output_tokens
         self._has_queried = True
         self._resume_next = True  # subsequent queries resume the session
 
@@ -167,21 +164,21 @@ class GeminiCliSession(SubprocessSession):
             "session_query_end",
             session="gemini-cli",
             model=self.model,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
             session_id=self.session_id,
-            returncode=proc.returncode,
+            returncode=r.returncode,
             response_text=result_text,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=r.input_tokens,
+            output_tokens=r.output_tokens,
         )
 
         text_out = result_text or ""
         return QueryResult(
             text=text_out,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
-            input_tokens=input_tokens or None,
-            output_tokens=output_tokens or None,
+            input_tokens=r.input_tokens or None,
+            output_tokens=r.output_tokens or None,
             usage_raw=usage_raw,
         )

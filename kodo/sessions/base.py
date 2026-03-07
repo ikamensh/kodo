@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 @dataclass
@@ -275,6 +276,72 @@ class SubprocessSession:
         then call ``super().reset()``."""
         self._stats = SessionStats()
         self._system_prompt_sent = False
+
+    def _query_template(
+        self,
+        cmd: list[str],
+        *,
+        cwd: str | None = None,
+        parse_stdout: Callable[
+            [subprocess.Popen], tuple[str, int, int]
+        ],
+    ) -> "QueryResult | _SpawnedResult":
+        """Shared spawn → parse → wait → stats logic for subprocess queries.
+
+        *parse_stdout* receives the running ``Popen`` and must read from
+        ``proc.stdout``.  It returns ``(result_text, input_tokens,
+        output_tokens)``.
+
+        Returns a ``QueryResult`` early on spawn failure, or a
+        ``_SpawnedResult`` carrying process output for the subclass to
+        do session-specific error classification, logging, and final
+        ``QueryResult`` construction.
+        """
+        t0 = time.monotonic()
+
+        try:
+            proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=cwd)
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            elapsed = time.monotonic() - t0
+            error_msg = classify_session_error(
+                -1, str(exc), backend=self._session_label,
+            ) or f"Failed to spawn {self._session_label}: {exc}"
+            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
+
+        try:
+            result_text, input_tokens, output_tokens = parse_stdout(proc)
+        finally:
+            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
+        elapsed = time.monotonic() - t0
+
+        self._stats.queries += 1
+        self._stats.total_input_tokens += input_tokens
+        self._stats.total_output_tokens += output_tokens
+
+        return _SpawnedResult(
+            elapsed_s=elapsed,
+            returncode=proc.returncode,
+            stderr_text=stderr_text,
+            result_text=result_text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+
+@dataclass
+class _SpawnedResult:
+    """Internal result from ``_query_template`` for subclass post-processing.
+
+    Carries process output so the subclass can do session-specific error
+    classification, logging, and final ``QueryResult`` construction.
+    """
+
+    elapsed_s: float
+    returncode: int
+    stderr_text: str
+    result_text: str
+    input_tokens: int
+    output_tokens: int
 
 
 # ---------------------------------------------------------------------------

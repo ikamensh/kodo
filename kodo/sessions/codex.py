@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 
 from kodo import log
 from kodo.models import CODEX_DEFAULT, CODEX_WORKER
-from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
+from kodo.sessions.base import QueryResult, SubprocessSession, _SpawnedResult, classify_session_error
 
 
 class CodexSession(SubprocessSession):
@@ -80,27 +79,14 @@ class CodexSession(SubprocessSession):
             project_dir=str(project_dir),
         )
 
-        t0 = time.monotonic()
-        result_text = ""
-        input_tokens = 0
-        output_tokens = 0
         raw_messages: list[dict] = []
         error_messages: list[str] = []
 
-        try:
-            proc, stderr_chunks, stderr_thread = self._spawn(cmd)
-        except (FileNotFoundError, PermissionError, OSError) as exc:
-            elapsed = time.monotonic() - t0
-            error_msg = classify_session_error(
-                -1, str(exc), backend="codex",
-            ) or f"Failed to spawn codex: {exc}"
-            log.emit(
-                "session_query_end", session="codex", elapsed_s=elapsed,
-                is_error=True, error=str(exc),
-            )
-            return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
+        def _parse_stdout(proc):
+            result_text = ""
+            input_tokens = 0
+            output_tokens = 0
 
-        try:
             for line in proc.stdout:
                 line = line.strip()
                 if not line:
@@ -165,11 +151,21 @@ class CodexSession(SubprocessSession):
                     bg_msg = src.get("message", "")
                     if "error" in bg_msg.lower() or "status 4" in bg_msg:
                         error_messages.append(bg_msg)
-        finally:
-            stderr_text = self._wait(proc, stderr_chunks, stderr_thread)
-        elapsed = time.monotonic() - t0
 
-        is_error = proc.returncode != 0
+            return result_text, input_tokens, output_tokens
+
+        r = self._query_template(cmd, parse_stdout=_parse_stdout)
+        if isinstance(r, QueryResult):
+            # Spawn failed — log and return early
+            log.emit(
+                "session_query_end", session="codex", elapsed_s=r.elapsed_s,
+                is_error=True, error=r.text,
+            )
+            return r
+
+        # Session-specific post-processing
+        is_error = r.returncode != 0
+        result_text = r.result_text
 
         # Codex may exit 0 even when all API calls failed — detect this
         if not is_error and not result_text and error_messages:
@@ -190,8 +186,8 @@ class CodexSession(SubprocessSession):
         # Classify the error for better diagnostics
         if is_error and not result_text:
             hint = classify_session_error(
-                proc.returncode,
-                stderr_text,
+                r.returncode,
+                r.stderr_text,
                 "\n".join(error_messages),
                 "codex",
                 did_timeout=self._did_timeout,
@@ -200,29 +196,25 @@ class CodexSession(SubprocessSession):
             if hint:
                 result_text = hint
 
-        self._stats.queries += 1
-        self._stats.total_input_tokens += input_tokens
-        self._stats.total_output_tokens += output_tokens
-
         log.emit(
             "session_query_end",
             session="codex",
             model=self.model,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
             session_id=self._session_id,
-            returncode=proc.returncode,
-            response_text=result_text or stderr_text,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            returncode=r.returncode,
+            response_text=result_text or r.stderr_text,
+            input_tokens=r.input_tokens,
+            output_tokens=r.output_tokens,
             raw_messages=raw_messages,
         )
 
-        text_out = result_text if result_text else stderr_text
+        text_out = result_text if result_text else r.stderr_text
         return QueryResult(
             text=text_out,
-            elapsed_s=elapsed,
+            elapsed_s=r.elapsed_s,
             is_error=is_error,
-            input_tokens=input_tokens or None,
-            output_tokens=output_tokens or None,
+            input_tokens=r.input_tokens or None,
+            output_tokens=r.output_tokens or None,
         )
