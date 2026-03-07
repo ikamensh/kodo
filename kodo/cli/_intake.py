@@ -522,12 +522,15 @@ def run_single_turn_plan(
             print(f"\n{result.text}\n")
 
         if output_file.exists():
-            return _read_intake_output(
+            result = _read_intake_output(
                 output_file,
                 staged=True,
                 session=session,
                 project_dir=project_dir,
             )
+            # staged=True always returns GoalPlan | None (never str)
+            assert not isinstance(result, str)
+            return result
 
         return None
     finally:

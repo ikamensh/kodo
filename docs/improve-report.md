@@ -1855,6 +1855,46 @@ Added 7 early validation checks to `kodo/cli/_main.py`:
 - JSON mode (`--json`) captures all errors as structured JSON output
 - **1300 tests pass** (3 skipped, 41 deselected — all pre-existing)
 
+### Stage 3: Subcommand Dispatch Audit & Mypy Fixes (2026-03-07)
+
+**Objective:** Audit `_SUBCOMMAND_MAP` dispatching for error handling gaps, fix all CLI-specific mypy errors.
+
+#### Subcommand Dispatch Audit
+
+**Finding:** `_SUBCOMMAND_MAP` dispatching in `_main.py` is already correct — no changes needed.
+
+- `_SUBCOMMAND_MAP` dispatches known subcommands (`logs`, `teams`, `backends`, `config`) before argparse runs
+- Unknown subcommands fall through to argparse, which handles them with a standard error message
+- `_JSONArgumentParser` (custom subclass) overrides `error()` to output JSON when `--json` is present
+- Typos and invalid subcommand combinations are handled by argparse's built-in validation
+- No gap exists: all error paths respect JSON mode
+
+#### Mypy Fixes (12 Errors Resolved)
+
+Fixed all 12 CLI-specific mypy errors across 4 files. Zero mypy errors remain in the CLI module.
+
+| File | Line(s) | Issue | Fix |
+|------|---------|-------|-----|
+| `_ui.py` | 32 | `Path` assigned `None` (sentinel) | Added `# type: ignore[assignment]` comment |
+| `_intake.py` | 525 | Type narrowing for `questionary.select` return | Added `assert not isinstance(result, str)` |
+| `_subcommands.py` | 500 | `d.get()` returns `str | None`, needs `str` | Wrapped with `str()` |
+| `_main.py` | 72 | `error()` return type mismatch with argparse | Changed return type to `NoReturn`, removed dead `else` branch |
+| `_main.py` | 326 | `log.parse_run()` type narrowing | Introduced `_parsed` temp variable for type narrowing |
+| `_main.py` | 433, 437, 458, 462, 483, 518 | `goal_text` possibly `None` at call sites | Added `goal_text: str | None` annotation + 3 `assert goal_text is not None` statements |
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `kodo/cli/_ui.py` | 1 type-ignore comment |
+| `kodo/cli/_intake.py` | 1 assertion for type narrowing |
+| `kodo/cli/_subcommands.py` | 1 `str()` wrapper |
+| `kodo/cli/_main.py` | `NoReturn` import + return type fix, temp variable, type annotation + 3 assertions |
+
+**Result:**
+- Zero mypy errors in CLI modules (`kodo/cli/`)
+- All 1,300 tests pass
+- Type safety improved without runtime behavior changes
+
 ---
 
 **Phase 3 Status: COMPLETE ✅**

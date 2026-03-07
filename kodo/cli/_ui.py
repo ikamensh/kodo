@@ -29,7 +29,7 @@ def _atomic_write(path: Path, content: str, encoding: str = "utf-8") -> None:
         os.close(fd)
         fd = -1
         os.replace(tmp, path)
-        tmp_path = None
+        tmp_path = None  # type: ignore[assignment]  # sentinel: skip cleanup
     finally:
         if fd >= 0:
             os.close(fd)

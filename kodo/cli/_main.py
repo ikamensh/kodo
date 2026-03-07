@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 from dotenv import load_dotenv
 
@@ -69,15 +70,14 @@ def main() -> None:
 class _JSONArgumentParser(argparse.ArgumentParser):
     """ArgumentParser that outputs JSON errors when --json is in sys.argv."""
 
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> NoReturn:
         """Override error to output JSON when --json flag is present."""
         if "--json" in sys.argv:
             # Output JSON error and exit
             print(json.dumps({"status": "error", "error": message}))
             sys.exit(EXIT_ERROR)
-        else:
-            # Default behavior: print usage and exit
-            super().error(message)
+        # Default behavior: print usage and exit
+        super().error(message)
 
 
 def _main_inner() -> None:
@@ -323,9 +323,10 @@ def _main_inner() -> None:
                 log_file = run_log
             else:
                 _fail(f"Run not found: {args.resume}")
-            state = log.parse_run(log_file)
-            if state is None:
+            _parsed = log.parse_run(log_file)
+            if _parsed is None:
                 _fail(f"Could not parse run from {log_file}")
+            state = _parsed
 
         print(f"  Goal: {state.goal[:80]}{'...' if len(state.goal) > 80 else ''}")
         print(f"  Cycles completed: {state.completed_cycles}/{state.max_cycles}")
@@ -341,9 +342,10 @@ def _main_inner() -> None:
         return
 
     # 1. Get goal
+    goal_text: str | None = None
     if non_interactive:
         if args.improve:
-            goal_text = None  # constructed after run_dir is created
+            pass  # goal_text constructed after run_dir is created
         elif args.goal is not None:
             goal_text = args.goal.strip()
             if not goal_text:
@@ -422,6 +424,7 @@ def _main_inner() -> None:
                 print("  Discovery unavailable; using default plan.")
             plan = _build_fallback_plan(str(report_path), prior, focus=focus)
     elif non_interactive:
+        assert goal_text is not None  # set in the non-improve branch above
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:
             plan = existing_plan
@@ -436,6 +439,7 @@ def _main_inner() -> None:
         elif not args.skip_intake:
             plan = run_intake_noninteractive(run_dir, goal_text)
     else:
+        assert goal_text is not None  # set in the interactive branch above
         # Check for existing goal plan first
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:
@@ -464,6 +468,10 @@ def _main_inner() -> None:
                     plan = intake_result
                 elif isinstance(intake_result, str):
                     goal_text = intake_result
+
+    # By this point, goal_text is always a str (None paths call _fail() or
+    # _fail() is unreachable in --improve where it's set on line 410).
+    assert goal_text is not None, "goal_text should be set by now"
 
     # 5. Summary and confirm
     team_name = params.get("team")

@@ -497,7 +497,7 @@ def _ask_agent_fields(
 
     description = questionary.text(
         "Description (tool description for orchestrator):",
-        default=d.get("description", _AGENT_DEFAULTS["description"]),
+        default=str(d.get("description", _AGENT_DEFAULTS["description"])),
     ).ask()
     if description is None:
         _cancel()
