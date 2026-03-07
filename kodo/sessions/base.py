@@ -127,6 +127,11 @@ class SubprocessSession:
         Returns ``(proc, stderr_chunks, thread)``.
         """
         self._did_timeout = False
+        # Strip ANTHROPIC_API_KEY from worker subprocesses to prevent
+        # accidental API billing when workers should use subscription.
+        import os
+        env = os.environ.copy()
+        env.pop("ANTHROPIC_API_KEY", None)
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -134,6 +139,7 @@ class SubprocessSession:
             encoding="utf-8",
             errors="replace",
             cwd=cwd,
+            env=env,
         )
         self._process = proc
         assert proc.stdout is not None, "stdout must be PIPE"

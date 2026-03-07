@@ -67,7 +67,7 @@ class TestFinishTool:
         conv = ConvergenceState(confidence=0.9)
 
         fn = _make_finish(done, ws, conv)
-        result = fn("task complete")
+        fn("task complete")
 
         assert done.called
         assert done.success

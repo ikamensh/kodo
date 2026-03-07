@@ -163,7 +163,7 @@ def _run_single_task(
     if base == "kodo":
         agent_output, status, error = _run_kodo(task, repo_dir, timeout, team=team)
     elif base == "claude":
-        agent_output, status, error = _run_claude(task, repo_dir, timeout)
+        agent_output, status, error = _run_claude(task, repo_dir, timeout, model=team)
     elif base == "cursor":
         agent_output, status, error = _run_cursor(task, repo_dir, timeout)
     elif base == "codex":
@@ -263,6 +263,10 @@ def _run_kodo(
     task: SWETask, repo_dir: Path, timeout: int, *, team: str | None = None
 ) -> tuple[dict, str, str]:
     prompt = _build_prompt(task)
+    # Parse team: "solo" or "solo+opus" (team+orchestrator_model)
+    orch_model = None
+    if team and "+" in team:
+        team, orch_model = team.rsplit("+", 1)
     cmd = [
         "uv", "run", "kodo",
         "--goal",
@@ -276,11 +280,13 @@ def _run_kodo(
     ]
     if team:
         cmd.extend(["--team", team])
-    return _run_subprocess(cmd, cwd=None, timeout=timeout)
+    if orch_model:
+        cmd.extend(["--orchestrator", "api", "--orchestrator-model", orch_model])
+    return _run_subprocess(cmd, cwd=None, timeout=timeout, keep_api_key=bool(orch_model))
 
 
 def _run_claude(
-    task: SWETask, repo_dir: Path, timeout: int
+    task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
 ) -> tuple[dict, str, str]:
     prompt = _build_prompt(task)
     cmd = [
@@ -291,6 +297,10 @@ def _run_claude(
         prompt,
         "--output-format",
         "json",
+        "--model",
+        model or "opus",
+        "--effort",
+        "high",
     ]
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
 
@@ -346,24 +356,26 @@ def _run_gemini(
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
 
 
-def _clean_env() -> dict[str, str]:
+def _clean_env(*, keep_api_key: bool = False) -> dict[str, str]:
     """Return a copy of os.environ without vars that block nested sessions
     or that force API billing instead of subscription."""
     import os
 
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
-    env.pop("ANTHROPIC_API_KEY", None)
+    if not keep_api_key:
+        env.pop("ANTHROPIC_API_KEY", None)
     return env
 
 
 def _run_subprocess(
-    cmd: list[str], cwd: Path | None, timeout: int
+    cmd: list[str], cwd: Path | None, timeout: int,
+    *, keep_api_key: bool = False,
 ) -> tuple[dict, str, str]:
     try:
         proc = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd,
-            env=_clean_env(),
+            env=_clean_env(keep_api_key=keep_api_key),
         )
         output = _parse_json_output(proc.stdout)
         # exit 0 = success, exit 2 = partial (kodo verification unsatisfied but patch exists)
@@ -436,11 +448,12 @@ def _append_result(run_dir: Path, result: TaskResult) -> None:
 
 
 def _append_prediction(run_dir: Path, result: TaskResult) -> None:
-    # Use arm as model name; sanitize colons for filenames
-    safe_arm = result.arm.replace(":", "_")
+    # Use arm as model name; sanitize for filenames and Docker container names
+    import re
+    safe_arm = re.sub(r"[^a-zA-Z0-9_.-]", "_", result.arm)
     entry = {
         "instance_id": result.instance_id,
-        "model_name_or_path": result.arm,
+        "model_name_or_path": safe_arm,
         "model_patch": result.patch,
     }
     with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:

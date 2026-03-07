@@ -113,6 +113,12 @@ def _main_inner() -> None:
         default=False,
         help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
     )
+    parser.add_argument(
+        "--focus",
+        type=str,
+        default=None,
+        help="Short guidance on what to focus on during --improve (e.g. 'error handling in CLI').",
+    )
 
     # Non-interactive config flags — discover available teams dynamically
     from kodo.team_config import list_available_teams
@@ -206,6 +212,10 @@ def _main_inner() -> None:
         _fail("--exchanges must be a positive integer.")
     if args.cycles is not None and args.cycles <= 0:
         _fail("--cycles must be a positive integer.")
+
+    # --focus requires --improve
+    if args.focus and not args.improve:
+        _fail("--focus can only be used with --improve.")
 
     # --skip-intake and --auto-refine require a goal (otherwise silently goes interactive)
     if (args.skip_intake or args.auto_refine) and not (
@@ -348,19 +358,23 @@ def _main_inner() -> None:
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         prior = _collect_prior_needs_decision(run_dir)
+        focus = args.focus
+        focus_line = f"\n\n**Focus area:** {focus}" if focus else ""
         goal_text = IMPROVE_GOAL.format(
             report_path=report_path,
             report_format=IMPROVE_REPORT_FORMAT,
-        )
+        ) + focus_line
         if not args.json:
             if prior:
                 print("  Carrying forward prior 'Needs decision' items.")
+            if focus:
+                print(f"  Focus: {focus}")
             print("  Running improve discovery...")
-        plan = run_improve_discovery(run_dir, str(report_path), prior)
+        plan = run_improve_discovery(run_dir, str(report_path), prior, focus=focus)
         if plan is None:
             if not args.json:
                 print("  Discovery unavailable; using default plan.")
-            plan = _build_fallback_plan(str(report_path), prior)
+            plan = _build_fallback_plan(str(report_path), prior, focus=focus)
     elif non_interactive:
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:

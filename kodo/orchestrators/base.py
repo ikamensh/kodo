@@ -9,12 +9,10 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol
-
-DoneMode = Literal["legacy", "new"]
-TerminalKind = Literal["goal_done", "end_cycle", "raise_issue", "legacy"]
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from kodo.agent import Agent
+from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, RESET as _RESET, plural as _plural
 from kodo.orchestrators.git_ops import (
     _GIT,
     _GIT_TIMEOUT,
@@ -24,8 +22,12 @@ from kodo.orchestrators.git_ops import (
     merge_worktree_branch,
     remove_worktree,
 )
-from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, RESET as _RESET, plural as _plural
-from kodo.orchestrators.verification import VerificationState, handle_done, verify_done
+
+if TYPE_CHECKING:
+    from kodo.advisor import Advisor
+
+DoneMode = Literal["legacy", "new"]
+TerminalKind = Literal["goal_done", "end_cycle", "raise_issue", "legacy"]
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
@@ -966,7 +968,6 @@ class OrchestratorBase:
         are discarded when the worktree is cleaned up.  Findings files (under
         ``~/.kodo/runs/``) are outside the worktree and persist normally.
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
 
         from kodo import log
 

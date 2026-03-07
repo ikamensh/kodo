@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -24,8 +25,8 @@ def generate_report(workspace: Path, run_id: str) -> int:
     arms = meta.get("arms", [])
 
     def _eval_key(arm: str) -> str:
-        """Map arm name to eval-summary key (colons replaced with underscores in filenames)."""
-        return arm.replace(":", "_")
+        """Map arm name to eval-summary key (sanitized for Docker container names)."""
+        return re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
 
     # Resolution rates (only if eval was run)
     if eval_summary:

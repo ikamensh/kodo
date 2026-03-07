@@ -23,7 +23,7 @@ from kodo.sessions.base import QueryResult, SessionStats
 from kodo.utils import run_in_thread
 
 if TYPE_CHECKING:
-    from kodo.knowledge.models import AgentRole
+    from kodo.knowledge.models import AgentRole, Workspace
 
 # Map model_preference to actual pydantic-ai model strings.
 # Falls back gracefully: prefers Anthropic when available, Gemini otherwise.

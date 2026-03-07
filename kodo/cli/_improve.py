@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from kodo.orchestrators.base import GoalPlan, GoalStage, QuickCheck
 from kodo.prompts.improve import (
     DISCOVERY_PROMPT,
-    IMPROVE_GOAL,
     IMPROVE_REPORT_FORMAT,
     IMPROVE_TIME_GUIDANCE,
     METHODOLOGY_LIBRARY,
@@ -27,6 +26,7 @@ if TYPE_CHECKING:
 
 def run_improve_discovery(
     run_dir, report_path: str, prior_needs_decision: str = "",
+    *, focus: str | None = None,
 ) -> GoalPlan | None:
     """Run AI discovery to build a dynamic improve plan for --improve.
 
@@ -50,6 +50,15 @@ def run_improve_discovery(
         env_lines.append("- **Docker**: not available.")
     environment = "\n".join(env_lines)
 
+    focus_section = ""
+    if focus:
+        focus_section = (
+            f"\n\n## Focus Area\n"
+            f"The user wants you to concentrate on: **{focus}**\n"
+            f"Prioritize stages and findings related to this area. "
+            f"Other issues can still be reported but should be secondary."
+        )
+
     prompt = DISCOVERY_PROMPT.format(
         output_path=str(output_file),
         methodologies=METHODOLOGY_LIBRARY,
@@ -60,12 +69,16 @@ def run_improve_discovery(
         report_format=IMPROVE_REPORT_FORMAT,
         findings_format=TRIAGE_FINDINGS_FORMAT,
         time_guidance=IMPROVE_TIME_GUIDANCE,
-    )
+    ) + focus_section
+
+    initial_message = "Analyze this project and create an improvement plan."
+    if focus:
+        initial_message += f" Focus on: {focus}"
 
     plan = run_single_turn_plan(
         run_dir,
         system_prompt=prompt,
-        initial_message="Analyze this project and create an improvement plan.",
+        initial_message=initial_message,
         spinner_text="Planning improvements",
     )
 
@@ -213,13 +226,17 @@ def _validate_improve_plan(
 # ---------------------------------------------------------------------------
 
 
-def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> GoalPlan:
+def _build_fallback_plan(
+    report_path: str, prior_needs_decision: str = "",
+    *, focus: str | None = None,
+) -> GoalPlan:
     """Build a generic hardcoded improve plan (fallback when discovery fails).
 
     Baseline → three parallel explorations (happy path, adversarial,
     architecture) → triage → fix & report.
     """
     run_dir = str(Path(report_path).parent)
+    focus_ctx = f"\n\n**Focus area:** {focus}" if focus else ""
     forge_findings = f"{run_dir}/findings-test-tool-forge.md"
     happy_findings = f"{run_dir}/findings-happy-path.md"
     adversarial_findings = f"{run_dir}/findings-adversarial.md"
@@ -231,6 +248,7 @@ def _build_fallback_plan(report_path: str, prior_needs_decision: str = "") -> Go
             "Find real bugs and simplification opportunities by RUNNING the "
             "software and reading the code critically.\n\n"
             f"{IMPROVE_TIME_GUIDANCE}"
+            f"{focus_ctx}"
         ),
         stages=[
             GoalStage(

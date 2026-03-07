@@ -7,9 +7,15 @@ and the standard swebench harness for Lite/Verified.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _docker_safe(name: str) -> str:
+    """Replace chars invalid in Docker container names with underscores."""
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
 
 # Location of the cloned scaleapi/SWE-bench_Pro-os repo
 _PRO_EVAL_DIR = Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"
@@ -124,7 +130,7 @@ def _evaluate_standard(
         "swebench.harness.run_evaluation",
         "--predictions_path", str(pred_file),
         "--dataset_name", dataset,
-        "--run_id", f"{run_id}_{arm}",
+        "--run_id", _docker_safe(f"{run_id}_{arm}"),
         "--max_workers", "4",
     ]
 
@@ -136,8 +142,8 @@ def _evaluate_standard(
         print(f"  WARNING: Evaluation failed for {arm}: {exc}")
     except FileNotFoundError:
         print(
-            f"  WARNING: swebench not installed. "
-            f"Install with: uv pip install 'swebench>=1.0'"
+            "  WARNING: swebench not installed. "
+            "Install with: uv pip install 'swebench>=1.0'"
         )
 
 
@@ -160,16 +166,17 @@ def _collect_eval_results(
                 continue
             summary[arm_dir.name] = _parse_pro_results(arm_dir)
     else:
-        # swebench writes to logs/run_evaluation/{run_id}_{arm}/{model_name}/...
+        # swebench writes to logs/run_evaluation/{safe_run_id}_{safe_arm}/{model_name}/...
         swebench_log_base = Path.cwd() / "logs" / "run_evaluation"
+        safe_run_id = _docker_safe(run_id)
         for log_dir in sorted(swebench_log_base.iterdir()) if swebench_log_base.exists() else []:
-            if not log_dir.is_dir() or not log_dir.name.startswith(run_id + "_"):
+            if not log_dir.is_dir() or not log_dir.name.startswith(safe_run_id + "_"):
                 continue
-            arm = log_dir.name[len(run_id) + 1:]
+            safe_arm = log_dir.name[len(safe_run_id) + 1:]
             # swebench nests by model_name (= arm), then instance_id
             for model_dir in log_dir.iterdir():
                 if model_dir.is_dir():
-                    summary[arm] = _parse_standard_results(model_dir)
+                    summary[safe_arm] = _parse_standard_results(model_dir)
                     break
 
     summary_file = run_dir / "eval-summary.json"

@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from kodo.formatting import DIM as _DIM, RESET as _RESET
+
 _log_file: Path | None = None
 _run_id: str | None = None
 _start_time: float | None = None
@@ -266,9 +268,6 @@ def emit(event: str, **data: Any) -> None:
                 f.write(json.dumps(record, default=_serialize) + "\n")
         except OSError:
             pass  # best-effort logging; don't crash on write failure
-
-
-from kodo.formatting import DIM as _DIM, RESET as _RESET
 
 
 def tprint(msg: str) -> None:

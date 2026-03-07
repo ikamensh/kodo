@@ -1,7 +1,6 @@
 """Tests for knowledge data models."""
 
 from kodo.knowledge.models import (
-    Artifact,
     ConvergenceState,
     KnowledgeGoal,
     KnowledgeResult,

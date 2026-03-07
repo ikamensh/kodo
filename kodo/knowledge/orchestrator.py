@@ -16,7 +16,6 @@ from pydantic_ai.usage import UsageLimits
 from kodo import log
 from kodo.agent import Agent
 from kodo.knowledge.models import (
-    AgentRole,
     ConvergenceState,
     KnowledgeGoal,
     KnowledgeResult,
@@ -298,7 +297,7 @@ class KnowledgeOrchestrator:
         # Build user prompt
         user_parts = [f"## Goal\n{goal.goal}"]
         if goal.constraints:
-            user_parts.append(f"## Constraints\n" + "\n".join(f"- {c}" for c in goal.constraints))
+            user_parts.append("## Constraints\n" + "\n".join(f"- {c}" for c in goal.constraints))
         if goal.output_format:
             user_parts.append(
                 f"## Output format\n{goal.output_format}\n"
@@ -309,9 +308,9 @@ class KnowledgeOrchestrator:
         ref_names = [n for n in workspace.list_artifacts() if n.startswith("ref_")]
         if ref_names:
             user_parts.append(
-                f"## Reference materials\n"
-                f"The following reference documents are available in the workspace. "
-                f"Have your agents read them with read_artifact before writing:\n"
+                "## Reference materials\n"
+                "The following reference documents are available in the workspace. "
+                "Have your agents read them with read_artifact before writing:\n"
                 + "\n".join(f"- {n}" for n in ref_names)
             )
 
@@ -377,7 +376,7 @@ class KnowledgeOrchestrator:
                     time.sleep(wait)
                 else:
                     raise
-            except (httpx.TimeoutException, httpx.ConnectError) as exc:
+            except (httpx.TimeoutException, httpx.ConnectError):
                 if attempt < max_retries - 1:
                     wait = 30 * (attempt + 1)
                     log.tprint(f"[knowledge] Network error, retrying in {wait}s...")

@@ -1,6 +1,5 @@
 """Tests for knowledge orchestrator."""
 
-from pathlib import Path
 
 from kodo.knowledge.models import KnowledgeGoal, Workspace
 from kodo.knowledge.orchestrator import KnowledgeOrchestrator

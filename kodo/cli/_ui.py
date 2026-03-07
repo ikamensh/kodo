@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from kodo import __version__
-from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, GREEN as _GREEN, RESET as _RESET, plural as _plural
+from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, GREEN as _GREEN, RESET as _RESET, plural as _plural  # noqa: F401
 
 
 _BACKEND_LABELS = {

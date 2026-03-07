@@ -374,7 +374,18 @@ def _read_intake_output(
     """
     if staged:
         if session is not None and project_dir is not None:
-            _run_parallelism_pass(session, output_file, project_dir)
+            # Skip parallelism pass if the plan already has parallel groups
+            # (e.g. --improve discovery prompt includes parallelism instructions)
+            try:
+                _raw = json.loads(output_file.read_text(encoding="utf-8"))
+                _has_parallel = any(
+                    s.get("parallel_group") is not None
+                    for s in _raw.get("stages", [])
+                )
+            except (OSError, json.JSONDecodeError, ValueError):
+                _has_parallel = False
+            if not _has_parallel:
+                _run_parallelism_pass(session, output_file, project_dir)
         try:
             raw = json.loads(output_file.read_text(encoding="utf-8"))
             plan = _parse_goal_plan(raw)
