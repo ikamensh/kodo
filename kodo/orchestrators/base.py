@@ -142,6 +142,7 @@ class OrchestratorBase:
         auto_commit: bool = False,
         effort: str = "standard",
         advisor: "Advisor | None" = None,
+        config: CycleConfig | None = None,
     ) -> RunResult:
         from kodo import log
 
@@ -171,7 +172,12 @@ class OrchestratorBase:
             num_stages=len(plan.stages) if plan else 0,
         )
         result = RunResult()
-        run_config = CycleConfig(verifiers=verifiers, auto_commit=auto_commit, effort=effort)
+        if config is not None:
+            run_config = config
+        else:
+            run_config = CycleConfig(
+                verifiers=verifiers, auto_commit=auto_commit, effort=effort,
+            )
 
         try:
             if plan and not plan.stages:
@@ -351,6 +357,7 @@ class OrchestratorBase:
                 verification=stage.verification,
                 acceptance_criteria=stage.acceptance_criteria or None,
                 effort=config.effort,
+                done_mode=config.done_mode,
             )
             cycle_result = self.cycle(
                 stage_goal,
@@ -424,9 +431,21 @@ class OrchestratorBase:
         next_index = completed_count + 1
 
         while remaining_cycles > 0 and completed_count < advisor.max_stages:
-            decision = advisor.assess(
-                goal, plan, stage_summaries, completed_count,
-            )
+            try:
+                decision = advisor.assess(
+                    goal, plan, stage_summaries, completed_count,
+                )
+            except Exception as exc:
+                log.tprint(
+                    f"[advisor] assess() failed: {exc} — "
+                    f"stopping after {_plural(completed_count, 'stage')}",
+                )
+                log.emit(
+                    "advisor_assess_error",
+                    error=str(exc),
+                    completed_stages=completed_count,
+                )
+                break
 
             if decision.action == "done":
                 log.tprint(
@@ -725,10 +744,15 @@ class OrchestratorBase:
                         max_cycles_for_stage=per_stage_cycles,
                         initial_prior_summary=initial_prior,
                         config=CycleConfig(
+                            browser_testing=config.browser_testing,
                             verifiers=config.verifiers,
                             auto_commit=(
                                 stage.persist_changes and config.auto_commit
                             ),
+                            verification=config.verification,
+                            acceptance_criteria=config.acceptance_criteria,
+                            effort=config.effort,
+                            done_mode=config.done_mode,
                         ),
                     )
                     futures_map[future] = stage

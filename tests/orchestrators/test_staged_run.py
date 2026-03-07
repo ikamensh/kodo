@@ -13,6 +13,7 @@ import pytest
 from kodo import log
 from kodo.log import RunDir
 from kodo.orchestrators.base import (
+    CycleConfig,
     CycleResult,
     GoalPlan,
     GoalStage,
@@ -1706,3 +1707,92 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
     assert True in parallel_commits  # WorkA (persist_changes=True)
     assert False in parallel_commits  # WorkB (persist_changes=False)
     assert auto_commit_per_call[3] is True  # stage 4
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_done_mode_propagates_to_stage_config(mock_viewer, tmp_project):
+    """done_mode from the run-level CycleConfig is passed through _run_one_stage."""
+    plan = _make_plan(2)
+
+    done_modes_seen: list[str] = []
+
+    class TrackingOrchestrator(FakeOrchestrator):
+        def cycle(
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            config=None,
+        ):
+            done_modes_seen.append(config.done_mode if config else "unknown")
+            return super().cycle(
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                config=config,
+            )
+
+    orch = TrackingOrchestrator(
+        cycle_results=[
+            CycleResult(summary="s1 done", finished=True),
+            CycleResult(summary="s2 done", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run(
+            "goal",
+            tmp_project,
+            team,
+            max_cycles=10,
+            plan=plan,
+            config=CycleConfig(done_mode="legacy"),
+        )
+
+    # Both stages should receive the "legacy" done_mode
+    assert done_modes_seen == ["legacy", "legacy"]
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_done_mode_default_is_new(mock_viewer, tmp_project):
+    """Without explicit done_mode, stages should receive the default 'new' mode."""
+    plan = _make_plan(1)
+
+    done_modes_seen: list[str] = []
+
+    class TrackingOrchestrator(FakeOrchestrator):
+        def cycle(
+            self,
+            goal,
+            project_dir,
+            team,
+            *,
+            max_exchanges=30,
+            prior_summary="",
+            config=None,
+        ):
+            done_modes_seen.append(config.done_mode if config else "unknown")
+            return super().cycle(
+                goal,
+                project_dir,
+                team,
+                max_exchanges=max_exchanges,
+                prior_summary=prior_summary,
+                config=config,
+            )
+
+    orch = TrackingOrchestrator(
+        cycle_results=[CycleResult(summary="done", finished=True)]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        orch.run("goal", tmp_project, team, max_cycles=5, plan=plan)
+
+    assert done_modes_seen == ["new"]
