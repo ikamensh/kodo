@@ -494,3 +494,248 @@ class TestSaveTeam:
         assert path.exists()
         assert path.parent.exists()
         assert path.parent == teams_dir
+
+
+# ---------------------------------------------------------------------------
+# _cmd_teams_auto (Tier 4)
+# ---------------------------------------------------------------------------
+
+
+class TestCmdTeamsAuto:
+    """Tests for _cmd_teams_auto() function."""
+
+    def test_template_not_found_exits(self, capsys):
+        """Unknown mode name should exit with error."""
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("full", "built-in", {}, Path("/fake/full.json"))]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("nonexistent")
+
+        out = capsys.readouterr().out
+        assert "No template found" in out
+        assert "nonexistent" in out
+
+    def test_filters_unavailable_agents(self, tmp_path, capsys):
+        """Agents with unavailable backends should be skipped."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "worker_claude": {"backend": "claude", "model": "sonnet"},
+                "worker_cursor": {"backend": "cursor", "model": "composer"},
+            },
+            "verifiers": {},
+        }
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("test")
+
+        # Should save config with only claude agent
+        assert mock_save.called
+        saved_config = mock_save.call_args[0][1]
+        assert "worker_claude" in saved_config["agents"]
+        assert "worker_cursor" not in saved_config["agents"]
+
+        out = capsys.readouterr().out
+        assert "Skipped" in out
+        assert "cursor" in out
+
+    def test_worker_fast_fallback(self, tmp_path, capsys):
+        """worker_fast should use cursor fallback when original backend missing."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "worker_fast": {"backend": "codex", "model": "gpt-5.3-codex"},
+            },
+            "verifiers": {},
+        }
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("test")
+
+        saved_config = mock_save.call_args[0][1]
+        assert saved_config["agents"]["worker_fast"]["backend"] == "cursor"
+        assert "composer" in saved_config["agents"]["worker_fast"]["model"]
+
+    def test_worker_smart_fallback(self, tmp_path, capsys):
+        """worker_smart should use claude fallback when original backend missing."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "worker_smart": {"backend": "gemini-cli", "model": "gemini-3-pro", "fallback_model": "gemini-2.5-flash"},
+            },
+            "verifiers": {},
+        }
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("test")
+
+        saved_config = mock_save.call_args[0][1]
+        assert saved_config["agents"]["worker_smart"]["backend"] == "claude"
+        assert "opus" in saved_config["agents"]["worker_smart"]["model"].lower()
+        # fallback_model should be removed for non-claude backends - but we're using claude, so it should be present
+        # Actually, the code only removes fallback_model when fb[0] != "claude", so it stays for claude
+
+    def test_tester_architect_fallback(self, tmp_path, capsys):
+        """tester and architect should use fallback backends when original missing."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "tester": {"backend": "codex", "model": "gpt-5.3-codex"},
+                "architect": {"backend": "gemini-cli", "model": "gemini-3-pro"},
+            },
+            "verifiers": {},
+        }
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("test")
+
+        saved_config = mock_save.call_args[0][1]
+        # tester should fall back to cursor (first in _FAST_FALLBACKS)
+        assert saved_config["agents"]["tester"]["backend"] == "cursor"
+        # architect should fall back to cursor (third in _SMART_FALLBACKS after claude and gemini-cli)
+        assert saved_config["agents"]["architect"]["backend"] == "cursor"
+
+    def test_no_agents_after_filtering_exits(self, tmp_path, capsys):
+        """If all agents are filtered out and no fallbacks available, exit with error."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "other_agent": {"backend": "nonexistent", "model": "some-model"},
+            },
+            "verifiers": {},
+        }
+
+        # Have one backend available but not used by any agent or fallback
+        # This gets past the "no backends" check but fails to create any agents
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": False, "gemini-cli": True}),
+            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("test")
+
+        out = capsys.readouterr().out
+        assert "Could not create any agents" in out
+
+    def test_successful_auto_generates_config(self, tmp_path, capsys):
+        """Successful auto generation should create proper config structure."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 30,
+            "max_cycles": 5,
+            "orchestrator_prompt": "Custom prompt",
+            "agents": {
+                "worker_fast": {"backend": "claude", "model": "sonnet", "description": "Fast worker"},
+            },
+            "verifiers": {
+                "testers": ["worker_fast"],
+            },
+        }
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", return_value=[("myteam", "built-in", base_config, Path("/fake/myteam.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto
+            _cmd_teams_auto("myteam")
+
+        # Verify config structure
+        assert mock_save.called
+        call_args = mock_save.call_args[0]
+        assert call_args[0] == "myteam"
+        config = call_args[1]
+        assert config["name"] == "myteam"
+        assert config["description"] == "Test team"
+        assert config["max_exchanges"] == 30
+        assert config["max_cycles"] == 5
+        assert config["orchestrator_prompt"] == "Custom prompt"
+        assert "worker_fast" in config["agents"]
+        assert config["verifiers"]["testers"] == ["worker_fast"]
+
+        out = capsys.readouterr().out
+        assert "Generated team 'myteam'" in out
+        assert "Use with: kodo --team myteam" in out
+
+
+# ---------------------------------------------------------------------------
+# _cmd_teams_auto_all (Tier 5)
+# ---------------------------------------------------------------------------
+
+
+class TestCmdTeamsAutoAll:
+    """Tests for _cmd_teams_auto_all() function."""
+
+    def test_no_builtin_templates_exits(self, capsys):
+        """If no built-in templates found, exit with error."""
+        with (
+            patch("kodo.team_config.list_available_teams", return_value=[("custom", "user", {}, Path("/fake/custom.json"))]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto_all
+            _cmd_teams_auto_all()
+
+        out = capsys.readouterr().out
+        assert "No built-in team templates found" in out
+
+    def test_calls_auto_for_each_template(self, capsys):
+        """Should call _cmd_teams_auto for each built-in template."""
+        templates = [
+            ("full", "built-in", {}, Path("/fake/full.json")),
+            ("quick", "built-in", {}, Path("/fake/quick.json")),
+            ("custom", "user", {}, Path("/fake/custom.json")),
+        ]
+
+        with (
+            patch("kodo.team_config.list_available_teams", return_value=templates),
+            patch("kodo.cli._subcommands._cmd_teams_auto") as mock_auto,
+        ):
+            from kodo.cli._subcommands import _cmd_teams_auto_all
+            _cmd_teams_auto_all()
+
+        # Should call _cmd_teams_auto for "full" and "quick" (built-in only), not "custom" (user)
+        assert mock_auto.call_count == 2
+        call_args_list = [call[0][0] for call in mock_auto.call_args_list]
+        assert "full" in call_args_list
+        assert "quick" in call_args_list
+        assert "custom" not in call_args_list
