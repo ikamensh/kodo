@@ -463,7 +463,7 @@ class TestApiErrorPaths:
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
-            result = orch.cycle("test", tmp_path, team, max_exchanges=5)
+            orch.cycle("test", tmp_path, team, max_exchanges=5)
 
         assert call_count[0] == 2
 
@@ -490,7 +490,7 @@ class TestApiErrorPaths:
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
-            result = orch.cycle("test", tmp_path, team, max_exchanges=5)
+            orch.cycle("test", tmp_path, team, max_exchanges=5)
 
         assert call_count[0] == 2
 
@@ -550,7 +550,6 @@ class TestForParallel:
 
     def test_for_parallel_creates_fresh_model(self):
         """for_parallel() creates a new orchestrator that can be used in parallel threads."""
-        from kodo.models import make_fresh_model
 
         orch = ApiOrchestrator(model="claude-opus-4-6")
         copy = orch.for_parallel()

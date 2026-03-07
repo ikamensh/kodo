@@ -522,7 +522,6 @@ def test_session_resume_fallback(tmp_path):
     # Install mock SDK with resume returning None
     _install_mock_sdk()
     import sys
-    from unittest.mock import AsyncMock
 
     # Override resume to return None
     async def mock_resume(*args, **kwargs):
@@ -579,7 +578,6 @@ def test_terminate_handles_exception(tmp_path):
     _install_mock_sdk()
 
     from kodo.sessions.kimi import KimiSession
-    from unittest.mock import MagicMock
 
     session = KimiSession()
     try:
@@ -603,7 +601,6 @@ def test_query_exception_handling(tmp_path):
     _install_mock_sdk()
 
     from kodo.sessions.kimi import KimiSession
-    from unittest.mock import AsyncMock
 
     session = KimiSession()
     try:

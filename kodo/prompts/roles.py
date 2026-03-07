@@ -1,9 +1,5 @@
 """Agent role prompts and verification signals."""
 
-# Legacy verification signal strings — kept for _check_passed() backward compat
-PASS_SIGNAL = "ALL CHECKS PASS"
-MINOR_SIGNAL = "MINOR ISSUES FIXED"
-
 # Appended to the user message when agents are called for verification
 VERIFICATION_INSTRUCTIONS = (
     "Fix minor issues yourself. Only report blocking issues with specific error messages.\n"

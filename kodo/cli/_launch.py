@@ -53,25 +53,25 @@ def _try_auto_fix_team(
         answer = input("\n  Run 'kodo teams auto' to generate a working config? [Y/n] ")
     except (EOFError, KeyboardInterrupt):
         answer = "n"
-    if answer.strip().lower() in ("", "y"):
-        from kodo.cli._subcommands import _cmd_teams_auto_all
-
-        _cmd_teams_auto_all()
-        # Retry loading after auto-fix
-        team_config = load_team_config(team_name, project_dir)
-        team_preset = get_team(team_name)
-        if team_config:
-            team = build_team_from_json(team_config)
-            system_prompt = (
-                team_config.get("orchestrator_prompt") or team_preset.system_prompt
-            )
-            verifiers = team_config.get("verifiers")
-            return team, system_prompt, verifiers
-        else:
-            team = team_preset.build_team()
-            return team, team_preset.system_prompt, None
-    else:
+    if answer.strip().lower() not in ("", "y"):
         _fail(f"Team {team_name!r} could not be built: {exc}")
+
+    from kodo.cli._subcommands import _cmd_teams_auto_all
+
+    _cmd_teams_auto_all()
+    # Retry loading after auto-fix
+    team_config = load_team_config(team_name, project_dir)
+    team_preset = get_team(team_name)
+    if team_config:
+        team = build_team_from_json(team_config)
+        system_prompt = (
+            team_config.get("orchestrator_prompt") or team_preset.system_prompt
+        )
+        verifiers = team_config.get("verifiers")
+        return team, system_prompt, verifiers
+
+    team = team_preset.build_team()
+    return team, team_preset.system_prompt, None
 
 def _build_team_from_config(
     team_config: dict | None,
@@ -410,7 +410,7 @@ def launch_run(
 
     # Debug mode: print token flow summary
     if debug and debug_sessions is not None:
-        _print_debug_summary(orchestrator, debug_sessions)
+        _print_debug_summary(debug_sessions)
 
     return result
 
@@ -444,7 +444,7 @@ def _print_run_summary(result: RunResult, total_cycles: int | None = None) -> No
         print(f"  {result.summary[:300]}")
 
 
-def _print_debug_summary(orchestrator, debug_sessions: dict) -> None:
+def _print_debug_summary(debug_sessions: dict) -> None:
     """Print the debug token flow summary after a mock run."""
     print()
     print("=" * 60)

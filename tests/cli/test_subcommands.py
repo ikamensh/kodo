@@ -1625,7 +1625,7 @@ class TestCmdTeamsEdit:
             patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
             patch("questionary.select", side_effect=mock_select),
             patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._save_team"),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1671,7 +1671,7 @@ class TestCmdTeamsEdit:
         with (
             patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
             patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._save_team"),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1754,7 +1754,7 @@ class TestCmdTeamsEdit:
         with (
             patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
             patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._save_team"),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1955,7 +1955,7 @@ class TestCmdTeamsEdit:
         with (
             patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
             patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._save_team"),
         ):
             _cmd_teams_edit("test-team")
 

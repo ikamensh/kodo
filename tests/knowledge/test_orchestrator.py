@@ -252,7 +252,7 @@ class TestBuildTeam:
 
             mock_make.return_value = FakeSession()
 
-            team = orch._build_team(design, workspace)
+            orch._build_team(design, workspace)
 
             # Verify make_knowledge_session was called correctly
             assert mock_make.call_count == 1
@@ -719,7 +719,6 @@ class TestRunLoop:
 class TestPromptConstruction:
     def test_basic_goal_in_prompt(self):
         """Goal text always appears in user prompt."""
-        from kodo.orchestrators.base import CycleResult
 
         goal = KnowledgeGoal(goal="What is the capital of France?")
         design = TeamDesign(
@@ -765,7 +764,6 @@ class TestPromptConstruction:
 
     def test_constraints_appended(self):
         """Constraints appear in user prompt when present."""
-        from kodo.orchestrators.base import CycleResult
 
         goal = KnowledgeGoal(
             goal="Analyze the data",

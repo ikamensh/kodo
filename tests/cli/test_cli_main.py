@@ -10,14 +10,11 @@ Focuses on:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from kodo.cli._main import _main_inner
-from kodo.orchestrators.base import GoalPlan, GoalStage
 
 
 # ---------------------------------------------------------------------------

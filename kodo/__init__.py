@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.185"
+__version__ = "0.4.186"
 
 # ---------------------------------------------------------------------------
 # Compatibility shim: pydantic-ai 1.20 imports ``UserLocation`` from anthropic
@@ -17,23 +17,6 @@ except ImportError:
     pass
 
 from kodo import log
-from kodo.agent import Agent, AgentResult
-
-from kodo.orchestrators.base import (
-    CycleResult,
-    GoalPlan,
-    GoalStage,
-    Orchestrator,
-    ResumeState,
-    RunResult,
-    TeamConfig,
-)
-from kodo.prompts.roles import (
-    ARCHITECT_PROMPT,
-    TESTER_BROWSER_PROMPT,
-    TESTER_PROMPT,
-)
-from kodo.sessions.base import QueryResult, Session, SessionStats
 
 
 def make_session(
@@ -45,7 +28,7 @@ def make_session(
     use_api_key: bool = False,
     session_timeout_s: int = 7200,
     effort: str | None = None,
-) -> Session:
+) -> "Session":
     """Create a worker session for the given backend.
 
     *use_api_key*: when False (default), ANTHROPIC_API_KEY is stripped from the
@@ -90,21 +73,7 @@ def make_session(
 
 
 __all__ = [
+    "__version__",
     "log",
-    "Agent",
-    "AgentResult",
-    "QueryResult",
-    "Session",
-    "SessionStats",
-    "CycleResult",
-    "GoalPlan",
-    "GoalStage",
-    "ResumeState",
-    "RunResult",
-    "Orchestrator",
-    "TeamConfig",
-    "TESTER_PROMPT",
-    "TESTER_BROWSER_PROMPT",
-    "ARCHITECT_PROMPT",
     "make_session",
 ]

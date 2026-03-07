@@ -7,7 +7,6 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
-import pytest
 
 from kodo import log
 from kodo.log import RunDir

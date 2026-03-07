@@ -23,7 +23,7 @@ from kodo.cli._intake import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan
-from tests.conftest import FakeSession, make_scripted_session
+from tests.conftest import make_scripted_session
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +461,7 @@ class TestReadIntakeOutput:
         project_dir = tmp_path
 
         with patch("kodo.cli._intake._run_parallelism_pass") as mock_pass:
-            result = _read_intake_output(
+            _read_intake_output(
                 output_file, staged=True, session=session, project_dir=project_dir,
             )
 
@@ -488,7 +488,7 @@ class TestReadIntakeOutput:
         project_dir = tmp_path
 
         with patch("kodo.cli._intake._run_parallelism_pass") as mock_pass:
-            result = _read_intake_output(
+            _read_intake_output(
                 output_file, staged=True, session=session, project_dir=project_dir,
             )
 
@@ -504,8 +504,7 @@ class TestRunParallelismPass:
     def test_normal_pass(self, tmp_path):
         """Parallelism pass sends query to session."""
         session = MagicMock()
-        output_file = tmp_path / "goal-plan.json"
-        _run_parallelism_pass(session, output_file, tmp_path)
+        _run_parallelism_pass(session, tmp_path)
         session.query.assert_called_once()
 
     def test_exception_handled(self, tmp_path, capsys):
@@ -513,7 +512,7 @@ class TestRunParallelismPass:
         session = MagicMock()
         session.query.side_effect = RuntimeError("session died")
 
-        _run_parallelism_pass(session, tmp_path / "plan.json", tmp_path)
+        _run_parallelism_pass(session, tmp_path)
         out = capsys.readouterr().out
         assert "Parallelism pass failed" in out
 

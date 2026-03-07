@@ -151,7 +151,7 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
 
     session = MockSession(letter)
 
-    def mock_model_fn(messages: list, info: AgentInfo) -> ModelResponse:
+    def mock_model_fn(messages: list, _info: AgentInfo) -> ModelResponse:
 
         # Flatten the full message context into text so the mock session
         # can scan for Letter+Number tokens (tracking what the orchestrator

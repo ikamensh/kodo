@@ -345,7 +345,7 @@ def run_intake_chat(
             _close_session(session)
 
 
-def _run_parallelism_pass(session, output_file: Path, project_dir: Path) -> None:
+def _run_parallelism_pass(session, project_dir: Path) -> None:
     """Second turn: ask the LLM to annotate the sequential plan with parallelism.
 
     Sends ``PARALLELISM_PASS_PROMPT`` in the same session so the LLM has full
@@ -385,7 +385,7 @@ def _read_intake_output(
             except (OSError, json.JSONDecodeError, ValueError):
                 _has_parallel = False
             if not _has_parallel:
-                _run_parallelism_pass(session, output_file, project_dir)
+                _run_parallelism_pass(session, project_dir)
         try:
             raw = json.loads(output_file.read_text(encoding="utf-8"))
             plan = _parse_goal_plan(raw)

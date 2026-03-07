@@ -102,7 +102,6 @@ def _make_legacy_done(
 
 def _make_new_done_tools(
     done_signal: DoneSignal,
-    goal: str,
     team: TeamConfig,
     project_dir: Path,
     *,
@@ -206,7 +205,7 @@ def build_pydantic_tools(
         tools.append(Tool(done_fn, takes_ctx=False))
     else:
         gd, ec, ri = _make_new_done_tools(
-            done_signal, goal, team, project_dir,
+            done_signal, team, project_dir,
             config=config,
         )
         tools.append(Tool(gd, takes_ctx=False))
@@ -267,7 +266,7 @@ def add_tools_to_mcp(
         mcp.add_tool(done_fn)
     else:
         gd, ec, ri = _make_new_done_tools(
-            done_signal, goal, team, project_dir,
+            done_signal, team, project_dir,
             orchestrator_tag=orchestrator_tag,
             config=config,
         )

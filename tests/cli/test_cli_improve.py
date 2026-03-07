@@ -2,25 +2,20 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from kodo.cli._improve import (
     _build_fallback_plan,
     _collect_prior_needs_decision,
-    _extract_section,
     _is_fix_stage,
     _is_triage_stage,
     _slugify,
-    _validate_improve_plan,
     run_improve_discovery,
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage
-from tests.conftest import make_scripted_session
 
 
 # ---------------------------------------------------------------------------

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
 from pathlib import Path
 from unittest import mock
@@ -11,7 +9,6 @@ from unittest import mock
 import pytest
 
 from kodo.orchestrators.git_ops import (
-    MergeResult,
     _remove_worktree_keep_branch,
     _resolve_conflicts_with_agent,
     _strip_pycache_from_index,
@@ -806,7 +803,6 @@ def test_resolve_conflicts_no_conflict_files(git_project: Path):
 
 def test_create_worktree_rmdir_oserror_fallback(git_project: Path):
     """When rmdir raises OSError (non-empty dir), shutil.rmtree is used instead."""
-    original_rmdir = Path.rmdir
 
     def failing_rmdir(self):
         raise OSError("Directory not empty")

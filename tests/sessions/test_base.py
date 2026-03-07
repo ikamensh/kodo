@@ -5,11 +5,9 @@ from __future__ import annotations
 import signal
 import subprocess
 import threading
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from kodo.sessions.base import (
     QueryResult,
@@ -276,7 +274,7 @@ class TestSubprocessWait:
         proc, stderr_chunks, thread = session._spawn(["sleep", "10"])
 
         with patch("kodo.log.emit") as mock_emit, patch("kodo.log.tprint"):
-            stderr = session._wait(proc, stderr_chunks, thread)
+            session._wait(proc, stderr_chunks, thread)
 
         assert session._did_timeout is True
         assert mock_emit.call_count >= 1

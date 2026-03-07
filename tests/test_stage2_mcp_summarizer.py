@@ -122,7 +122,6 @@ def test_summarize_api_failure_includes_fallback_context(tmp_path: Path):
 
 def test_stdio_bridge_cmd_uses_npx_when_available():
     """stdio_bridge_cmd should use npx when available."""
-    import pytest
     mcp = _make_mcp_with_tools()
 
     with (
@@ -180,7 +179,7 @@ def test_enter_raises_on_server_runtime_error():
         patch("uvicorn.Server", side_effect=fake_uvicorn_server),
         pytest.raises(RuntimeError, match="port already in use"),
     ):
-        with McpServerContext(mcp) as ctx:
+        with McpServerContext(mcp):
             pass
 
 
@@ -210,7 +209,7 @@ def test_enter_raises_on_server_generic_exception():
         patch("uvicorn.Server", side_effect=fake_uvicorn_server),
         pytest.raises(ValueError, match="bad config"),
     ):
-        with McpServerContext(mcp) as ctx:
+        with McpServerContext(mcp):
             pass
 
 
@@ -255,7 +254,7 @@ def test_enter_raises_on_startup_timeout():
         patch("threading.Event", side_effect=event_factory),
         pytest.raises(RuntimeError, match="MCP server failed to start within 10s"),
     ):
-        with McpServerContext(mcp) as ctx:
+        with McpServerContext(mcp):
             pass
 
 
@@ -268,7 +267,6 @@ def test_exit_handles_loop_already_closed():
         ctx.__enter__()
 
         # Mock loop.call_soon_threadsafe to raise RuntimeError
-        original_call = ctx._loop.call_soon_threadsafe
 
         def raise_runtime_error(*args):
             raise RuntimeError("Event loop is closed")
@@ -304,7 +302,6 @@ def test_exit_escalates_on_stuck_thread():
         # Mock thread.is_alive to return True for first join, then False
         join_count = [0]
         original_join = ctx._thread.join
-        original_is_alive = ctx._thread.is_alive
 
         def mock_join(timeout=None):
             join_count[0] += 1

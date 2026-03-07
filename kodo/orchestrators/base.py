@@ -9,7 +9,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Literal
 
 from kodo.agent import Agent
 from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, RESET as _RESET, plural as _plural
@@ -26,8 +26,6 @@ from kodo.orchestrators.git_ops import (
 if TYPE_CHECKING:
     from kodo.advisor import Advisor
 
-DoneMode = Literal["legacy", "new"]
-TerminalKind = Literal["goal_done", "end_cycle", "raise_issue", "legacy"]
 
 # Team is just a named dict of agents
 TeamConfig = dict[str, Agent]
@@ -83,7 +81,7 @@ class CycleConfig:
     verifiers: dict | None = None
     auto_commit: bool = False
     verification: Literal["full", "skip"] | list[QuickCheck] = "full"
-    done_mode: DoneMode = "new"
+    done_mode: Literal["legacy", "new"] = "new"
     acceptance_criteria: str | None = None
     effort: str = "standard"  # "low" | "standard" | "high" | "max"
 
@@ -305,7 +303,7 @@ class DoneSignal:
         self.called = False
         self.summary = ""
         self.success = False
-        self.terminal: TerminalKind | None = None
+        self.terminal: Literal["goal_done", "end_cycle", "raise_issue", "legacy"] | None = None
 
 
 def apply_done_signal(result: CycleResult, done_signal: DoneSignal) -> None:
@@ -468,39 +466,6 @@ class ResumeState:
     stage_summaries: list[str]
     current_stage_cycles: int
     pending_exchanges: list[dict] = field(default_factory=list)
-
-
-class Orchestrator(Protocol):
-    def cycle(
-        self,
-        goal: str,
-        project_dir: Path,
-        team: TeamConfig,
-        *,
-        max_exchanges: int = 30,
-        prior_summary: str = "",
-        config: CycleConfig | None = None,
-    ) -> CycleResult:
-        """Run one cycle of orchestrated work."""
-        ...
-
-    def run(
-        self,
-        goal: str,
-        project_dir: Path,
-        team: TeamConfig,
-        *,
-        max_exchanges: int = 30,
-        max_cycles: int = 5,
-        resume: ResumeState | None = None,
-        plan: GoalPlan | None = None,
-        verifiers: dict | None = None,
-        auto_commit: bool = False,
-        effort: str = "standard",
-        advisor: "Advisor | None" = None,
-    ) -> RunResult:
-        """Run multiple cycles until done or limit reached."""
-        ...
 
 
 class OrchestratorBase:

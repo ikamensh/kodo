@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -31,8 +30,6 @@ from kodo.factory import TeamPreset
 from kodo.log import RunDir
 from kodo.orchestrators.base import (
     CycleResult,
-    GoalPlan,
-    GoalStage,
     RunResult,
     StageResult,
 )
@@ -298,7 +295,7 @@ class TestBuildAdvisor:
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True),
             patch("kodo.orchestrators.advisor.Advisor") as MockAdvisor,
         ):
-            result = _build_advisor(_minimal_params())
+            _build_advisor(_minimal_params())
 
         MockAdvisor.assert_called_once()
         assert "google-gla:" in MockAdvisor.call_args[1]["model"]
@@ -309,7 +306,7 @@ class TestBuildAdvisor:
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True),
             patch("kodo.orchestrators.advisor.Advisor") as MockAdvisor,
         ):
-            result = _build_advisor(_minimal_params(orchestrator_model="opus"))
+            _build_advisor(_minimal_params(orchestrator_model="opus"))
 
         MockAdvisor.assert_called_once()
 
@@ -622,7 +619,7 @@ class TestLaunchResume:
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
-            result = launch_resume(run_dir, state)
+            launch_resume(run_dir, state)
 
         # Config should have been migrated
         migrated = json.loads(run_dir.config_file.read_text())
@@ -680,7 +677,7 @@ class TestLaunchResume:
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
-            result = launch_resume(run_dir, state)
+            launch_resume(run_dir, state)
 
         out = capsys.readouterr().out
         assert "deleted-team" in out
@@ -763,7 +760,7 @@ class TestLaunchResume:
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
-            result = launch_resume(run_dir, state)
+            launch_resume(run_dir, state)
 
         # Plan should have been passed to orchestrator.run
         call_kwargs = mock_orch.return_value.run.call_args[1]
@@ -964,7 +961,7 @@ class TestPrintDebugSummary:
             "orchestrator": FakeDebugSession("B", 200, 300),
         }
 
-        _print_debug_summary(mock_orch, sessions)
+        _print_debug_summary(sessions)
 
         out = capsys.readouterr().out
         assert "DEBUG SUMMARY" in out
@@ -975,6 +972,6 @@ class TestPrintDebugSummary:
 
     def test_empty_sessions(self, capsys):
         """Empty sessions dict should still print header."""
-        _print_debug_summary(MagicMock(), {})
+        _print_debug_summary({})
         out = capsys.readouterr().out
         assert "DEBUG SUMMARY" in out
