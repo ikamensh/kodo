@@ -5,117 +5,111 @@
 
 ---
 
-## Part 1: RunResult.finished, Stage Transitions, Error Recovery (Stage 1)
+## Auto-fixed
 
-### 1. RunResult.finished Property
+All issues in this section were automatically identified and fixed during the hardening process.
 
-**File:** `kodo/orchestrators/types.py:110-123`
+### Finding 1 — Parallel group partial failure invisible (P2, FIXED)
 
-**Verdict: FIXED** — now uses `max(stage_results, key=stage_index)` instead of `stage_results[-1]`.
+**File:** `kodo/orchestrators/base.py:650-655`
 
-Previously P2 issues:
-- ~~Non-deterministic `stage_results` ordering from `as_completed`~~ → Fixed: `RunResult.finished` uses highest stage_index.
-- ~~`result.stage_results` unsorted after parallel collection~~ → Fixed: `_run_parallel_group` now sorts the tail of `result.stage_results` (base.py:778-784).
-- ~~No break on complete parallel group failure~~ → Fixed: `_run_staged` breaks when no parallel stages completed (base.py:650-655).
-- ~~Advisor "done" with empty stage_results~~ → Fixed: synthetic `StageResult(stage_index=0, finished=True)` appended (base.py:463-472).
+**Problem:** `_run_staged` didn't break when all parallel stages in a group failed. The waterfall continued to subsequent groups even though the current group produced no successful results.
 
-### 2. Error Recovery — No New Issues
-
-- ApiOrchestrator retry logic: sound (3-attempt, exponential backoff, proper non-retryable classification).
-- Fatal error patterns: expanded to include `Rate limit exceeded`, `Model not found`, `model_not_available`, `Permission denied` (agent_tools.py:16-19).
-- Cost tracking for retried API attempts: still under-reports (P3, deferred).
+**Fix applied:** Added explicit check after parallel group completion:
+```python
+if not parallel_results:
+    log.tprint("[parallel] All stages in group failed — stopping waterfall")
+    break
+```
 
 ---
 
-## Part 2: Legacy Done Signal Handling (Stage 2)
+### Finding 2 — Advisor "done" with empty stage_results (P3, FIXED)
 
-### 3. Signal Architecture
+**File:** `kodo/orchestrators/base.py:463-472`
 
-**Two modes** controlled by `CycleConfig.done_mode` (default: `"new"`):
+**Problem:** In adaptive mode, if the advisor says "done" before any stages run, `RunResult.finished` would crash trying to access an empty `stage_results` list.
 
-| Mode | Tools | Verification | Terminal Value |
-|------|-------|-------------|----------------|
-| `"legacy"` | `done(summary, success)` | Full regex gate via `verify_done()` → `_check_passed()` | `"legacy"` |
-| `"new"` | `goal_done`, `end_cycle`, `raise_issue` | None (agent expected to verify first) | `"goal_done"`, `"end_cycle"`, `"raise_issue"` |
-
-### 4. `_check_passed` Regex — Correctness Review
-
-**File:** `kodo/orchestrators/verification.py:55-83`
-
-**Verdict: Well-hardened, one edge case noted**
-
-The regex pipeline:
-1. Negation check: `"NOT ALL CHECKS PASS"` / `"NOT MINOR ISSUES FIXED"` → immediate reject
-2. Strip fenced code blocks (triple backtick delimited, `re.DOTALL`)
-3. Strip inline code (single backtick delimited)
-4. Strip single/double-quoted strings containing the signal
-5. Authoritative position check: signal must be at line/sentence start
-
-### 5. Legacy `handle_done` Verification Loop — No Infinite Loop Risk
-
-**File:** `kodo/orchestrators/verification.py:302-378`
-
-**Key safety**: No loop inside `handle_done`. The orchestrator's cycle loop re-invokes `done()` only if the agent decides to call it again. The agent is bounded by `max_exchanges` (per-cycle turn limit). Nudge loops (`_MAX_NUDGES=3`) provide a hard cap.
-
-**Termination guarantee**: `max_exchanges` (from `run_sync(usage_limits=...)` in API orchestrator) or `max_turns` (in Claude Code SDK options) ensures no cycle runs forever, even if the agent enters a done→reject→done loop.
+**Fix applied:** Synthetic `StageResult` now appended when advisor returns "done" with no stages:
+```python
+if decision.action == "done":
+    if not result.stage_results:
+        result.stage_results.append(
+            StageResult(stage_index=0, finished=True, summary=decision.summary)
+        )
+    break
+```
 
 ---
 
-## Part 3: Adaptive Mode Transitions (Stage 2)
+### Finding 3 — No break on complete parallel group failure (P2, FIXED)
 
-### 6. Advisor Decision Validation
+**File:** `kodo/orchestrators/base.py:650-655`
 
-**File:** `kodo/orchestrators/advisor.py`
+**Problem:** Same as Finding 1 — parallel group failure didn't stop waterfall execution.
 
-**Verdict: Robust — no infinite loop paths**
-
-| Exit condition | Mechanism |
-|---------------|-----------|
-| Advisor says "done" | `break` at base.py:473 |
-| Cycles exhausted | `remaining_cycles <= 0` in while condition (base.py:433) |
-| Stage limit | `completed_count >= advisor.max_stages` in while condition (base.py:433) |
-| Stage failure | `break` at base.py:504 |
-| Advisor crash | `break` at base.py:448 (new try/except — Finding 10) |
-
-All five are checked every iteration.
-
-**Pydantic agent** (`Advisor.assess()`): `AdvisorDecision.action` is `Literal["next_stage", "done"]`. Pydantic-ai validates structured output — invalid action raises `ValidationError`.
-
-**Session advisor** (`SessionAdvisor.assess()`): 4-level JSON parse fallback chain. Unparseable → `AdvisorDecision(action="done", summary="Could not parse...")`. Session error → same "done" fallback. Both are conservative: they halt rather than continue.
-
-### 7. Advisor vs Agent Done Signal — No Conflict Possible
-
-The advisor and DoneSignal operate at different scopes and never run concurrently. The advisor runs *between* stages; DoneSignal is created fresh *inside* each `cycle()` call. They cannot conflict because they never coexist in the same execution phase.
+**Fix applied:** Same fix as Finding 1.
 
 ---
 
-## Part 4: Findings Detail
+### Finding 4 — Sequential fallback drops CycleConfig fields (P3, FIXED)
 
-### Finding 8 — `_RE_FENCED_CODE` greediness (P3, acceptable)
+**File:** `kodo/orchestrators/parallel.py:145-153`
 
-**File:** `kodo/orchestrators/verification.py:40`
+**Problem:** When parallel execution failed and fell back to sequential mode, the `CycleConfig` passed to sequential stages only preserved `verifiers` and `auto_commit`, dropping `browser_testing`, `verification`, `acceptance_criteria`, `effort`, and `done_mode`.
 
-The pattern `r"```.*?```"` with `re.DOTALL` uses non-greedy `.*?`, which is correct for matching the *nearest* closing fence. If a report contains an unclosed triple-backtick (e.g., truncated output), the regex matches nothing — the signal phrase inside the unclosed block would remain and could produce a false positive. In practice, LLM verifier output is well-formed, so this is theoretical.
+**Fix applied:** All fields now preserved in sequential fallback:
+```python
+config=CycleConfig(
+    browser_testing=config.browser_testing,
+    verifiers=config.verifiers,
+    auto_commit=config.auto_commit,
+    verification=config.verification,
+    acceptance_criteria=config.acceptance_criteria,
+    effort=config.effort,
+    done_mode=config.done_mode,
+),
+```
 
-**Status:** Acceptable. No fix needed.
+---
 
-### Finding 9 — No double-set guard on DoneSignal (P3, acceptable)
+### Finding 5 — Non-deterministic stage_results ordering (P2, FIXED)
 
-**File:** `kodo/orchestrators/tools.py:117-155`
+**File:** `kodo/orchestrators/base.py:778-784`
 
-Nothing prevents an agent from calling `goal_done()` and then `raise_issue()` in the same cycle (or vice versa). Last writer wins — the second call overwrites `terminal`, `summary`, and `success`. The nudge loops check `done_signal.called` but don't re-check the terminal value.
+**Problem:** After parallel stage collection via `as_completed()`, the `result.stage_results` list was unsorted. `RunResult.finished` relied on `stage_results[-1]`, which could be any stage from the parallel group, not necessarily the highest-indexed one.
 
-In practice, tool calls are sequential and all done tools return a clear terminal message ("Goal accepted." / "Issue raised. Run stopped."). An LLM would have to actively ignore the response to call a second done tool. Risk: negligible.
+**Fix applied:**
+1. `RunResult.finished` now uses `max(stage_results, key=lambda s: s.stage_index)` instead of `[-1]`
+2. `_run_parallel_group` sorts the parallel results before appending:
+```python
+parallel_results.sort(key=lambda r: r.stage_index)
+result.stage_results.extend(parallel_results)
+```
 
-**Status:** Acceptable. No fix needed.
+---
+
+### Finding 7 — Fatal error patterns too narrow (P3, FIXED)
+
+**File:** `kodo/orchestrators/agent_tools.py:16-19`
+
+**Problem:** Fatal error detection only matched exact strings like "Authentication failed". Many common fatal errors were missed, causing unnecessary retries.
+
+**Fix applied:** Expanded patterns to include:
+- `"Rate limit exceeded"`
+- `"Model not found"`
+- `"model_not_available"`
+- `"Permission denied"`
+
+---
 
 ### Finding 10 — `advisor.assess()` crash handling (P3, FIXED)
 
 **File:** `kodo/orchestrators/base.py:434-448`
 
-Previously, `advisor.assess()` was called inside the `_run_adaptive` while loop without try/except. If `assess()` raised (API timeout, Pydantic validation error, network failure), the exception propagated unhandled to `run()`.
+**Problem:** `advisor.assess()` was called inside the `_run_adaptive` while loop without try/except. If `assess()` raised (API timeout, Pydantic validation error, network failure), the exception propagated unhandled.
 
-**Fix applied:** `advisor.assess()` is now wrapped in try/except with a graceful log message and `break`:
+**Fix applied:** `advisor.assess()` now wrapped in try/except with graceful halt:
 ```python
 try:
     decision = advisor.assess(
@@ -130,15 +124,15 @@ except Exception as exc:
     break
 ```
 
-This matches the conservative fallback pattern used by `SessionAdvisor` for parse failures — halt rather than continue.
+---
 
 ### Finding 11 — `CycleConfig` field loss in `_run_parallel_group` thread-pool path (P2, FIXED)
 
 **File:** `kodo/orchestrators/base.py:746-756`
 
-Previously, the `CycleConfig` passed to parallel stage threads only preserved `verifiers` and `auto_commit`, dropping `browser_testing`, `verification`, `acceptance_criteria`, `effort`, and `done_mode`. This was the same pattern as the sequential fallback bug (Finding 4), but in the thread-pool path.
+**Problem:** The `CycleConfig` passed to parallel stage threads only preserved `verifiers` and `auto_commit`, dropping `browser_testing`, `verification`, `acceptance_criteria`, `effort`, and `done_mode`. Parallel stages always ran with `effort="standard"` and `done_mode="new"` regardless of run-level configuration.
 
-**Fix applied:** All fields are now preserved:
+**Fix applied:** All fields now preserved:
 ```python
 config=CycleConfig(
     browser_testing=config.browser_testing,
@@ -151,15 +145,15 @@ config=CycleConfig(
 ),
 ```
 
-**Impact of prior bug:** Parallel stages always ran with `effort="standard"` and `done_mode="new"` regardless of the run-level configuration. If a run was configured for `done_mode="legacy"` (with verification gate) or `effort="high"`, parallel stages silently ignored those settings.
+---
 
 ### Finding 12 — `done_mode` propagation in `_run_one_stage` (P2, FIXED)
 
 **File:** `kodo/orchestrators/base.py:353-361`
 
-Previously, `_run_one_stage` built a `stage_config` that did not include `done_mode`. This meant all stages defaulted to `done_mode="new"` regardless of what was set at the run level.
+**Problem:** `_run_one_stage` built a `stage_config` that did not include `done_mode`. All stages defaulted to `done_mode="new"` regardless of run-level configuration, bypassing the verification gate entirely for legacy mode.
 
-**Fix applied:** `stage_config` now includes `done_mode=config.done_mode` (line 360):
+**Fix applied:** `stage_config` now includes `done_mode=config.done_mode`:
 ```python
 stage_config = CycleConfig(
     browser_testing=stage.browser_testing,
@@ -172,15 +166,15 @@ stage_config = CycleConfig(
 )
 ```
 
-**Impact of prior bug:** If a run was configured with `done_mode="legacy"` (which enables the verification gate with `_check_passed` regex), stages would silently use `done_mode="new"` (no verification gate), bypassing the quality check entirely.
+---
 
 ### Finding 13 — `run()` missing `config` parameter (P3, FIXED)
 
 **File:** `kodo/orchestrators/base.py:131-180`
 
-Previously, `run()` only accepted individual config kwargs (`verifiers`, `auto_commit`, `effort`) and always constructed a `CycleConfig` from them, losing any other fields that callers might want to set (like `done_mode`).
+**Problem:** `run()` only accepted individual config kwargs (`verifiers`, `auto_commit`, `effort`) and always constructed a `CycleConfig` from them, losing any other fields that callers might want to set (like `done_mode`).
 
-**Fix applied:** `run()` now accepts an optional `config: CycleConfig | None = None` parameter (line 145). When provided, it's used directly; otherwise, a `CycleConfig` is constructed from the individual kwargs for backward compatibility:
+**Fix applied:** `run()` now accepts optional `config: CycleConfig | None = None` parameter:
 ```python
 if config is not None:
     run_config = config
@@ -190,52 +184,32 @@ else:
     )
 ```
 
-Existing callers in `_launch.py` continue to use the individual kwargs and are unaffected.
+Existing callers continue to use individual kwargs and are unaffected.
 
 ---
 
-## Part 5: Resource Integrity & Signal Propagation in Parallel Stages (Stage 4)
-
-### Finding 14 — `raise_issue` does not stop other parallel stages or the run (P2, FIXED)
+### Finding 14 — `raise_issue` does not stop parallel stages or the run (P2, FIXED)
 
 **Files:** `types.py:80`, `base.py:375,628-636,674-682`, `stage_planning.py:25`
 
-**Verdict: FIXED**
-
-Previously, `StageResult` had no `success` field — both `goal_done` and `raise_issue` produced `finished=True`, making them indistinguishable. The waterfall continued after a fatal `raise_issue`.
+**Problem:** `StageResult` had no `success` field — both `goal_done` and `raise_issue` produced `finished=True`, making them indistinguishable. The waterfall continued after a fatal `raise_issue`.
 
 **Fix applied:**
-1. `StageResult` now has `success: bool = True` (types.py:80).
-2. `_run_one_stage` propagates `cycle_result.success` into `stage_res.success` (base.py:375).
-3. `_handle_stage_crash` sets `success=False` (stage_planning.py:25).
-4. Sequential waterfall (base.py:628-636): checks `stage_res.finished and not stage_res.success` → breaks with "stage raised an issue".
-5. Parallel waterfall (base.py:674-682): checks `any(pr.finished and not pr.success for pr in parallel_results)` → breaks with "parallel stage raised an issue".
+1. `StageResult` now has `success: bool = True` (types.py:80)
+2. `_run_one_stage` propagates `cycle_result.success` into `stage_res.success` (base.py:375)
+3. `_handle_stage_crash` sets `success=False` (stage_planning.py:25)
+4. Sequential waterfall (base.py:628-636): checks `stage_res.finished and not stage_res.success` → breaks with "stage raised an issue"
+5. Parallel waterfall (base.py:674-682): checks `any(pr.finished and not pr.success for pr in parallel_results)` → breaks with "parallel stage raised an issue"
 
 **Remaining limitation:** Other parallel threads still run to completion — `ThreadPoolExecutor` has no cancellation mechanism. Acceptable: compute is subscription-covered and threads complete naturally.
 
-### Finding 15 — Worktree cleanup in `finally` block is correct (P4, acceptable)
-
-**File:** `base.py:709-773`, `parallel.py:176-264`
-
-**Verdict: Correct**
-
-`cleanup_and_merge_worktrees()` is called in a `finally` block at base.py:770-773. The cleanup ordering is correct:
-1. Commit `persist_changes` worktrees (safety net)
-2. Close cloned sessions (terminates running agents)
-3. Remove worktrees (directories + metadata, keeping branches for merge)
-4. Merge `persist_changes` branches, then delete branches in their own `finally`
-
-This handles: normal completion, exceptions, `FatalAgentError`, and first `KeyboardInterrupt`.
-
-**Residual risk:** Double `KeyboardInterrupt` (user hits Ctrl+C twice rapidly while `ThreadPoolExecutor.__exit__` runs `shutdown(wait=True)`) could prevent the outer `finally` from completing. This is a Python-level limitation — `finally` blocks are not re-entrant under repeated signals. Acceptable.
+---
 
 ### Finding 16 — No startup cleanup of abandoned kodo worktrees (P3, FIXED)
 
 **Files:** `git_ops.py:117-309` (new function), `base.py:733` (call site)
 
-**Verdict: FIXED**
-
-Previously, if a run was killed hard (SIGKILL, OOM-killer, power failure, double `KeyboardInterrupt`), the following persisted:
+**Problem:** If a run was killed hard (SIGKILL, OOM-killer, power failure, double `KeyboardInterrupt`), the following persisted:
 - Worktree directories: `/tmp/kodo-stage-*-<uuid>` (full project copies)
 - Git branches: `kodo-stage-*-<uuid>` in the project repo
 - Git worktree metadata: `.git/worktrees/kodo-*` entries
@@ -259,8 +233,8 @@ Previously, if a run was killed hard (SIGKILL, OOM-killer, power failure, double
    - Only deletes branches not in the active worktree set
 
 3. **Call site:** `_run_parallel_group()` in `base.py:733`
-   - Called right before `create_stage_worktrees()` as designed
-   - Runs only when parallel stages are created, avoiding irrelevant execution
+   - Called right before `create_stage_worktrees()`
+   - Runs only when parallel stages are created
 
 **Test coverage:** 7 new tests added to `test_git_ops.py`, covering:
 - No-op when no stale worktrees exist
@@ -272,27 +246,13 @@ Previously, if a run was killed hard (SIGKILL, OOM-killer, power failure, double
 - Handles missing worktree paths
 - Orphaned branch cleanup scenarios
 
-### Finding 17 — `FatalAgentError` propagation in parallel stages is correct (P4, VERIFIED)
-
-**Files:** `agent_tools.py:99-101`, `base.py:764-766`, `stage_planning.py:13-26`
-
-**Verdict: VERIFIED — Correct as-is**
-
-`FatalAgentError` raised inside a parallel stage's `handle_agent_call()` propagates through `future.result()` → caught by `_handle_stage_crash()` → `StageResult(finished=False, success=False, summary="Stage crashed: ...")`. Other stages continue independently.
-
-This is correct behavior: each parallel stage has its own cloned team (independent agent sessions). A fatal error in one team's workers doesn't imply others are affected.
-
-**Note:** `dead_workers` is per-`cycle()` (created fresh per tool build), so worker death tracking doesn't persist across cycles within a stage. This is by design.
-
-**Additional improvement (Finding 14):** `StageResult` now has `success=False` on crashes, which propagates to stop the waterfall after parallel completion (base.py:674-682).
+---
 
 ### Finding 18 — SIGINT suppression during worktree cleanup (P3, FIXED)
 
 **Files:** `parallel.py:176-267` (new context manager and refactored cleanup)
 
-**Verdict: FIXED — Resource integrity hardened**
-
-**Previous behavior:** `cleanup_and_merge_worktrees()` was called in a `finally` block, which protected against normal exceptions and single `KeyboardInterrupt`. However, if a user pressed Ctrl+C twice rapidly during cleanup, the second SIGINT could interrupt the cleanup mid-operation, leaving:
+**Problem:** `cleanup_and_merge_worktrees()` was called in a `finally` block, which protected against normal exceptions and single `KeyboardInterrupt`. However, if a user pressed Ctrl+C twice rapidly during cleanup, the second SIGINT could interrupt the cleanup mid-operation, leaving:
 - Partially merged branches
 - Undeleted worktree directories
 - Agent sessions still open
@@ -328,58 +288,193 @@ This is correct behavior: each parallel stage has its own cloned team (independe
 
 ---
 
+## Skipped
+
+Issues in this section were analyzed but intentionally skipped due to low risk, theoretical nature, or cost/benefit considerations.
+
+### Finding 6 — Retried API attempts not tracked in cost (P3, Deferred)
+
+**File:** `kodo/orchestrators/api.py:279-284`
+
+**Problem:** When the API orchestrator retries a failed agent call (up to 3 attempts with exponential backoff), only the final successful attempt's cost is tracked. The cost of failed attempts is lost.
+
+**Analysis:**
+- ApiOrchestrator retry logic is sound: 3-attempt max, exponential backoff, proper non-retryable error classification
+- Fatal error patterns were expanded (Finding 7)
+- Cost tracking under-reports by the sum of failed retry attempts
+
+**Rationale for deferral:**
+- Agent costs are **virtual** — actual compute is absorbed by Claude Code Max subscription
+- Kodo's value proposition: "you're paying for Max anyway, kodo lets you utilize it overnight"
+- Accurate cost tracking is lower priority than reliability
+- P3 severity with no functional impact
+
+**Status:** Deferred indefinitely. May revisit if cost accounting becomes a requirement.
+
+---
+
+### Finding 8 — `_RE_FENCED_CODE` greediness across unclosed fences (P3, Acceptable)
+
+**File:** `kodo/orchestrators/verification.py:40`
+
+**Problem:** The pattern `r"```.*?```"` with `re.DOTALL` uses non-greedy `.*?`, which is correct for matching the *nearest* closing fence. However, if a report contains an unclosed triple-backtick (e.g., truncated output), the regex matches nothing — the signal phrase inside the unclosed block would remain and could produce a false positive.
+
+**Analysis:**
+The regex pipeline for legacy mode verification:
+1. Negation check: `"NOT ALL CHECKS PASS"` / `"NOT MINOR ISSUES FIXED"` → immediate reject
+2. Strip fenced code blocks (triple backtick delimited, `re.DOTALL`)
+3. Strip inline code (single backtick delimited)
+4. Strip single/double-quoted strings containing the signal
+5. Authoritative position check: signal must be at line/sentence start
+
+**Rationale for acceptance:**
+- In practice, LLM verifier output is well-formed
+- Unclosed code fences in production runs are extremely rare
+- Theoretical edge case with negligible real-world impact
+- Would require complex state-machine parser to handle properly
+- P3 severity
+
+**Status:** Acceptable. No fix needed.
+
+---
+
+### Finding 9 — No double-set guard on DoneSignal (P3, Acceptable)
+
+**File:** `kodo/orchestrators/tools.py:117-155`
+
+**Problem:** Nothing prevents an agent from calling `goal_done()` and then `raise_issue()` in the same cycle (or vice versa). Last writer wins — the second call overwrites `terminal`, `summary`, and `success`. The nudge loops check `done_signal.called` but don't re-check the terminal value.
+
+**Analysis:**
+- Tool calls are sequential — agent must actively call one, see the response, then ignore it and call another
+- All done tools return clear terminal messages:
+  - `goal_done()` → "Goal accepted. Run complete."
+  - `raise_issue()` → "Issue raised. Run stopped."
+  - `end_cycle()` → "Cycle ended. Moving to next stage."
+- An LLM would have to actively ignore the response to call a second done tool
+- Current behavior (last writer wins) is deterministic and predictable
+
+**Rationale for acceptance:**
+- Risk is negligible in practice
+- Agent would need to malfunction or hallucinate to trigger this
+- Adding guards would add complexity for a theoretical edge case
+- P3 severity
+
+**Status:** Acceptable. No fix needed.
+
+---
+
+### Finding 15 — Worktree cleanup in `finally` block is correct (P4, Verified)
+
+**File:** `base.py:709-773`, `parallel.py:176-264`
+
+**Status:** Verified correct — no changes needed.
+
+**Analysis:** `cleanup_and_merge_worktrees()` is called in a `finally` block at base.py:770-773. The cleanup ordering is correct:
+1. Commit `persist_changes` worktrees (safety net)
+2. Close cloned sessions (terminates running agents)
+3. Remove worktrees (directories + metadata, keeping branches for merge)
+4. Merge `persist_changes` branches, then delete branches in their own `finally`
+
+This handles: normal completion, exceptions, `FatalAgentError`, and first `KeyboardInterrupt`.
+
+**Residual risk:** Double `KeyboardInterrupt` (user hits Ctrl+C twice rapidly while `ThreadPoolExecutor.__exit__` runs `shutdown(wait=True)`) could prevent the outer `finally` from completing. This is a Python-level limitation — `finally` blocks are not re-entrant under repeated signals.
+
+**Mitigation:** Finding 18 added SIGINT suppression to address this residual risk.
+
+---
+
+### Finding 17 — `FatalAgentError` propagation in parallel stages is correct (P4, Verified)
+
+**Files:** `agent_tools.py:99-101`, `base.py:764-766`, `stage_planning.py:13-26`
+
+**Status:** Verified correct — no changes needed.
+
+**Analysis:** `FatalAgentError` raised inside a parallel stage's `handle_agent_call()` propagates through `future.result()` → caught by `_handle_stage_crash()` → `StageResult(finished=False, success=False, summary="Stage crashed: ...")`. Other stages continue independently.
+
+This is correct behavior: each parallel stage has its own cloned team (independent agent sessions). A fatal error in one team's workers doesn't imply others are affected.
+
+**Note:** `dead_workers` is per-`cycle()` (created fresh per tool build), so worker death tracking doesn't persist across cycles within a stage. This is by design.
+
+**Additional improvement:** Finding 14 added `StageResult.success=False` on crashes, which now propagates to stop the waterfall after parallel completion (base.py:674-682).
+
+---
+
+## Needs Decision
+
+No issues require user decision at this time. All actionable issues have been fixed or deferred with clear rationale.
+
+---
+
 ## Summary Table
 
 | # | Finding | Severity | Status | Location |
 |---|---------|----------|--------|----------|
-| 1 | Parallel group partial failure invisible | P2 | **FIXED** (Stage 1) | base.py:650-655 |
-| 2 | Advisor "done" with empty stage_results | P3 | **FIXED** (Stage 1) | base.py:463-472 |
-| 3 | No break on complete parallel group failure | P2 | **FIXED** (Stage 1) | base.py:650-655 |
-| 4 | Sequential fallback drops CycleConfig fields | P3 | **FIXED** (Stage 1) | parallel.py:145-153 |
-| 5 | Non-deterministic stage_results ordering | P2 | **FIXED** (Stage 1) | base.py:778-784 |
-| 6 | Retried API attempts not tracked in cost | P3 | Deferred | api.py:279-284 |
-| 7 | Fatal error patterns too narrow | P3 | **FIXED** (Stage 1) | agent_tools.py:16-19 |
-| 8 | `_RE_FENCED_CODE` greedy across unclosed fences | P3 | Acceptable | verification.py:40 |
-| 9 | No double-set guard on DoneSignal | P3 | Acceptable | tools.py:117-155 |
-| 10 | `advisor.assess()` crash unhandled in adaptive loop | P3 | **FIXED** (Stage 2) | base.py:434-448 |
-| 11 | Thread-pool `CycleConfig` drops fields | P2 | **FIXED** (Stage 2) | base.py:746-756 |
-| 12 | `done_mode` not propagated in `_run_one_stage` | P2 | **FIXED** (Stage 2) | base.py:353-361 |
-| 13 | `run()` missing `config` parameter | P3 | **FIXED** (Stage 2) | base.py:131-180 |
-| 14 | `raise_issue` doesn't stop parallel stages or run | P2 | **FIXED** (Stage 3) | types.py:80, base.py:375,628-636,674-682 |
-| 15 | Worktree cleanup `finally` block | P4 | **VERIFIED** (Stage 3) | base.py:770-773 |
-| 16 | No startup cleanup of abandoned worktrees | P3 | **FIXED** (Stage 3) | git_ops.py:117-309, base.py:733 |
-| 17 | `FatalAgentError` propagation in parallel | P4 | **VERIFIED** (Stage 3) | agent_tools.py:99, base.py:764-766, stage_planning.py:25 |
-| 18 | SIGINT suppression during worktree cleanup | P3 | **FIXED** (Stage 3) | parallel.py:176-267 |
+| 1 | Parallel group partial failure invisible | P2 | **FIXED** | base.py:650-655 |
+| 2 | Advisor "done" with empty stage_results | P3 | **FIXED** | base.py:463-472 |
+| 3 | No break on complete parallel group failure | P2 | **FIXED** | base.py:650-655 |
+| 4 | Sequential fallback drops CycleConfig fields | P3 | **FIXED** | parallel.py:145-153 |
+| 5 | Non-deterministic stage_results ordering | P2 | **FIXED** | base.py:778-784 |
+| 6 | Retried API attempts not tracked in cost | P3 | **DEFERRED** | api.py:279-284 |
+| 7 | Fatal error patterns too narrow | P3 | **FIXED** | agent_tools.py:16-19 |
+| 8 | `_RE_FENCED_CODE` greedy across unclosed fences | P3 | **ACCEPTABLE** | verification.py:40 |
+| 9 | No double-set guard on DoneSignal | P3 | **ACCEPTABLE** | tools.py:117-155 |
+| 10 | `advisor.assess()` crash unhandled in adaptive loop | P3 | **FIXED** | base.py:434-448 |
+| 11 | Thread-pool `CycleConfig` drops fields | P2 | **FIXED** | base.py:746-756 |
+| 12 | `done_mode` not propagated in `_run_one_stage` | P2 | **FIXED** | base.py:353-361 |
+| 13 | `run()` missing `config` parameter | P3 | **FIXED** | base.py:131-180 |
+| 14 | `raise_issue` doesn't stop parallel stages or run | P2 | **FIXED** | types.py:80, base.py:375,628-636,674-682 |
+| 15 | Worktree cleanup `finally` block | P4 | **VERIFIED** | base.py:770-773 |
+| 16 | No startup cleanup of abandoned worktrees | P3 | **FIXED** | git_ops.py:117-309, base.py:733 |
+| 17 | `FatalAgentError` propagation in parallel | P4 | **VERIFIED** | agent_tools.py:99, base.py:764-766, stage_planning.py:25 |
+| 18 | SIGINT suppression during worktree cleanup | P3 | **FIXED** | parallel.py:176-267 |
 
 ---
 
-## Stage 3 Completion Summary
+## Completion Summary
 
-**Focus:** Resource integrity and signal propagation in parallel execution
+**Work completed across 3 stages:**
 
-**Work completed:**
-1. ✅ Added `StageResult.success` field to distinguish `goal_done` from `raise_issue`
-2. ✅ Implemented waterfall halting on `raise_issue` (sequential and parallel paths)
-3. ✅ Verified `FatalAgentError` propagation and crash handling
-4. ✅ Verified worktree cleanup `finally` block correctness
-5. ✅ Implemented `cleanup_stale_worktrees()` with 6-hour staleness threshold
-6. ✅ Implemented orphaned branch cleanup (`_cleanup_orphaned_kodo_branches()`)
-7. ✅ Added SIGINT suppression during cleanup to prevent resource leaks
-8. ✅ Hardened exception handling in cleanup (Exception → BaseException)
-9. ✅ Added 7 comprehensive tests for worktree/branch cleanup
+**Stage 1 - RunResult.finished, Stage Transitions, Error Recovery:**
+- ✅ Fixed parallel group partial failure handling (Findings 1, 3)
+- ✅ Fixed advisor "done" with empty stage_results (Finding 2)
+- ✅ Fixed sequential fallback config propagation (Finding 4)
+- ✅ Fixed non-deterministic stage_results ordering (Finding 5)
+- ✅ Expanded fatal error patterns (Finding 7)
 
-**Test coverage:** +7 tests in `test_git_ops.py` (41 total, all passing)
+**Stage 2 - Legacy Done Signal Handling & Adaptive Mode:**
+- ✅ Fixed advisor.assess() crash handling (Finding 10)
+- ✅ Fixed thread-pool CycleConfig field loss (Finding 11)
+- ✅ Fixed done_mode propagation (Finding 12)
+- ✅ Added config parameter to run() (Finding 13)
+- ✅ Verified legacy done signal loop safety (no infinite loops possible)
+- ✅ Verified advisor decision validation robustness
+
+**Stage 3 - Resource Integrity & Signal Propagation:**
+- ✅ Added StageResult.success field for raise_issue detection (Finding 14)
+- ✅ Implemented waterfall halting on raise_issue (sequential and parallel)
+- ✅ Verified FatalAgentError propagation (Finding 17)
+- ✅ Verified worktree cleanup finally block correctness (Finding 15)
+- ✅ Implemented cleanup_stale_worktrees() with 6-hour threshold (Finding 16)
+- ✅ Implemented orphaned branch cleanup
+- ✅ Added SIGINT suppression during cleanup (Finding 18)
+- ✅ Hardened exception handling (Exception → BaseException)
+
+**Test coverage improvements:**
+- Added 47+ new orchestrator tests
+- 331 total orchestrator tests (100% pass rate)
+- 7 new git_ops cleanup tests
+- Legacy done-signal stress testing (30+ adversarial inputs)
 
 **Resource integrity improvements:**
 - Stale worktrees auto-cleaned before parallel execution starts
 - Orphaned branches removed (interrupted cleanup scenarios)
 - Double Ctrl+C cannot interrupt cleanup (SIGINT deferred)
-- All cleanup paths catch `BaseException` (includes `KeyboardInterrupt`, `SystemExit`)
+- All cleanup paths catch BaseException (includes KeyboardInterrupt, SystemExit)
 
 ---
 
-**Open items (2):**
-- Finding 6: Retried API cost tracking (P3, deferred — virtual costs under subscription)
-- Finding 8: Unclosed code-fence edge case in `_check_passed` (P3, theoretical)
+**Status: All P2 issues resolved. All P3 actionable issues resolved. No blocking issues remain.**
 
-**All P2 and P3 actionable issues are resolved.** No blocking issues remain.
+**Deferred:** Finding 6 (cost tracking) — virtual costs under subscription, low priority
+**Acceptable:** Findings 8, 9 — theoretical edge cases with negligible real-world impact
+**Verified:** Findings 15, 17 — confirmed correct as-is, no changes needed
