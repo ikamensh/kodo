@@ -379,3 +379,636 @@ class TestAutoAssess:
             # Verify snapshot was truncated to 2000 chars
             assert len(entry["answer_snapshot"]) == 2000
             assert entry["answer_snapshot"] == "x" * 2000
+
+
+# ── Tier 3: Run Loop ───────────────────────────────────────────────────
+
+
+class TestRunLoop:
+    def test_single_round_finished(self):
+        """Loop breaks immediately when finished=True in first round."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work on things",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Final answer")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        # Mock _run_round to return finished=True immediately
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = True
+            cycle_result.total_cost_usd = 0.5
+            mock_round.return_value = cycle_result
+
+            with mock.patch.object(orch, "_auto_assess_convergence"):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should only run once
+            assert mock_round.call_count == 1
+            assert result.rounds_used == 1
+
+    def test_convergence_breaks_loop(self):
+        """Loop breaks when converged=True after assessment."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Converged answer")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        # Mock _run_round to return not finished
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = False
+            cycle_result.total_cost_usd = 0.3
+            mock_round.return_value = cycle_result
+
+            # Mock assessment to set low values round 1, high round 2 (triggers convergence)
+            def mock_assess(goal, workspace, convergence):
+                if convergence.round_number == 1:
+                    convergence.confidence = 0.70
+                    convergence.stability = 0.65
+                else:
+                    convergence.confidence = 0.95
+                    convergence.stability = 0.90
+
+            with mock.patch.object(orch, "_auto_assess_convergence", side_effect=mock_assess):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should run 2 rounds then converge
+            assert mock_round.call_count == 2
+            assert result.rounds_used == 2
+
+    def test_max_rounds_exhausted(self):
+        """Loop runs all max_rounds when not converged."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question", effort="standard")  # standard has max_rounds=3
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Partial answer")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        # Mock _run_round to never finish
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = False
+            cycle_result.total_cost_usd = 0.2
+            mock_round.return_value = cycle_result
+
+            # Mock assessment to never converge (confidence/stability stay low)
+            def mock_assess(goal, workspace, convergence):
+                convergence.confidence = 0.5
+                convergence.stability = 0.4
+                # converged is a computed property based on these values
+
+            with mock.patch.object(orch, "_auto_assess_convergence", side_effect=mock_assess):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should run all 3 rounds for "standard" effort
+            assert mock_round.call_count == 3
+            assert result.rounds_used == 3
+
+    def test_multiple_rounds_accumulate_cost(self):
+        """Total cost accumulates across rounds correctly."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question", effort="standard")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Answer")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        # Mock _run_round to return different costs each round
+        costs = [0.25, 0.35, 0.40]
+        call_count = [0]
+
+        def mock_run_round(*args, **kwargs):
+            idx = call_count[0]
+            call_count[0] += 1
+            result = CycleResult()
+            result.finished = False
+            result.total_cost_usd = costs[idx] if idx < len(costs) else 0
+            return result
+
+        # Mock assessment to never converge
+        def mock_assess(goal, workspace, convergence):
+            convergence.confidence = 0.5
+            convergence.stability = 0.4
+
+        with mock.patch.object(orch, "_run_round", side_effect=mock_run_round):
+            with mock.patch.object(orch, "_auto_assess_convergence", side_effect=mock_assess):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Total cost should be sum of all rounds
+            assert result.total_cost_usd == sum(costs)
+
+    def test_answer_from_workspace(self):
+        """Result uses answer from workspace artifact."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "This is the final answer from workspace")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = True
+            cycle_result.summary = "Different summary"
+            mock_round.return_value = cycle_result
+
+            with mock.patch.object(orch, "_auto_assess_convergence"):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should use workspace answer, not summary
+            assert result.answer == "This is the final answer from workspace"
+
+    def test_fallback_to_cycle_summary(self):
+        """Result falls back to cycle summary when no answer artifact."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        # No "answer" artifact
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = True
+            cycle_result.summary = "Summary from cycle"
+            mock_round.return_value = cycle_result
+
+            with mock.patch.object(orch, "_auto_assess_convergence"):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should use summary
+            assert result.answer == "Summary from cycle"
+
+    def test_fallback_to_no_answer_produced(self):
+        """Result shows placeholder when neither answer nor summary exist."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        # No answer artifact
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = True
+            cycle_result.summary = None  # No summary either
+            mock_round.return_value = cycle_result
+
+            with mock.patch.object(orch, "_auto_assess_convergence"):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Should show placeholder
+            assert result.answer == "(no answer produced)"
+
+    def test_result_fields_propagated(self):
+        """Result has correct verdict_type, confidence, rounds_used."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="Test question")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Answer")
+        workspace.write("reasoning_trace", "Reasoning")
+        workspace.write("open_questions", "Questions")
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch.object(orch, "_run_round") as mock_round:
+            cycle_result = CycleResult()
+            cycle_result.finished = True
+            cycle_result.total_cost_usd = 1.25
+            mock_round.return_value = cycle_result
+
+            def mock_assess(goal, workspace, convergence):
+                convergence.confidence = 0.92
+                convergence.stability = 0.92
+                # verdict_type is computed from confidence
+
+            with mock.patch.object(orch, "_auto_assess_convergence", side_effect=mock_assess):
+                result = orch._run_loop(goal, design, team, workspace)
+
+            # Verify all fields propagated
+            # verdict_type is computed: 0.92 confidence -> "strong_conclusion" (>= 0.9)
+            assert result.verdict_type == "strong_conclusion"
+            assert result.confidence == 0.92
+            assert result.rounds_used == 1
+            assert result.total_cost_usd == 1.25
+            assert result.reasoning_trace == "Reasoning"
+            assert result.open_questions == "Questions"
+
+
+# ── Tier 4: Prompt Construction ───────────────────────────────────────
+
+
+class TestPromptConstruction:
+    def test_basic_goal_in_prompt(self):
+        """Goal text always appears in user prompt."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(goal="What is the capital of France?")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        convergence = ConvergenceState()
+        convergence.round_number = 1
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            # Capture the agent initialization
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        assert len(captured_prompt) == 1
+        assert "What is the capital of France?" in captured_prompt[0]
+
+    def test_constraints_appended(self):
+        """Constraints appear in user prompt when present."""
+        from kodo.orchestrators.base import CycleResult
+
+        goal = KnowledgeGoal(
+            goal="Analyze the data",
+            constraints=["Use only primary sources", "Cite all references"],
+        )
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        convergence = ConvergenceState()
+        convergence.round_number = 1
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        prompt = captured_prompt[0]
+        assert "Constraints" in prompt
+        assert "Use only primary sources" in prompt
+        assert "Cite all references" in prompt
+
+    def test_output_format_appended(self):
+        """Output format appears in user prompt when specified."""
+        goal = KnowledgeGoal(
+            goal="Write a report",
+            output_format="# Title\n## Section 1\n## Section 2",
+        )
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        convergence = ConvergenceState()
+        convergence.round_number = 1
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        prompt = captured_prompt[0]
+        assert "Output format" in prompt
+        assert "# Title" in prompt
+        assert "MUST be in this format" in prompt
+
+    def test_reference_artifacts_listed(self):
+        """Reference artifacts (ref_*) are listed in prompt."""
+        goal = KnowledgeGoal(goal="Summarize the articles")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("ref_article1", "Article 1 content")
+        workspace.write("ref_article2", "Article 2 content")
+        workspace.write("other_data", "Not a reference")
+        convergence = ConvergenceState()
+        convergence.round_number = 1
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        prompt = captured_prompt[0]
+        assert "Reference materials" in prompt
+        # Verify ref_* artifacts are listed in reference section
+        ref_section_start = prompt.index("Reference materials")
+        workspace_section_start = prompt.index("Current workspace") if "Current workspace" in prompt else len(prompt)
+        ref_section = prompt[ref_section_start:workspace_section_start]
+        assert "ref_article1" in ref_section
+        assert "ref_article2" in ref_section
+        # other_data should NOT be in reference section (it's not a ref_* artifact)
+        assert "other_data" not in ref_section
+
+    def test_workspace_state_included(self):
+        """Non-empty workspace snapshot appears in prompt."""
+        goal = KnowledgeGoal(goal="Continue work")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("draft", "Draft content here")
+        workspace.write("notes", "Some notes")
+        convergence = ConvergenceState()
+        convergence.round_number = 1
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        prompt = captured_prompt[0]
+        assert "Current workspace" in prompt
+        assert "draft" in prompt or "notes" in prompt  # Snapshot may truncate
+
+    def test_previous_assessment_in_round_2(self):
+        """Round 2+ shows previous confidence/stability from history."""
+        goal = KnowledgeGoal(goal="Continue improving")
+        design = TeamDesign(
+            pattern=PatternType.DEEPENING,
+            question_type=QuestionType.RESEARCH,
+            rationale="Test",
+            roles=[
+                AgentRole(
+                    name="worker",
+                    system_prompt="Work",
+                    model_preference="best",
+                    tools=[],
+                )
+            ],
+        )
+        workspace = Workspace()
+        workspace.write("answer", "Previous answer")
+        convergence = ConvergenceState()
+        convergence.round_number = 2
+        convergence.history = [
+            {
+                "round": 1,
+                "confidence": 0.65,
+                "stability": 0.58,
+            }
+        ]
+        team = {}
+        orch = KnowledgeOrchestrator()
+
+        captured_prompt = []
+
+        def capture_agent_init(model, **kwargs):
+            class FakeAgent:
+                def run_sync(self, user_prompt, **kwargs):
+                    captured_prompt.append(user_prompt)
+                    result = mock.MagicMock()
+                    result.usage.return_value = mock.MagicMock(
+                        input_tokens=100, output_tokens=50, requests=1
+                    )
+                    result.output = "done"
+                    return result
+
+            return FakeAgent()
+
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+            orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
+
+        prompt = captured_prompt[0]
+        assert "Previous round assessment" in prompt
+        assert "0.65" in prompt  # confidence
+        assert "0.58" in prompt  # stability
