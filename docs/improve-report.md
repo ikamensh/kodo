@@ -1711,14 +1711,14 @@ from kodo.orchestrators.base import inject_resume_sessions, create_stage_worktre
 
 ### Commit Information
 
-**Commit hash:** `9cd5b32`
+**Commit hash:** `62712c6`
 **Commit message:** "Extract resume and parallel execution logic from OrchestratorBase"
 
 **Changes:**
-- 13 files changed, 1,143 insertions(+), 644 deletions(-)
+- 13 files changed, 1,145 insertions(+), 644 deletions(-)
 - 6 files created: `types.py` (144 lines), `agent_tools.py` (113 lines), `cycle_utils.py` (53 lines), `stage_planning.py` (113 lines), `resume.py` (40 lines), `parallel.py` (259 lines)
 - 1 file modified: `kodo/orchestrators/base.py` (749 lines, was 1,326)
-- Pre-commit hook auto-bumped version: 0.4.187 → 0.4.188
+- Pre-commit hook auto-bumped version: 0.4.187 → 0.4.191
 - Net reduction: ~278 lines (21% reduction in total orchestrator code)
 
 ---
