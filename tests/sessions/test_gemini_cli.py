@@ -190,6 +190,35 @@ def test_clone_creates_independent_session(tmp_path: Path):
     assert cloned._resume_next is False
 
 
+def test_clone_independence(tmp_path: Path):
+    """Verify cloned sessions don't share state."""
+    log.init(RunDir.create(tmp_path, "gemini_clone_independence"))
+
+    original = GeminiCliSession(
+        model="gemini-2.5-flash",
+        system_prompt="Original prompt",
+        timeout_s=1800,
+    )
+
+    clone = original.clone()
+
+    # Mutate original
+    original._resume_next = True
+    original._has_queried = True
+    original._stats.queries = 42
+    original._system_prompt_sent = True
+
+    # Clone should be unaffected
+    assert clone._resume_next is False
+    assert clone._has_queried is False
+    assert clone.stats.queries == 0
+    assert clone._system_prompt_sent is False
+
+    # Verify they're different objects
+    assert clone is not original
+    assert clone._stats is not original._stats
+
+
 def test_cost_bucket_property(tmp_path: Path):
     """Test that cost_bucket returns correct value."""
     log.init(RunDir.create(tmp_path, "gemini_cost"))

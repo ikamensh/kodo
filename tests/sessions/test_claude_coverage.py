@@ -443,6 +443,36 @@ def test_clone_returns_independent_session():
         original.close()
 
 
+def test_clone_does_not_copy_resume_session_id():
+    """clone() should not copy resume_session_id (runtime state, not config)."""
+    # resume_session_id is runtime state that's consumed on first use.
+    # Clones should start fresh, not inherit resume capability.
+    original = ClaudeSession(
+        model="sonnet",
+        resume_session_id="session-to-resume",
+        use_api_key=True,
+    )
+
+    try:
+        # Clone before resume is consumed
+        cloned = original.clone()
+
+        try:
+            # Config is copied
+            assert cloned.model == "sonnet"
+            assert cloned.use_api_key is True
+
+            # But resume_session_id is NOT copied (runtime state)
+            assert cloned.resume_session_id is None
+
+            # Original still has it (until first connection)
+            assert original.resume_session_id == "session-to-resume"
+        finally:
+            cloned.close()
+    finally:
+        original.close()
+
+
 def test_terminate_delegates_to_disconnect(tmp_path: Path):
     """terminate should call _disconnect to stop running query."""
     log.init(RunDir.create(tmp_path, "terminate"))

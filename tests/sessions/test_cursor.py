@@ -147,6 +147,33 @@ def test_clone_creates_fresh_session(tmp_path: Path):
     assert clone.stats.queries == 0
 
 
+def test_clone_independence(tmp_path: Path):
+    """Verify cloned sessions don't share state."""
+    log.init(RunDir.create(tmp_path, "cursor_clone_independence"))
+
+    original = CursorSession(
+        model="composer-1.5",
+        system_prompt="Original prompt",
+        timeout_s=1800,
+    )
+
+    clone = original.clone()
+
+    # Mutate original
+    original._chat_id = "mutated-chat-id"
+    original._stats.queries = 42
+    original._system_prompt_sent = True
+
+    # Clone should be unaffected
+    assert clone._chat_id is None
+    assert clone.stats.queries == 0
+    assert clone._system_prompt_sent is False
+
+    # Verify they're different objects
+    assert clone is not original
+    assert clone._stats is not original._stats
+
+
 def test_cost_bucket_is_cursor_subscription():
     """cost_bucket property returns 'cursor_subscription'."""
     session = CursorSession(model="composer-1.5")
