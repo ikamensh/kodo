@@ -1,7 +1,11 @@
 # Baseline & Static Analysis Report
 
-**Generated:** 2025-02-23  
-**Scope:** `kodo/cli.py`, `kodo/orchestrators/`  
+> **⚠️ SUPERSEDED:** This report has been superseded by `docs/improve-report.md` (comprehensive quality audit).
+> **Date archived:** 2026-03-07
+> **Reason:** All findings from this report have been triaged, fixed, or documented in the comprehensive improve-report.md
+
+**Generated:** 2025-02-23
+**Scope:** `kodo/cli.py`, `kodo/orchestrators/`
 **Coverage:** 77% total (cli: 62%, orchestrators/base: 92%, api: 85%, claude_code: 31%)
 
 ---

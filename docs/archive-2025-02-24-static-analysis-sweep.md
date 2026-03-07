@@ -1,6 +1,10 @@
 # Static Analysis Sweep — Core Modules
 
-**Scope:** `kodo/cli`, `kodo/orchestrators`, `kodo/sessions`, `kodo/factory.py`  
+> **⚠️ SUPERSEDED:** This report has been superseded by `docs/improve-report.md` (comprehensive quality audit).
+> **Date archived:** 2026-03-07
+> **Reason:** All findings from this report have been triaged, fixed, or documented in the comprehensive improve-report.md
+
+**Scope:** `kodo/cli`, `kodo/orchestrators`, `kodo/sessions`, `kodo/factory.py`
 **Date:** 2025-02-24
 
 ---
