@@ -2,470 +2,61 @@
 
 from __future__ import annotations
 
-import asyncio
 import concurrent.futures
 import os
-import re
-import subprocess
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-from kodo.agent import Agent
-from kodo.formatting import BOLD as _BOLD, CYAN as _CYAN, DIM as _DIM, RESET as _RESET, plural as _plural
-from kodo.orchestrators.git_ops import (
-    _GIT,
-    _GIT_TIMEOUT,
+from kodo.formatting import BOLD as _BOLD, RESET as _RESET, plural as _plural
+
+# Re-export all types for backward compatibility — every consumer that
+# does ``from kodo.orchestrators.base import CycleResult, ...`` keeps working.
+from kodo.orchestrators.types import (  # noqa: F401
+    CycleConfig,
+    CycleResult,
+    DoneSignal,
+    FatalAgentError,
+    GoalPlan,
+    GoalStage,
+    QuickCheck,
+    ResumeState,
+    RunResult,
+    StageResult,
+    TeamConfig,
+)
+
+from kodo.orchestrators.agent_tools import (  # noqa: F401
+    _FATAL_ERROR_PATTERNS,
+    handle_agent_call,
+)
+from kodo.orchestrators.cycle_utils import (  # noqa: F401
+    apply_done_signal,
+    build_cycle_prompt,
+)
+from kodo.orchestrators.git_ops import (  # noqa: F401
+    _auto_commit,
     _remove_worktree_keep_branch,
     commit_worktree_changes,
     create_worktree,
     merge_worktree_branch,
     remove_worktree,
 )
+from kodo.orchestrators.stage_planning import (  # noqa: F401
+    _handle_stage_crash,
+    clone_team,
+    compose_stage_goal,
+    execution_groups,
+)
+from kodo.orchestrators.resume import inject_resume_sessions  # noqa: F401
+from kodo.orchestrators.parallel import (  # noqa: F401
+    cleanup_and_merge_worktrees,
+    create_stage_worktrees,
+    run_group_sequentially,
+    run_stage_in_isolated_loop,
+)
 
 if TYPE_CHECKING:
     from kodo.advisor import Advisor
-
-
-# Team is just a named dict of agents
-TeamConfig = dict[str, Agent]
-
-# Patterns that indicate unrecoverable errors — retrying won't help.
-_FATAL_ERROR_PATTERNS = re.compile(
-    r"Subscription/billing issue|Authentication failed|Binary not working",
-    re.IGNORECASE,
-)
-
-
-class FatalAgentError(Exception):
-    """Raised when all workers have hit unrecoverable errors."""
-
-
-@dataclass
-class QuickCheck:
-    """Lightweight scripted check that replaces agent-based verification.
-
-    Used for stages where a simple file-existence check is sufficient
-    (e.g. analytical stages that write a findings file).
-    """
-
-    path: str  # file that must exist (can use {run_dir} placeholder)
-    description: str  # shown to orchestrator as what we're verifying
-    error_message: str  # fed back to agent if check fails
-
-
-@dataclass
-class GoalStage:
-    """One stage in a multi-stage goal plan."""
-
-    index: int  # 1-based
-    name: str  # short label
-    description: str  # full prose for orchestrator
-    acceptance_criteria: str  # verifiable "done" definition
-    browser_testing: bool = False  # whether this stage needs browser verification
-    parallel_group: int | None = None  # stages with same group run concurrently
-    persist_changes: bool = False  # merge worktree changes back after completion
-    verification: Literal["full", "skip"] | list[QuickCheck] = "full"
-
-
-@dataclass
-class CycleConfig:
-    """Pass-through configuration for a single cycle.
-
-    Bundles stage-level settings (browser_testing, verification) and
-    run-level settings (verifiers, auto_commit) so they don't have to be
-    threaded as individual keyword arguments through every layer.
-    """
-
-    browser_testing: bool = False
-    verifiers: dict | None = None
-    auto_commit: bool = False
-    verification: Literal["full", "skip"] | list[QuickCheck] = "full"
-    done_mode: Literal["legacy", "new"] = "new"
-    acceptance_criteria: str | None = None
-    effort: str = "standard"  # "low" | "standard" | "high" | "max"
-
-
-@dataclass
-class GoalPlan:
-    """Ordered list of stages with shared architectural context."""
-
-    context: str  # shared architectural context
-    stages: list[GoalStage]
-
-
-@dataclass
-class StageResult:
-    """Groups cycles and outcome for a single stage."""
-
-    stage_index: int
-    stage_name: str
-    cycles: list["CycleResult"] = field(default_factory=list)
-    finished: bool = False
-    summary: str = ""
-
-
-@dataclass
-class CycleResult:
-    """Result of a single orchestration cycle (one 'day of work')."""
-
-    exchanges: int = 0
-    total_cost_usd: float = 0.0
-    finished: bool = False
-    success: bool = False
-    summary: str = ""
-    stage_index: int | None = None
-
-
-@dataclass
-class RunResult:
-    """Result of a full multi-cycle run."""
-
-    cycles: list[CycleResult] = field(default_factory=list)
-    stage_results: list[StageResult] = field(default_factory=list)
-
-    @property
-    def total_exchanges(self) -> int:
-        return sum(c.exchanges for c in self.cycles)
-
-    @property
-    def total_cost_usd(self) -> float:
-        return sum(c.total_cost_usd for c in self.cycles)
-
-    @property
-    def finished(self) -> bool:
-        # In staged runs, a crashed stage may have 0 cycles — check
-        # stage_results to avoid reporting "finished" when the last
-        # stage failed.
-        if self.stage_results:
-            return self.stage_results[-1].finished
-        return bool(self.cycles) and self.cycles[-1].finished
-
-    @property
-    def summary(self) -> str:
-        return self.cycles[-1].summary if self.cycles else ""
-
-
-
-# ---------------------------------------------------------------------------
-# Shared handler functions — used by both ApiOrchestrator and ClaudeCodeOrchestrator
-# ---------------------------------------------------------------------------
-
-
-def handle_agent_call(
-    agent_name: str,
-    agent_obj: "Agent",
-    task: str,
-    project_dir: Path,
-    summarizer,
-    *,
-    new_conversation: bool = False,
-    cycle_log: list[str] | None = None,
-    orchestrator_tag: str | None = None,
-    dead_workers: set[str] | None = None,
-    total_workers: int = 0,
-) -> str:
-    """Run an agent and return its report (or error string on crash).
-
-    *cycle_log*: if provided, task/result snippets are appended (used by
-    ApiOrchestrator for fallback model context).
-    *orchestrator_tag*: if set, included as ``orchestrator=`` in log events.
-    """
-    from kodo import log
-
-    tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
-
-    log.tprint(f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}: {task[:100]}...")
-    if new_conversation:
-        log.tprint("   (new conversation)")
-
-    if cycle_log is not None:
-        cycle_log.append(f"→ {agent_name}: {task[:200]}")
-
-    log.emit(
-        "orchestrator_tool_call",
-        **tag,
-        agent=agent_name,
-        task=task,
-        new_conversation=new_conversation,
-    )
-
-    try:
-        agent_result = agent_obj.run(
-            task,
-            project_dir,
-            new_conversation=new_conversation,
-            agent_name=agent_name,
-        )
-    except Exception as exc:
-        error_msg = f"💥 {_CYAN}{agent_name}{_RESET} crashed: {_DIM}{type(exc).__name__}: {exc}{_RESET}"
-        log.emit("agent_crash", agent=agent_name, error=str(exc))
-        log.tprint(error_msg)
-        if cycle_log is not None:
-            cycle_log.append(f"← {agent_name}: {error_msg}")
-        return error_msg
-
-    report = agent_result.format_report()[:10000]
-    log.emit(
-        "orchestrator_tool_result",
-        **tag,
-        agent=agent_name,
-        elapsed_s=agent_result.elapsed_s,
-        is_error=agent_result.is_error,
-        context_reset=agent_result.context_reset,
-        session_tokens=agent_result.session_tokens,
-        report=report,
-    )
-
-    icon = "⚠️" if agent_result.is_error else "✅"
-    done_msg = f"{icon} [{_CYAN}{agent_name}{_RESET}] done ({agent_result.elapsed_s:.1f}s)"
-    if agent_obj.session.cost_bucket != "cursor_subscription":
-        done_msg += f" | session: {agent_result.session_tokens:,} tokens"
-    log.tprint(done_msg)
-    if agent_result.is_error:
-        err_text = (agent_result.text or "unknown error")[:200]
-        log.tprint(f"⚠️  [{_CYAN}{agent_name}{_RESET}] error: {_DIM}{err_text}{_RESET}")
-        # Track workers with fatal (unrecoverable) errors
-        if dead_workers is not None and _FATAL_ERROR_PATTERNS.search(err_text):
-            dead_workers.add(agent_name)
-            if len(dead_workers) >= total_workers:
-                raise FatalAgentError(
-                    f"All workers failed: {', '.join(sorted(dead_workers))}"
-                )
-    if agent_result.context_reset:
-        log.tprint(
-            f"🔄 [{_CYAN}{agent_name}{_RESET}] context reset: {agent_result.context_reset_reason}",
-        )
-
-    log.print_stats_table()
-
-    if cycle_log is not None:
-        cycle_log.append(f"← {agent_name}: {report[:500]}")
-
-    summarizer.summarize(agent_name, task, report)
-    return report
-
-
-def _auto_commit(
-    team: TeamConfig,
-    project_dir: Path,
-    summary: str,
-) -> None:
-    """Dispatch a worker to commit completed work after verification passes.
-
-    Non-fatal: logs warnings on failure but never raises.
-    """
-    from kodo import log
-
-    # Find a worker: prefer worker_fast, fall back to worker_smart, then any
-    worker = (
-        team.get("worker_fast")
-        or team.get("worker_smart")
-        or next((a for a in team.values()), None)
-    )
-    if worker is None:
-        log.tprint("📝 [auto-commit] no worker available, skipping")
-        log.emit("auto_commit_skip", reason="no_worker")
-        return
-
-    worker_name = next((n for n, a in team.items() if a is worker), "worker")
-
-    directive = (
-        "Review `git diff` and `git status`. Stage the relevant changed files "
-        "and commit with a clear, concise message describing what was accomplished. "
-        "Add Co-Authored-By: kodo <noreply@github.com>\n"
-        "Do NOT push. Do NOT commit unrelated or generated files.\n\n"
-        f"Summary of completed work:\n{summary}"
-    )
-
-    log.tprint(f"📝 [auto-commit] dispatching {worker_name} to commit...")
-    log.emit("auto_commit_start", worker=worker_name)
-
-    try:
-        result = worker.run(
-            directive,
-            project_dir,
-            new_conversation=True,
-            agent_name=f"{worker_name}_auto_commit",
-        )
-        report = (result.text or "")[:2000]
-        log.emit("auto_commit_done", worker=worker_name, report=report)
-        log.tprint(f"📝 [auto-commit] {worker_name} finished")
-    except Exception as exc:
-        log.emit("auto_commit_error", worker=worker_name, error=str(exc))
-        log.tprint(f"📝 [auto-commit] {worker_name} failed: {exc}")
-
-
-class DoneSignal:
-    """Shared mutable to communicate between the ``done`` tool and the cycle loop."""
-
-    def __init__(self) -> None:
-        self.called = False
-        self.summary = ""
-        self.success = False
-        self.terminal: Literal["goal_done", "end_cycle", "raise_issue", "legacy"] | None = None
-
-
-def apply_done_signal(result: CycleResult, done_signal: DoneSignal) -> None:
-    """Translate DoneSignal state into CycleResult fields.
-
-    - ``goal_done``: finished=True, success=True
-    - ``end_cycle``: finished=False, success=False (run continues)
-    - ``raise_issue``: finished=True, success=False
-    - ``legacy``: finished=True, success=done_signal.success
-    - Not called: no-op
-    """
-    if not done_signal.called:
-        return
-    result.summary = done_signal.summary
-    terminal = done_signal.terminal
-    if terminal == "end_cycle":
-        result.finished = False
-        result.success = False
-    elif terminal == "raise_issue":
-        result.finished = True
-        result.success = False
-    elif terminal == "goal_done":
-        result.finished = True
-        result.success = True
-    else:
-        # legacy or unknown
-        result.finished = True
-        result.success = done_signal.success
-
-
-def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
-    """Build the user-turn prompt sent to the orchestrator each cycle."""
-    from kodo.orchestrators.run_status import read_run_status
-
-    prompt = f"# Goal\n\n{goal}\n\nProject directory: {project_dir}"
-
-    run_status = read_run_status(project_dir)
-    if run_status:
-        prompt += f"\n\n{run_status}"
-
-    if prior_summary:
-        prompt += (
-            f"\n\n# Previous progress\n\n{prior_summary}"
-            "\n\nContinue working toward the goal."
-        )
-    return prompt
-
-
-def _handle_stage_crash(stage: GoalStage, exc: Exception) -> StageResult:
-    """Log and wrap a stage crash into a StageResult."""
-    from kodo import log
-
-    log.tprint(
-        f"[orchestrator] Stage {stage.index} "
-        f"({stage.name}) crashed: {exc}",
-    )
-    log.emit("stage_error", stage_index=stage.index, error=str(exc))
-    return StageResult(
-        stage_index=stage.index,
-        stage_name=stage.name,
-        summary=f"Stage crashed: {exc}",
-    )
-
-
-def compose_stage_goal(
-    plan: GoalPlan,
-    stage_index: int,
-    completed_summaries: list[str],
-) -> str:
-    """Build the goal string for a specific stage.
-
-    Includes project context, current stage description + acceptance criteria,
-    summaries of completed stages, and a hint about the next stage.
-
-    Args:
-        plan: The goal plan containing stages
-        stage_index: 1-based stage index (1 to len(plan.stages))
-        completed_summaries: Summaries of completed stages
-
-    Raises:
-        ValueError: If stage_index is out of valid range
-    """
-    if stage_index < 1 or stage_index > len(plan.stages):
-        raise ValueError(
-            f"stage_index must be between 1 and {len(plan.stages)}, got {stage_index}"
-        )
-
-    stage = plan.stages[stage_index - 1]  # 1-based index
-    total = len(plan.stages)
-
-    parts: list[str] = []
-
-    # Project context
-    parts.append(f"# Project Context\n{plan.context}")
-
-    # Progress so far
-    if completed_summaries:
-        parts.append("# Completed Stages")
-        for i, summary in enumerate(completed_summaries, 1):
-            parts.append(f"## Stage {i} — completed\n{summary}")
-
-    # Current stage
-    parts.append(
-        f"# Current Stage ({stage.index}/{total}): {stage.name}\n{stage.description}",
-    )
-    if stage.acceptance_criteria:
-        parts.append(f"## Acceptance Criteria\n{stage.acceptance_criteria}")
-
-    # Hint about next stage
-    if stage.index < total:
-        next_stage = plan.stages[stage.index]  # 0-based for next
-        parts.append(
-            f"## Next Stage Preview\n"
-            f"After this stage, the next stage will be: "
-            f"**{next_stage.name}** — {next_stage.description[:200]}",
-        )
-
-    return "\n\n".join(parts)
-
-
-def clone_team(team: TeamConfig) -> TeamConfig:
-    """Create a deep copy of a team with fresh sessions (no shared state)."""
-    return {name: agent.clone() for name, agent in team.items()}
-
-
-def execution_groups(plan: GoalPlan) -> list[list[GoalStage]]:
-    """Group stages into execution order for sequential and parallel running.
-
-    Returns a list of groups. Each group is either ``[single_stage]`` (run
-    sequentially) or ``[stage, stage, ...]`` (stages with the same
-    ``parallel_group`` value, run concurrently).
-
-    Parallel groups are inserted at the position of their *first* member in the
-    original stage list.
-    """
-    groups: list[list[GoalStage]] = []
-    active: dict[int, list[GoalStage]] = {}
-
-    for stage in plan.stages:
-        if stage.parallel_group is None:
-            groups.append([stage])
-        elif stage.parallel_group not in active:
-            bucket: list[GoalStage] = [stage]
-            active[stage.parallel_group] = bucket
-            groups.append(bucket)
-        else:
-            active[stage.parallel_group].append(stage)
-
-    return groups
-
-
-@dataclass
-class ResumeState:
-    """State for resuming a previously interrupted run."""
-
-    completed_cycles: int
-    prior_summary: str
-    agent_session_ids: dict[str, str]
-    completed_stages: list[int]
-    stage_summaries: list[str]
-    current_stage_cycles: int
-    pending_exchanges: list[dict] = field(default_factory=list)
 
 
 class OrchestratorBase:
@@ -553,26 +144,8 @@ class OrchestratorBase:
         advisor: "Advisor | None" = None,
     ) -> RunResult:
         from kodo import log
-        from kodo.sessions.claude import ClaudeSession
-        from kodo.sessions.codex import CodexSession
-        from kodo.sessions.cursor import CursorSession
-        from kodo.sessions.gemini_cli import GeminiCliSession
 
-        # Inject resume session IDs into agents before starting
-        if resume:
-            for agent_name, sid in resume.agent_session_ids.items():
-                agent = team.get(agent_name)
-                if agent is None:
-                    continue
-                sess = agent.session
-                if isinstance(sess, ClaudeSession):
-                    sess.resume_session_id = sid
-                elif isinstance(sess, CursorSession):
-                    sess._chat_id = sid
-                elif isinstance(sess, CodexSession):
-                    sess._session_id = sid
-                elif isinstance(sess, GeminiCliSession):
-                    sess._resume_next = True
+        inject_resume_sessions(team, resume)
 
         start_cycle = (resume.completed_cycles if resume else 0) + 1
         prior_summary = resume.prior_summary if resume else ""
@@ -1090,104 +663,27 @@ class OrchestratorBase:
             stage.index: clone_team(team) for stage in group
         }
 
-        # Create git worktrees for isolation.  Each parallel stage
-        # runs in its own worktree so it cannot corrupt the main
-        # working directory even if it writes files.
-        worktrees: dict[int, tuple[Path, str]] = {}
-
-        def _run_in_own_loop(
-            orchestrator,
-            stage,
-            plan,
-            stage_dir,
-            stage_team,
-            summaries_snapshot,
-            **kwargs,
-        ):
-            """Wrapper that gives each thread a fresh asyncio event
-            loop so pydantic-ai's run_sync() doesn't collide."""
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return orchestrator._run_one_stage(
-                    stage,
-                    plan,
-                    stage_dir,
-                    stage_team,
-                    summaries_snapshot,
-                    **kwargs,
-                )
-            finally:
-                try:
-                    loop.run_until_complete(orchestrator.close())
-                except (OSError, RuntimeError) as e:
-                    from kodo import log
-
-                    log.emit("orchestrator_close_error", error=str(e))
-                finally:
-                    loop.close()
+        # Create git worktrees for isolation.
+        worktrees, worktree_failed = create_stage_worktrees(group, project_dir)
 
         parallel_results: list[StageResult] = []
         try:
-            worktree_failed = False
-            for stage in group:
-                try:
-                    wt_dir, branch = create_worktree(
-                        project_dir, f"stage-{stage.index}",
-                    )
-                    worktrees[stage.index] = (wt_dir, branch)
-                    log.tprint(
-                        f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
-                    )
-                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-                    log.tprint(
-                        f"⚠️  [orchestrator] Worktree creation failed for "
-                        f"stage {stage.index}: {exc}",
-                    )
-                    worktree_failed = True
-            # If any worktree failed, clean up the ones that succeeded
-            # and fall back to running stages sequentially to avoid
-            # multiple agents writing to the same project_dir.
+            # If any worktree failed, fall back to sequential execution.
             if worktree_failed:
-                log.tprint(
-                    "⚠️  [orchestrator] Cannot isolate parallel stages — "
-                    "running sequentially instead",
+                return run_group_sequentially(
+                    self,
+                    group,
+                    plan,
+                    project_dir,
+                    stage_teams,
+                    stage_summaries,
+                    result,
+                    worktrees,
+                    max_exchanges=max_exchanges,
+                    per_stage_cycles=per_stage_cycles,
+                    initial_prior=initial_prior,
+                    config=config,
                 )
-                for idx, (wt_dir, branch) in list(worktrees.items()):
-                    try:
-                        remove_worktree(project_dir, wt_dir, branch)
-                    except Exception as exc:
-                        log.emit(
-                            "worktree_cleanup_error",
-                            stage_index=idx,
-                            error=str(exc),
-                        )
-                worktrees.clear()
-                for stage in group:
-                    stage_res = self._run_one_stage(
-                        stage,
-                        plan,
-                        project_dir,
-                        stage_teams[stage.index],
-                        stage_summaries,
-                        max_exchanges=max_exchanges,
-                        max_cycles_for_stage=per_stage_cycles,
-                        initial_prior_summary=initial_prior,
-                        config=CycleConfig(
-                            verifiers=config.verifiers,
-                            auto_commit=(
-                                stage.persist_changes and config.auto_commit
-                            ),
-                        ),
-                    )
-                    parallel_results.append(stage_res)
-                    result.cycles.extend(stage_res.cycles)
-                    result.stage_results.append(stage_res)
-                    stage_summaries.append(stage_res.summary)
-                cycles_used = max(
-                    (len(r.cycles) for r in parallel_results), default=0,
-                )
-                return parallel_results, cycles_used
             max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
             workers = min(len(group), max_parallel)
             with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -1198,7 +694,7 @@ class OrchestratorBase:
                         else project_dir
                     )
                     future = pool.submit(
-                        _run_in_own_loop,
+                        run_stage_in_isolated_loop,
                         self.for_parallel(),
                         stage,
                         plan,
@@ -1228,81 +724,9 @@ class OrchestratorBase:
                     result.cycles.extend(stage_res.cycles)
                     result.stage_results.append(stage_res)
         finally:
-            # Clean up cloned sessions and worktrees even on
-            # KeyboardInterrupt to avoid leaking temp directories.
-
-            # Build lookup for persist_changes stages
-            stages_by_idx = {s.index: s for s in group}
-            finished_indices = (
-                {pr.stage_index for pr in parallel_results if pr.finished}
-                if parallel_results
-                else set()
+            cleanup_and_merge_worktrees(
+                group, worktrees, stage_teams, parallel_results, project_dir,
             )
-
-            # 1. Commit uncommitted changes in persist_changes
-            #    worktrees (safety net before merge).
-            branches_to_merge: list[tuple[str, str, int]] = []
-            for stage_idx, (wt_dir, branch) in worktrees.items():
-                stg = stages_by_idx.get(stage_idx)
-                if (
-                    stg
-                    and stg.persist_changes
-                    and stage_idx in finished_indices
-                ):
-                    try:
-                        commit_worktree_changes(wt_dir, stg.name)
-                        branches_to_merge.append((branch, stg.name, stage_idx))
-                    except Exception as exc:
-                        log.tprint(
-                            f"[persist] Commit failed for "
-                            f"stage {stage_idx}: {exc}",
-                        )
-
-            # 2. Close cloned sessions
-            for st in stage_teams.values():
-                for agent in st.values():
-                    agent.close()
-
-            # 3. Remove worktrees — keep branches that need merging
-            branches_to_keep = {b for b, _, _ in branches_to_merge}
-            for stage_idx, (wt_dir, branch) in worktrees.items():
-                try:
-                    if branch in branches_to_keep:
-                        _remove_worktree_keep_branch(project_dir, wt_dir)
-                    else:
-                        remove_worktree(project_dir, wt_dir, branch)
-                except Exception as exc:
-                    log.tprint(
-                        f"[orchestrator] Worktree cleanup failed for "
-                        f"stage {stage_idx}: {exc}",
-                    )
-
-            # 4. Merge persist_changes branches sequentially
-            branches_to_merge.sort(key=lambda x: x[2])
-            for branch, stage_name, stage_idx in branches_to_merge:
-                try:
-                    merge_result = merge_worktree_branch(
-                        project_dir, branch, stage_name,
-                    )
-                    log.emit(
-                        "persist_stage_merge",
-                        stage_index=stage_idx,
-                        success=merge_result.success,
-                        had_changes=merge_result.had_changes,
-                        conflict=merge_result.conflict,
-                    )
-                except Exception as exc:
-                    log.tprint(
-                        f"[persist] Merge failed for stage {stage_idx}: {exc}",
-                    )
-                finally:
-                    # Always clean up the branch after merge attempt
-                    subprocess.run(
-                        [_GIT, "branch", "-D", branch],
-                        cwd=project_dir,
-                        capture_output=True,
-                        timeout=_GIT_TIMEOUT,
-                    )
 
         # Sort summaries by stage index for deterministic ordering
         parallel_results.sort(key=lambda r: r.stage_index)

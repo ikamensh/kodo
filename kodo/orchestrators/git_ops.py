@@ -546,3 +546,53 @@ def merge_worktree_branch(
     log.tprint(f"[persist] Stage '{stage_name}': merged successfully")
     log.emit("persist_merge_ok", stage_name=stage_name, branch=branch_name)
     return MergeResult(success=True, had_changes=True)
+
+
+def _auto_commit(
+    team: dict,
+    project_dir: Path,
+    summary: str,
+) -> None:
+    """Dispatch a worker to commit completed work after verification passes.
+
+    Non-fatal: logs warnings on failure but never raises.
+    """
+    from kodo import log
+
+    # Find a worker: prefer worker_fast, fall back to worker_smart, then any
+    worker = (
+        team.get("worker_fast")
+        or team.get("worker_smart")
+        or next((a for a in team.values()), None)
+    )
+    if worker is None:
+        log.tprint("📝 [auto-commit] no worker available, skipping")
+        log.emit("auto_commit_skip", reason="no_worker")
+        return
+
+    worker_name = next((n for n, a in team.items() if a is worker), "worker")
+
+    directive = (
+        "Review `git diff` and `git status`. Stage the relevant changed files "
+        "and commit with a clear, concise message describing what was accomplished. "
+        "Add Co-Authored-By: kodo <noreply@github.com>\n"
+        "Do NOT push. Do NOT commit unrelated or generated files.\n\n"
+        f"Summary of completed work:\n{summary}"
+    )
+
+    log.tprint(f"📝 [auto-commit] dispatching {worker_name} to commit...")
+    log.emit("auto_commit_start", worker=worker_name)
+
+    try:
+        result = worker.run(
+            directive,
+            project_dir,
+            new_conversation=True,
+            agent_name=f"{worker_name}_auto_commit",
+        )
+        report = (result.text or "")[:2000]
+        log.emit("auto_commit_done", worker=worker_name, report=report)
+        log.tprint(f"📝 [auto-commit] {worker_name} finished")
+    except Exception as exc:
+        log.emit("auto_commit_error", worker=worker_name, error=str(exc))
+        log.tprint(f"📝 [auto-commit] {worker_name} failed: {exc}")

@@ -47,8 +47,8 @@ def mock_worktrees():
         pass  # cleanup handled by tmp
 
     with (
-        patch("kodo.orchestrators.base.create_worktree", side_effect=_fake_create),
-        patch("kodo.orchestrators.base.remove_worktree", side_effect=_fake_remove),
+        patch("kodo.orchestrators.parallel.create_worktree", side_effect=_fake_create),
+        patch("kodo.orchestrators.parallel.remove_worktree", side_effect=_fake_remove),
     ):
         yield
     import shutil
