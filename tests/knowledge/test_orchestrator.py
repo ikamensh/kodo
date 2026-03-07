@@ -8,6 +8,7 @@ from kodo.knowledge.models import (
     AgentRole,
     ConvergenceState,
     KnowledgeGoal,
+    KnowledgeResult,
     PatternType,
     QuestionType,
     TeamDesign,
@@ -1012,3 +1013,410 @@ class TestPromptConstruction:
         assert "Previous round assessment" in prompt
         assert "0.65" in prompt  # confidence
         assert "0.58" in prompt  # stability
+
+
+# ── Tier 5: run() Integration ─────────────────────────────────────────
+
+
+def _make_team_design():
+    """Helper: build a minimal TeamDesign for run() tests."""
+    return TeamDesign(
+        pattern=PatternType.DEEPENING,
+        question_type=QuestionType.RESEARCH,
+        rationale="Test rationale",
+        roles=[
+            AgentRole(
+                name="worker",
+                system_prompt="Work on things",
+                model_preference="best",
+                tools=[],
+            )
+        ],
+    )
+
+
+def _make_knowledge_result():
+    """Helper: build a minimal KnowledgeResult for mocked _run_loop."""
+    return KnowledgeResult(
+        answer="Final answer",
+        verdict_type="strong_conclusion",
+        confidence=0.95,
+        reasoning_trace="Reasoning",
+        open_questions="None",
+        rounds_used=1,
+        total_cost_usd=0.50,
+        workspace=Workspace(),
+    )
+
+
+class TestRun:
+    def test_run_happy_path(self):
+        """run() orchestrates design_team → _build_team → _run_loop → return."""
+        goal = KnowledgeGoal(goal="What is 2+2?")
+        design = _make_team_design()
+        expected_result = _make_knowledge_result()
+        orch = KnowledgeOrchestrator()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.design_team",
+                return_value=design,
+            ),
+            mock.patch.object(orch, "_build_team", return_value={}),
+            mock.patch.object(orch, "_run_loop", return_value=expected_result),
+            mock.patch.object(orch._summarizer, "shutdown"),
+        ):
+            result = orch.run(goal)
+
+        assert result.answer == "Final answer"
+        assert result.confidence == 0.95
+        assert result.verdict_type == "strong_conclusion"
+
+    def test_run_closes_agents_on_success(self):
+        """After successful run, all agents are closed and summarizer shut down."""
+        goal = KnowledgeGoal(goal="Test")
+        design = _make_team_design()
+
+        agent1 = mock.MagicMock()
+        agent2 = mock.MagicMock()
+        team = {"a": agent1, "b": agent2}
+
+        orch = KnowledgeOrchestrator()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.design_team",
+                return_value=design,
+            ),
+            mock.patch.object(orch, "_build_team", return_value=team),
+            mock.patch.object(orch, "_run_loop", return_value=_make_knowledge_result()),
+            mock.patch.object(orch._summarizer, "shutdown") as mock_shutdown,
+        ):
+            orch.run(goal)
+
+        mock_shutdown.assert_called_once()
+        agent1.close.assert_called_once()
+        agent2.close.assert_called_once()
+
+    def test_run_closes_agents_on_exception(self):
+        """Even when _run_loop raises, agents are closed and summarizer shut down."""
+        goal = KnowledgeGoal(goal="Test")
+        design = _make_team_design()
+
+        agent = mock.MagicMock()
+        team = {"worker": agent}
+
+        orch = KnowledgeOrchestrator()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.design_team",
+                return_value=design,
+            ),
+            mock.patch.object(orch, "_build_team", return_value=team),
+            mock.patch.object(
+                orch, "_run_loop", side_effect=RuntimeError("loop crashed")
+            ),
+            mock.patch.object(orch._summarizer, "shutdown") as mock_shutdown,
+            pytest.raises(RuntimeError, match="loop crashed"),
+        ):
+            orch.run(goal)
+
+        # finally block should still run
+        mock_shutdown.assert_called_once()
+        agent.close.assert_called_once()
+
+    def test_run_emits_log_events(self):
+        """run() emits knowledge_run_start and knowledge_run_end log events."""
+        goal = KnowledgeGoal(goal="Test", effort="quick", domain_hints=["math"])
+        design = _make_team_design()
+        result = _make_knowledge_result()
+        orch = KnowledgeOrchestrator()
+
+        emitted = []
+
+        def capture_emit(event, **kwargs):
+            emitted.append((event, kwargs))
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.design_team",
+                return_value=design,
+            ),
+            mock.patch.object(orch, "_build_team", return_value={}),
+            mock.patch.object(orch, "_run_loop", return_value=result),
+            mock.patch.object(orch._summarizer, "shutdown"),
+            mock.patch("kodo.knowledge.orchestrator.log") as mock_log,
+        ):
+            mock_log.emit = capture_emit
+            mock_log.tprint = mock.MagicMock()
+            orch.run(goal)
+
+        event_names = [e[0] for e in emitted]
+        assert "knowledge_run_start" in event_names
+        assert "knowledge_team_designed" in event_names
+        assert "knowledge_run_end" in event_names
+
+        # Verify knowledge_run_end has correct fields
+        end_event = next(e for e in emitted if e[0] == "knowledge_run_end")
+        assert end_event[1]["confidence"] == 0.95
+        assert end_event[1]["verdict"] == "strong_conclusion"
+
+
+# ── Tier 6: _seed_references exception ────────────────────────────────
+
+
+class TestSeedReferencesException:
+    def test_read_failure_logs_warning_and_continues(self, tmp_path):
+        """When read_text raises, the file is skipped and other files still load."""
+        good_file = tmp_path / "good.md"
+        good_file.write_text("good content")
+
+        bad_file = tmp_path / "bad.md"
+        bad_file.write_text("will fail")
+
+        goal = KnowledgeGoal(
+            goal="test",
+            reference_files=[str(bad_file), str(good_file)],
+        )
+        ws = Workspace()
+
+        # Mock read_text to fail only for bad_file
+        original_read_text = type(bad_file).read_text
+
+        def failing_read_text(self, *args, **kwargs):
+            if self.name == "bad.md":
+                raise PermissionError("permission denied")
+            return original_read_text(self, *args, **kwargs)
+
+        with mock.patch.object(type(bad_file), "read_text", failing_read_text):
+            KnowledgeOrchestrator._seed_references(goal, ws)
+
+        # Good file should be loaded, bad file skipped
+        assert ws.read("ref_good") == "good content"
+        assert ws.read("ref_bad") is None
+
+
+# ── Tier 7: _run_round error handling ─────────────────────────────────
+
+
+def _make_run_round_args():
+    """Helper: build standard args for _run_round tests."""
+    goal = KnowledgeGoal(goal="Test question")
+    design = TeamDesign(
+        pattern=PatternType.DEEPENING,
+        question_type=QuestionType.RESEARCH,
+        rationale="Test",
+        roles=[
+            AgentRole(
+                name="worker",
+                system_prompt="Work on things",
+                model_preference="best",
+                tools=[],
+            )
+        ],
+    )
+    workspace = Workspace()
+    convergence = ConvergenceState()
+    convergence.round_number = 1
+    team = {}
+    return goal, design, team, workspace, convergence
+
+
+class TestRunRoundErrors:
+    def _make_raising_agent(self, exception):
+        """Create a PydanticAgent mock that raises on run_sync."""
+
+        def agent_init(model, **kwargs):
+            class RaisingAgent:
+                def run_sync(self, user_prompt, **kw):
+                    raise exception
+
+            return RaisingAgent()
+
+        return agent_init
+
+    def test_usage_limit_exceeded_breaks(self):
+        """UsageLimitExceeded breaks the retry loop without retrying."""
+        from pydantic_ai.exceptions import UsageLimitExceeded
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch(
+            "kodo.knowledge.orchestrator.PydanticAgent",
+            side_effect=self._make_raising_agent(
+                UsageLimitExceeded("limit exceeded")
+            ),
+        ):
+            result = orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        # Should return a CycleResult (not raise)
+        assert result is not None
+
+    def test_unexpected_model_behavior_breaks(self):
+        """UnexpectedModelBehavior breaks the retry loop without retrying."""
+        from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        with mock.patch(
+            "kodo.knowledge.orchestrator.PydanticAgent",
+            side_effect=self._make_raising_agent(
+                UnexpectedModelBehavior("bad output")
+            ),
+        ):
+            result = orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert result is not None
+
+    def test_model_http_error_401_reraises(self):
+        """ModelHTTPError with 401 re-raises immediately (auth error)."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.PydanticAgent",
+                side_effect=self._make_raising_agent(
+                    ModelHTTPError(401, "test-model")
+                ),
+            ),
+            pytest.raises(ModelHTTPError) as exc_info,
+        ):
+            orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert exc_info.value.status_code == 401
+
+    def test_model_http_error_403_reraises(self):
+        """ModelHTTPError with 403 re-raises immediately (forbidden)."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.PydanticAgent",
+                side_effect=self._make_raising_agent(
+                    ModelHTTPError(403, "test-model")
+                ),
+            ),
+            pytest.raises(ModelHTTPError) as exc_info,
+        ):
+            orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert exc_info.value.status_code == 403
+
+    def test_model_http_error_500_retries_then_raises(self):
+        """ModelHTTPError with 500 retries max_retries times, then re-raises."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        call_count = [0]
+
+        def counting_agent_init(model, **kwargs):
+            class CountingAgent:
+                def run_sync(self, user_prompt, **kw):
+                    call_count[0] += 1
+                    raise ModelHTTPError(500, "test-model")
+
+            return CountingAgent()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.PydanticAgent",
+                side_effect=counting_agent_init,
+            ),
+            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            pytest.raises(ModelHTTPError) as exc_info,
+        ):
+            orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert exc_info.value.status_code == 500
+        # Should have called run_sync 3 times (max_retries=3)
+        assert call_count[0] == 3
+        # Should have slept twice (retries between attempts 1→2 and 2→3)
+        assert mock_sleep.call_count == 2
+        # Sleep times: 30*(0+1)=30, 30*(1+1)=60
+        mock_sleep.assert_any_call(30)
+        mock_sleep.assert_any_call(60)
+
+    def test_httpx_timeout_retries_then_raises(self):
+        """httpx.TimeoutException retries max_retries times, then re-raises."""
+        import httpx
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        call_count = [0]
+
+        def counting_agent_init(model, **kwargs):
+            class CountingAgent:
+                def run_sync(self, user_prompt, **kw):
+                    call_count[0] += 1
+                    raise httpx.ReadTimeout("read timeout")
+
+            return CountingAgent()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.PydanticAgent",
+                side_effect=counting_agent_init,
+            ),
+            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            pytest.raises(httpx.TimeoutException),
+        ):
+            orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert call_count[0] == 3
+        assert mock_sleep.call_count == 2
+
+    def test_httpx_connect_error_retries_then_raises(self):
+        """httpx.ConnectError retries max_retries times, then re-raises."""
+        import httpx
+
+        goal, design, team, workspace, convergence = _make_run_round_args()
+        orch = KnowledgeOrchestrator()
+
+        call_count = [0]
+
+        def counting_agent_init(model, **kwargs):
+            class CountingAgent:
+                def run_sync(self, user_prompt, **kw):
+                    call_count[0] += 1
+                    raise httpx.ConnectError("connection refused")
+
+            return CountingAgent()
+
+        with (
+            mock.patch(
+                "kodo.knowledge.orchestrator.PydanticAgent",
+                side_effect=counting_agent_init,
+            ),
+            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            pytest.raises(httpx.ConnectError),
+        ):
+            orch._run_round(
+                goal, design, team, workspace, convergence, max_exchanges=10
+            )
+
+        assert call_count[0] == 3
+        assert mock_sleep.call_count == 2
