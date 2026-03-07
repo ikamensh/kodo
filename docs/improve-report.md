@@ -10,10 +10,10 @@
 
 This report documents the results of a comprehensive quality improvement project for the kodo codebase, conducted in two phases: a quality audit using `kodo improve` followed by a systematic test coverage expansion.
 
-**Phase 1 — Quality Audit:** Out of 119 findings triaged:
+**Phase 1 — Quality Audit:** Out of 120 findings triaged:
 - **12 Issues Fixed/Resolved** - 5 critical bugs (commit `8bb576e`), 1 linting bug, 3 architecture refactors (Stages 6-8), 1 test coverage expansion, 2 auto-fixed code quality issues (58+ Ruff violations in commit `38d0116`)
 - **13 Items Deferred** - Architectural decisions and type safety trade-offs documented in "Skipped by Triage" for future discussion
-- **94 Items Skipped** - False positives, test environment issues, intentional patterns, and deferred decisions
+- **95 Items Skipped** - False positives, test environment issues, intentional patterns (including dependency compatibility shim), and deferred decisions
 
 **Phase 2 — Test Coverage Expansion (6 stages):**
 - **Project coverage:** 65% → 84.4% (+19.4pp)
@@ -160,7 +160,7 @@ The following issues were identified and resolved across both phases of the qual
 
 ## Skipped by Triage
 
-The following 90 items were skipped as false positives, test environment issues, intentional patterns, or deferred architectural decisions:
+The following 91 items were skipped as false positives, test environment issues, intentional patterns, or deferred architectural decisions:
 
 ### Deferred Architectural Decisions (16 items)
 
@@ -282,7 +282,14 @@ The following items have multiple valid approaches and are deferred pending team
 - These are valid optional dependencies; Pyright can't resolve them in analysis environment
 - Runtime works correctly when dependencies installed
 
-### Intentional Patterns (15 items)
+### Intentional Patterns (17 items)
+
+**Dependency compatibility shim:**
+- Location: `kodo/__init__.py:6-17`
+- Pattern: Runtime monkey-patch to alias `BetaUserLocationParam` as `UserLocation` for pydantic-ai/anthropic compatibility
+- Reason: pydantic-ai 1.20 imports `UserLocation` but anthropic 0.84 renamed it to `BetaUserLocationParam`
+- Blocked by: kimi-agent-sdk's mcp<1.17 pin prevents upgrading pydantic-ai
+- Temporary: Remove once kimi-agent-sdk lifts mcp cap and we can upgrade pydantic-ai
 
 **Imports after load_dotenv():**
 - Files: `kodo/cli/_main.py`, `scripts/*.py`
@@ -331,12 +338,12 @@ The following items have multiple valid approaches and are deferred pending team
 | **Edge Cases** | 4 | 0 | 4 | 8 |
 | **Architecture** | 3 | 3 | 0 | 6 |
 | **Code Quality (Auto-fixed)** | 2 | 0 | 0 | 2 |
-| **TOTAL** | **12** | **13** | **94** | **119** |
+| **TOTAL** | **12** | **13** | **95** | **120** |
 
 **Notes:**
 - **12 Fixed:** 5 critical bugs (Stage 1), 1 linting bug (Stage 2-3), 1 architecture refactor (Stages 6-8), 1 test coverage expansion (Stages 2-6), 2 auto-fixed code quality issues (Stage 7)
 - **13 Deferred:** Architecture decisions (6 items) + type safety items (10 findings) moved to "Skipped by Triage - Deferred Architectural Decisions"
-- **94 Skipped:** Deferred decisions (16), false positives (16), test environment issues (15), intentional patterns (15), low priority docs (5), prior resolved items (27)
+- **95 Skipped:** Deferred decisions (16), false positives (16), test environment issues (15), intentional patterns (17), low priority docs (5), prior resolved items (26)
 
 ### Test Coverage Progress (Phase 2)
 
