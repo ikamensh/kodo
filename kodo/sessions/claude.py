@@ -187,6 +187,14 @@ class ClaudeSession:
         # connect() spawns the subprocess and does I/O — run outside the lock.
         try:
             self._run(self._client.connect(), timeout=120)
+        except BaseException:
+            # connect() failed — clear the broken client so that a retry
+            # with the same project_dir won't hit the early-return guard
+            # at the top of this method (line "if self._client is not None
+            # and self._project_dir == project_dir: return").
+            self._client = None
+            self._project_dir = None
+            raise
         finally:
             # Restore the key so the orchestrator's own API calls still work,
             # even if connect() failed.
@@ -201,6 +209,7 @@ class ClaudeSession:
             except (RuntimeError, TimeoutError):
                 pass  # cancel scope mismatch or disconnect hung — harmless
             self._client = None
+            self._project_dir = None
 
     def clone(self) -> "ClaudeSession":
         """Create a fresh session with the same config but no state."""
@@ -303,6 +312,9 @@ class ClaudeSession:
         )
         self._disconnect()
         self._stats = SessionStats()
+        self._session_id = None
+        self._pending_plan = None
+        self._plan_approved = False
 
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         from claude_agent_sdk import AssistantMessage, ResultMessage
