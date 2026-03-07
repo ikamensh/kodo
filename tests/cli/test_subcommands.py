@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams
+from kodo.cli._subcommands import _cmd_backends, _cmd_runs, _cmd_teams, _save_team, _truncate_word
 
 # ---------------------------------------------------------------------------
 # kodo runs
@@ -281,3 +282,92 @@ class TestCmdTeams:
             pytest.raises(SystemExit, match="1"),
         ):
             _cmd_teams()
+
+
+# ---------------------------------------------------------------------------
+# _truncate_word
+# ---------------------------------------------------------------------------
+
+
+class TestTruncateWord:
+    """Tests for _truncate_word() helper function."""
+
+    def test_short_text_unchanged(self):
+        """Text shorter than width should be returned unchanged."""
+        assert _truncate_word("Hello", 10) == "Hello"
+
+    def test_truncates_on_word_boundary(self):
+        """Text longer than width should truncate on word boundary with '...'."""
+        result = _truncate_word("The quick brown fox", 12)
+        assert result == "The quick..."
+        assert len(result) <= 15  # 12 + len("...")
+
+    def test_hard_cuts_single_long_word(self):
+        """If first word is longer than width, hard-cut it."""
+        result = _truncate_word("Supercalifragilisticexpialidocious", 10)
+        assert result == "Supercalif..."
+        assert len(result) == 13  # 10 + len("...")
+
+    def test_exact_width_unchanged(self):
+        """Text exactly matching width should be returned unchanged."""
+        text = "12345"
+        assert _truncate_word(text, 5) == text
+
+
+# ---------------------------------------------------------------------------
+# _save_team
+# ---------------------------------------------------------------------------
+
+
+class TestSaveTeam:
+    """Tests for _save_team() function."""
+
+    def test_writes_json_to_teams_dir(self, tmp_path, capsys):
+        """_save_team should write JSON to ~/.kodo/teams/{name}.json."""
+        config = {
+            "name": "test-team",
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "worker": {"backend": "claude", "model": "sonnet"},
+            },
+        }
+
+        with patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path):
+            path = _save_team("test-team", config)
+
+        assert path == tmp_path / "test-team.json"
+        assert path.exists()
+
+        # Verify JSON content
+        saved = json.loads(path.read_text())
+        assert saved["name"] == "test-team"
+        assert saved["description"] == "Test team"
+        assert saved["max_exchanges"] == 20
+        assert "worker" in saved["agents"]
+
+        # Verify console output
+        out = capsys.readouterr().out
+        assert "Saved to" in out
+
+    def test_creates_parent_dirs(self, tmp_path, capsys):
+        """_save_team works when _teams_dir returns a non-existent path (because _teams_dir creates it)."""
+        teams_dir = tmp_path / "teams"
+        # Don't create teams_dir beforehand - _teams_dir() would normally create it,
+        # but we're mocking it. So we need to create it in the mock.
+        config = {
+            "name": "another-team",
+            "agents": {},
+        }
+
+        def mock_teams_dir():
+            teams_dir.mkdir(parents=True, exist_ok=True)
+            return teams_dir
+
+        with patch("kodo.cli._subcommands._teams_dir", side_effect=mock_teams_dir):
+            path = _save_team("another-team", config)
+
+        assert path.exists()
+        assert path.parent.exists()
+        assert path.parent == teams_dir
