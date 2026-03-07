@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -112,6 +113,200 @@ def remove_worktree(project_dir: Path, worktree_dir: Path, branch_name: str) -> 
         capture_output=True,
         timeout=_GIT_TIMEOUT,
     )
+
+
+def cleanup_stale_worktrees(project_dir: Path) -> None:
+    """Remove stale kodo worktrees and orphaned kodo branches.
+
+    Finds worktrees created by kodo (identified by 'kodo-' in the directory name)
+    that are older than 6 hours and removes them along with their corresponding
+    branches.
+
+    Also scans for orphaned ``kodo-*`` branches that have no worktree directory
+    (e.g. from a cleanup interrupted between worktree removal and branch
+    deletion) and deletes them.
+
+    Wrapped in try/except to never crash the main flow.
+    """
+    from kodo import log
+
+    try:
+        # Get all worktrees via git worktree list --porcelain
+        result = subprocess.run(
+            [_GIT, "worktree", "list", "--porcelain"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT,
+        )
+        if result.returncode != 0:
+            log.emit(
+                "cleanup_stale_worktrees_list_failed",
+                error=result.stderr or result.stdout,
+            )
+            return
+
+        # Parse worktree list output (format: worktree <path>\nHEAD <sha>\nbranch <branch>\n\n)
+        worktrees_to_clean: list[tuple[Path, str]] = []
+        current_worktree = None
+        current_branch = None
+        six_hours_ago = time.time() - (6 * 3600)
+        # Track branches that are associated with active worktrees
+        active_worktree_branches: set[str] = set()
+
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("worktree "):
+                current_worktree = Path(line.split(" ", 1)[1])
+            elif line.startswith("branch "):
+                # Format: "branch refs/heads/branch-name"
+                branch_ref = line.split(" ", 1)[1]
+                if branch_ref.startswith("refs/heads/"):
+                    current_branch = branch_ref.replace("refs/heads/", "")
+            elif line == "":
+                # End of worktree entry
+                if current_branch and current_branch.startswith("kodo-"):
+                    active_worktree_branches.add(current_branch)
+                if (
+                    current_worktree
+                    and current_branch
+                    and "kodo-" in current_worktree.name
+                    and current_worktree.exists()
+                ):
+                    try:
+                        mtime = current_worktree.stat().st_mtime
+                        if mtime < six_hours_ago:
+                            worktrees_to_clean.append((current_worktree, current_branch))
+                    except (OSError, FileNotFoundError):
+                        # Worktree path doesn't exist or is inaccessible
+                        pass
+                current_worktree = None
+                current_branch = None
+
+        # Clean up stale worktrees
+        if worktrees_to_clean:
+            log.tprint(
+                f"[cleanup] Found {len(worktrees_to_clean)} stale worktree(s) to remove"
+            )
+            log.emit(
+                "cleanup_stale_worktrees_found",
+                count=len(worktrees_to_clean),
+            )
+
+        for wt_path, branch in worktrees_to_clean:
+            try:
+                # Remove worktree via git worktree remove --force
+                remove_result = subprocess.run(
+                    [_GIT, "worktree", "remove", str(wt_path), "--force"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=_GIT_TIMEOUT,
+                )
+                if remove_result.returncode != 0 and wt_path.exists():
+                    # Fallback to direct directory removal
+                    shutil.rmtree(wt_path, ignore_errors=True)
+
+                # Delete corresponding kodo-stage-* branch
+                if branch.startswith("kodo-"):
+                    subprocess.run(
+                        [_GIT, "branch", "-D", branch],
+                        cwd=project_dir,
+                        capture_output=True,
+                        timeout=_GIT_TIMEOUT,
+                    )
+
+                log.emit(
+                    "cleanup_stale_worktree_removed",
+                    path=str(wt_path),
+                    branch=branch,
+                )
+            except Exception as exc:
+                log.emit(
+                    "cleanup_stale_worktree_failed",
+                    path=str(wt_path),
+                    branch=branch,
+                    error=str(exc),
+                )
+
+        # Prune stale worktree metadata
+        if worktrees_to_clean:
+            subprocess.run(
+                [_GIT, "worktree", "prune"],
+                cwd=project_dir,
+                capture_output=True,
+                timeout=_GIT_TIMEOUT,
+            )
+
+        # ── Orphaned branch cleanup ────────────────────────────────────
+        # Find kodo-* branches that have no associated worktree.  These
+        # are left behind when cleanup is interrupted between worktree
+        # removal and branch deletion.
+        _cleanup_orphaned_kodo_branches(
+            project_dir, active_worktree_branches, log,
+        )
+
+    except Exception as exc:
+        # Never crash the main flow
+        log.emit("cleanup_stale_worktrees_error", error=str(exc))
+
+
+def _cleanup_orphaned_kodo_branches(
+    project_dir: Path,
+    active_worktree_branches: set[str],
+    log,  # noqa: ANN001 — kodo.log module
+) -> None:
+    """Delete ``kodo-*`` branches that have no worktree directory.
+
+    These appear when cleanup is interrupted after the worktree directory
+    is removed but before ``git branch -D`` runs.  Only branches whose
+    names match ``kodo-*`` and are *not* associated with an active
+    worktree are deleted.
+
+    Called from :func:`cleanup_stale_worktrees` inside its try/except.
+    """
+    branch_list = subprocess.run(
+        [_GIT, "branch", "--list", "kodo-*"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        timeout=_GIT_TIMEOUT,
+    )
+    if branch_list.returncode != 0:
+        return
+
+    orphaned: list[str] = []
+    for raw_line in branch_list.stdout.splitlines():
+        branch = raw_line.strip().lstrip("* ")
+        if not branch or not branch.startswith("kodo-"):
+            continue
+        if branch in active_worktree_branches:
+            continue  # still has a worktree — leave it alone
+        orphaned.append(branch)
+
+    if not orphaned:
+        return
+
+    log.tprint(
+        f"[cleanup] Found {len(orphaned)} orphaned kodo branch(es) to remove"
+    )
+    log.emit("cleanup_orphaned_branches_found", count=len(orphaned))
+
+    for branch in orphaned:
+        try:
+            subprocess.run(
+                [_GIT, "branch", "-D", branch],
+                cwd=project_dir,
+                capture_output=True,
+                timeout=_GIT_TIMEOUT,
+            )
+            log.emit("cleanup_orphaned_branch_removed", branch=branch)
+        except Exception as exc:
+            log.emit(
+                "cleanup_orphaned_branch_failed",
+                branch=branch,
+                error=str(exc),
+            )
 
 
 def _strip_pycache_from_index(repo_dir: Path) -> None:

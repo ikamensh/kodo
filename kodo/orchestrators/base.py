@@ -36,6 +36,7 @@ from kodo.orchestrators.cycle_utils import (  # noqa: F401
 from kodo.orchestrators.git_ops import (  # noqa: F401
     _auto_commit,
     _remove_worktree_keep_branch,
+    cleanup_stale_worktrees,
     commit_worktree_changes,
     create_worktree,
     merge_worktree_branch,
@@ -701,6 +702,9 @@ class OrchestratorBase:
         stage_teams: dict[int, TeamConfig] = {
             stage.index: clone_team(team) for stage in group
         }
+
+        # Clean up stale worktrees from previous interrupted runs
+        cleanup_stale_worktrees(project_dir)
 
         # Create git worktrees for isolation.
         worktrees, worktree_failed = create_stage_worktrees(group, project_dir)

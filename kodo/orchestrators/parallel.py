@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -173,6 +176,45 @@ def run_group_sequentially(
     return parallel_results, cycles_used
 
 
+@contextmanager
+def _suppress_keyboard_interrupt():
+    """Defer ``KeyboardInterrupt`` during critical cleanup.
+
+    SIGINT is masked while the context is active.  If a signal arrives
+    during that window it is re-raised on exit so the caller still sees
+    the interrupt — but only *after* cleanup has finished.
+
+    On non-Unix (or when ``signal.getsignal`` isn't available) this is a
+    no-op: the cleanup proceeds unprotected, which is the status quo.
+    """
+    interrupted = False
+    original_handler = None
+
+    def _deferred_handler(signum, frame):  # noqa: ARG001
+        nonlocal interrupted
+        interrupted = True
+
+    try:
+        # signal.signal can only be called from the main thread
+        original_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _deferred_handler)
+    except (OSError, ValueError):
+        # Not main thread, or signals not supported
+        pass
+
+    try:
+        yield
+    finally:
+        if original_handler is not None:
+            try:
+                signal.signal(signal.SIGINT, original_handler)
+            except (OSError, ValueError):
+                pass
+        if interrupted:
+            # Re-raise so the caller knows the user pressed Ctrl-C
+            os.kill(os.getpid(), signal.SIGINT)
+
+
 def cleanup_and_merge_worktrees(
     group: list[GoalStage],
     worktrees: dict[int, tuple[Path, str]],
@@ -183,13 +225,31 @@ def cleanup_and_merge_worktrees(
     """Clean up cloned sessions and worktrees; merge persist_changes branches.
 
     Called in a ``finally`` block to ensure cleanup even on
-    ``KeyboardInterrupt``.  Steps:
+    ``KeyboardInterrupt``.  SIGINT is deferred for the duration of this
+    function so a second Ctrl-C cannot leave worktrees or branches
+    behind.  The signal is re-raised on exit.
+
+    Steps:
 
     1. Commit uncommitted changes in ``persist_changes`` worktrees.
     2. Close cloned sessions.
     3. Remove worktrees (keeping branches that need merging).
     4. Merge ``persist_changes`` branches sequentially.
     """
+    with _suppress_keyboard_interrupt():
+        _cleanup_and_merge_worktrees_inner(
+            group, worktrees, stage_teams, parallel_results, project_dir,
+        )
+
+
+def _cleanup_and_merge_worktrees_inner(
+    group: list[GoalStage],
+    worktrees: dict[int, tuple[Path, str]],
+    stage_teams: dict[int, TeamConfig],
+    parallel_results: list[StageResult],
+    project_dir: Path,
+) -> None:
+    """Actual cleanup logic — called inside SIGINT suppression."""
     from kodo import log
 
     stages_by_idx = {s.index: s for s in group}
@@ -211,16 +271,20 @@ def cleanup_and_merge_worktrees(
             try:
                 commit_worktree_changes(wt_dir, stg.name)
                 branches_to_merge.append((branch, stg.name, stage_idx))
-            except Exception as exc:
+            except BaseException as exc:
                 log.tprint(
                     f"[persist] Commit failed for "
                     f"stage {stage_idx}: {exc}",
                 )
 
-    # 2. Close cloned sessions
+    # 2. Close cloned sessions — wrap each in try/except so one failure
+    #    doesn't prevent closing the rest.
     for st in stage_teams.values():
         for agent in st.values():
-            agent.close()
+            try:
+                agent.close()
+            except BaseException:
+                pass
 
     # 3. Remove worktrees — keep branches that need merging
     branches_to_keep = {b for b, _, _ in branches_to_merge}
@@ -230,7 +294,7 @@ def cleanup_and_merge_worktrees(
                 _remove_worktree_keep_branch(project_dir, wt_dir)
             else:
                 remove_worktree(project_dir, wt_dir, branch)
-        except Exception as exc:
+        except BaseException as exc:
             log.tprint(
                 f"[orchestrator] Worktree cleanup failed for "
                 f"stage {stage_idx}: {exc}",
@@ -250,15 +314,18 @@ def cleanup_and_merge_worktrees(
                 had_changes=merge_result.had_changes,
                 conflict=merge_result.conflict,
             )
-        except Exception as exc:
+        except BaseException as exc:
             log.tprint(
                 f"[persist] Merge failed for stage {stage_idx}: {exc}",
             )
         finally:
             # Always clean up the branch after merge attempt
-            subprocess.run(
-                [_GIT, "branch", "-D", branch],
-                cwd=project_dir,
-                capture_output=True,
-                timeout=_GIT_TIMEOUT,
-            )
+            try:
+                subprocess.run(
+                    [_GIT, "branch", "-D", branch],
+                    cwd=project_dir,
+                    capture_output=True,
+                    timeout=_GIT_TIMEOUT,
+                )
+            except BaseException:
+                pass

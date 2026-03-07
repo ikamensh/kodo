@@ -77,6 +77,7 @@ class StageResult:
     stage_name: str
     cycles: list["CycleResult"] = field(default_factory=list)
     finished: bool = False
+    success: bool = True
     summary: str = ""
 
 

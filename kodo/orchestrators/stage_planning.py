@@ -22,6 +22,7 @@ def _handle_stage_crash(stage: GoalStage, exc: Exception) -> StageResult:
     return StageResult(
         stage_index=stage.index,
         stage_name=stage.name,
+        success=False,
         summary=f"Stage crashed: {exc}",
     )
 

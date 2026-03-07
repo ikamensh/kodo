@@ -9,9 +9,11 @@ from unittest import mock
 import pytest
 
 from kodo.orchestrators.git_ops import (
+    _cleanup_orphaned_kodo_branches,
     _remove_worktree_keep_branch,
     _resolve_conflicts_with_agent,
     _strip_pycache_from_index,
+    cleanup_stale_worktrees,
     commit_worktree_changes,
     create_worktree,
     merge_worktree_branch,
@@ -1168,3 +1170,313 @@ def test_merge_checkout_branch_timeout(git_project: Path):
         assert result.had_changes is False
     finally:
         _cleanup_branch(git_project, branch_name)
+
+
+# ── Tier 8: cleanup_stale_worktrees ────────────────────────────────────
+
+
+def test_cleanup_stale_worktrees_no_stale(git_project: Path):
+    """cleanup_stale_worktrees should be no-op when no stale worktrees exist."""
+    # Just call the function - should not raise or emit errors
+    cleanup_stale_worktrees(git_project)
+
+
+def test_cleanup_stale_worktrees_removes_old(git_project: Path, tmp_path: Path):
+    """cleanup_stale_worktrees removes worktrees older than 6 hours."""
+    import time
+
+    # Create a worktree in /tmp/kodo-*
+    worktree_dir, branch_name = create_worktree(git_project, "old-stage")
+
+    try:
+        # Verify it has kodo- in the name (created by create_worktree)
+        assert "kodo-" in worktree_dir.name
+
+        # Set mtime to 7 hours ago (older than 6 hour threshold)
+        seven_hours_ago = time.time() - (7 * 3600)
+        import os
+        os.utime(worktree_dir, (seven_hours_ago, seven_hours_ago))
+
+        # Verify worktree exists before cleanup
+        assert worktree_dir.exists()
+
+        # Run cleanup
+        cleanup_stale_worktrees(git_project)
+
+        # Worktree should be removed
+        assert not worktree_dir.exists()
+
+        # Branch should also be deleted (since it starts with kodo-)
+        result = subprocess.run(
+            ["git", "branch", "--list", branch_name],
+            cwd=git_project,
+            capture_output=True,
+            text=True,
+        )
+        assert branch_name not in result.stdout
+    except Exception:
+        # Cleanup in case test fails
+        if worktree_dir.exists():
+            remove_worktree(git_project, worktree_dir, branch_name)
+        raise
+
+
+def test_cleanup_stale_worktrees_keeps_recent(git_project: Path):
+    """cleanup_stale_worktrees preserves worktrees younger than 6 hours."""
+    # Create a fresh worktree
+    worktree_dir, branch_name = create_worktree(git_project, "recent-stage")
+
+    try:
+        # Verify it's fresh (no need to modify mtime)
+        assert worktree_dir.exists()
+
+        # Run cleanup
+        cleanup_stale_worktrees(git_project)
+
+        # Worktree should still exist (not stale)
+        assert worktree_dir.exists()
+
+        # Branch should still exist
+        result = subprocess.run(
+            ["git", "branch", "--list", branch_name],
+            cwd=git_project,
+            capture_output=True,
+            text=True,
+        )
+        assert branch_name in result.stdout
+    finally:
+        remove_worktree(git_project, worktree_dir, branch_name)
+
+
+def test_cleanup_stale_worktrees_git_list_fails(git_project: Path):
+    """cleanup_stale_worktrees handles git worktree list failure gracefully."""
+    original_run = subprocess.run
+
+    def mock_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "list"]:
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="worktree list failed"
+            )
+        return original_run(cmd, *args, **kwargs)
+
+    # Should not raise - just logs and returns
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        cleanup_stale_worktrees(git_project)
+
+
+def test_cleanup_stale_worktrees_never_crashes(git_project: Path):
+    """cleanup_stale_worktrees never crashes even on unexpected errors."""
+    # Mock to raise an exception
+    def mock_run(*args, **kwargs):
+        raise RuntimeError("Unexpected error!")
+
+    # Should not raise - wrapped in try/except
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        cleanup_stale_worktrees(git_project)
+
+
+def test_cleanup_stale_worktrees_skips_non_kodo_paths(git_project: Path):
+    """cleanup_stale_worktrees only processes worktrees with kodo- in their name."""
+    import time
+
+    # Create a regular worktree (not in /tmp/kodo-*)
+    # This would require mocking create_worktree, which is complex
+    # Instead, we'll test via the porcelain parsing logic
+
+    original_run = subprocess.run
+
+    # Mock git worktree list to return a non-kodo path
+    def mock_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "list"]:
+            # Return a worktree that's NOT in /tmp/kodo-*
+            return subprocess.CompletedProcess(
+                cmd, 0,
+                stdout=(
+                    f"worktree {git_project}\n"
+                    f"HEAD {subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_project, capture_output=True, text=True).stdout.strip()}\n"
+                    f"branch refs/heads/main\n"
+                    "\n"
+                    "worktree /tmp/other-worktree\n"
+                    "HEAD abc123\n"
+                    "branch refs/heads/kodo-test-branch\n"
+                    "\n"
+                ),
+                stderr=""
+            )
+        return original_run(cmd, *args, **kwargs)
+
+    # Should not attempt to remove non-kodo worktrees
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        cleanup_stale_worktrees(git_project)
+
+
+def test_cleanup_stale_worktrees_handles_missing_worktree_paths(git_project: Path):
+    """cleanup_stale_worktrees handles worktrees whose paths no longer exist."""
+    original_run = subprocess.run
+
+    # Mock git worktree list to return a kodo worktree that doesn't exist
+    def mock_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "list"]:
+            return subprocess.CompletedProcess(
+                cmd, 0,
+                stdout=(
+                    f"worktree {git_project}\n"
+                    f"HEAD {subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_project, capture_output=True, text=True).stdout.strip()}\n"
+                    f"branch refs/heads/main\n"
+                    "\n"
+                    "worktree /tmp/kodo-nonexistent-abc123\n"
+                    "HEAD abc123\n"
+                    "branch refs/heads/kodo-stage-1-abc123\n"
+                    "\n"
+                ),
+                stderr=""
+            )
+        return original_run(cmd, *args, **kwargs)
+
+    # Should not crash when worktree path doesn't exist
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        cleanup_stale_worktrees(git_project)
+
+
+# ── Tier 9: orphaned kodo branch cleanup ───────────────────────────────
+
+
+def test_cleanup_orphaned_kodo_branches_deletes_orphans(git_project: Path):
+    """Orphaned kodo-* branches (no worktree dir) are deleted by cleanup."""
+    # Create a worktree, then manually remove the directory + prune
+    # to simulate an interrupted cleanup that left the branch behind.
+    wt_dir, branch = create_worktree(git_project, "orphan-test")
+    import shutil
+
+    shutil.rmtree(wt_dir, ignore_errors=True)
+    subprocess.run(
+        ["git", "worktree", "prune"],
+        cwd=git_project,
+        capture_output=True,
+    )
+
+    # Branch should still exist but worktree dir should not
+    assert not wt_dir.exists()
+    branch_check = subprocess.run(
+        ["git", "branch", "--list", branch],
+        cwd=git_project,
+        capture_output=True,
+        text=True,
+    )
+    assert branch in branch_check.stdout
+
+    # Run cleanup — should find and remove the orphaned branch
+    cleanup_stale_worktrees(git_project)
+
+    # Orphaned branch should now be gone
+    branch_check = subprocess.run(
+        ["git", "branch", "--list", branch],
+        cwd=git_project,
+        capture_output=True,
+        text=True,
+    )
+    assert branch not in branch_check.stdout
+
+
+def test_cleanup_orphaned_branches_preserves_active_worktree_branches(
+    git_project: Path,
+):
+    """Branches with active worktrees must NOT be deleted by orphan cleanup."""
+    wt_dir, branch = create_worktree(git_project, "active-stage")
+
+    try:
+        assert wt_dir.exists()
+
+        # Run cleanup — should NOT delete the branch because worktree exists
+        cleanup_stale_worktrees(git_project)
+
+        # Branch should still exist
+        branch_check = subprocess.run(
+            ["git", "branch", "--list", branch],
+            cwd=git_project,
+            capture_output=True,
+            text=True,
+        )
+        assert branch in branch_check.stdout
+    finally:
+        remove_worktree(git_project, wt_dir, branch)
+
+
+def test_cleanup_orphaned_kodo_branches_direct(git_project: Path):
+    """_cleanup_orphaned_kodo_branches deletes branches not in active set."""
+    # Create a branch manually (without a worktree)
+    branch_name = "kodo-orphan-direct-test"
+    subprocess.run(
+        ["git", "branch", branch_name],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
+    )
+
+    from kodo import log
+
+    _cleanup_orphaned_kodo_branches(
+        git_project,
+        active_worktree_branches=set(),  # no active branches
+        log=log,
+    )
+
+    # Branch should be gone
+    branch_check = subprocess.run(
+        ["git", "branch", "--list", branch_name],
+        cwd=git_project,
+        capture_output=True,
+        text=True,
+    )
+    assert branch_name not in branch_check.stdout
+
+
+def test_cleanup_orphaned_kodo_branches_skips_active(git_project: Path):
+    """_cleanup_orphaned_kodo_branches skips branches in the active set."""
+    branch_name = "kodo-active-direct-test"
+    subprocess.run(
+        ["git", "branch", branch_name],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
+    )
+
+    try:
+        from kodo import log
+
+        _cleanup_orphaned_kodo_branches(
+            git_project,
+            active_worktree_branches={branch_name},  # marked active
+            log=log,
+        )
+
+        # Branch should still exist
+        branch_check = subprocess.run(
+            ["git", "branch", "--list", branch_name],
+            cwd=git_project,
+            capture_output=True,
+            text=True,
+        )
+        assert branch_name in branch_check.stdout
+    finally:
+        subprocess.run(
+            ["git", "branch", "-D", branch_name],
+            cwd=git_project,
+            capture_output=True,
+        )
+
+
+def test_cleanup_orphaned_kodo_branches_handles_git_failure(git_project: Path):
+    """_cleanup_orphaned_kodo_branches handles git branch --list failure."""
+    original_run = subprocess.run
+
+    def mock_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and cmd[:3] == ["git", "branch", "--list"]:
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="error")
+        return original_run(cmd, *args, **kwargs)
+
+    from kodo import log
+
+    # Should not crash
+    with mock.patch("subprocess.run", side_effect=mock_run):
+        _cleanup_orphaned_kodo_branches(git_project, set(), log)
