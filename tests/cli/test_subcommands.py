@@ -135,6 +135,66 @@ class TestCmdRuns:
 
 
 # ---------------------------------------------------------------------------
+# kodo logs
+# ---------------------------------------------------------------------------
+
+
+class TestCmdLogs:
+    """Tests for _cmd_logs() function."""
+
+    def test_no_logfile_serves_default_port(self):
+        """_cmd_logs with no logfile should serve on default port 8080 with None path."""
+        with (
+            patch("sys.argv", ["kodo", "logs"]),
+            patch("kodo.viewer._serve") as mock_serve,
+        ):
+            from kodo.cli._subcommands import _cmd_logs
+            _cmd_logs()
+            mock_serve.assert_called_once_with(8080, None)
+
+    def test_custom_port(self):
+        """_cmd_logs --port 9999 should serve on port 9999."""
+        with (
+            patch("sys.argv", ["kodo", "logs", "--port", "9999"]),
+            patch("kodo.viewer._serve") as mock_serve,
+        ):
+            from kodo.cli._subcommands import _cmd_logs
+            _cmd_logs()
+            mock_serve.assert_called_once_with(9999, None)
+
+    def test_valid_logfile(self, tmp_path):
+        """_cmd_logs with existing logfile should pass path to _serve."""
+        logfile = tmp_path / "test.jsonl"
+        logfile.write_text('{"event":"test"}\n')
+
+        with (
+            patch("sys.argv", ["kodo", "logs", str(logfile)]),
+            patch("kodo.viewer._serve") as mock_serve,
+        ):
+            from kodo.cli._subcommands import _cmd_logs
+            _cmd_logs()
+            # Verify port and path were passed
+            assert mock_serve.call_count == 1
+            call_args = mock_serve.call_args[0]
+            assert call_args[0] == 8080
+            assert call_args[1] == logfile
+
+    def test_nonexistent_logfile_exits(self, tmp_path):
+        """_cmd_logs with non-existent logfile should exit with code 1."""
+        nonexistent = tmp_path / "missing.jsonl"
+
+        with (
+            patch("sys.argv", ["kodo", "logs", str(nonexistent)]),
+            patch("kodo.viewer._serve") as mock_serve,
+            pytest.raises(SystemExit, match="1"),
+        ):
+            from kodo.cli._subcommands import _cmd_logs
+            _cmd_logs()
+            # _serve should not be called
+            mock_serve.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # kodo backends
 # ---------------------------------------------------------------------------
 
@@ -201,6 +261,69 @@ class TestCmdBackends:
         assert "sk-a" in out
         assert "cdef" in out
         assert "sk-ant-1234567890abcdef" not in out
+
+    def test_available_backend_shows_version(self, capsys):
+        """When backend is available and version command succeeds, show version string."""
+        from subprocess import CompletedProcess
+
+        mock_result = CompletedProcess(
+            args=["claude", "--version"],
+            returncode=0,
+            stdout="Claude Code CLI 2.5.0\nExtra line",
+            stderr="",
+        )
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("subprocess.run", return_value=mock_result),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "Claude Code CLI 2.5.0" in out
+        # Should only show first line of output
+        assert "Extra line" not in out
+
+    def test_version_command_fails_shows_error(self, capsys):
+        """When version command returns non-zero exit code, show error message."""
+        from subprocess import CompletedProcess
+
+        mock_result = CompletedProcess(
+            args=["claude", "--version"],
+            returncode=127,
+            stdout="",
+            stderr="command not found",
+        )
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("subprocess.run", return_value=mock_result),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "error (exit 127)" in out
+
+    def test_version_command_timeout(self, capsys):
+        """When version command times out, show 'error'."""
+        from subprocess import TimeoutExpired
+
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("subprocess.run", side_effect=TimeoutExpired("claude --version", 10)),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "error" in out
+        # Should not have "error (exit N)" format
+        assert "exit" not in out or "error" in out
 
 
 # ---------------------------------------------------------------------------
