@@ -267,7 +267,7 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
     team = _make_team_with_tracked_worker()
     agent_tools = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         # Simulate orchestrator calling the done tool
         done_tool = next(t for t in agent_tools if t.name == "done")
         done_tool.function(summary="feature complete", success=True)
@@ -307,7 +307,7 @@ def test_cycle_no_auto_commit_when_disabled(tmp_path: Path) -> None:
     team = _make_team_with_tracked_worker()
     agent_tools = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         done_tool = next(t for t in agent_tools if t.name == "done")
         done_tool.function(summary="feature complete", success=True)
         return FakeRunResult()
@@ -343,7 +343,7 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
     team = _make_team_with_tracked_worker()
     agent_tools = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         # Only call done if we have tools (orchestrator agent, not summarizer)
         done_tool = next((t for t in agent_tools if t.name == "done"), None)
         if done_tool:
@@ -457,7 +457,7 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
 
     agent_tools = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         done_tool = next(t for t in agent_tools if t.name == "done")
         done_tool.function(summary="implemented hello world server", success=True)
         return FakeRunResult()
@@ -519,7 +519,7 @@ def test_no_commit_when_auto_commit_disabled_real_git(
 
     agent_tools = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         done_tool = next(t for t in agent_tools if t.name == "done")
         done_tool.function(summary="done", success=True)
         return FakeRunResult()

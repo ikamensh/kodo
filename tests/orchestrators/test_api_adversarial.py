@@ -22,7 +22,7 @@ def test_done_with_success_false(tmp_path: Path):
     """Calling done(success=False) should mark finished but not successful."""
     log.init(RunDir.create(tmp_path, "done_fail"))
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         for tool in agent_tools:
             if tool.name == "done":
                 tool.function(summary="cannot complete", success=False)
@@ -64,7 +64,7 @@ def test_agent_crash_returns_error_string(tmp_path: Path):
     team = {"worker": crash_agent}
     tool_results = []
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         # Call the worker tool and capture its return
         for tool in agent_tools:
             if tool.name == "ask_worker":
@@ -150,7 +150,7 @@ def test_cost_calculation_with_unknown_model(tmp_path: Path):
     """If the model isn't in the pricing table, cost should be 0 (not crash)."""
     log.init(RunDir.create(tmp_path, "unknown_pricing"))
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         for tool in agent_tools:
             if tool.name == "done":
                 tool.function(summary="done", success=False)

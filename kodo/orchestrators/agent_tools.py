@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 
 # Patterns that indicate unrecoverable errors — retrying won't help.
 _FATAL_ERROR_PATTERNS = re.compile(
-    r"Subscription/billing issue|Authentication failed|Binary not working",
+    r"Subscription/billing issue|Authentication failed|Binary not working|"
+    r"Rate limit exceeded|Model not found|model_not_available|Permission denied",
     re.IGNORECASE,
 )
 

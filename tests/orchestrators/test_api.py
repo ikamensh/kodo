@@ -17,7 +17,7 @@ from tests.conftest import FakeRunResult
 def test_cycle_done_returns_finished(tmp_path: Path):
     log.init(RunDir.create(tmp_path, "api_done"))
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         # Find the done tool among the agent's tools and call it
         for tool in agent_tools:
             if tool.name == "done":
@@ -51,7 +51,7 @@ def test_cycle_done_returns_finished(tmp_path: Path):
 def test_cycle_no_done_returns_summary(tmp_path: Path):
     log.init(RunDir.create(tmp_path, "api_nodone"))
 
-    def fake_run_sync(prompt, *, usage_limits=None):
+    def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
         return FakeRunResult(output="partial progress")
 
     def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
@@ -75,7 +75,7 @@ def test_usage_limit_exceeded(tmp_path: Path):
     from pydantic_ai.exceptions import UsageLimitExceeded
 
     def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             raise UsageLimitExceeded("limit hit")
 
         self.run_sync = fake_run_sync
@@ -96,7 +96,7 @@ def test_529_fallback(tmp_path: Path):
     call_count = [0]
 
     def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             nonlocal call_count
             call_count[0] += 1
             if call_count[0] == 1:
@@ -343,7 +343,7 @@ class TestApiErrorPaths:
         from pydantic_ai.exceptions import ModelHTTPError
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 raise ModelHTTPError(
                     status_code=401, model_name="claude-opus-4-6", body="Unauthorized"
                 )
@@ -366,7 +366,7 @@ class TestApiErrorPaths:
         from pydantic_ai.exceptions import ModelHTTPError
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 raise ModelHTTPError(
                     status_code=403, model_name="gemini-2.5-pro", body="Forbidden"
                 )
@@ -391,7 +391,7 @@ class TestApiErrorPaths:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 call_count[0] += 1
                 raise ModelHTTPError(
                     status_code=500, model_name="test", body="Internal error"
@@ -419,7 +419,7 @@ class TestApiErrorPaths:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 call_count[0] += 1
                 if call_count[0] < 3:
                     raise httpx.TimeoutException("Request timeout")
@@ -448,7 +448,7 @@ class TestApiErrorPaths:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 call_count[0] += 1
                 if call_count[0] < 2:
                     raise httpx.ConnectError("Connection refused")
@@ -475,7 +475,7 @@ class TestApiErrorPaths:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 call_count[0] += 1
                 if call_count[0] == 1:
                     raise httpx.RemoteProtocolError("Protocol error")
@@ -500,7 +500,7 @@ class TestApiErrorPaths:
         from kodo.orchestrators.base import FatalAgentError
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 raise FatalAgentError("Worker crashed fatally")
             self.run_sync = fake_run_sync
 
@@ -521,7 +521,7 @@ class TestApiErrorPaths:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 call_count[0] += 1
                 if call_count[0] == 1:
                     # First call succeeds
@@ -543,6 +543,50 @@ class TestApiErrorPaths:
         assert result.summary is not None
         assert ("Summarization failed" in result.summary
                 or "No detailed summary" in result.summary)
+
+    def test_retry_accumulates_cost_from_failed_attempts(self, tmp_path: Path):
+        """Cost should include tokens from failed attempts, not just the final run."""
+        log.init(RunDir.create(tmp_path, "api_retry_cost"))
+        from pydantic_ai.exceptions import ModelHTTPError
+        from pydantic_ai.usage import RunUsage
+
+        call_count = [0]
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
+                nonlocal call_count
+                call_count[0] += 1
+                # Simulate pydantic-ai mutating the shared RunUsage
+                # in-place before an error or after success.
+                usage = kwargs.get("usage")
+                if usage is not None:
+                    usage.incr(
+                        RunUsage(input_tokens=500, output_tokens=200, requests=3),
+                    )
+                if call_count[0] == 1:
+                    # First attempt: tokens consumed, then HTTP 500
+                    raise ModelHTTPError(
+                        status_code=500, model_name="test", body="Internal error"
+                    )
+                # Second attempt succeeds
+                return FakeRunResult()
+            self.run_sync = fake_run_sync
+
+        team = _make_fake_team()
+
+        with (
+            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("time.sleep"),
+            patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
+        ):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch.cycle("test", tmp_path, team, max_exchanges=10)
+
+        assert call_count[0] == 2
+        # Both attempts contributed 3 requests each → 6 total
+        assert result.exchanges == 6
+        # Cost should reflect tokens from both attempts (1000 input, 400 output)
+        assert result.total_cost_usd > 0
 
 
 class TestForParallel:
@@ -654,7 +698,7 @@ class TestCycleWithoutDoneMode:
         """When done_mode != 'legacy', the done tool should not be created."""
         log.init(RunDir.create(tmp_path, "api_no_legacy"))
 
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             return FakeRunResult(output="work in progress")
 
         agent_tools = []

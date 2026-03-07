@@ -178,7 +178,7 @@ def test_cycle_aborts_when_all_workers_fatal(tmp_path: Path):
     def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
         tool_list = tools or []
 
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             for t in tool_list:
                 if t.name == "ask_worker":
                     t.function("do task")  # will raise FatalAgentError

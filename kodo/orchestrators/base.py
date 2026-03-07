@@ -441,6 +441,16 @@ class OrchestratorBase:
                 # Mark run as finished
                 if result.stage_results:
                     result.stage_results[-1].finished = True
+                else:
+                    # Advisor said "done" before any stages ran — create synthetic completed stage
+                    result.stage_results.append(
+                        StageResult(
+                            stage_index=0,
+                            stage_name="(advisor confirmed done)",
+                            finished=True,
+                            summary=decision.summary,
+                        )
+                    )
                 break
 
             stage = advisor.make_stage(decision, next_index)
@@ -615,6 +625,16 @@ class OrchestratorBase:
                 )
                 remaining_cycles -= cycles_used
 
+                # If every stage in the parallel group failed, stop the
+                # run — subsequent stages would only receive crash
+                # summaries and waste cycles.
+                if not any(pr.finished for pr in parallel_results):
+                    log.tprint(
+                        "[orchestrator] Stopping run — "
+                        "no parallel stages completed",
+                    )
+                    break
+
                 # Add all parallel summaries to context for subsequent stages
                 for pr in parallel_results:
                     stage_summaries.append(pr.summary)
@@ -728,8 +748,16 @@ class OrchestratorBase:
                 group, worktrees, stage_teams, parallel_results, project_dir,
             )
 
-        # Sort summaries by stage index for deterministic ordering
+        # Sort by stage index for deterministic ordering — both the
+        # local list (used for summaries) and the tail of
+        # result.stage_results (which was appended in arrival order).
         parallel_results.sort(key=lambda r: r.stage_index)
+        n_parallel = len(parallel_results)
+        if n_parallel:
+            result.stage_results[-n_parallel:] = sorted(
+                result.stage_results[-n_parallel:],
+                key=lambda r: r.stage_index,
+            )
         # For parallel work, count the max branch (wall-clock)
         cycles_used = max(
             (len(r.cycles) for r in parallel_results), default=0,

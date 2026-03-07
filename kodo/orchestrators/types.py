@@ -112,8 +112,14 @@ class RunResult:
         # In staged runs, a crashed stage may have 0 cycles — check
         # stage_results to avoid reporting "finished" when the last
         # stage failed.
+        #
+        # Use the stage with the highest index rather than the last
+        # appended entry — parallel stages arrive in non-deterministic
+        # order so [-1] could be an earlier, failed stage while the
+        # logically-last stage actually succeeded.
         if self.stage_results:
-            return self.stage_results[-1].finished
+            last_stage = max(self.stage_results, key=lambda s: s.stage_index)
+            return last_stage.finished
         return bool(self.cycles) and self.cycles[-1].finished
 
     @property

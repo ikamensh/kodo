@@ -1022,6 +1022,59 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
     assert auto_commit_per_call[3] is True  # stage 4
 
 
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_parallel_group_complete_failure_stops_run(
+    mock_viewer, tmp_project, mock_worktrees,
+):
+    """When every stage in a parallel group fails, subsequent stages should not run."""
+    plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
+    # Each parallel stage will consume up to remaining_cycles (9 after S1)
+    # of cycle results, so provide enough "not finished" results for both
+    # branches to exhaust their budgets.
+    orch = FakeOrchestrator(
+        cycle_results=[
+            CycleResult(summary="setup done", finished=True),
+        ]
+        # Remaining results default to CycleResult(summary="cycle done",
+        # finished=False) via FakeOrchestrator — both parallel stages
+        # will exhaust their cycle budgets without finishing.
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
+
+    # S4 must not have run — only 3 stages (S1, S2, S3)
+    assert len(result.stage_results) == 3
+    assert result.stage_results[0].finished is True  # S1
+    assert not result.finished  # overall run not finished
+
+
+@patch("kodo.orchestrators.base.open_viewer", create=True)
+def test_parallel_stage_results_sorted_by_index(
+    mock_viewer, tmp_project, mock_worktrees,
+):
+    """result.stage_results for parallel stages are sorted by stage_index."""
+    plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
+    orch = FakeOrchestrator(
+        cycle_results=[
+            CycleResult(summary="setup done", finished=True),
+            CycleResult(summary="s2", finished=True),
+            CycleResult(summary="s3", finished=True),
+            CycleResult(summary="s4", finished=True),
+        ]
+    )
+    team = {"worker": make_agent()}
+
+    with patch("kodo.viewer.open_viewer", create=True):
+        result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
+
+    indices = [sr.stage_index for sr in result.stage_results]
+    assert indices == sorted(indices), (
+        f"stage_results not sorted by index: {indices}"
+    )
+
+
 # ── Worktree helper tests ───────────────────────────────────────────────
 
 

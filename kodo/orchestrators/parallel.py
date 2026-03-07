@@ -16,7 +16,6 @@ from kodo.orchestrators.git_ops import (
     merge_worktree_branch,
     remove_worktree,
 )
-from kodo.orchestrators.stage_planning import _handle_stage_crash
 from kodo.orchestrators.types import (
     CycleConfig,
     GoalPlan,
@@ -141,6 +140,17 @@ def run_group_sequentially(
 
     parallel_results: list[StageResult] = []
     for stage in group:
+        # Build stage-specific config preserving all fields from original config
+        # but setting auto_commit based on persist_changes
+        stage_config = CycleConfig(
+            browser_testing=config.browser_testing,
+            verifiers=config.verifiers,
+            auto_commit=(stage.persist_changes and config.auto_commit),
+            verification=config.verification,
+            acceptance_criteria=config.acceptance_criteria,
+            effort=config.effort,
+            done_mode=config.done_mode,
+        )
         stage_res = orchestrator._run_one_stage(
             stage,
             plan,
@@ -150,12 +160,7 @@ def run_group_sequentially(
             max_exchanges=max_exchanges,
             max_cycles_for_stage=per_stage_cycles,
             initial_prior_summary=initial_prior,
-            config=CycleConfig(
-                verifiers=config.verifiers,
-                auto_commit=(
-                    stage.persist_changes and config.auto_commit
-                ),
-            ),
+            config=stage_config,
         )
         parallel_results.append(stage_res)
         result.cycles.extend(stage_res.cycles)

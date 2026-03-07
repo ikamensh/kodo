@@ -49,7 +49,7 @@ def test_agent_session_connection_error_handled(tmp_path: Path):
         agent_tools = tools or []
         tool_list = tools or []
 
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             for t in tool_list:
                 if t.name == "ask_worker":
                     result = t.function("do task", new_conversation=False)
@@ -81,7 +81,7 @@ def test_summarize_failure_returns_fallback_and_emits_cycle_end(tmp_path: Path):
     def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
         nonlocal call_count
 
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:

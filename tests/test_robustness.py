@@ -127,7 +127,7 @@ class TestBackend429Retry:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 nonlocal call_count
                 call_count[0] += 1
                 if call_count[0] == 1:
@@ -163,7 +163,7 @@ class TestBackend500Retry:
         call_count = [0]
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 nonlocal call_count
                 call_count[0] += 1
                 if call_count[0] == 1:
@@ -194,7 +194,7 @@ class TestBackendRetriesExhausted:
         from pydantic_ai.exceptions import ModelHTTPError
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
-            def fake_run_sync(prompt, *, usage_limits=None):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 raise ModelHTTPError(
                     status_code=429, model_name="test", body="rate limit"
                 )

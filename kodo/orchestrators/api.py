@@ -15,7 +15,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from pydantic_ai_summarization import create_summarization_processor
 
 from kodo import log
@@ -186,11 +186,16 @@ class ApiOrchestrator(OrchestratorBase):
 
         max_retries = 3
         run_result = None
+        # Shared usage accumulator — pydantic-ai mutates this in-place
+        # during each run_sync call, so tokens consumed during failed
+        # attempts are preserved when the next attempt succeeds.
+        cumulative_usage = RunUsage()
         for attempt in range(max_retries):
             try:
                 run_result = agent.run_sync(
                     prompt,
                     usage_limits=UsageLimits(request_limit=max_exchanges),
+                    usage=cumulative_usage,
                 )
                 break
             except FatalAgentError as exc:
@@ -276,13 +281,15 @@ class ApiOrchestrator(OrchestratorBase):
                 else:
                     raise
 
-        if run_result is not None:
-            usage = run_result.usage()
+        # Use cumulative_usage which includes tokens from all attempts
+        # (failed retries + the final run), not just run_result.usage().
+        if cumulative_usage.requests:
             price_in, price_out = MODEL_PRICING.get(self.model, (0, 0))
             result.total_cost_usd = (
-                usage.input_tokens * price_in + usage.output_tokens * price_out
+                cumulative_usage.input_tokens * price_in
+                + cumulative_usage.output_tokens * price_out
             ) / 1_000_000
-            result.exchanges = usage.requests
+            result.exchanges = cumulative_usage.requests
             log.get_run_stats().record_orchestrator(result.total_cost_usd, "api")
 
         apply_done_signal(result, done_signal)
