@@ -180,3 +180,168 @@ def test_resume_session_ids_injected_at_build_time():
             agent.session.resume_session_id = sid
 
     assert session.resume_session_id == "saved-session-123"
+
+
+# ── inject_resume_sessions() direct tests ────────────────────────────────
+
+
+class TestInjectResumeSessions:
+    """Verify inject_resume_sessions dispatches correctly per session type."""
+
+    def _make_team(self, session, role: str = "worker"):
+        from kodo.agent import Agent
+
+        return {role: Agent(session, "test agent")}
+
+    def test_noop_when_resume_is_none(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+
+        team = self._make_team(MagicMock())
+        inject_resume_sessions(team, None)
+        # No exception, no attribute set — just a no-op
+
+    @patch("kodo.sessions.claude.ClaudeSession.__init__", lambda self, **kw: None)
+    def test_claude_session_sets_resume_session_id(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from kodo.sessions.claude import ClaudeSession
+
+        sess = ClaudeSession.__new__(ClaudeSession)
+        sess.resume_session_id = None
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"worker": "claude-sid-abc"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        inject_resume_sessions(team, resume)
+        assert sess.resume_session_id == "claude-sid-abc"
+
+    def test_cursor_session_sets_chat_id(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from kodo.sessions.cursor import CursorSession
+
+        sess = CursorSession.__new__(CursorSession)
+        sess._chat_id = None
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"worker": "cursor-chat-123"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        inject_resume_sessions(team, resume)
+        assert sess._chat_id == "cursor-chat-123"
+
+    def test_codex_session_sets_session_id(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from kodo.sessions.codex import CodexSession
+
+        sess = CodexSession.__new__(CodexSession)
+        sess._session_id = None
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"worker": "codex-sid-456"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        inject_resume_sessions(team, resume)
+        assert sess._session_id == "codex-sid-456"
+
+    def test_gemini_session_sets_resume_next(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from kodo.sessions.gemini_cli import GeminiCliSession
+
+        sess = GeminiCliSession.__new__(GeminiCliSession)
+        sess._resume_next = False
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"worker": "gemini-sid-789"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        inject_resume_sessions(team, resume)
+        assert sess._resume_next is True
+
+    def test_unknown_agent_name_skipped(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from tests.conftest import FakeSession
+
+        sess = FakeSession()
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"nonexistent_role": "sid-xxx"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        # Should not raise — just skips the unknown agent
+        inject_resume_sessions(team, resume)
+
+    def test_unrecognized_session_type_ignored(self):
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from tests.conftest import FakeSession
+
+        sess = FakeSession()
+        team = self._make_team(sess)
+
+        resume = ResumeState(
+            completed_cycles=1,
+            prior_summary="",
+            agent_session_ids={"worker": "sid-yyy"},
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        # FakeSession doesn't match any isinstance branch — should be a no-op
+        inject_resume_sessions(team, resume)
+        assert not hasattr(sess, "_chat_id")
+        assert not hasattr(sess, "_session_id")
+
+    def test_multiple_agents_different_session_types(self):
+        from kodo.agent import Agent
+        from kodo.orchestrators.resume import inject_resume_sessions
+        from kodo.sessions.claude import ClaudeSession
+        from kodo.sessions.cursor import CursorSession
+
+        claude_sess = ClaudeSession.__new__(ClaudeSession)
+        claude_sess.resume_session_id = None
+        cursor_sess = CursorSession.__new__(CursorSession)
+        cursor_sess._chat_id = None
+
+        team = {
+            "worker_smart": Agent(claude_sess, "smart"),
+            "worker_fast": Agent(cursor_sess, "fast"),
+        }
+
+        resume = ResumeState(
+            completed_cycles=2,
+            prior_summary="",
+            agent_session_ids={
+                "worker_smart": "claude-id",
+                "worker_fast": "cursor-id",
+            },
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+        )
+        inject_resume_sessions(team, resume)
+        assert claude_sess.resume_session_id == "claude-id"
+        assert cursor_sess._chat_id == "cursor-id"
