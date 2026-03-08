@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from kodo.summarizer import Summarizer
+import json
+from unittest.mock import patch
+
+from kodo.summarizer import (
+    Summarizer,
+    _probe_gemini,
+    _probe_ollama,
+    _summarize_gemini,
+    _summarize_truncate,
+)
 
 
 def _make_summarizer():
@@ -114,5 +123,190 @@ def test_empty_report_produces_empty_summary() -> None:
     s.summarize("worker", "task", "   \n\n   ")
     result = s.get_accumulated_summary()
     assert result == ""
+
+
+# ── Probe functions ──────────────────────────────────────────────────────
+
+
+class TestProbeOllama:
+    def test_returns_model_when_available(self):
+        response = json.dumps({"models": [{"name": "llama3.2:1b"}]}).encode()
+
+        import io
+        from unittest.mock import MagicMock
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = response
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _probe_ollama()
+        assert result == "llama3.2:1b"
+
+    def test_returns_none_on_connection_error(self):
+        import urllib.error
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+            assert _probe_ollama() is None
+
+    def test_returns_none_on_empty_models(self):
+        response = json.dumps({"models": []}).encode()
+
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = response
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            assert _probe_ollama() is None
+
+    def test_returns_none_on_timeout(self):
+        with patch("urllib.request.urlopen", side_effect=TimeoutError):
+            assert _probe_ollama() is None
+
+
+class TestProbeGemini:
+    def test_returns_gemini_key(self):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=False):
+            assert _probe_gemini() == "test-key"
+
+    def test_returns_google_key_fallback(self):
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "goog-key"}, clear=False):
+            assert _probe_gemini() == "goog-key"
+
+    def test_returns_none_when_no_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            assert _probe_gemini() is None
+
+
+# ── Backend selection (_ensure_backend) ──────────────────────────────────
+
+
+class TestEnsureBackend:
+    def test_ollama_preferred_over_gemini(self):
+        s = Summarizer()
+        with (
+            patch("kodo.summarizer._probe_ollama", return_value="llama3"),
+            patch("kodo.summarizer._probe_gemini", return_value="gemini-key"),
+        ):
+            with s._lock:
+                s._ensure_backend()
+        assert s._backend == "ollama"
+        assert s._backend_param == "llama3"
+
+    def test_gemini_when_no_ollama(self):
+        s = Summarizer()
+        with (
+            patch("kodo.summarizer._probe_ollama", return_value=None),
+            patch("kodo.summarizer._probe_gemini", return_value="my-key"),
+        ):
+            with s._lock:
+                s._ensure_backend()
+        assert s._backend == "gemini"
+        assert s._backend_param == "my-key"
+
+    def test_truncate_when_nothing_available(self):
+        s = Summarizer()
+        with (
+            patch("kodo.summarizer._probe_ollama", return_value=None),
+            patch("kodo.summarizer._probe_gemini", return_value=None),
+        ):
+            with s._lock:
+                s._ensure_backend()
+        assert s._backend == "truncate"
+
+    def test_only_probes_once(self):
+        s = Summarizer()
+        with (
+            patch("kodo.summarizer._probe_ollama", return_value=None) as mock_ollama,
+            patch("kodo.summarizer._probe_gemini", return_value=None),
+        ):
+            with s._lock:
+                s._ensure_backend()
+                s._ensure_backend()
+        assert mock_ollama.call_count == 1
+
+
+# ── Gemini backend with mocked HTTP ──────────────────────────────────────
+
+
+class TestSummarizeGemini:
+    def test_parses_successful_response(self):
+        response = json.dumps({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Summary of work done"}]
+                }
+            }]
+        }).encode()
+
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = response
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _summarize_gemini("fake-key", "build feature", "Created X.py")
+        assert result == "Summary of work done"
+
+    def test_empty_candidates_returns_empty(self):
+        response = json.dumps({"candidates": []}).encode()
+
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = response
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = _summarize_gemini("fake-key", "task", "report")
+        assert result == ""
+
+
+# ── Truncation helper ────────────────────────────────────────────────────
+
+
+class TestSummarizeTruncate:
+    def test_returns_first_nonempty_line(self):
+        assert _summarize_truncate("\n\n  Hello world\nSecond line") == "Hello world"
+
+    def test_truncates_at_120_chars(self):
+        long_line = "x" * 200
+        assert len(_summarize_truncate(long_line)) == 120
+
+    def test_empty_string(self):
+        assert _summarize_truncate("") == ""
+
+    def test_whitespace_only(self):
+        assert _summarize_truncate("   \n\n  ") == ""
+
+
+# ── Shutdown lifecycle ───────────────────────────────────────────────────
+
+
+class TestShutdown:
+    def test_shutdown_drains_and_prevents_new_work(self):
+        s = _make_summarizer()
+        s.summarize("worker", "task", "result")
+        s.shutdown()
+        # After shutdown, summarize is a no-op
+        s.summarize("worker", "task2", "more work")
+        result = s.get_accumulated_summary()
+        # Only the first summary should be there
+        assert "task2" not in result
+
+    def test_shutdown_idempotent(self):
+        s = _make_summarizer()
+        s.shutdown()
+        s.shutdown()  # no crash
+
+    def test_summarize_after_shutdown_is_noop(self):
+        s = _make_summarizer()
+        s.shutdown()
+        s.summarize("worker", "task", "report")
+        result = s.get_accumulated_summary()
+        assert result == ""
 
 
