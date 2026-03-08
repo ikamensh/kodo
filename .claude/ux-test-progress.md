@@ -1,10 +1,22 @@
 # UX Test Progress
 
 ## Current State
-- **Phase:** FIX PHASE — implementing obvious P0/P1 fixes
-- **Completed:** T1-T15 (all test groups)
-- **Iteration count:** 15
+- **Phase:** COMPLETE (re-tests passed + round 2 fixes)
+- **Completed:** T1-T15 (all test groups) + fix phase + re-test + round 2 fixes
+- **Iteration count:** 15 + fix phase + re-test + round 2
 - **Total bugs found:** 15
+- **Bugs fixed:** 10 (BUG-01, BUG-03, BUG-04, BUG-05, BUG-07, BUG-08, BUG-09, BUG-12, BUG-14, BUG-15)
+- **Commits:** 06eca19, pending
+
+## Re-test Results (previously blocked groups)
+
+All previously blocked test groups now pass after BUG-08/BUG-09 fixes:
+
+- **T4** (debug mode): PASS — full run completes, FINAL STATS table renders, debug summary correct
+- **T7** (JSON mode): PASS — clean JSON on stdout `{"status":"completed",...}`, progress on stderr
+- **T8** (resume): PASS — "No incomplete runs found" (all runs completed correctly)
+- **T12** (edge: no API keys): PASS — debug mode works without any real API keys set
+- **T14** (cross-feature): PASS — debug runs appear in `kodo runs` with correct status/goal
 
 ## Bugs Found
 

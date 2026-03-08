@@ -512,6 +512,9 @@ def _main_inner() -> None:
         _box_line(
             f"Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",
         )
+        effort = params.get("effort", "standard")
+        if effort != "standard":
+            _box_line(f"Effort:       {effort}")
         if args.debug:
             _box_line("Mode:         DEBUG (all backends mocked)")
         print(f"  └{'─' * 58}┘")

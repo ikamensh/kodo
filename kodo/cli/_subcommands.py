@@ -122,6 +122,7 @@ def _cmd_backends() -> None:
         "codex": "https://github.com/openai/codex",
         "cursor": "https://docs.cursor.com/agent",
         "gemini-cli": "https://github.com/google-gemini/gemini-cli",
+        "kimi": "https://platform.moonshot.cn",
     }
 
     # --- CLI backends (agents) ---
@@ -245,8 +246,8 @@ def _cmd_teams_list() -> None:
     for name, source, cfg, path in teams:
         desc = cfg.get("description", "")
         agents = cfg.get("agents", {})
-        exchanges = cfg.get("max_exchanges", "?")
-        cycles = cfg.get("max_cycles", "?")
+        exchanges = cfg.get("max_exchanges", 30)
+        cycles = cfg.get("max_cycles", 5)
         tag = "(built-in)" if source == "built-in" else "(user)"
 
         # Count available agents

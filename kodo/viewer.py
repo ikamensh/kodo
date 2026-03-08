@@ -158,7 +158,7 @@ def _serve(port: int, log_path: Path | None) -> None:
         print(f"Hint: try a different port with --port {port + 1}")
         sys.exit(1)
     url = f"http://127.0.0.1:{port}/"
-    print(f"Log viewer: {url}")
+    print(f"Log viewer: {url}", flush=True)
     webbrowser.open(url)
     try:
         server.serve_forever()
