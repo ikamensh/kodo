@@ -121,6 +121,9 @@ class MockSession:
     def terminate(self) -> None:
         pass
 
+    def close(self) -> None:
+        pass
+
     def clone(self) -> "MockSession":
         return MockSession(self.letter)
 
@@ -171,13 +174,13 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
             if isinstance(part, ToolCallPart) and part.tool_name != "done"
         )
 
-        # Reserve the last request for calling done()
+        # Reserve the last request for calling goal_done() (new done mode)
         request_budget = len(agent_tool_names) + 2  # sensible default
         if prior_calls >= request_budget - 1:
             summary = f"Mock cycle complete after {prior_calls} agent calls. Token: {token}"
-            args_json = json.dumps({"summary": summary, "success": True})
+            args_json = json.dumps({"summary": summary})
             return ModelResponse(
-                parts=[ToolCallPart(tool_name="done", args=args_json)],
+                parts=[ToolCallPart(tool_name="goal_done", args=args_json)],
             )
 
         # Pick a random agent tool

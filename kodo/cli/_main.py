@@ -82,11 +82,16 @@ class _JSONArgumentParser(argparse.ArgumentParser):
 
 def _main_inner() -> None:
     # Handle subcommands before argparse (accept singular and plural forms)
+    def _cmd_help() -> None:
+        sys.argv[1] = "--help"
+        _main_inner()
+
     _SUBCOMMAND_MAP = {
         "run": _cmd_runs, "runs": _cmd_runs,
         "backend": _cmd_backends, "backends": _cmd_backends,
         "team": _cmd_teams, "teams": _cmd_teams,
         "log": _cmd_logs, "logs": _cmd_logs,
+        "help": _cmd_help,
     }
     if len(sys.argv) > 1 and sys.argv[1] in _SUBCOMMAND_MAP:
         _SUBCOMMAND_MAP[sys.argv[1]]()

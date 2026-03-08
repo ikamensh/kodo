@@ -151,7 +151,12 @@ def _serve(port: int, log_path: Path | None) -> None:
             self.end_headers()
             self.wfile.write(data)
 
-    server = HTTPServer(("127.0.0.1", port), Handler)
+    try:
+        server = HTTPServer(("127.0.0.1", port), Handler)
+    except OSError as exc:
+        print(f"Error: {exc}")
+        print(f"Hint: try a different port with --port {port + 1}")
+        sys.exit(1)
     url = f"http://127.0.0.1:{port}/"
     print(f"Log viewer: {url}")
     webbrowser.open(url)

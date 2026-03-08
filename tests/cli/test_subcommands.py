@@ -880,10 +880,11 @@ class TestCmdTeamsAuto:
 class TestCmdTeamsAutoAll:
     """Tests for _cmd_teams_auto_all() function."""
 
-    def test_no_builtin_templates_exits(self, capsys):
+    def test_no_builtin_templates_exits(self, capsys, tmp_path):
         """If no built-in templates found, exit with error."""
+        # Point _defaults_dir to an empty directory so no team-*.json files exist
         with (
-            patch("kodo.team_config.list_available_teams", return_value=[("custom", "user", {}, Path("/fake/custom.json"))]),
+            patch("kodo.team_config._defaults_dir", return_value=tmp_path),
             pytest.raises(SystemExit, match="1"),
         ):
             from kodo.cli._subcommands import _cmd_teams_auto_all
@@ -892,27 +893,24 @@ class TestCmdTeamsAutoAll:
         err = capsys.readouterr().err
         assert "No built-in team templates found" in err
 
-    def test_calls_auto_for_each_template(self, capsys):
+    def test_calls_auto_for_each_template(self, capsys, tmp_path):
         """Should call _cmd_teams_auto for each built-in template."""
-        templates = [
-            ("full", "built-in", {}, Path("/fake/full.json")),
-            ("quick", "built-in", {}, Path("/fake/quick.json")),
-            ("custom", "user", {}, Path("/fake/custom.json")),
-        ]
+        # Create fake built-in team files
+        (tmp_path / "team-full.json").write_text('{"name": "full"}')
+        (tmp_path / "team-quick.json").write_text('{"name": "quick"}')
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=templates),
+            patch("kodo.team_config._defaults_dir", return_value=tmp_path),
             patch("kodo.cli._subcommands._cmd_teams_auto") as mock_auto,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto_all
             _cmd_teams_auto_all()
 
-        # Should call _cmd_teams_auto for "full" and "quick" (built-in only), not "custom" (user)
+        # Should call _cmd_teams_auto for "full" and "quick"
         assert mock_auto.call_count == 2
         call_args_list = [call[0][0] for call in mock_auto.call_args_list]
         assert "full" in call_args_list
         assert "quick" in call_args_list
-        assert "custom" not in call_args_list
 
 
 # ---------------------------------------------------------------------------

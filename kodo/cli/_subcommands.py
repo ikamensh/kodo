@@ -199,6 +199,14 @@ def _cmd_teams() -> None:
         return
 
     subcmd = args[0]
+    if subcmd in ("--help", "-h"):
+        print("Usage: kodo teams [add <name> | edit <name> | auto [mode]]")
+        print()
+        print("  (no args)   List all available teams")
+        print("  add <name>  Create a new team configuration")
+        print("  edit <name> Edit an existing team configuration")
+        print("  auto        Generate teams adapted to installed backends")
+        return
     if subcmd == "add":
         if len(args) < 2:
             _fail("Usage: kodo teams add <name>")
@@ -279,10 +287,13 @@ def _cmd_teams_list() -> None:
 
 def _cmd_teams_auto_all() -> None:
     """Generate configs for all built-in team templates."""
-    from kodo.team_config import list_available_teams
+    from kodo.team_config import _defaults_dir
 
+    # Read built-in templates directly (not through list_available_teams)
+    # to avoid being shadowed by user teams with the same name.
     built_in_names = [
-        name for name, source, *_ in list_available_teams() if source == "built-in"
+        p.stem.removeprefix("team-")
+        for p in sorted(_defaults_dir().glob("team-*.json"))
     ]
     if not built_in_names:
         _fail("No built-in team templates found.")
