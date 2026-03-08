@@ -29,3 +29,51 @@ def test_emit_writes_json_lines(tmp_path: Path):
     assert record["count"] == 42
     assert "ts" in record
     assert "t" in record
+
+
+# ── init_append & emit edge cases (relocated from test_error_paths.py) ───
+
+import pytest
+
+
+class TestInitAppendValidation:
+    def test_nonexistent_file_raises(self, tmp_path: Path):
+        fake_log = tmp_path / "does_not_exist.jsonl"
+        with pytest.raises(FileNotFoundError, match="does not exist"):
+            log.init_append(fake_log)
+
+    def test_invalid_log_raises(self, tmp_path: Path):
+        bad_log = tmp_path / "bad.jsonl"
+        bad_log.write_text('{"event":"random","ts":"t","t":0}\n')
+        with pytest.raises(ValueError, match="missing run_start"):
+            log.init_append(bad_log)
+
+    def test_valid_log_resumes(self, tmp_path: Path):
+        log_file = tmp_path / "test_run" / "run.jsonl"
+        log_file.parent.mkdir(parents=True)
+        events = [
+            {
+                "ts": "t", "t": 0, "event": "run_start",
+                "goal": "g", "orchestrator": "api", "model": "m",
+                "project_dir": str(tmp_path), "max_exchanges": 10,
+                "max_cycles": 5, "team": [],
+            },
+            {"ts": "t", "t": 0.1, "event": "cli_args", "team": "full"},
+            {"ts": "t", "t": 1, "event": "cycle_end", "summary": "partial"},
+        ]
+        log_file.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+
+        result = log.init_append(log_file)
+        assert result == log_file
+        content = log_file.read_text()
+        assert "run_resumed" in content
+
+
+def test_emit_with_unserializable_values(tmp_path: Path):
+    """emit() handles non-JSON-serializable objects via _serialize fallback."""
+    log.init(RunDir.create(tmp_path, "serial_test"))
+    log.emit("edge", callback=lambda x: x, path=tmp_path)
+    lines = log.get_log_file().read_text().strip().split("\n")
+    record = json.loads(lines[-1])
+    assert record["event"] == "edge"
+    assert "lambda" in record["callback"]

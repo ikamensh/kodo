@@ -185,3 +185,19 @@ class TestAgentResult:
         ar = AgentResult(query=qr)
         report = ar.format_report()
         assert "(no output)" in report
+
+
+# ── Error propagation (relocated from test_error_paths.py) ───────────────
+
+
+def test_error_session_produces_error_result(tmp_project: Path) -> None:
+    """Agent.run() propagates session errors in AgentResult without crashing."""
+    from kodo import log
+    from kodo.log import RunDir
+
+    log.init(RunDir.create(tmp_project, "err_agent"))
+    session = FakeSession(response_text="[ERROR] connection refused", is_error=True)
+    agent = Agent(session, "test-worker", max_turns=5)
+    result = agent.run("do something", tmp_project, agent_name="worker")
+    assert result.is_error is True
+    assert "ERROR" in result.text

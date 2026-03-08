@@ -171,3 +171,145 @@ class TestNewDoneTools:
         assert signal.success is False
         assert signal.terminal == "raise_issue"
         assert "issue" in result.lower() or "stop" in result.lower()
+
+
+# ── DoneSignal threading & edge cases (relocated from test_error_paths.py) ──
+
+import threading
+import time
+
+
+class TestDoneSignalEdgeCases:
+    def test_initial_state(self):
+        ds = DoneSignal()
+        assert ds.called is False
+        assert ds.summary == ""
+        assert ds.success is False
+
+    def test_set_summary_without_called(self):
+        ds = DoneSignal()
+        ds.summary = "orphan summary"
+        ds.success = True
+        assert ds.called is False
+        assert ds.summary == "orphan summary"
+
+    def test_called_without_success(self):
+        ds = DoneSignal()
+        ds.called = True
+        ds.summary = "gave up"
+        assert ds.success is False
+
+    def test_repeated_sets_are_idempotent(self):
+        ds = DoneSignal()
+        ds.called = True
+        ds.called = True
+        assert ds.called is True
+
+    def test_summary_can_be_overwritten(self):
+        ds = DoneSignal()
+        ds.summary = "first draft"
+        ds.summary = "revised summary"
+        assert ds.summary == "revised summary"
+
+    def test_reset_after_set(self):
+        ds = DoneSignal()
+        ds.called = True
+        ds.summary = "done"
+        ds.success = True
+
+        ds.called = False
+        ds.summary = ""
+        ds.success = False
+
+        assert ds.called is False
+        assert ds.summary == ""
+        assert ds.success is False
+
+
+class TestDoneSignalThreadSafety:
+    def test_intermediate_state_observable(self):
+        ds = DoneSignal()
+        barrier = threading.Barrier(2)
+
+        def writer():
+            barrier.wait()
+            ds.called = True
+            time.sleep(0.01)
+            ds.success = True
+
+        def reader():
+            barrier.wait()
+            time.sleep(0.005)
+
+        tw = threading.Thread(target=writer)
+        tr = threading.Thread(target=reader)
+        tw.start()
+        tr.start()
+        tw.join()
+        tr.join()
+
+        assert ds.called is True
+        assert ds.success is True
+
+    def test_concurrent_writes_are_safe(self):
+        ds = DoneSignal()
+        errors: list[Exception] = []
+
+        def hammerer(val: bool):
+            try:
+                for _ in range(200):
+                    ds.called = val
+                    ds.success = val
+                    ds.summary = f"thread-{val}"
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=hammerer, args=(i % 2 == 0,)) for i in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors
+        assert isinstance(ds.called, bool)
+        assert isinstance(ds.success, bool)
+
+    def test_rapid_concurrent_read_write(self):
+        ds = DoneSignal()
+        errors: list[Exception] = []
+        stop = threading.Event()
+
+        def writer():
+            try:
+                i = 0
+                while not stop.is_set():
+                    ds.called = (i % 2 == 0)
+                    ds.success = (i % 3 == 0)
+                    ds.summary = f"iter-{i}"
+                    i += 1
+            except Exception as e:
+                errors.append(e)
+
+        def reader():
+            try:
+                while not stop.is_set():
+                    _ = ds.called
+                    _ = ds.success
+                    _ = ds.summary
+            except Exception as e:
+                errors.append(e)
+
+        threads = (
+            [threading.Thread(target=writer) for _ in range(3)]
+            + [threading.Thread(target=reader) for _ in range(5)]
+        )
+        for t in threads:
+            t.start()
+
+        time.sleep(0.02)
+        stop.set()
+
+        for t in threads:
+            t.join(timeout=2.0)
+
+        assert not errors

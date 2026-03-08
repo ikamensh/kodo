@@ -66,3 +66,53 @@ def test_summarize_after_get_accumulated_summary() -> None:
     assert "[tester]" in acc
 
 
+# ── Resilience tests (relocated from test_error_paths.py) ────────────────
+
+import threading
+
+
+def test_concurrent_get_accumulated_summary() -> None:
+    """Multiple threads draining concurrently must not crash."""
+    s = _make_summarizer()
+    s.summarize("w1", "t1", "Created file A.py")
+    s.summarize("w2", "t2", "Created file B.py")
+
+    results: list[str] = []
+    errors: list[Exception] = []
+
+    def drain():
+        try:
+            results.append(s.get_accumulated_summary())
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=drain) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors
+    got_content = any("[w1]" in r or "[w2]" in r for r in results)
+    assert got_content
+
+
+def test_do_summarize_swallows_backend_exceptions() -> None:
+    """Ollama backend failure is swallowed silently."""
+    s = _make_summarizer()
+    s._backend = "ollama"
+    s._backend_param = "fake-model"
+
+    s.summarize("worker", "task", "report")
+    result = s.get_accumulated_summary()
+    assert "[worker]" not in result
+
+
+def test_empty_report_produces_empty_summary() -> None:
+    """Whitespace-only report is not appended to summaries."""
+    s = _make_summarizer()
+    s.summarize("worker", "task", "   \n\n   ")
+    result = s.get_accumulated_summary()
+    assert result == ""
+
+
