@@ -1289,3 +1289,18 @@ class TestLaunchRunDebugMode:
 
         mock_real_orch.assert_called_once(), \
             "debug=False must call the real build_orchestrator"
+
+
+# ── Bug regression (relocated from test_stage2_integration.py) ───────────
+
+
+def test_format_json_output_result_none():
+    """M11: _format_json_output(result=None) should not crash."""
+    import pytest
+    from kodo.cli._launch import _format_json_output
+
+    try:
+        output = _format_json_output(result=None, error=None)
+        assert output is not None
+    except AttributeError:
+        pytest.xfail("BUG M11: _format_json_output crashes when result=None")

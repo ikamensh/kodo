@@ -1,63 +1,16 @@
-"""Session robustness: stderr overflow, dead-process safety, garbled output."""
+"""Tests for GeminiCliOrchestrator cycle behavior."""
 
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from kodo.sessions.base import QueryResult, SubprocessSession
-
-# ---------------------------------------------------------------------------
-# SubprocessSession stderr cap
-# ---------------------------------------------------------------------------
-
-
-class _StderrFloodSession(SubprocessSession):
-    """Spawns a process that writes 15k lines to stderr to test the cap."""
-
-    _session_label = "test"
-
-    def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
-        cmd = [
-            sys.executable,
-            "-c",
-            "import sys; [sys.stderr.write(f'{i}\\n') for i in range(15000)]",
-        ]
-        proc, stderr_chunks, thread = self._spawn(cmd)
-        stderr_text = self._wait(proc, stderr_chunks, thread)
-        assert len(stderr_chunks) <= 10_001, "stderr should be capped at 10k lines"
-        assert "[... stderr truncated ...]" in stderr_text
-        return QueryResult(text="ok", elapsed_s=0.0)
-
-
-def test_stderr_capped_at_10k_lines(tmp_path: Path):
-    """SubprocessSession drops stderr beyond 10k lines to prevent OOM."""
-    session = _StderrFloodSession(model="test")
-    result = session.query("ignored", tmp_path, max_turns=1)
-    assert result.text == "ok"
-
-
-def test_terminate_already_dead_process(tmp_path: Path):
-    """Calling terminate() on an already-exited process does not crash."""
-    session = _StderrFloodSession(model="test")
-    proc, stderr_chunks, thread = session._spawn(
-        [sys.executable, "-c", "pass"]  # exits immediately
-    )
-    proc.wait()
-    assert proc.poll() is not None
-    session.terminate()
-    session.terminate()  # double-call also safe
-
-
-# ---------------------------------------------------------------------------
-# GeminiCliOrchestrator edge cases
-# ---------------------------------------------------------------------------
+from tests.conftest import make_agent
 
 
 def _gemini_fake_run(response_stdout):
-    """Return a subprocess.run side_effect that returns response_stdout for the main call."""
+    """Return a subprocess.run side_effect that returns response_stdout."""
 
     def fake_run(cmd, **kwargs):
         if "mcp" in cmd:
@@ -70,7 +23,6 @@ def _gemini_fake_run(response_stdout):
 def test_gemini_garbled_json_uses_raw_stdout(tmp_path: Path):
     """When Gemini CLI returns invalid JSON, the raw stdout becomes the summary."""
     from kodo.orchestrators.gemini_cli import GeminiCliOrchestrator
-    from tests.conftest import make_agent
 
     team = {"worker": make_agent()}
     ctx_obj = MagicMock()
@@ -92,9 +44,8 @@ def test_gemini_garbled_json_uses_raw_stdout(tmp_path: Path):
 
 
 def test_gemini_timeout_sets_finished_false(tmp_path: Path):
-    """When Gemini CLI times out, CycleResult.finished is False with a timeout message."""
+    """When Gemini CLI times out, CycleResult.finished is False."""
     from kodo.orchestrators.gemini_cli import GeminiCliOrchestrator
-    from tests.conftest import make_agent
 
     team = {"worker": make_agent()}
 

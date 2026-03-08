@@ -77,3 +77,71 @@ def test_emit_with_unserializable_values(tmp_path: Path):
     record = json.loads(lines[-1])
     assert record["event"] == "edge"
     assert "lambda" in record["callback"]
+
+
+# ── Bug regression tests (relocated from test_stage2_integration.py) ─────
+
+import threading
+
+
+def test_cycle_end_without_summary_key(tmp_path: Path):
+    """M4: cycle_end missing 'summary' key should not crash parse_run."""
+    run_dir = RunDir.create(tmp_path, "m4_test")
+    events = [
+        {
+            "ts": "t", "t": 0, "event": "run_start",
+            "goal": "test goal", "project_dir": str(tmp_path),
+            "orchestrator": "api", "model": "test",
+            "max_exchanges": 10, "max_cycles": 3, "team": [],
+        },
+        {"ts": "t", "t": 0.1, "event": "cli_args", "team": "full"},
+        {"ts": "t", "t": 1, "event": "cycle_end"},  # no summary key
+    ]
+    run_dir.log_file.write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n"
+    )
+
+    try:
+        state = log.parse_run(run_dir.log_file)
+        assert state is not None
+    except KeyError as exc:
+        assert "summary" in str(exc)
+        pytest.xfail("BUG M4: evt['summary'] crashes on missing key")
+
+
+def test_snapshot_includes_run_stats():
+    """M5: _test_snapshot must include RunStats to prevent leaks."""
+    snapshot = log._test_snapshot()
+    assert len(snapshot) == 6
+    assert any(isinstance(item, log.RunStats) for item in snapshot)
+
+
+def test_concurrent_record_agent_data_integrity():
+    """M6: RunStats.record_agent() concurrent thread safety."""
+    stats = log.RunStats()
+    n_threads = 10
+    n_calls = 100
+    barrier = threading.Barrier(n_threads)
+
+    def worker():
+        barrier.wait()
+        for _ in range(n_calls):
+            stats.record_agent(
+                "worker", cost_usd=0.001, input_tokens=10,
+                output_tokens=5, elapsed_s=0.01, is_error=False,
+                cost_bucket="api",
+            )
+
+    threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    expected = n_threads * n_calls
+    actual = stats.agents["worker"].calls
+    if actual < expected:
+        pytest.xfail(
+            f"BUG M6: lost {expected - actual} calls ({actual}/{expected})"
+        )
+    assert actual == expected
