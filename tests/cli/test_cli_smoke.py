@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -298,3 +299,17 @@ class TestMainWrapper:
             pytest.raises(SystemExit),
         ):
             main()
+
+    def test_keyboard_interrupt_json_mode_outputs_json(self, capsys):
+        """In --json mode, KeyboardInterrupt produces JSON error output."""
+        with (
+            patch("kodo.cli._main._main_inner", side_effect=KeyboardInterrupt),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            sys.argv = ["kodo", "--json", "--goal", "x", "--project", "."]
+            main()
+        assert exc_info.value.code == 130
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        assert data["status"] == "error"
+        assert "Interrupted" in data["error"]

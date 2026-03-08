@@ -10,6 +10,7 @@ Focuses on:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -829,3 +830,58 @@ def test_unreadable_goal_file_no_traceback(tmp_path: Path, capsys):
         assert "Traceback" not in combined
     finally:
         goal_file.chmod(0o644)
+
+
+# ── Robustness tests (relocated from test_robustness.py) ─────────────────
+
+
+class TestCorruptConfigResume:
+    """Corrupt config.json on resume falls back to params from RunState."""
+
+    def test_corrupt_config_json_falls_back(self, tmp_path: Path):
+        from kodo import log
+        from kodo.log import RunDir
+
+        project = tmp_path / "proj"
+        project.mkdir()
+        run_id = "20250315_120000"
+        run_root = log._runs_root() / run_id
+        run_root.mkdir(parents=True)
+
+        events = [
+            {
+                "event": "run_start", "goal": "Fix bug",
+                "project_dir": str(project), "orchestrator": "api",
+                "model": "opus", "max_exchanges": 20, "max_cycles": 1,
+                "team": ["worker_fast"],
+            },
+            {"event": "cli_args", "team": "full"},
+            {"event": "cycle_end", "summary": "partial"},
+        ]
+        (run_root / "run.jsonl").write_text(
+            "\n".join(json.dumps({"ts": "t", "t": 0, **e}) for e in events) + "\n"
+        )
+        (run_root / "goal.md").write_text("Fix bug")
+        (run_root / "config.json").write_text("not valid json {{{")
+
+        with patch("kodo.cli._main.launch_resume") as mock_resume:
+            sys.argv = ["kodo", "--resume", run_id, "--yes", "--project", str(project)]
+            _main_inner()
+
+        mock_resume.assert_called_once()
+        assert mock_resume.call_args[0][0].run_id == run_id
+
+
+def test_goal_file_not_found_exits(tmp_path: Path):
+    """--goal-file with missing path exits with error."""
+    project = tmp_path / "proj"
+    project.mkdir()
+    with (
+        patch("kodo.cli._launch._original_stdout", None),
+        pytest.raises(SystemExit),
+    ):
+        sys.argv = [
+            "kodo", "--goal-file", str(tmp_path / "nonexistent.md"),
+            "--yes", "--project", str(project),
+        ]
+        _main_inner()

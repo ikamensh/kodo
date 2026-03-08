@@ -411,6 +411,65 @@ class TestApiErrorPaths:
         # Should have tried 3 times
         assert call_count[0] == 3
 
+    def test_http_429_retry_then_succeed(self, tmp_path: Path):
+        """HTTP 429 on first call, then success on retry."""
+        log.init(RunDir.create(tmp_path, "api_429_ok"))
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        call_count = [0]
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise ModelHTTPError(
+                        status_code=429, model_name="test", body="rate limit"
+                    )
+                return FakeRunResult()
+            self.run_sync = fake_run_sync
+
+        team = _make_fake_team()
+
+        with (
+            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch.object(ApiOrchestrator, "_summarize", return_value="done"),
+            patch("time.sleep"),
+        ):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch.cycle("test", tmp_path, team, max_exchanges=5)
+
+        assert call_count[0] == 2
+        assert result.summary == "done"
+
+    def test_http_500_retry_then_succeed(self, tmp_path: Path):
+        """HTTP 500 on first call, then success on retry."""
+        log.init(RunDir.create(tmp_path, "api_500_ok"))
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        call_count = [0]
+
+        def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
+            def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise ModelHTTPError(
+                        status_code=500, model_name="test", body="internal error"
+                    )
+                return FakeRunResult()
+            self.run_sync = fake_run_sync
+
+        team = _make_fake_team()
+
+        with (
+            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch.object(ApiOrchestrator, "_summarize", return_value="done"),
+            patch("time.sleep"),
+        ):
+            orch = ApiOrchestrator(model="claude-opus-4-6")
+            result = orch.cycle("test", tmp_path, team, max_exchanges=5)
+
+        assert call_count[0] == 2
+
     def test_timeout_error_retries(self, tmp_path: Path):
         """httpx.TimeoutException should retry with backoff."""
         log.init(RunDir.create(tmp_path, "api_timeout"))
