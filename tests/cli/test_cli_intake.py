@@ -184,6 +184,21 @@ class TestLooksStaged:
         text = "Build a REST API with authentication"
         assert _looks_staged(text) is False
 
+    def test_exactly_two_numbered_lines_is_staged(self):
+        """Boundary: exactly 2 numbered items meets the threshold."""
+        text = "1) First step\n2) Second step"
+        assert _looks_staged(text) is True
+
+    def test_parenthetical_numbering_detected(self):
+        """Detects 1) 2) 3) style numbering."""
+        text = "1) Build models\n2) Write API\n3) Deploy"
+        assert _looks_staged(text) is True
+
+    def test_indented_numbering_detected(self):
+        """Detects indented numbered lists."""
+        text = "  1. First\n  2. Second\n  3. Third"
+        assert _looks_staged(text) is True
+
 
 # ---------------------------------------------------------------------------
 # _parse_goal_plan
@@ -207,6 +222,9 @@ class TestParseGoalPlan:
         assert plan.context == "Test project"
         assert len(plan.stages) == 1
         assert plan.stages[0].name == "Setup"
+        assert plan.stages[0].description == "Initialize project"
+        assert plan.stages[0].acceptance_criteria == "Project compiles"
+        assert plan.stages[0].index == 1
 
     def test_empty_context_returns_empty(self):
         raw = {"context": "", "stages": []}
@@ -298,6 +316,24 @@ class TestParseGoalPlan:
         with pytest.raises(ValueError, match="parallel_group"):
             _parse_goal_plan(raw)
 
+    def test_parallel_group_string_coerced_to_int(self):
+        """parallel_group string "1" is coerced to int."""
+        raw = {
+            "context": "Test",
+            "stages": [
+                {
+                    "index": 1,
+                    "name": "S",
+                    "description": "D",
+                    "acceptance_criteria": "C",
+                    "parallel_group": "1",
+                },
+            ],
+        }
+        plan = _parse_goal_plan(raw)
+        assert plan.stages[0].parallel_group == 1
+        assert isinstance(plan.stages[0].parallel_group, int)
+
     def test_browser_testing_parsed(self):
         raw = {
             "context": "Test",
@@ -340,6 +376,45 @@ class TestParseGoalPlan:
         }
         plan = _parse_goal_plan(raw)
         assert plan.stages == []
+
+    def test_string_index_coerced_to_int(self):
+        """String index "1" is coerced to int."""
+        raw = {
+            "context": "Test",
+            "stages": [
+                {"index": "1", "name": "S", "description": "D", "acceptance_criteria": "C"},
+            ],
+        }
+        plan = _parse_goal_plan(raw)
+        assert plan.stages[0].index == 1
+        assert isinstance(plan.stages[0].index, int)
+
+    def test_zero_index_raises(self):
+        """index=0 is invalid (must be positive)."""
+        raw = {
+            "context": "Test",
+            "stages": [
+                {"index": 0, "name": "S", "description": "D", "acceptance_criteria": "C"},
+            ],
+        }
+        with pytest.raises(ValueError, match="positive"):
+            _parse_goal_plan(raw)
+
+    def test_multi_stage_preserves_order_and_fields(self):
+        """Multiple stages preserve order, description, and acceptance_criteria."""
+        raw = {
+            "context": "Multi",
+            "stages": [
+                {"index": 1, "name": "A", "description": "desc-A", "acceptance_criteria": "ac-A"},
+                {"index": 2, "name": "B", "description": "desc-B", "acceptance_criteria": "ac-B"},
+            ],
+        }
+        plan = _parse_goal_plan(raw)
+        assert len(plan.stages) == 2
+        assert plan.stages[0].description == "desc-A"
+        assert plan.stages[0].acceptance_criteria == "ac-A"
+        assert plan.stages[1].description == "desc-B"
+        assert plan.stages[1].acceptance_criteria == "ac-B"
 
 
 # ---------------------------------------------------------------------------

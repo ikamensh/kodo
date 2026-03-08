@@ -119,12 +119,17 @@ class TestFlagConflicts:
         ):
             _main_inner()
 
-    def test_resume_with_goal_fails(self, tmp_path):
+    def test_resume_with_goal_fails(self, tmp_path, capsys):
+        """--resume + --goal must be rejected with a specific error, not a generic exit."""
         with (
             patch("sys.argv", ["kodo", "--resume", "--goal", "X", "--project", str(tmp_path)]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
+        err = capsys.readouterr().err
+        assert "--resume" in err and "--goal" in err, (
+            f"Expected error about --resume + --goal conflict, got: {err!r}"
+        )
 
     def test_empty_goal_fails(self, tmp_path):
         with (

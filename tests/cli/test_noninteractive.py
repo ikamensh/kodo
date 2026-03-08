@@ -433,11 +433,15 @@ class TestNonInteractiveEndToEnd:
             _main_inner()
             mock_intake.assert_not_called()
 
-    def test_resume_with_goal_errors(self):
-        """--resume + --goal should be rejected."""
+    def test_resume_with_goal_errors(self, project, capsys):
+        """--resume + --goal should be rejected with a specific conflict error."""
         with pytest.raises(SystemExit):
-            sys.argv = ["kodo", "--resume", "--goal", "Build X"]
+            sys.argv = ["kodo", "--resume", "--goal", "Build X", "--project", str(project)]
             _main_inner()
+        err = capsys.readouterr().err
+        assert "--resume" in err, (
+            f"Expected error mentioning --resume conflict, got: {err!r}"
+        )
 
     def test_uses_existing_goal_plan(self, project):
         """If goal-plan.json exists in the run dir, non-interactive mode uses it."""

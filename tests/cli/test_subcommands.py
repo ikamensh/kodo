@@ -191,17 +191,17 @@ class TestCmdLogs:
             assert call_args[1] == logfile
 
     def test_nonexistent_logfile_exits(self, tmp_path):
-        """_cmd_logs with non-existent logfile should exit with code 1."""
+        """_cmd_logs with non-existent logfile should exit with code 1 and not call _serve."""
         nonexistent = tmp_path / "missing.jsonl"
 
         with (
             patch("sys.argv", ["kodo", "logs", str(nonexistent)]),
             patch("kodo.viewer._serve") as mock_serve,
-            pytest.raises(SystemExit, match="1"),
         ):
             from kodo.cli._subcommands import _cmd_logs
-            _cmd_logs()
-            # _serve should not be called
+            with pytest.raises(SystemExit, match="1"):
+                _cmd_logs()
+            # _serve must not have been called before _fail raised SystemExit
             mock_serve.assert_not_called()
 
 
@@ -336,6 +336,89 @@ class TestCmdBackends:
         # Should not have "error (exit N)" format
         assert "exit" not in out or "error" in out
 
+    def test_orchestrator_models_listed(self, capsys):
+        """Orchestrator model aliases and their full IDs should appear in output."""
+        with (
+            patch("kodo.factory.check_api_key", return_value="no key"),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        # At least one model alias should be listed with its status
+        assert "no key" in out
+        # Verify at least one provider label appears
+        assert "Gemini" in out or "Anthropic" in out
+
+    def test_orchestrator_model_ready_status(self, capsys):
+        """When API key is set, orchestrator models should show 'ready'."""
+        with (
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "ready" in out
+
+    def test_gemini_key_shown_when_set(self, capsys):
+        """When GEMINI_API_KEY is set, output should show masked Gemini key."""
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ANTHROPIC_API_KEY": "",
+                    "GEMINI_API_KEY": "AIzaSyB-test-key-1234",
+                    "GOOGLE_API_KEY": "",
+                },
+            ),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "GEMINI_API_KEY" in out
+        assert "AIza" in out  # first 4 chars visible
+        assert "AIzaSyB-test-key-1234" not in out  # full key not shown
+
+    def test_google_api_key_fallback(self, capsys):
+        """When only GOOGLE_API_KEY is set, it should be used for Gemini."""
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ANTHROPIC_API_KEY": "",
+                    "GEMINI_API_KEY": "",
+                    "GOOGLE_API_KEY": "AIzaSyC-google-key-5678",
+                },
+            ),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "GOOGLE_API_KEY" in out
+        assert "AIza" in out
+
+    def test_gemini_key_not_set_shown(self, capsys):
+        """When no Gemini/Google key is set, show 'not set' with install link."""
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ANTHROPIC_API_KEY": "",
+                    "GEMINI_API_KEY": "",
+                    "GOOGLE_API_KEY": "",
+                },
+            ),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "not set" in out
+        assert "aistudio.google.com" in out
+
 
 # ---------------------------------------------------------------------------
 # kodo teams
@@ -387,6 +470,48 @@ class TestCmdTeams:
         assert "2 agents" in out
         assert "worker_fast" in out
         assert "worker_smart" in out
+
+    def test_list_shows_user_defined_teams(self, capsys):
+        """User-defined teams must appear in the listing alongside built-in ones."""
+        builtin_cfg = {
+            "description": "Built-in full team",
+            "max_exchanges": 30,
+            "max_cycles": 5,
+            "agents": {
+                "worker_fast": {"backend": "claude", "model": "sonnet"},
+            },
+        }
+        user_cfg = {
+            "description": "My custom team",
+            "max_exchanges": 10,
+            "max_cycles": 2,
+            "agents": {
+                "my_agent": {"backend": "claude", "model": "opus"},
+            },
+        }
+        with (
+            patch("sys.argv", ["kodo", "teams"]),
+            patch(
+                "kodo.team_config.list_available_teams",
+                return_value=[
+                    ("full", "built-in", builtin_cfg, Path("/fake/full.json")),
+                    ("custom", "user", user_cfg, Path("/home/.kodo/teams/custom.json")),
+                ],
+            ),
+            patch(
+                "kodo.factory.available_backends",
+                return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False},
+            ),
+        ):
+            _cmd_teams()
+
+        out = capsys.readouterr().out
+        # Both teams shown
+        assert "(built-in)" in out
+        assert "(user)" in out
+        assert "custom" in out
+        assert "My custom team" in out
+        assert "my_agent" in out
 
     def test_unknown_subcommand_exits(self):
         with (
@@ -707,6 +832,44 @@ class TestCmdTeamsAuto:
         out = capsys.readouterr().out
         assert "Generated team 'myteam'" in out
         assert "Use with: kodo --team myteam" in out
+
+    def test_verifiers_filtered_to_available_agents(self, tmp_path, capsys):
+        """Verifiers referencing skipped agents must be removed from the config."""
+        base_config = {
+            "description": "Test team",
+            "max_exchanges": 20,
+            "max_cycles": 1,
+            "agents": {
+                "worker_fast": {"backend": "claude", "model": "sonnet"},
+                "worker_cursor": {"backend": "cursor", "model": "composer"},
+            },
+            "verifiers": {
+                "testers": ["worker_fast", "worker_cursor"],
+                "reviewers": ["worker_cursor"],
+            },
+        }
+
+        # Only claude available — worker_cursor should be skipped, and
+        # verifiers referencing it must be pruned.
+        with (
+            patch(
+                "kodo.factory.available_backends",
+                return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False},
+            ),
+            patch(
+                "kodo.team_config.list_available_teams",
+                return_value=[("test", "built-in", base_config, Path("/fake/test.json"))],
+            ),
+            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            _cmd_teams_auto("test")
+
+        saved = mock_save.call_args[0][1]
+        # worker_cursor is gone, so verifiers must not reference it
+        assert "worker_cursor" not in saved["verifiers"]["testers"]
+        assert saved["verifiers"]["testers"] == ["worker_fast"]
+        assert saved["verifiers"]["reviewers"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -1507,6 +1670,42 @@ class TestCmdTeamsEdit:
 
         err = capsys.readouterr().err
         assert "not found" in err
+
+    def test_selects_correct_team_from_multiple(self, capsys):
+        """When multiple teams exist, edit should load the one matching the name."""
+        other_cfg = {
+            "name": "other-team",
+            "description": "Wrong team",
+            "max_exchanges": 99,
+            "max_cycles": 99,
+            "agents": {"wrong_agent": {"backend": "cursor", "model": "composer"}},
+            "verifiers": {"testers": [], "browser_testers": [], "reviewers": []},
+        }
+        target_cfg = self._base_team_cfg()  # name="test-team", description="Original description"
+
+        multi_teams = [
+            ("other-team", "user", other_cfg, Path("/fake/other.json")),
+            ("test-team", "user", target_cfg, Path("/fake/test-team.json")),
+        ]
+
+        def mock_select(*args, **kwargs):
+            m = MagicMock()
+            m.ask.return_value = "Save & exit"
+            return m
+
+        with (
+            patch("kodo.team_config.list_available_teams", return_value=multi_teams),
+            patch("questionary.select", side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team") as mock_save,
+        ):
+            _cmd_teams_edit("test-team")
+
+        saved_config = mock_save.call_args[0][1]
+        # Must have loaded test-team, not other-team
+        assert saved_config["name"] == "test-team"
+        assert "worker" in saved_config["agents"]
+        assert "wrong_agent" not in saved_config["agents"]
+        assert saved_config["description"] == "Original description"
 
     def test_builtin_team_shows_copy_message(self, capsys):
         """Editing a built-in team should show a copy-to-user-dir message."""

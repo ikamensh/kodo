@@ -25,6 +25,7 @@ from kodo.cli._launch import (
     _try_auto_fix_team,
     json_output_redirect,
     launch_resume,
+    launch_run,
 )
 from kodo.factory import TeamPreset
 from kodo.log import RunDir
@@ -933,6 +934,70 @@ class TestLaunchResume:
 
         assert result.finished is True
 
+    def test_resume_passes_resume_state_to_orchestrator(self, tmp_path):
+        """launch_resume must pass resume=ResumeState(...) to orchestrator.run(),
+        not resume=None. Without this, resume silently starts a fresh run."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params()
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(
+            tmp_path,
+            completed_cycles=3,
+            last_summary="partial work done",
+            agent_session_ids={"worker": "sess-abc"},
+        )
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", return_value=preset),
+            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
+            patch("kodo.cli._launch._build_advisor", return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state)
+
+        call_kwargs = mock_orch.return_value.run.call_args[1]
+        resume_arg = call_kwargs["resume"]
+        assert resume_arg is not None, "resume= must not be None — that would start a fresh run"
+        assert resume_arg.completed_cycles == 3
+        assert resume_arg.prior_summary == "partial work done"
+        assert resume_arg.agent_session_ids == {"worker": "sess-abc"}
+
+    def test_resume_passes_goal_from_state(self, tmp_path):
+        """launch_resume should use the goal from the saved RunState, not a fresh one."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params()
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path, goal="Specific saved goal text")
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", return_value=preset),
+            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
+            patch("kodo.cli._launch._build_advisor", return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state)
+
+        call_args = mock_orch.return_value.run.call_args[0]
+        assert call_args[0] == "Specific saved goal text"
+
 
 # ---------------------------------------------------------------------------
 # _print_debug_summary
@@ -969,3 +1034,258 @@ class TestPrintDebugSummary:
         _print_debug_summary({})
         out = capsys.readouterr().out
         assert "DEBUG SUMMARY" in out
+
+
+# ---------------------------------------------------------------------------
+# A11: launch_run effort flow-through (mutation-tested)
+# ---------------------------------------------------------------------------
+
+
+class TestLaunchRunEffortFlowThrough:
+    """Verify that effort from params actually reaches orchestrator.run() and
+    _apply_effort_to_team inside launch_run — not just in isolation."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_deps(self, tmp_path):
+        """Common mocks for launch_run tests (non-debug path)."""
+        self.run_dir = RunDir.create(tmp_path)
+        self.fake_team = {"worker": Agent(FakeSession(), "w")}
+        self.preset = _fake_team_preset(build_team=lambda: self.fake_team)
+        self.fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+        with (
+            patch("kodo.cli._launch.log") as mock_log,
+            patch("kodo.cli._launch.get_team", return_value=self.preset),
+            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator") as self.mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", return_value=False),
+            patch("kodo.cli._launch._build_advisor", return_value=None),
+        ):
+            mock_log.init = MagicMock(return_value=Path("/fake/log"))
+            mock_log.emit = MagicMock()
+            mock_log.print_stats_table = MagicMock()
+            mock_log._start_time = None
+            mock_log._fmt_time = MagicMock(return_value="0s")
+            self.mock_orch.return_value.run.return_value = self.fake_result
+            self.mock_orch.return_value.model = "test-model"
+            yield
+
+    def test_high_effort_passed_to_orchestrator_run(self, tmp_path):
+        """effort='high' in params must reach orchestrator.run(effort='high')."""
+        params = _minimal_params(effort="high")
+        with patch("kodo.cli._launch._apply_effort_to_team") as mock_apply:
+            launch_run(self.run_dir, "test goal", params)
+
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["effort"] == "high", \
+            "effort='high' must be forwarded to orchestrator.run()"
+        mock_apply.assert_called_once_with(self.fake_team, "high")
+
+    def test_max_effort_passed_to_orchestrator_run(self, tmp_path):
+        """effort='max' in params must reach orchestrator.run(effort='max')."""
+        params = _minimal_params(effort="max")
+        with patch("kodo.cli._launch._apply_effort_to_team"):
+            launch_run(self.run_dir, "test goal", params)
+
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["effort"] == "max"
+
+    def test_standard_effort_default_passed_to_orchestrator(self, tmp_path):
+        """No effort in params → default 'standard' reaches orchestrator.run()."""
+        params = _minimal_params()  # no effort key
+        launch_run(self.run_dir, "test goal", params)
+
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["effort"] == "standard"
+
+    def test_high_effort_modifies_system_prompt(self, tmp_path):
+        """Non-standard effort must trigger build_orchestrator_prompt."""
+        params = _minimal_params(effort="high")
+        with (
+            patch("kodo.cli._launch._apply_effort_to_team"),
+            patch("kodo.prompts.roles.build_orchestrator_prompt",
+                  return_value="effort-enhanced prompt") as mock_build,
+        ):
+            launch_run(self.run_dir, "test goal", params)
+
+        mock_build.assert_called_once()
+        # Verify the enhanced prompt was used to build the orchestrator
+        orch_call_kwargs = self.mock_orch.call_args[1]
+        assert orch_call_kwargs["system_prompt"] == "effort-enhanced prompt"
+
+
+# ---------------------------------------------------------------------------
+# A12: launch_run auto_commit flow-through (mutation-tested)
+# ---------------------------------------------------------------------------
+
+
+class TestLaunchRunAutoCommitFlowThrough:
+    """Verify auto_commit from _resolve_auto_commit reaches orchestrator.run()."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_deps(self, tmp_path):
+        self.run_dir = RunDir.create(tmp_path)
+        self.fake_team = {"worker": Agent(FakeSession(), "w")}
+        self.preset = _fake_team_preset(build_team=lambda: self.fake_team)
+        self.fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+        with (
+            patch("kodo.cli._launch.log") as mock_log,
+            patch("kodo.cli._launch.get_team", return_value=self.preset),
+            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator") as self.mock_orch,
+            patch("kodo.cli._launch._build_advisor", return_value=None),
+        ):
+            mock_log.init = MagicMock(return_value=Path("/fake/log"))
+            mock_log.emit = MagicMock()
+            mock_log.print_stats_table = MagicMock()
+            mock_log._start_time = None
+            mock_log._fmt_time = MagicMock(return_value="0s")
+            self.mock_orch.return_value.run.return_value = self.fake_result
+            self.mock_orch.return_value.model = "test-model"
+            yield
+
+    def test_auto_commit_false_reaches_orchestrator(self, tmp_path):
+        """auto_commit=False in params must reach orchestrator.run(auto_commit=False)."""
+        params = _minimal_params(auto_commit=False)
+        with patch("kodo.cli._launch._resolve_auto_commit", return_value=False):
+            launch_run(self.run_dir, "test goal", params)
+
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["auto_commit"] is False, \
+            "auto_commit=False must be forwarded to orchestrator.run()"
+
+    def test_auto_commit_true_reaches_orchestrator(self, tmp_path):
+        """auto_commit=True in params must reach orchestrator.run(auto_commit=True)."""
+        params = _minimal_params(auto_commit=True)
+        with patch("kodo.cli._launch._resolve_auto_commit", return_value=True):
+            launch_run(self.run_dir, "test goal", params)
+
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["auto_commit"] is True
+
+    def test_resolve_auto_commit_is_called(self, tmp_path):
+        """launch_run must call _resolve_auto_commit (not hardcode the value)."""
+        params = _minimal_params(auto_commit=True)
+        with patch("kodo.cli._launch._resolve_auto_commit",
+                    return_value=False) as mock_resolve:
+            launch_run(self.run_dir, "test goal", params)
+
+        mock_resolve.assert_called_once()
+        # Even though params says True, _resolve_auto_commit returned False
+        call_kwargs = self.mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["auto_commit"] is False
+
+
+# ---------------------------------------------------------------------------
+# A13: launch_run debug mode (mutation-tested)
+# ---------------------------------------------------------------------------
+
+
+class TestLaunchRunDebugMode:
+    """Verify that debug=True in launch_run uses mock backends, not real ones."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_deps(self, tmp_path):
+        self.run_dir = RunDir.create(tmp_path)
+        self.fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+        with (
+            patch("kodo.cli._launch.log") as mock_log,
+            patch("kodo.cli._launch.get_team",
+                  return_value=_fake_team_preset()),
+        ):
+            mock_log.init = MagicMock(return_value=Path("/fake/log"))
+            mock_log.emit = MagicMock()
+            mock_log.print_stats_table = MagicMock()
+            mock_log._start_time = None
+            mock_log._fmt_time = MagicMock(return_value="0s")
+            yield
+
+    def test_debug_mode_uses_mock_orchestrator(self, tmp_path):
+        """debug=True must call build_debug_team and build_mock_orchestrator."""
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        mock_orch = MagicMock()
+        mock_orch.run.return_value = self.fake_result
+        mock_orch.model = "mock-A"
+
+        class FakeDebugSession:
+            def __init__(self, letter):
+                self.letter = letter
+                self.generated_tokens = 0
+                self.seen_tokens = 0
+
+        mock_alloc = MagicMock()
+        mock_alloc.next.return_value = "A"
+        mock_alloc.assignments = [("A", "orchestrator")]
+
+        with (
+            patch("kodo.debug.build_debug_team",
+                  return_value=(fake_team, {"worker": FakeDebugSession("B")})) as mock_build_team,
+            patch("kodo.debug.build_mock_orchestrator",
+                  return_value=(mock_orch, FakeDebugSession("A"))) as mock_build_orch,
+            patch("kodo.debug._allocator", mock_alloc),
+        ):
+            params = _minimal_params()
+            result = launch_run(self.run_dir, "test goal", params, debug=True)
+
+        mock_build_team.assert_called_once_with("full")
+        mock_build_orch.assert_called_once()
+        assert result.finished is True
+
+    def test_debug_mode_does_not_call_real_orchestrator_builder(self, tmp_path):
+        """debug=True must NOT call build_orchestrator (the real one)."""
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        mock_orch = MagicMock()
+        mock_orch.run.return_value = self.fake_result
+        mock_orch.model = "mock-A"
+
+        class FakeDebugSession:
+            def __init__(self, letter):
+                self.letter = letter
+                self.generated_tokens = 0
+                self.seen_tokens = 0
+
+        mock_alloc = MagicMock()
+        mock_alloc.next.return_value = "A"
+        mock_alloc.assignments = [("A", "orchestrator")]
+
+        with (
+            patch("kodo.debug.build_debug_team",
+                  return_value=(fake_team, {"worker": FakeDebugSession("B")})),
+            patch("kodo.debug.build_mock_orchestrator",
+                  return_value=(mock_orch, FakeDebugSession("A"))),
+            patch("kodo.debug._allocator", mock_alloc),
+            patch("kodo.cli._launch.build_orchestrator") as mock_real_orch,
+        ):
+            params = _minimal_params()
+            launch_run(self.run_dir, "test goal", params, debug=True)
+
+        mock_real_orch.assert_not_called(), \
+            "debug=True must NOT call the real build_orchestrator"
+
+    def test_debug_false_does_not_use_mock(self, tmp_path):
+        """debug=False must NOT call build_debug_team."""
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+
+        with (
+            patch("kodo.cli._launch.get_team", return_value=preset),
+            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator") as mock_real_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", return_value=False),
+            patch("kodo.cli._launch._build_advisor", return_value=None),
+        ):
+            mock_real_orch.return_value.run.return_value = self.fake_result
+            mock_real_orch.return_value.model = "test-model"
+            params = _minimal_params()
+            launch_run(self.run_dir, "test goal", params, debug=False)
+
+        mock_real_orch.assert_called_once(), \
+            "debug=False must call the real build_orchestrator"

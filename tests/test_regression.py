@@ -16,40 +16,8 @@ from kodo.cli._main import _main_inner
 from kodo.orchestrators.verification import _check_passed
 
 
-# ---------------------------------------------------------------------------
-# Issue #1: --skip-intake / --auto-refine without --goal silently goes
-#            interactive instead of erroring
-# ---------------------------------------------------------------------------
-
-
-class TestSkipIntakeRequiresGoal:
-    """--skip-intake and --auto-refine are only meaningful with --goal."""
-
-    @pytest.fixture(autouse=True)
-    def _fake_backends(self):
-        with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
-        ):
-            yield
-
-    @pytest.mark.skip(reason="Issue #1 not yet fixed — will hang on interactive prompt")
-    def test_skip_intake_without_goal_errors(self, tmp_path):
-        """--skip-intake without --goal should error, not drop to interactive."""
-        with (
-            patch("sys.argv", ["kodo", "--skip-intake", "--project", str(tmp_path)]),
-            pytest.raises(SystemExit),
-        ):
-            _main_inner()
-
-    @pytest.mark.skip(reason="Issue #1 not yet fixed — will hang on interactive prompt")
-    def test_auto_refine_without_goal_errors(self, tmp_path):
-        """--auto-refine without --goal should error, not drop to interactive."""
-        with (
-            patch("sys.argv", ["kodo", "--auto-refine", "--project", str(tmp_path)]),
-            pytest.raises(SystemExit),
-        ):
-            _main_inner()
+# Issue #1 (--skip-intake / --auto-refine without --goal) is now fixed and
+# covered by tests/cli/test_cli_main.py::TestFlagValidation. Skipped tests removed.
 
 
 # ---------------------------------------------------------------------------
