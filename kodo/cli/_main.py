@@ -342,7 +342,10 @@ def _main_inner() -> None:
                 sys.exit(0)
 
         run_dir = RunDir.from_log_file(state.log_file, project_dir)
-        result = launch_resume(run_dir, state, team_override=args.team)
+        try:
+            result = launch_resume(run_dir, state, team_override=args.team)
+        except Exception as exc:
+            _fail(str(exc) or type(exc).__name__)
         _emit_json_and_exit(args, result)
         return
 
@@ -533,10 +536,13 @@ def _main_inner() -> None:
             sys.exit(0)
 
     # 6. Launch
-    result = launch_run(
-        run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug,
-        intake_session=intake_session,
-    )
+    try:
+        result = launch_run(
+            run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug,
+            intake_session=intake_session,
+        )
+    except Exception as exc:
+        _fail(str(exc) or type(exc).__name__)
 
     # 7. --improve post-run: report summary
     if args.improve:
