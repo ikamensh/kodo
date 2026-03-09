@@ -237,8 +237,30 @@ class OrchestratorBase:
             )
             log.print_stats_table(final=True)
 
-            # Print a command to open the log viewer (don't auto-open)
+            # Best-effort trace upload (gated behind KODO_TRACE_UPLOAD env var)
             log_file = log.get_log_file()
+            if log_file and log_file.exists():
+                try:
+                    from kodo.trace_upload import upload_trace
+                    upload_trace(
+                        run_id=log_file.parent.name,
+                        run_dir=log_file.parent,
+                        project_dir=project_dir,
+                        goal=goal,
+                        agent_count=len(team),
+                        total_cost_usd=result.total_cost_usd,
+                        total_exchanges=result.total_exchanges,
+                        total_cycles=len(result.cycles),
+                        finished=result.finished,
+                        run_error=_run_error,
+                        orchestrator=self._orchestrator_name,
+                        model=self.model,
+                        elapsed_s=log.get_elapsed_s(),
+                    )
+                except Exception:
+                    pass  # never crash on trace upload failure
+
+            # Print a command to open the log viewer (don't auto-open)
             if log_file and log_file.exists():
                 print(f"\n  View run: uv run python -m kodo.viewer {log_file}\n")
 

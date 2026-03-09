@@ -114,16 +114,18 @@ h2 { font-size: 20px; margin-bottom: 8px; }
       <span id="token-value"></span>
     </div>
     <div class="instructions">
-      <strong>Setup:</strong>
+      <strong>1. Install</strong>
+      <pre>uv tool install --with 'kodo[benchmark]' git+https://github.com/ikamensh/kodo</pre>
+      <strong>2. Configure</strong>
       <pre id="setup-instructions"></pre>
-      <p>Then run the benchmark:</p>
-      <pre>uv run python -m benchmark</pre>
+      <strong>3. Run</strong>
+      <pre>kodo-bench</pre>
       <p style="margin-top:12px">
         The harness auto-detects which agents you have installed (Claude Code, Cursor, Codex, Gemini)
         and requests task assignments from the server. Results upload after each task.
       </p>
       <p style="margin-top:8px">
-        To run specific agents: <code>uv run python -m benchmark --backends claude,cursor</code>
+        To run specific agents: <code>--backends claude,cursor</code>
       </p>
     </div>
   </div>

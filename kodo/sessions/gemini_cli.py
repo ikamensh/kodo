@@ -160,6 +160,12 @@ class GeminiCliSession(SubprocessSession):
         self._has_queried = True
         self._resume_next = True  # subsequent queries resume the session
 
+        conv_file = None
+        if stdout_text:
+            conv_file = log.save_conversation(
+                f"gemini_{id(self) % 10000:04d}", self._stats.queries,
+                [{"raw_stdout": stdout_text}])
+
         log.emit(
             "session_query_end",
             session="gemini-cli",
@@ -171,6 +177,7 @@ class GeminiCliSession(SubprocessSession):
             response_text=result_text,
             input_tokens=r.input_tokens,
             output_tokens=r.output_tokens,
+            conversation_log=conv_file,
         )
 
         text_out = result_text or ""

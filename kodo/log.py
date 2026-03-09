@@ -270,6 +270,30 @@ def emit(event: str, **data: Any) -> None:
             pass  # best-effort logging; don't crash on write failure
 
 
+def save_conversation(agent_name: str, query_index: int, messages: list[dict]) -> str | None:
+    """Save full conversation messages to a gzip file alongside the run log.
+
+    Returns the filename (relative to run dir) or None if logging is not active.
+    Conversation logs go into a ``conversations/`` subdirectory.
+    """
+    import gzip
+
+    with _lock:
+        log_file = _log_file
+    if log_file is None:
+        return None
+
+    try:
+        conv_dir = log_file.parent / "conversations"
+        conv_dir.mkdir(exist_ok=True)
+        fname = f"{agent_name}_{query_index:03d}.jsonl.gz"
+        data = "\n".join(json.dumps(m, default=_serialize) for m in messages)
+        (conv_dir / fname).write_bytes(gzip.compress(data.encode()))
+        return f"conversations/{fname}"
+    except Exception:
+        return None  # best-effort
+
+
 def tprint(msg: str) -> None:
     """Print with elapsed time prefix, e.g. '[  12.3s] ...'."""
     with _lock:

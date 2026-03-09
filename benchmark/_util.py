@@ -36,6 +36,9 @@ def short_iid(instance_id: str) -> str:
     if dash_idx > 0:
         repo = rest[:dash_idx].replace("_", "-")
         issue = rest[dash_idx + 1:]
+        # Truncate long hashes (e.g. Go SWE-bench commit SHAs)
+        if len(issue) > 12:
+            issue = issue[:8]
         return f"{owner}/{repo}#{issue}"
     return f"{owner}/{rest}"
 

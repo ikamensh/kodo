@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import patch
 
 from kodo.summarizer import (
@@ -172,7 +173,9 @@ class TestProbeGemini:
             assert _probe_gemini() == "test-key"
 
     def test_returns_google_key_fallback(self):
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "goog-key"}, clear=False):
+        env = {"GOOGLE_API_KEY": "goog-key"}
+        with patch.dict("os.environ", env, clear=False):
+            os.environ.pop("GEMINI_API_KEY", None)
             assert _probe_gemini() == "goog-key"
 
     def test_returns_none_when_no_key(self):

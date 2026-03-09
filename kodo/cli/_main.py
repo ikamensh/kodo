@@ -40,7 +40,7 @@ from kodo.cli._params import (  # noqa: E402
     _build_params_from_flags,
     _load_or_select_params,
 )
-from kodo.cli._subcommands import _cmd_backends, _cmd_logs, _cmd_runs, _cmd_teams  # noqa: E402
+from kodo.cli._subcommands import _cmd_backends, _cmd_logs, _cmd_runs, _cmd_teams, _cmd_update  # noqa: E402
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
 from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_FLASH, GEMINI_ALIAS_PRO  # noqa: E402
@@ -91,6 +91,7 @@ def _main_inner() -> None:
         "backend": _cmd_backends, "backends": _cmd_backends,
         "team": _cmd_teams, "teams": _cmd_teams,
         "log": _cmd_logs, "logs": _cmd_logs,
+        "update": _cmd_update,
         "help": _cmd_help,
     }
     if len(sys.argv) > 1 and sys.argv[1] in _SUBCOMMAND_MAP:
@@ -99,7 +100,7 @@ def _main_inner() -> None:
 
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations",
+        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")

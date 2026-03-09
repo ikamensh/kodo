@@ -319,6 +319,10 @@ class ClaudeSession:
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         from claude_agent_sdk import AssistantMessage, ResultMessage
         from claude_agent_sdk.types import TextBlock, ToolUseBlock
+        try:
+            from claude_agent_sdk import ThinkingBlock
+        except ImportError:
+            ThinkingBlock = None  # type: ignore[assignment,misc]
 
         if self._loop.is_closed():
             raise RuntimeError("Session is closed")
@@ -378,23 +382,34 @@ class ClaudeSession:
             # ResultMessage.result is None (e.g. tool-use-heavy turns).
             assistant_texts: list[str] = []
             tool_uses: list[dict[str, Any]] = []
+            # Full conversation for detailed log (saved to separate gzip file)
+            raw_messages: list[dict[str, Any]] = []
 
             async def _collect():
                 nonlocal result
                 assert self._client is not None
                 async for message in self._client.receive_response():
                     if isinstance(message, AssistantMessage):
+                        # Build full message record for conversation log
+                        blocks: list[dict[str, Any]] = []
                         for block in message.content:
                             if isinstance(block, TextBlock):
                                 assistant_texts.append(block.text)
+                                blocks.append({"type": "text", "text": block.text})
+                            elif ThinkingBlock is not None and isinstance(block, ThinkingBlock):
+                                blocks.append({"type": "thinking", "thinking": block.thinking})
                             elif isinstance(block, ToolUseBlock):
-                                # Log tool name + input (file_path etc), not full content
                                 tu_input = dict(block.input) if block.input else {}
-                                # Strip large content fields to avoid JSONL bloat
+                                blocks.append({"type": "tool_use", "name": block.name, "input": tu_input})
+                                # Truncated copy for run.jsonl summary
+                                tu_summary = dict(tu_input)
                                 for key in ("content", "new_string", "old_string", "new_source"):
-                                    if key in tu_input and isinstance(tu_input[key], str) and len(tu_input[key]) > 200:
-                                        tu_input[key] = tu_input[key][:200] + "...(truncated)"
-                                tool_uses.append({"name": block.name, "input": tu_input})
+                                    if key in tu_summary and isinstance(tu_summary[key], str) and len(tu_summary[key]) > 200:
+                                        tu_summary[key] = tu_summary[key][:200] + "...(truncated)"
+                                tool_uses.append({"name": block.name, "input": tu_summary})
+                            else:
+                                blocks.append({"type": type(block).__name__})
+                        raw_messages.append({"role": "assistant", "content": blocks})
                     elif isinstance(message, ResultMessage):
                         inp, out = _extract_tokens(message.usage)
                         result = QueryResult(
@@ -458,6 +473,12 @@ class ClaudeSession:
                 is_error=True,
             )
 
+        # Save full conversation (thinking + tool calls + text) to gzip file
+        conv_file = None
+        if raw_messages:
+            conv_file = log.save_conversation(
+                f"claude_{id(self) % 10000:04d}", self._stats.queries, raw_messages)
+
         log.emit(
             "session_query_end",
             session="claude",
@@ -472,5 +493,6 @@ class ClaudeSession:
             usage_raw=result.usage_raw,
             session_id=self._session_id,
             tool_uses=tool_uses if tool_uses else None,
+            conversation_log=conv_file,
         )
         return result

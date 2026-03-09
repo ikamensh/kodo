@@ -148,6 +148,12 @@ class CursorSession(SubprocessSession):
             if hint:
                 result_text = hint
 
+        # Save full conversation to gzip file; keep only summary in run.jsonl
+        conv_file = None
+        if raw_messages:
+            conv_file = log.save_conversation(
+                f"cursor_{id(self) % 10000:04d}", self._stats.queries, raw_messages)
+
         log.emit(
             "session_query_end",
             session="cursor",
@@ -159,7 +165,7 @@ class CursorSession(SubprocessSession):
             input_tokens=r.input_tokens or None,
             output_tokens=r.output_tokens or None,
             response_text=result_text or stderr_text,
-            raw_messages=raw_messages,
+            conversation_log=conv_file,
         )
 
         text_out = result_text if result_text else stderr_text

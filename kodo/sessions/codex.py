@@ -196,6 +196,11 @@ class CodexSession(SubprocessSession):
             if hint:
                 result_text = hint
 
+        conv_file = None
+        if raw_messages:
+            conv_file = log.save_conversation(
+                f"codex_{id(self) % 10000:04d}", self._stats.queries, raw_messages)
+
         log.emit(
             "session_query_end",
             session="codex",
@@ -207,7 +212,7 @@ class CodexSession(SubprocessSession):
             response_text=result_text or r.stderr_text,
             input_tokens=r.input_tokens,
             output_tokens=r.output_tokens,
-            raw_messages=raw_messages,
+            conversation_log=conv_file,
         )
 
         text_out = result_text if result_text else r.stderr_text

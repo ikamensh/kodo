@@ -144,9 +144,8 @@ def _run_sequential(
                 continue
             try:
                 t = _timeout_for_arm(arm, timeout, timeout_kodo)
-                log.info("[%d/%d] %s | %s | started (timeout %s)",
-                         newly_completed + 1, total_work,
-                         short_iid(task.instance_id), arm, fmt_duration(t))
+                log.info("  ▸ %s | %s",
+                         short_iid(task.instance_id), arm)
                 result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
@@ -190,7 +189,7 @@ def _run_parallel(
         for task, arm in work:
             f = pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo), run_dir)
             futures[f] = (task, arm)
-            log.info("[·/%d] %s | %s | started", total_work, short_iid(task.instance_id), arm)
+            log.info("  ▸ %s | %s", short_iid(task.instance_id), arm)
         try:
             for future in as_completed(futures):
                 task, arm = futures[future]
@@ -381,7 +380,8 @@ def _run_claude(
         "-p",
         prompt,
         "--output-format",
-        "json",
+        "stream-json",
+        "--verbose",
         "--model",
         model or "opus",
         "--effort",
@@ -435,7 +435,7 @@ def _run_gemini(
         prompt,
         "--yolo",
         "--output-format",
-        "json",
+        "stream-json",
     ]
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
 
@@ -485,16 +485,23 @@ def _save_logs(
     raw_stdout: str,
     raw_stderr: str,
 ) -> None:
-    """Best-effort: save raw stdout/stderr and kodo trace to log directory."""
+    """Best-effort: save raw stdout/stderr and kodo trace to log directory.
+
+    Logs are gzip-compressed to save disk (stream-json output can be many MBs).
+    """
+    import gzip
+
     try:
         safe = docker_safe(arm)
         log_dir = run_dir / "logs" / instance_id / safe
         log_dir.mkdir(parents=True, exist_ok=True)
 
         if raw_stdout:
-            (log_dir / "stdout.log").write_text(raw_stdout)
+            (log_dir / "stdout.log.gz").write_bytes(
+                gzip.compress(raw_stdout.encode()))
         if raw_stderr:
-            (log_dir / "stderr.log").write_text(raw_stderr)
+            (log_dir / "stderr.log.gz").write_bytes(
+                gzip.compress(raw_stderr.encode()))
 
         # For kodo runs, copy the latest run trace
         base, _ = parse_arm(arm)
@@ -504,7 +511,9 @@ def _save_logs(
                 # Find the latest run.jsonl across all run subdirectories
                 traces = sorted(kodo_runs.glob("*/run.jsonl"), key=lambda p: p.stat().st_mtime)
                 if traces:
-                    shutil.copy2(traces[-1], log_dir / "kodo_trace.jsonl")
+                    data = traces[-1].read_bytes()
+                    (log_dir / "kodo_trace.jsonl.gz").write_bytes(
+                        gzip.compress(data))
     except Exception:
         pass  # Best-effort: never fail the task over log capture
 

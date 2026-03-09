@@ -1,7 +1,8 @@
-"""Subcommand handlers: runs, backends, teams."""
+"""Subcommand handlers: runs, backends, teams, update."""
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -95,6 +96,23 @@ def _cmd_logs() -> None:
             _fail(f"File not found: {log_path}")
 
     _serve(args.port, log_path)
+
+
+# ---------------------------------------------------------------------------
+# kodo update
+# ---------------------------------------------------------------------------
+
+
+def _cmd_update() -> None:
+    """Reinstall kodo from the latest version on GitHub."""
+    import shutil
+
+    if not shutil.which("uv"):
+        _fail("uv is required for updating. Install it: https://docs.astral.sh/uv/")
+
+    print("Updating kodo...")
+    result = subprocess.run(["uv", "tool", "upgrade", "kodo", "--reinstall"])
+    sys.exit(result.returncode)
 
 
 # ---------------------------------------------------------------------------

@@ -322,8 +322,8 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
                     log.info("No more tasks. Completed %d total.", total_completed)
                 return 0
 
-            tasks = [all_tasks[a["instance_id"]] for a in assignments
-                     if a["instance_id"] in all_tasks]
+            unique_ids = dict.fromkeys(a["instance_id"] for a in assignments)
+            tasks = [all_tasks[iid] for iid in unique_ids if iid in all_tasks]
             arms = list({a["arm"] for a in assignments})
             ds_keys = {a.get("dataset", "pro") for a in assignments}
             dataset = DATASET_MAP.get(next(iter(ds_keys)), DATASET_PRO)
@@ -343,7 +343,7 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
                 seed=args.seed,
                 assignments=assignments,
             )
-            total_completed += len(tasks)
+            total_completed += len(assignments)
             log.info("Batch done. %d completed so far, polling for more...",
                      total_completed)
     except (KeyboardInterrupt, BenchmarkInterrupted) as exc:
