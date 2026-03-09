@@ -425,12 +425,18 @@ def _main_inner() -> None:
                 print("  Carrying forward prior 'Needs decision' items.")
             if focus:
                 print(f"  Focus: {focus}")
-            print("  Running improve discovery...")
-        plan = run_improve_discovery(run_dir, str(report_path), prior, focus=focus)
-        if plan is None:
+        if args.debug:
             if not args.json:
-                print("  Discovery unavailable; using default plan.")
+                print("  Debug mode; using default improve plan.")
             plan = _build_fallback_plan(str(report_path), prior, focus=focus)
+        else:
+            if not args.json:
+                print("  Running improve discovery...")
+            plan = run_improve_discovery(run_dir, str(report_path), prior, focus=focus)
+            if plan is None:
+                if not args.json:
+                    print("  Discovery unavailable; using default plan.")
+                plan = _build_fallback_plan(str(report_path), prior, focus=focus)
     elif non_interactive:
         if goal_text is None:  # pragma: no cover – defensive; set in the non-improve branch above
             _fail("Internal error: goal_text is not set.")
