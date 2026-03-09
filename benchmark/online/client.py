@@ -169,17 +169,22 @@ def maybe_upload_run(run_id: str, **kwargs) -> None:
 
 
 def fetch_assignments(
-    dataset: str,
     backends: list[str],
     *,
-    instance_ids: list[str] | None = None,
+    datasets: dict[str, list[str]] | None = None,
     limit: int = 20,
     contributor: str = "",
 ) -> list[dict] | None:
     """Fetch task assignments from the central server.
 
-    Returns list of {"instance_id": ..., "arm": ...} dicts, or None
-    if the server is unreachable or unconfigured.
+    Args:
+        backends: Available backends (e.g. ["claude", "kodo:solo"]).
+        datasets: {dataset_key: [instance_ids]} — server picks across all.
+        limit: Max assignments to return.
+        contributor: Who is requesting (auto-detected if empty).
+
+    Returns list of {"instance_id": ..., "arm": ..., "dataset": ...} dicts,
+    or None if the server is unreachable or unconfigured.
     """
     if not is_configured():
         return None
@@ -190,9 +195,8 @@ def fetch_assignments(
 
     try:
         result = _post_json("/api/next-tasks", {
-            "dataset": dataset_key(dataset) or dataset,
+            "datasets": datasets or {},
             "backends": backends,
-            "instance_ids": instance_ids or [],
             "limit": limit,
             "contributor": contributor,
         })

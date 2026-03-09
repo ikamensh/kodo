@@ -21,8 +21,8 @@ warnings.filterwarnings(
     message=r"urllib3.*doesn't match a supported version",
 )
 
-from dotenv import load_dotenv
-load_dotenv()
+from dotenv import find_dotenv, load_dotenv
+load_dotenv(find_dotenv(usecwd=True))
 
 import argparse
 import os
@@ -229,22 +229,7 @@ def main() -> int:
         instance_ids = subset_data["instance_ids"]
         dataset = subset_data.get("dataset", dataset)
 
-    tasks = load_tasks(
-        dataset=dataset,
-        limit=args.limit if not args.distribute else None,
-        instance_ids=instance_ids,
-        repo_filter=args.repo,
-        language=args.language,
-        offset=args.offset if not args.distribute else 0,
-    )
-
-    if not tasks:
-        log.error("No tasks matched the filters.")
-        return 1
-
-    log.info("Loaded %d tasks", len(tasks))
-
-    # Distributed mode: server decides what to run
+    # Distributed mode: server decides what to run across all datasets
     assignments = None
     if args.distribute:
         from benchmark.online.client import fetch_assignments, is_configured
@@ -263,10 +248,19 @@ def main() -> int:
             dist_backends = detect_backends()
             log.info("Auto-detected backends: %s", dist_backends)
 
+        # Load tasks from all datasets so server can pick across them
+        all_datasets: dict[str, list[str]] = {}
+        all_tasks: dict[str, list] = {}  # instance_id -> task
+        for ds_key, ds_name in [("pro", DATASET_PRO), ("verified", DATASET_VERIFIED)]:
+            ds_tasks = load_tasks(dataset=ds_name)
+            all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
+            for t in ds_tasks:
+                all_tasks[t.instance_id] = t
+            log.info("Loaded %d tasks from %s", len(ds_tasks), ds_key)
+
         server_assignments = fetch_assignments(
-            dataset=dataset,
             backends=dist_backends,
-            instance_ids=[t.instance_id for t in tasks],
+            datasets=all_datasets,
             limit=args.limit or 20,
         )
 
@@ -279,10 +273,30 @@ def main() -> int:
             return 0
         else:
             assignments = server_assignments
-            assigned_ids = {a["instance_id"] for a in assignments}
-            tasks = [t for t in tasks if t.instance_id in assigned_ids]
+            tasks = [all_tasks[a["instance_id"]] for a in assignments
+                     if a["instance_id"] in all_tasks]
             arms = list({a["arm"] for a in assignments})
-            log.info("Server assigned %d task/arm pairs across %s", len(assignments), arms)
+            # Use the first assignment's dataset for run_benchmark (it groups by dataset)
+            ds_keys = {a.get("dataset", "pro") for a in assignments}
+            dataset = _DATASET_MAP.get(
+                next(iter(ds_keys)), DATASET_PRO) if ds_keys else DATASET_PRO
+            log.info("Server assigned %d task/arm pairs across %s (datasets: %s)",
+                     len(assignments), arms, ds_keys)
+    else:
+        tasks = load_tasks(
+            dataset=dataset,
+            limit=args.limit,
+            instance_ids=instance_ids,
+            repo_filter=args.repo,
+            language=args.language,
+            offset=args.offset,
+        )
+
+    if not tasks:
+        log.error("No tasks matched the filters.")
+        return 1
+
+    log.info("Running %d tasks", len(tasks))
 
     run_benchmark(
         tasks=tasks,

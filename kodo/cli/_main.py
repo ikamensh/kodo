@@ -9,9 +9,9 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
-load_dotenv()
+load_dotenv(find_dotenv(usecwd=True))
 
 from kodo import __version__, log  # noqa: E402
 from kodo.cli._improve import (  # noqa: E402

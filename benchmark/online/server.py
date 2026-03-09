@@ -261,27 +261,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if body is None:
             return
 
-        dataset = body.get("dataset", "")
         backends = body.get("backends", [])
-        instance_ids = body.get("instance_ids", [])
-        if not dataset or not backends or not instance_ids:
-            self.send_error(400, "Missing dataset, backends, or instance_ids")
+        datasets = body.get("datasets", {})
+        if not backends or not datasets:
+            self.send_error(400, "Missing backends or datasets")
             return
 
+        limit = body.get("limit", 20)
+        contributor = body.get("contributor", "unknown")
+        ttl_seconds = body.get("ttl_seconds", db.CLAIM_TTL_SECONDS)
+
         try:
-            assignments = db.get_next_tasks(
-                dataset=dataset,
-                instance_ids=instance_ids,
-                backends=backends,
-                contributor=body.get("contributor", "unknown"),
-                limit=body.get("limit", 20),
-                ttl_seconds=body.get("ttl_seconds", db.CLAIM_TTL_SECONDS),
-            )
+            all_assignments: list[dict] = []
+            for ds_key, instance_ids in datasets.items():
+                if not instance_ids:
+                    continue
+                assignments = db.get_next_tasks(
+                    dataset=ds_key,
+                    instance_ids=instance_ids,
+                    backends=backends,
+                    contributor=contributor,
+                    limit=limit - len(all_assignments),
+                    ttl_seconds=ttl_seconds,
+                )
+                for a in assignments:
+                    a["dataset"] = ds_key
+                all_assignments.extend(assignments)
+                if len(all_assignments) >= limit:
+                    break
         except Exception as e:
             self.send_error(500, str(e))
             return
 
-        self._json_ok({"assignments": assignments})
+        self._json_ok({"assignments": all_assignments})
 
     # ── Read handlers ─────────────────────────────────────────────────
 
