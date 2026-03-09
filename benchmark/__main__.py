@@ -258,17 +258,18 @@ def main() -> int:
                 all_tasks[t.instance_id] = t
             log.info("Loaded %d tasks from %s", len(ds_tasks), ds_key)
 
-        server_assignments = fetch_assignments(
-            backends=dist_backends,
-            datasets=all_datasets,
-            limit=args.limit or 20,
-        )
-
-        if server_assignments is None:
-            log.error("Server unreachable at %s",
-                      os.environ.get("KODO_BENCH_URL", "(not set)"))
+        try:
+            server_assignments = fetch_assignments(
+                backends=dist_backends,
+                datasets=all_datasets,
+                limit=args.limit or 20,
+            )
+        except Exception as exc:
+            log.error("Failed to get assignments from %s: %s",
+                      os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
             return 1
-        elif not server_assignments:
+
+        if not server_assignments:
             log.info("No tasks need evaluation — all covered!")
             return 0
         else:

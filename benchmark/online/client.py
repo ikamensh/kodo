@@ -193,17 +193,13 @@ def fetch_assignments(
         prov = _get_provenance()
         contributor = f"{prov.get('user', 'unknown')}@{prov.get('host', 'unknown')}"
 
-    try:
-        result = _post_json("/api/next-tasks", {
-            "datasets": datasets or {},
-            "backends": backends,
-            "limit": limit,
-            "contributor": contributor,
-        })
-        return result.get("assignments", [])
-    except Exception as exc:
-        log.warning("Failed to fetch assignments from server: %s", exc)
-        return None
+    result = _post_json("/api/next-tasks", {
+        "datasets": datasets or {},
+        "backends": backends,
+        "limit": limit,
+        "contributor": contributor,
+    })
+    return result.get("assignments", [])
 
 
 def fetch_unevaluated(dataset: str) -> list[dict] | None:
