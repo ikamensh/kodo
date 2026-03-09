@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.benchmark.tasks import SWETask
+from benchmark.tasks import SWETask
 
 REPO_CACHE_DIR = "repos"
 RUNS_DIR = "runs"
@@ -94,7 +94,7 @@ def _run_sequential(
 
             t = _timeout_for_arm(arm, timeout, timeout_kodo)
             print(f"\n[{i + 1}/{len(tasks)}] {task.instance_id} ({arm}) [timeout {t}s]")
-            result = _safe_run(task, arm, workspace, t)
+            result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
             _append_result(run_dir, result)
             _append_prediction(run_dir, result)
             completed.add((task.instance_id, arm))
@@ -121,7 +121,7 @@ def _run_parallel(
 
     with ThreadPoolExecutor(max_workers=parallel) as pool:
         futures = {
-            pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo)): (task, arm)
+            pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo), run_dir): (task, arm)
             for task, arm in work
         }
         for future in as_completed(futures):
@@ -137,11 +137,12 @@ def _run_parallel(
 
 
 def _safe_run(
-    task: SWETask, arm: str, workspace: Path, timeout: int
+    task: SWETask, arm: str, workspace: Path, timeout: int,
+    run_dir: Path | None = None,
 ) -> TaskResult:
     """Run a single task, catching all exceptions."""
     try:
-        return _run_single_task(task, arm, workspace, timeout)
+        return _run_single_task(task, arm, workspace, timeout, run_dir=run_dir)
     except Exception as exc:
         return TaskResult(
             instance_id=task.instance_id,
@@ -154,26 +155,32 @@ def _safe_run(
 
 
 def _run_single_task(
-    task: SWETask, arm: str, workspace: Path, timeout: int
+    task: SWETask, arm: str, workspace: Path, timeout: int,
+    run_dir: Path | None = None,
 ) -> TaskResult:
     repo_dir = _prepare_repo(task, workspace, arm)
     t0 = time.monotonic()
 
     base, team = parse_arm(arm)
     if base == "kodo":
-        agent_output, status, error = _run_kodo(task, repo_dir, timeout, team=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_kodo(task, repo_dir, timeout, team=team)
     elif base == "claude":
-        agent_output, status, error = _run_claude(task, repo_dir, timeout, model=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_claude(task, repo_dir, timeout, model=team)
     elif base == "cursor":
-        agent_output, status, error = _run_cursor(task, repo_dir, timeout)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_cursor(task, repo_dir, timeout)
     elif base == "codex":
-        agent_output, status, error = _run_codex(task, repo_dir, timeout, model=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_codex(task, repo_dir, timeout, model=team)
     elif base == "gemini":
-        agent_output, status, error = _run_gemini(task, repo_dir, timeout)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_gemini(task, repo_dir, timeout)
     else:
         raise ValueError(f"Unknown arm: {arm}")
 
     elapsed = time.monotonic() - t0
+
+    # Best-effort: save raw logs and kodo trace
+    if run_dir is not None:
+        _save_logs(run_dir, task.instance_id, arm, repo_dir, raw_stdout, raw_stderr)
+
     patch = _capture_diff(repo_dir, task.base_commit)
 
     return TaskResult(
@@ -261,7 +268,7 @@ def _build_prompt(task: SWETask) -> str:
 
 def _run_kodo(
     task: SWETask, repo_dir: Path, timeout: int, *, team: str | None = None
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
     prompt = _build_prompt(task)
     # Parse team: "solo" or "solo+opus" (team+orchestrator_model)
     orch_model = None
@@ -287,7 +294,7 @@ def _run_kodo(
 
 def _run_claude(
     task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
     prompt = _build_prompt(task)
     cmd = [
         "claude",
@@ -307,7 +314,7 @@ def _run_claude(
 
 def _run_cursor(
     task: SWETask, repo_dir: Path, timeout: int
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
     """Run Cursor agent CLI in print mode."""
     prompt = _build_prompt(task)
     cmd = [
@@ -325,7 +332,7 @@ def _run_cursor(
 
 def _run_codex(
     task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
     """Run OpenAI Codex CLI in non-interactive mode."""
     prompt = _build_prompt(task)
     cmd = [
@@ -342,7 +349,7 @@ def _run_codex(
 
 def _run_gemini(
     task: SWETask, repo_dir: Path, timeout: int
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
     """Run Google Gemini CLI in headless mode."""
     prompt = _build_prompt(task)
     cmd = [
@@ -371,7 +378,8 @@ def _clean_env(*, keep_api_key: bool = False) -> dict[str, str]:
 def _run_subprocess(
     cmd: list[str], cwd: Path | None, timeout: int,
     *, keep_api_key: bool = False,
-) -> tuple[dict, str, str]:
+) -> tuple[dict, str, str, str, str]:
+    """Run a subprocess and return (parsed_output, status, error, raw_stdout, raw_stderr)."""
     try:
         proc = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd,
@@ -386,9 +394,45 @@ def _run_subprocess(
         else:
             status = "error"
         error = proc.stderr[-500:] if proc.returncode != 0 else ""
-        return output, status, error
+        return output, status, error, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
-        return {}, "timeout", f"Timed out after {timeout}s"
+        return {}, "timeout", f"Timed out after {timeout}s", "", ""
+
+
+# ── Log Capture ──────────────────────────────────────────────────────────
+
+
+def _save_logs(
+    run_dir: Path,
+    instance_id: str,
+    arm: str,
+    repo_dir: Path,
+    raw_stdout: str,
+    raw_stderr: str,
+) -> None:
+    """Best-effort: save raw stdout/stderr and kodo trace to log directory."""
+    try:
+        import re
+        safe_arm = re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
+        log_dir = run_dir / "logs" / instance_id / safe_arm
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        if raw_stdout:
+            (log_dir / "stdout.log").write_text(raw_stdout)
+        if raw_stderr:
+            (log_dir / "stderr.log").write_text(raw_stderr)
+
+        # For kodo runs, copy the latest run trace
+        base, _ = parse_arm(arm)
+        if base == "kodo":
+            kodo_runs = repo_dir / ".kodo" / "runs"
+            if kodo_runs.is_dir():
+                # Find the latest run.jsonl across all run subdirectories
+                traces = sorted(kodo_runs.glob("*/run.jsonl"), key=lambda p: p.stat().st_mtime)
+                if traces:
+                    shutil.copy2(traces[-1], log_dir / "kodo_trace.jsonl")
+    except Exception:
+        pass  # Best-effort: never fail the task over log capture
 
 
 # ── Diff and Persistence ─────────────────────────────────────────────────

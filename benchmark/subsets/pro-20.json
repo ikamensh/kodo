@@ -1,0 +1,26 @@
+{
+  "description": "20-task stratified subset of SWE-bench Pro (8 python, 8 go, 4 js). Seed=42.",
+  "dataset": "ScaleAI/SWE-bench_Pro",
+  "instance_ids": [
+    "instance_internetarchive__openlibrary-308a35d6999427c02b1dbf5211c033ad3b352556-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+    "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+    "instance_qutebrowser__qutebrowser-ef5ba1a0360b39f9eff027fbdc57f363597c3c3b-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+    "instance_internetarchive__openlibrary-6afdb09df692223c3a31df65cfa92f15e5614c01-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+    "instance_qutebrowser__qutebrowser-f631cd4422744160d9dcf7a0455da532ce973315-v35616345bb8052ea303186706cec663146f0f184",
+    "instance_ansible__ansible-cd473dfb2fdbc97acf3293c134b21cbbcfa89ec3-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+    "instance_qutebrowser__qutebrowser-322834d0e6bf17e5661145c9f085b41215c280e8-v488d33dd1b2540b234cbb0468af6b6614941ce8f",
+    "instance_ansible__ansible-39bd8b99ec8c6624207bf3556ac7f9626dad9173-v1055803c3a812189a1133297f7f5468579283f86",
+    "instance_navidrome__navidrome-b3980532237e57ab15b2b93c49d5cd5b2d050013",
+    "instance_navidrome__navidrome-de90152a7173039677ac808f5bfb1e644d761336",
+    "instance_navidrome__navidrome-5001518260732e36d9a42fb8d4c054b28afab310",
+    "instance_future-architect__vuls-4c04acbd9ea5b073efe999e33381fa9f399d6f27",
+    "instance_gravitational__teleport-0ecf31de0e98b272a6a2610abe1bbedd379a38a3-vce94f93ad1030e3136852817f2423c1b3ac37bc4",
+    "instance_flipt-io__flipt-56a620b8fc9ef7a0819b47709aa541cdfdbba00b",
+    "instance_flipt-io__flipt-b22f5f02e40b225b6b93fff472914973422e97c6",
+    "instance_gravitational__teleport-f432a71a13e698b6e1c4672a2e9e9c1f32d35c12",
+    "instance_NodeBB__NodeBB-a917210c5b2c20637094545401f85783905c074c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+    "instance_NodeBB__NodeBB-7b8bffd763e2155cf88f3ebc258fa68ebe18188d-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+    "instance_protonmail__webclients-01ea5214d11e0df8b7170d91bafd34f23cb0f2b1",
+    "instance_NodeBB__NodeBB-f48ed3658aab7be0f1165d4c1f89af48d7865189-v0495b863a912fbff5749c67e860612b91825407c"
+  ]
+}

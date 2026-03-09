@@ -5,9 +5,9 @@ Uses SWE-bench Pro (731 tasks) by default. Pass --dataset lite for SWE-bench Lit
 Arms: "claude", "cursor", "codex", "gemini", "kodo", "kodo:<team>".
 
 Usage:
-    uv run python -m scripts.benchmark --subset scripts/benchmark/subsets/pro-20.json
-    uv run python -m scripts.benchmark --subset scripts/benchmark/subsets/pro-20.json --arm kodo:solo --limit 2
-    uv run python -m scripts.benchmark --arm cursor --arm kodo:solo --limit 2 --skip-eval
+    uv run python -m benchmark --subset benchmark/subsets/pro-20.json
+    uv run python -m benchmark --subset benchmark/subsets/pro-20.json --arm kodo:solo --limit 2
+    uv run python -m benchmark --arm cursor --arm kodo:solo --limit 2 --skip-eval
 """
 
 from __future__ import annotations
@@ -110,6 +110,11 @@ def main() -> int:
         action="store_true",
         help="Only generate report from existing results",
     )
+    parser.add_argument(
+        "--upload",
+        action="store_true",
+        help="Upload results to GCS and regenerate viewer index",
+    )
 
     args = parser.parse_args()
     workspace: Path = args.workspace
@@ -119,12 +124,17 @@ def main() -> int:
     arms = args.arm if args.arm else ["claude", "kodo"]
 
     if args.status:
-        from scripts.benchmark.report import print_status
+        from benchmark.report import print_status
 
         return print_status(workspace)
 
-    from scripts.benchmark.evaluate import evaluate_predictions
-    from scripts.benchmark.report import generate_report
+    if args.upload:
+        from benchmark.upload import upload_results
+
+        return upload_results(workspace, run_id=args.run_id)
+
+    from benchmark.evaluate import evaluate_predictions
+    from benchmark.report import generate_report
 
     if args.report_only:
         return generate_report(workspace, run_id)
@@ -136,8 +146,8 @@ def main() -> int:
     # Run agents
     import json as _json
 
-    from scripts.benchmark.runner import run_benchmark
-    from scripts.benchmark.tasks import DATASET_LITE, DATASET_PRO, DATASET_VERIFIED, load_tasks
+    from benchmark.runner import run_benchmark
+    from benchmark.tasks import DATASET_LITE, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
     # Resolve dataset and instance_ids from --subset if provided
     instance_ids = args.instance_ids
