@@ -10,6 +10,12 @@ DATASET_PRO = "ScaleAI/SWE-bench_Pro"
 DATASET_VERIFIED = "princeton-nlp/SWE-bench_Verified"
 DATASET_LITE = "princeton-nlp/SWE-bench_Lite"
 
+DATASET_MAP: dict[str, str] = {
+    "pro": DATASET_PRO,
+    "verified": DATASET_VERIFIED,
+    "lite": DATASET_LITE,
+}
+
 
 @dataclass
 class SWETask:

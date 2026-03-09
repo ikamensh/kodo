@@ -179,13 +179,25 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
     <button class="v-tab" data-view="insights">Insights</button>
     <button class="v-tab" data-view="details">Details</button>
   </div>
-  <a href="/progress.html" style="margin-left:12px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Progress &rarr;</a>
+  <a id="progress-link" href="/progress.html" style="margin-left:12px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Progress &rarr;</a>
+  <a id="scheduling-link" href="/scheduling.html" style="margin-left:8px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Scheduling &rarr;</a>
 </nav>
 
 <main id="main"><div class="loading">Loading...</div></main>
 <div id="tooltip"></div>
 
 <script>
+// ── Base path (auto-detect from serving location) ──
+const BASE = (() => {
+  let p = window.location.pathname;
+  if (p.endsWith('/index.html')) p = p.slice(0, -'index.html'.length);
+  if (!p.endsWith('/')) p += '/';
+  return p === '/' ? '' : p;
+})();
+
+{ const pl = document.getElementById('progress-link'); if (pl) pl.href = (BASE || '/') + 'progress.html'; }
+{ const sl = document.getElementById('scheduling-link'); if (sl) sl.href = (BASE || '/') + 'scheduling.html'; }
+
 // ── State ──
 let currentDataset = 'verified';
 let currentView = 'leaderboard';
@@ -219,19 +231,29 @@ function displayName(arm) {
 // ── Data helpers ──
 
 function armStats(data, arm) {
-  const s = { resolved: 0, failed: 0, error: 0, run: 0, evaluated: 0 };
+  const s = { resolved: 0, failed: 0, error: 0, run: 0, evaluated: 0, resolveTimes: [], allTimes: [] };
   for (const t of data.tasks) {
     const r = data.results[t.instance_id]?.[arm];
     if (!r) continue;
     s.run++;
+    if (r.elapsed_s > 0) s.allTimes.push(r.elapsed_s);
     if (r.eval_status) {
       s.evaluated++;
-      if (r.resolved) s.resolved++;
-      else s.failed++;
+      if (r.resolved) {
+        s.resolved++;
+        if (r.elapsed_s > 0) s.resolveTimes.push(r.elapsed_s);
+      } else s.failed++;
     }
     if (r.status === 'error') s.error++;
   }
   return s;
+}
+
+function median(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
 function resolveRate(s) {
@@ -300,8 +322,8 @@ async function init() {
 
   try {
     const [v, p] = await Promise.all([
-      fetchJSON('data/verified/index.json'),
-      fetchJSON('data/pro/index.json'),
+      fetchJSON(BASE + 'data/verified/index.json'),
+      fetchJSON(BASE + 'data/pro/index.json'),
     ]);
     allData = {
       verified: v || emptyIndex(),
@@ -341,8 +363,12 @@ function render() {
   }
 
   const arms = visibleArms(data);
+  const totalRun = arms.reduce((sum, a) => sum + armStats(data, a).run, 0);
+  const totalEvald = arms.reduce((sum, a) => sum + armStats(data, a).evaluated, 0);
+  const pending = totalRun - totalEvald;
   document.getElementById('header-stats').textContent =
-    `${data.tasks.length} tasks \u00b7 ${arms.length} agents \u00b7 ${currentDataset}`;
+    `${data.tasks.length} tasks \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
+    (pending > 0 ? ` \u00b7 ${pending} pending eval` : '');
 
   const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails };
   document.getElementById('main').innerHTML = (views[currentView] || renderLeaderboard)(data, arms);
@@ -372,7 +398,7 @@ function renderLeaderboard(data, arms) {
         <div class="lb-bar-fill" style="width:${rate}%;background:${armColor(arm)}"></div>
       </div>
       <div class="lb-rate">${rate.toFixed(1)}%</div>
-      <div class="lb-sub">${s.resolved}/${s.evaluated}</div>
+      <div class="lb-sub">${s.resolved}/${s.evaluated}${s.run > s.evaluated ? ` <span style="color:var(--orange)">(+${s.run - s.evaluated} pending)</span>` : ''}${median(s.allTimes) ? ` · ${formatTime(median(s.allTimes))} median` : ''}</div>
     </div>`;
   });
 
@@ -381,6 +407,26 @@ function renderLeaderboard(data, arms) {
     html += `<div class="toggle-row"><label><input type="checkbox" id="toggle-kodo" ${showAllKodo ? 'checked' : ''}> Show all Kodo variants (${kodoCount})</label></div>`;
   }
   html += '</div>';
+
+  // Speed comparison
+  const armsWithTimes = sorted.filter(a => stats[a].allTimes.length > 0);
+  if (armsWithTimes.length > 1) {
+    const maxMedian = Math.max(...armsWithTimes.map(a => median(stats[a].allTimes)));
+    html += '<div class="lb-section"><h2>Median Task Time (lower is better)</h2>';
+    for (const arm of armsWithTimes) {
+      const med = median(stats[arm].allTimes);
+      const pct = maxMedian > 0 ? (med / maxMedian * 100) : 0;
+      const isKodo = arm.startsWith('kodo');
+      html += `<div class="lb-row ${isKodo ? 'is-kodo' : ''}" style="padding:8px 16px">
+        <div class="lb-name" style="font-size:13px">${esc(displayName(arm))}</div>
+        <div class="lb-bar-track" style="height:20px">
+          <div class="lb-bar-fill" style="width:${pct}%;background:${armColor(arm)};height:100%"></div>
+        </div>
+        <div style="font-size:15px;font-weight:600;width:80px;text-align:right">${formatTime(med)}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
 
   // Head to head vs kodo
   const kodo = getBestKodo(data);
@@ -755,7 +801,7 @@ async function fetchPatch(ds, iid, arm) {
   const el = document.getElementById(`patch-${iid}-${arm}`);
   if (!el) return;
   try {
-    const r = await fetch(`api/patch/${ds}/${iid}/${arm}`);
+    const r = await fetch(`${BASE}api/patch/${ds}/${iid}/${arm}`);
     if (!r.ok) { el.textContent = '(no patch available)'; return; }
     el.innerHTML = highlightDiff(await r.text());
   } catch { el.textContent = '(failed to load)'; }

@@ -12,9 +12,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from benchmark._util import docker_safe as _docker_safe, log
+
+_EMPTY_RESULTS: dict = {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
 
 # Location of the cloned scaleapi/SWE-bench_Pro-os repo
 _PRO_EVAL_DIR = Path(os.environ.get(
@@ -45,6 +47,38 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
             _evaluate_standard(pred_file, arm, run_dir, run_id, dataset)
 
     _collect_eval_results(run_dir, is_pro=is_pro, run_id=run_id)
+
+
+def evaluate_arm(
+    run_dir: Path,
+    arm: str,
+    run_id: str,
+    dataset: str,
+    on_instance: Callable[[str, bool], None] | None = None,
+) -> dict:
+    """Evaluate a single arm and return its results.
+
+    Args:
+        on_instance: Optional callback(instance_id, resolved) called as each
+            instance completes evaluation. Enables streaming uploads.
+
+    Returns {"resolved": [...], "failed": [...], "error": [...], "resolve_rate": float}.
+    """
+    safe_arm = _docker_safe(arm)
+    pred_file = run_dir / f"predictions-{safe_arm}.jsonl"
+    if not pred_file.exists():
+        log.warning("No predictions file for arm '%s'", arm)
+        return _EMPTY_RESULTS.copy()
+
+    is_pro = "SWE-bench_Pro" in dataset
+    log.info("Evaluating %s...", arm)
+
+    if is_pro:
+        _evaluate_pro(pred_file, safe_arm, run_dir)
+    else:
+        _evaluate_standard(pred_file, safe_arm, run_dir, run_id, dataset, on_instance)
+
+    return _collect_arm_result(run_dir, safe_arm, run_id, is_pro)
 
 
 # ── SWE-bench Pro (Scale AI tooling) ────────────────────────────────────
@@ -116,14 +150,23 @@ def _write_pro_samples(sample_file: Path, instance_ids: list[str]) -> None:
 
 
 def _evaluate_standard(
-    pred_file: Path, arm: str, run_dir: Path, run_id: str, dataset: str
+    pred_file: Path,
+    arm: str,
+    run_dir: Path,
+    run_id: str,
+    dataset: str,
+    on_instance: Callable[[str, bool], None] | None = None,
 ) -> None:
-    """Evaluate using the standard swebench harness."""
+    """Evaluate using swebench, with optional per-instance callback via file watcher."""
+    import threading
+
     eval_dir = run_dir / "eval" / arm
     eval_dir.mkdir(parents=True, exist_ok=True)
 
     if not dataset:
         dataset = "princeton-nlp/SWE-bench_Lite"
+
+    safe_key = _docker_safe(f"{run_id}_{arm}")
 
     cmd = [
         sys.executable,
@@ -131,9 +174,43 @@ def _evaluate_standard(
         "swebench.harness.run_evaluation",
         "--predictions_path", str(pred_file),
         "--dataset_name", dataset,
-        "--run_id", _docker_safe(f"{run_id}_{arm}"),
+        "--run_id", safe_key,
         "--max_workers", "4",
     ]
+
+    # Watch for report.json files as swebench writes them
+    stop_watching = threading.Event()
+    watch_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
+
+    def _watcher():
+        seen: set[str] = set()
+        while not stop_watching.is_set():
+            if watch_dir.exists():
+                for model_dir in watch_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+                    for instance_dir in model_dir.iterdir():
+                        if not instance_dir.is_dir():
+                            continue
+                        iid = instance_dir.name
+                        if iid in seen:
+                            continue
+                        report = instance_dir / "report.json"
+                        if report.exists():
+                            seen.add(iid)
+                            try:
+                                data = json.loads(report.read_text())
+                                instance_data = data.get(iid, data)
+                                resolved = instance_data.get("resolved", False)
+                                on_instance(iid, resolved)
+                            except Exception as exc:
+                                log.debug("Watcher error for %s: %s", iid, exc)
+            stop_watching.wait(timeout=5)
+
+    watcher_thread = None
+    if on_instance:
+        watcher_thread = threading.Thread(target=_watcher, daemon=True)
+        watcher_thread.start()
 
     try:
         subprocess.run(cmd, check=True, timeout=7200)
@@ -143,10 +220,13 @@ def _evaluate_standard(
         log.warning("Evaluation failed for %s: %s", arm, exc)
     except FileNotFoundError:
         log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
+    finally:
+        stop_watching.set()
+        if watcher_thread:
+            watcher_thread.join(timeout=10)
 
     # Copy swebench logs into the run's eval dir so results persist
-    safe_key = _docker_safe(f"{run_id}_{arm}")
-    swebench_log_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
+    swebench_log_dir = watch_dir
     if swebench_log_dir.exists():
         dest = eval_dir / "swebench_logs"
         if dest.exists():
@@ -158,52 +238,103 @@ def _evaluate_standard(
 # ── Result Collection ───────────────────────────────────────────────────
 
 
+def _collect_arm_result(
+    run_dir: Path, safe_arm: str, run_id: str, is_pro: bool,
+) -> dict:
+    """Collect evaluation results for a single arm."""
+    eval_dir = run_dir / "eval" / safe_arm
+    if is_pro:
+        return _parse_pro_results(eval_dir) if eval_dir.exists() else _EMPTY_RESULTS.copy()
+
+    # Check copied logs first (persistent within run dir)
+    copied_logs = eval_dir / "swebench_logs" if eval_dir.exists() else None
+    if copied_logs and copied_logs.exists():
+        for model_dir in copied_logs.iterdir():
+            if model_dir.is_dir():
+                return _parse_standard_results(model_dir)
+
+    # Fall back to swebench's cwd logs
+    safe_key = _docker_safe(f"{run_id}_{safe_arm}")
+    log_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
+    if log_dir.exists():
+        for model_dir in log_dir.iterdir():
+            if model_dir.is_dir():
+                return _parse_standard_results(model_dir)
+
+    return _EMPTY_RESULTS.copy()
+
+
 def _collect_eval_results(
     run_dir: Path, *, is_pro: bool = False, run_id: str = "",
 ) -> None:
-    """Parse eval output into eval-summary.json."""
+    """Parse eval output into eval-summary.json and upload results."""
     eval_base = run_dir / "eval"
     if not eval_base.exists():
         eval_base.mkdir(parents=True)
 
     summary: dict[str, dict[str, Any]] = {}
-
-    if is_pro:
-        for arm_dir in sorted(eval_base.iterdir()):
-            if not arm_dir.is_dir():
-                continue
-            summary[arm_dir.name] = _parse_pro_results(arm_dir)
-    else:
-        # First try the copied logs inside the run dir (persistent),
-        # then fall back to swebench's default log location in cwd.
-        for arm_dir in sorted(eval_base.iterdir()) if eval_base.exists() else []:
-            if not arm_dir.is_dir():
-                continue
-            copied_logs = arm_dir / "swebench_logs"
-            if copied_logs.exists():
-                for model_dir in copied_logs.iterdir():
-                    if model_dir.is_dir():
-                        summary[arm_dir.name] = _parse_standard_results(model_dir)
-                        break
-
-        # Fall back to swebench's cwd logs for any arms not yet collected
-        swebench_log_base = Path.cwd() / "logs" / "run_evaluation"
-        safe_run_id = _docker_safe(run_id)
-        for log_dir in sorted(swebench_log_base.iterdir()) if swebench_log_base.exists() else []:
-            if not log_dir.is_dir() or not log_dir.name.startswith(safe_run_id + "_"):
-                continue
-            safe_arm = log_dir.name[len(safe_run_id) + 1:]
-            if safe_arm in summary:
-                continue
-            # swebench nests by model_name (= arm), then instance_id
-            for model_dir in log_dir.iterdir():
-                if model_dir.is_dir():
-                    summary[safe_arm] = _parse_standard_results(model_dir)
-                    break
+    for arm_dir in sorted(eval_base.iterdir()):
+        if not arm_dir.is_dir():
+            continue
+        summary[arm_dir.name] = _collect_arm_result(run_dir, arm_dir.name, run_id, is_pro)
 
     summary_file = run_dir / "eval-summary.json"
     summary_file.write_text(json.dumps(summary, indent=2))
     log.info("Eval summary written to %s", summary_file)
+
+    # Upload eval results to server (best-effort)
+    _upload_eval_summary(run_dir, summary)
+
+
+def _upload_eval_summary(run_dir: Path, summary: dict[str, dict]) -> None:
+    """Best-effort upload of eval results to the online server."""
+    from benchmark.online.client import is_configured, upload_eval_results
+
+    if not is_configured():
+        return
+
+    meta_file = run_dir / "meta.json"
+    if not meta_file.exists():
+        return
+    dataset = json.loads(meta_file.read_text()).get("dataset", "")
+    if not dataset:
+        return
+
+    # Build docker-safe -> original arm name map from predictions files
+    arm_map = _build_arm_name_map(run_dir)
+
+    for safe_arm, results in summary.items():
+        original_arm = arm_map.get(safe_arm, safe_arm)
+        resolved = results.get("resolved", [])
+        failed = results.get("failed", [])
+        error = results.get("error", [])
+        if not resolved and not failed and not error:
+            continue
+        try:
+            upload_eval_results(
+                dataset, original_arm, resolved=resolved, failed=failed, error=error,
+            )
+            log.info("Uploaded eval for %s: %d resolved, %d failed",
+                     original_arm, len(resolved), len(failed))
+        except Exception as exc:
+            log.debug("Eval upload failed for %s: %s", original_arm, exc)
+
+
+def _build_arm_name_map(run_dir: Path) -> dict[str, str]:
+    """Map docker-safe arm names back to originals from predictions files."""
+    arm_map: dict[str, str] = {}
+    for pred_file in run_dir.glob("predictions-*.jsonl"):
+        safe_name = pred_file.stem.replace("predictions-", "")
+        # Read the first line to get the original arm name
+        first_line = pred_file.read_text().split("\n", 1)[0].strip()
+        if first_line:
+            try:
+                entry = json.loads(first_line)
+                original = entry.get("arm", safe_name)
+                arm_map[safe_name] = original
+            except json.JSONDecodeError:
+                pass
+    return arm_map
 
 
 def _parse_pro_results(eval_dir: Path) -> dict:

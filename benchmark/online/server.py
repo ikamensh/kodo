@@ -26,15 +26,19 @@ from __future__ import annotations
 
 import http.server
 import json
+import logging
 import os
 import re
 import time
 from pathlib import Path
 
+log = logging.getLogger("benchmark.online")
+
 from . import db
 from .config import ADMIN_TOKEN
 
 PORT = int(os.environ.get("PORT", 8080))
+BASE_PATH = os.environ.get("BASE_PATH", "")  # e.g. "/bench" when behind Firebase Hosting
 STATIC_DIR = Path(__file__).parent / "static"
 
 # In-memory cache: key -> (timestamp, bytes)
@@ -45,41 +49,53 @@ CACHE_TTL = 300  # 5 minutes — index.json is materialized in GCS, this is just
 class Handler(http.server.BaseHTTPRequestHandler):
     # ── Routing ───────────────────────────────────────────────────────
 
+    def _strip_base(self) -> str:
+        """Strip BASE_PATH prefix from self.path for routing."""
+        if BASE_PATH and self.path.startswith(BASE_PATH):
+            stripped = self.path[len(BASE_PATH):]
+            return stripped or "/"
+        return self.path
+
     def do_GET(self):
-        if self.path.startswith("/data/"):
-            self._serve_data()
-        elif self.path.startswith("/api/unevaluated/"):
+        p = self._strip_base()
+        if p.startswith("/data/"):
+            self._serve_data(p)
+        elif p.startswith("/api/unevaluated/"):
             if self._check_api_token():
-                self._handle_unevaluated()
-        elif self.path.startswith("/api/patch/"):
-            self._serve_patch()
-        elif self.path == "/admin/tokens":
+                self._handle_unevaluated(p)
+        elif p.startswith("/api/scheduling/"):
+            self._handle_scheduling(p)
+        elif p.startswith("/api/patch/"):
+            self._serve_patch(p)
+        elif p == "/admin/tokens":
             self._handle_list_tokens()
-        elif self.path == "/api/health":
+        elif p == "/api/health":
             self._json_ok({"status": "ok"})
         else:
-            self._serve_static()
+            self._serve_static(p)
 
     def do_POST(self):
-        if self.path == "/admin/tokens":
+        p = self._strip_base()
+        if p == "/admin/tokens":
             self._handle_create_token()
-        elif self.path == "/api/task-result":
+        elif p == "/api/task-result":
             if self._check_api_token():
                 self._handle_task_result()
-        elif self.path == "/api/run":
+        elif p == "/api/run":
             if self._check_api_token():
                 self._handle_run()
-        elif self.path == "/api/eval-results":
+        elif p == "/api/eval-results":
             if self._check_api_token():
                 self._handle_eval_results()
-        elif self.path == "/api/next-tasks":
+        elif p == "/api/next-tasks":
             if self._check_api_token():
                 self._handle_next_tasks()
         else:
             self.send_error(404)
 
     def do_DELETE(self):
-        if self.path.startswith("/admin/tokens/"):
+        p = self._strip_base()
+        if p.startswith("/admin/tokens/"):
             self._handle_revoke_token()
         else:
             self.send_error(404)
@@ -160,7 +176,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._check_admin():
             return
         # /admin/tokens/{id_or_prefix}
-        token_id = self.path.split("/admin/tokens/", 1)[-1]
+        token_id = self._strip_base().split("/admin/tokens/", 1)[-1]
         if not token_id:
             self.send_error(400, "Missing token ID or prefix")
             return
@@ -211,6 +227,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             db.release_claim(dataset, iid, arm)
         except Exception:
             pass  # best-effort
+
+        # Implicit activity signal: contributor is actively producing results for this arm
+        prov = result_data.get("provenance") or {}
+        contributor = f"{prov.get('user', '')}@{prov.get('host', '')}" if prov.get("user") else ""
+        if contributor:
+            try:
+                db.touch_activity(dataset, contributor, [arm])
+            except Exception:
+                pass  # best-effort
 
         # db.save_task_result already sets dirty flag — materialization happens on next read
         _cache.pop(f"index:{dataset}", None)
@@ -276,20 +301,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             for ds_key, instance_ids in datasets.items():
                 if not instance_ids:
                     continue
+                remaining = limit - len(all_assignments)
+                if remaining <= 0:
+                    break
                 assignments = db.get_next_tasks(
                     dataset=ds_key,
                     instance_ids=instance_ids,
                     backends=backends,
                     contributor=contributor,
-                    limit=limit - len(all_assignments),
+                    limit=remaining,
                     ttl_seconds=ttl_seconds,
                 )
                 for a in assignments:
                     a["dataset"] = ds_key
                 all_assignments.extend(assignments)
-                if len(all_assignments) >= limit:
-                    break
         except Exception as e:
+            log.exception("Error in next-tasks: %s", e)
             self.send_error(500, str(e))
             return
 
@@ -297,9 +324,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # ── Read handlers ─────────────────────────────────────────────────
 
-    def _handle_unevaluated(self):
+    def _handle_scheduling(self, p: str = ""):
+        """Serve GET /api/scheduling/{dataset} — live scheduling state."""
+        m = re.match(r"/api/scheduling/(\w+)$", p or self._strip_base())
+        if not m:
+            self.send_error(404)
+            return
+        dataset = m.group(1)
+        try:
+            info = db.get_scheduling_info(dataset)
+        except Exception as e:
+            self.send_error(502, f"Backend error: {e}")
+            return
+        self._json_ok(info)
+
+    def _handle_unevaluated(self, p: str = ""):
         """Serve GET /api/unevaluated/{dataset} — predictions needing evaluation."""
-        m = re.match(r"/api/unevaluated/(\w+)$", self.path)
+        m = re.match(r"/api/unevaluated/(\w+)$", p or self._strip_base())
         if not m:
             self.send_error(404)
             return
@@ -311,9 +352,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json_ok({"dataset": dataset, "predictions": predictions})
 
-    def _serve_data(self):
+    def _serve_data(self, p: str = ""):
         """Serve /data/{dataset}/index.json or patches.json from Firestore/GCS."""
-        m = re.match(r"/data/(\w+)/(index|patches)\.json", self.path)
+        m = re.match(r"/data/(\w+)/(index|patches)\.json", p or self._strip_base())
         if not m:
             self.send_error(404)
             return
@@ -340,10 +381,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         _cache[cache_key] = (now, body)
         self._raw_response(200, body, "application/json")
 
-    def _serve_patch(self):
+    def _serve_patch(self, p: str = ""):
         """Serve /api/patch/{dataset}/{instance_id}/{arm}."""
         # instance_id contains "__" so we parse carefully
-        m = re.match(r"/api/patch/(\w+)/(.+)/([^/]+)$", self.path)
+        m = re.match(r"/api/patch/(\w+)/(.+)/([^/]+)$", p or self._strip_base())
         if not m:
             self.send_error(404)
             return
@@ -361,8 +402,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         self._raw_response(200, patch.encode(), "text/plain")
 
-    def _serve_static(self):
-        path = self.path.rstrip("/")
+    def _serve_static(self, p: str = ""):
+        path = (p or self._strip_base()).rstrip("/")
         if path in ("", "/index.html"):
             fpath = STATIC_DIR / "index.html"
         else:

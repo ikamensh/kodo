@@ -446,6 +446,7 @@ def revoke_token(token_hash_or_prefix: str) -> bool:
 # ── Task distribution ─────────────────────────────────────────────────────
 
 CLAIM_TTL_SECONDS = 14400  # 4 hours
+ACTIVITY_TTL_SECONDS = 1800  # 30 minutes — soft signal window
 
 
 def get_next_tasks(
@@ -472,12 +473,17 @@ def get_next_tasks(
         results = {}
 
     active = _get_active_claims(dataset)
+    pressure = get_arm_pressure(dataset)
+
+    # Record this contributor's activity for all their backends
+    touch_activity(dataset, contributor, backends)
 
     assignments = prioritize_assignments(
         all_instance_ids=instance_ids,
         results=results,
         backends=backends,
         active_claims=active,
+        arm_pressure=pressure,
         limit=limit,
     )
 
@@ -548,3 +554,125 @@ def release_claim(dataset: str, instance_id: str, arm: str) -> None:
         _db().collection("datasets").document(dataset).collection("claims").document(doc_id).delete()
     except Exception:
         pass  # best-effort
+
+
+# ── Arm activity tracking ─────────────────────────────────────────────────
+
+
+def touch_activity(
+    dataset: str, contributor: str, arms: list[str],
+) -> None:
+    """Record that a contributor is actively working on these arms.
+
+    Called from two places:
+    - get_next_tasks(): contributor explicitly requests work (declares backends)
+    - save_task_result() via server: contributor uploads a result (implicit signal)
+
+    Each (contributor, arm) pair gets a document with a 30-min TTL.
+    """
+    from datetime import timedelta
+
+    from google.cloud import firestore
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ACTIVITY_TTL_SECONDS)
+    coll = _db().collection("datasets").document(dataset).collection("activity")
+
+    batch = _db().batch()
+    for arm in arms:
+        doc_id = f"{contributor}___{arm}"
+        batch.set(coll.document(doc_id), {
+            "contributor": contributor,
+            "arm": arm,
+            "last_seen": firestore.SERVER_TIMESTAMP,
+            "expires_at": expires_at,
+        })
+    batch.commit()
+
+
+def get_arm_pressure(dataset: str) -> dict[str, int]:
+    """Return {arm: active_contributor_count} from non-expired activity records."""
+    now = datetime.now(timezone.utc)
+    pressure: dict[str, int] = {}
+    coll = _db().collection("datasets").document(dataset).collection("activity")
+    for doc in coll.stream():
+        data = doc.to_dict() or {}
+        expires_at = data.get("expires_at")
+        if expires_at is None:
+            continue
+        if hasattr(expires_at, "replace"):
+            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        else:
+            continue
+        if exp > now:
+            arm = data.get("arm", "")
+            if arm:
+                pressure[arm] = pressure.get(arm, 0) + 1
+    return pressure
+
+
+def get_scheduling_info(dataset: str) -> dict:
+    """Return combined scheduling state for the dashboard.
+
+    Returns:
+        {
+            "arm_pressure": {arm: count},
+            "activity": [{contributor, arm, last_seen, expires_at}, ...],
+            "claims": [{instance_id, arm, contributor, claimed_at, expires_at}, ...],
+        }
+    """
+    now = datetime.now(timezone.utc)
+
+    # Active activity records
+    activity: list[dict] = []
+    pressure: dict[str, int] = {}
+    act_coll = _db().collection("datasets").document(dataset).collection("activity")
+    for doc in act_coll.stream():
+        data = doc.to_dict() or {}
+        expires_at = data.get("expires_at")
+        if expires_at is None:
+            continue
+        if hasattr(expires_at, "replace"):
+            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        else:
+            continue
+        if exp > now:
+            arm = data.get("arm", "")
+            contributor = data.get("contributor", "")
+            last_seen = data.get("last_seen")
+            if arm:
+                pressure[arm] = pressure.get(arm, 0) + 1
+                activity.append({
+                    "contributor": contributor,
+                    "arm": arm,
+                    "last_seen": last_seen.isoformat() if hasattr(last_seen, "isoformat") else str(last_seen or ""),
+                    "expires_at": exp.isoformat(),
+                })
+
+    # Active claims
+    claims: list[dict] = []
+    claim_coll = _db().collection("datasets").document(dataset).collection("claims")
+    for doc in claim_coll.stream():
+        data = doc.to_dict() or {}
+        expires_at = data.get("expires_at")
+        if expires_at is None:
+            continue
+        if hasattr(expires_at, "replace"):
+            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        else:
+            continue
+        if exp > now:
+            claimed_at = data.get("claimed_at")
+            claims.append({
+                "instance_id": data.get("instance_id", ""),
+                "arm": data.get("arm", ""),
+                "contributor": data.get("contributor", ""),
+                "claimed_at": claimed_at.isoformat() if hasattr(claimed_at, "isoformat") else str(claimed_at or ""),
+                "expires_at": exp.isoformat(),
+            })
+
+    return {
+        "arm_pressure": pressure,
+        "activity": activity,
+        "claims": claims,
+    }

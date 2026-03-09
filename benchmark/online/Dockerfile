@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p benchmark/online
 RUN touch benchmark/__init__.py
 
-COPY __init__.py config.py db.py server.py benchmark/online/
+COPY __init__.py config.py db.py distribute.py server.py benchmark/online/
 COPY static/ benchmark/online/static/
 
 ENV PORT=8080

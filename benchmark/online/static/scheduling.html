@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kodo bench — scheduling</title>
+<script>
+(function() {
+  var s = localStorage.getItem('kodo-bench-theme');
+  var p = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if ((s || (p ? 'dark' : 'light')) === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+</script>
+<style>
+/* ── Theme (shared with main viewer) ── */
+:root {
+  --bg: #0d1117; --bg2: #161b22; --surface: #1c2128; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+  --accent: #58a6ff; --accent2: #388bfd;
+  --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #a371f7;
+  --green-bg: rgba(63,185,80,0.12); --red-bg: rgba(248,81,73,0.12);
+  --orange-bg: rgba(210,153,34,0.12); --accent-bg: rgba(88,166,255,0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.4); --code-bg: #161b22;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --bg2: #ffffff; --surface: #ffffff; --border: #d0d7de;
+  --text: #1f2328; --text2: #656d76; --text3: #b1bac4;
+  --accent: #0969da; --accent2: #0550ae;
+  --green: #1a7f37; --red: #cf222e; --orange: #9a6700; --purple: #8250df;
+  --green-bg: rgba(26,127,55,0.1); --red-bg: rgba(207,34,46,0.1);
+  --orange-bg: rgba(154,103,0,0.1); --accent-bg: rgba(9,105,218,0.06);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08); --code-bg: #f6f8fa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
+
+/* ── Layout ── */
+header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--bg2); }
+header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+header h1 a { color: var(--text); text-decoration: none; }
+header h1 a:hover { color: var(--accent); }
+header .breadcrumb { color: var(--text2); font-size: 17px; font-weight: 700; }
+header .nav-links { display: flex; gap: 12px; margin-left: 24px; }
+header .nav-links a { color: var(--text2); text-decoration: none; font-size: 13px; }
+header .nav-links a:hover { color: var(--accent); }
+header .stats { color: var(--text2); font-size: 12px; margin-left: auto; }
+.theme-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; color: var(--text2); font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+main { padding: 32px 24px; max-width: 1200px; margin: 0 auto; }
+.loading { text-align: center; padding: 64px; color: var(--text2); font-size: 14px; }
+
+/* ── Summary cards ── */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 6px; }
+.card .value { font-size: 28px; font-weight: 700; }
+.card .sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+/* ── Dataset tabs ── */
+.ds-tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+.ds-tab { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); color: var(--text2); }
+.ds-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ds-tab:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+/* ── Section headers ── */
+.section { margin-bottom: 32px; }
+.section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 12px; font-weight: 600; }
+
+/* ── Pressure bars ── */
+.pressure-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.pressure-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.pressure-arm { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pressure-arm .arm-badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #fff; }
+.pressure-arm .count { font-size: 22px; font-weight: 700; margin-left: auto; }
+.pressure-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.pressure-bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.pressure-detail { font-size: 11px; color: var(--text3); margin-top: 6px; }
+
+/* ── Activity table ── */
+.activity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.activity-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--border); color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.activity-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.activity-table tr:hover { background: var(--bg2); }
+.arm-badge-sm { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; }
+
+/* ── Inflow chart ── */
+.inflow-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.inflow-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+.inflow-card .period { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.inflow-card .rate { font-size: 22px; font-weight: 700; }
+.inflow-card .unit { font-size: 11px; color: var(--text3); }
+
+/* ── Claims ── */
+.claims-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.claim-chip { padding: 4px 10px; border-radius: 12px; font-size: 12px; background: var(--bg2); border: 1px solid var(--border); }
+.claim-chip .num { font-weight: 700; }
+
+/* ── Sparkline (CSS-only bar chart) ── */
+.spark-row { display: flex; align-items: flex-end; gap: 2px; height: 48px; }
+.spark-bar { flex: 1; min-width: 4px; border-radius: 2px 2px 0 0; transition: height 0.3s; }
+.spark-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-top: 4px; }
+
+/* ── Empty state ── */
+.empty { padding: 24px; text-align: center; color: var(--text3); font-size: 13px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  main { padding: 16px; }
+  .pressure-grid { grid-template-columns: 1fr; }
+}
+*, header, .card, .pressure-card, .activity-table td, .ds-tab, .inflow-card { transition: background .2s, border-color .2s, color .2s; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><a href="/">kodo bench</a> <span class="breadcrumb">/ scheduling</span></h1>
+  <div class="nav-links">
+    <a href="/">leaderboard</a>
+    <a href="/progress.html">progress</a>
+  </div>
+  <span class="stats" id="header-stats"></span>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
+</header>
+
+<main id="main"><div class="loading">Loading scheduling data...</div></main>
+
+<script>
+// ── State ──
+let allData = {};       // index.json per dataset
+let schedData = {};     // scheduling API per dataset
+let activeDs = 'verified';
+
+// ── Palette ──
+const ARM_COLORS = {
+  claude: '#a371f7', cursor: '#f0883e', codex: '#7ee787', gemini: '#d29922', kodo: '#58a6ff'
+};
+function armColor(arm) {
+  for (const [k, v] of Object.entries(ARM_COLORS)) { if (arm.startsWith(k)) return v; }
+  return '#8b949e';
+}
+
+// ── Time helpers ──
+function relativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+// ── Data loading ──
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+async function loadAll() {
+  const [verified, pro, schedVerified, schedPro] = await Promise.all([
+    fetchJSON('data/verified/index.json'),
+    fetchJSON('data/pro/index.json'),
+    fetchJSON('api/scheduling/verified'),
+    fetchJSON('api/scheduling/pro'),
+  ]);
+  allData = { verified, pro };
+  schedData = {
+    verified: schedVerified || { arm_pressure: {}, activity: [], claims: [] },
+    pro: schedPro || { arm_pressure: {}, activity: [], claims: [] },
+  };
+  render();
+}
+
+// ── Compute inflow rates from result timestamps ──
+function computeInflow(data) {
+  if (!data || !data.results) return { last1h: 0, last6h: 0, last24h: 0, byArm1h: {}, byArm6h: {}, byArm24h: {}, hourly: [] };
+  const now = Date.now();
+  const events = [];
+  for (const [iid, arms] of Object.entries(data.results)) {
+    for (const [arm, result] of Object.entries(arms)) {
+      const ts = result.provenance && result.provenance.timestamp;
+      if (ts) events.push({ time: new Date(ts).getTime(), arm });
+    }
+  }
+
+  const last1h = events.filter(e => now - e.time < 3600000);
+  const last6h = events.filter(e => now - e.time < 21600000);
+  const last24h = events.filter(e => now - e.time < 86400000);
+
+  function byArm(list) {
+    const m = {};
+    for (const e of list) { m[e.arm] = (m[e.arm] || 0) + 1; }
+    return m;
+  }
+
+  // Hourly buckets for last 24h
+  const hourly = Array(24).fill(0);
+  const hourlyByArm = Array.from({ length: 24 }, () => ({}));
+  for (const e of last24h) {
+    const hoursAgo = Math.floor((now - e.time) / 3600000);
+    if (hoursAgo >= 0 && hoursAgo < 24) {
+      hourly[hoursAgo]++;
+      hourlyByArm[hoursAgo][e.arm] = (hourlyByArm[hoursAgo][e.arm] || 0) + 1;
+    }
+  }
+
+  return {
+    last1h: last1h.length,
+    last6h: last6h.length,
+    last24h: last24h.length,
+    byArm1h: byArm(last1h),
+    byArm6h: byArm(last6h),
+    byArm24h: byArm(last24h),
+    hourly: hourly.reverse(),         // oldest first
+    hourlyByArm: hourlyByArm.reverse(),
+  };
+}
+
+// ── Rendering ──
+function render() {
+  const data = allData[activeDs];
+  const sched = schedData[activeDs];
+  const inflow = computeInflow(data);
+  const pressure = sched.arm_pressure || {};
+  const activity = sched.activity || [];
+  const claims = sched.claims || [];
+
+  // Total results for context
+  let totalResults = 0;
+  const armTotals = {};
+  if (data && data.results) {
+    for (const arms of Object.values(data.results)) {
+      for (const arm of Object.keys(arms)) {
+        totalResults++;
+        armTotals[arm] = (armTotals[arm] || 0) + 1;
+      }
+    }
+  }
+  const totalTasks = data ? (data.tasks || []).length : 0;
+  const allArms = data ? (data.arms || []) : [];
+  const maxPressure = Math.max(1, ...Object.values(pressure));
+
+  let html = '';
+
+  // Dataset tabs
+  html += '<div class="ds-tabs">';
+  for (const ds of ['verified', 'pro']) {
+    html += `<button class="ds-tab${ds === activeDs ? ' active' : ''}" data-ds="${ds}">${ds}</button>`;
+  }
+  html += '</div>';
+
+  // Summary cards
+  html += '<div class="summary">';
+  html += `<div class="card"><div class="label">Active Contributors</div><div class="value">${new Set(activity.map(a => a.contributor)).size}</div><div class="sub">in last 30 min</div></div>`;
+  html += `<div class="card"><div class="label">Active Claims</div><div class="value">${claims.length}</div><div class="sub">tasks locked</div></div>`;
+  html += `<div class="card"><div class="label">Results / Hour</div><div class="value">${inflow.last1h}</div><div class="sub">${inflow.last6h} in 6h, ${inflow.last24h} in 24h</div></div>`;
+  html += `<div class="card"><div class="label">Coverage</div><div class="value">${totalResults}</div><div class="sub">${totalTasks} tasks x ${allArms.length} arms</div></div>`;
+  html += '</div>';
+
+  // ── Arm pressure ──
+  html += '<div class="section">';
+  html += '<h2>Arm Pressure (active contributors)</h2>';
+  if (Object.keys(pressure).length === 0 && activity.length === 0) {
+    // Show all known arms with zero pressure
+    if (allArms.length > 0) {
+      html += '<div class="pressure-grid">';
+      for (const arm of allArms) {
+        html += renderPressureCard(arm, 0, maxPressure, armTotals[arm] || 0, []);
+      }
+      html += '</div>';
+    } else {
+      html += '<div class="empty">No activity signals yet. Pressure data appears when contributors upload results or request tasks via --distribute.</div>';
+    }
+  } else {
+    // Merge: all known arms + any in pressure
+    const armSet = new Set([...allArms, ...Object.keys(pressure)]);
+    const sorted = Array.from(armSet).sort((a, b) => (pressure[b] || 0) - (pressure[a] || 0));
+    html += '<div class="pressure-grid">';
+    for (const arm of sorted) {
+      const contributors = activity.filter(a => a.arm === arm).map(a => a.contributor);
+      html += renderPressureCard(arm, pressure[arm] || 0, maxPressure, armTotals[arm] || 0, contributors);
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ── Inflow sparkline (last 24h) ──
+  html += '<div class="section">';
+  html += '<h2>Result Inflow (last 24 hours)</h2>';
+  const maxHourly = Math.max(1, ...inflow.hourly);
+  if (inflow.last24h === 0) {
+    html += '<div class="empty">No results in the last 24 hours.</div>';
+  } else {
+    // Stacked bar chart by arm
+    html += '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;">';
+    html += '<div class="spark-row">';
+    for (let i = 0; i < inflow.hourly.length; i++) {
+      const h = inflow.hourly[i];
+      const pct = (h / maxHourly) * 100;
+      const armBreakdown = inflow.hourlyByArm[i];
+      const tooltip = Object.entries(armBreakdown).map(([a, c]) => `${a}: ${c}`).join(', ') || '0';
+      // Use dominant arm color or default
+      let barColor = 'var(--accent)';
+      if (Object.keys(armBreakdown).length > 0) {
+        const top = Object.entries(armBreakdown).sort((a, b) => b[1] - a[1])[0][0];
+        barColor = armColor(top);
+      }
+      html += `<div class="spark-bar" style="height:${Math.max(pct, h > 0 ? 8 : 0)}%;background:${barColor};opacity:${h > 0 ? 0.85 : 0.15}" title="${tooltip}"></div>`;
+    }
+    html += '</div>';
+    html += '<div class="spark-labels"><span>24h ago</span><span>now</span></div>';
+    html += '</div>';
+
+    // Per-arm breakdown cards
+    html += '<div class="inflow-grid" style="margin-top:12px;">';
+    const armRates = inflow.byArm24h;
+    for (const [arm, count] of Object.entries(armRates).sort((a, b) => b[1] - a[1])) {
+      const rate1h = inflow.byArm1h[arm] || 0;
+      html += `<div class="inflow-card">`;
+      html += `<div class="period"><span class="arm-badge-sm" style="background:${armColor(arm)}">${arm}</span></div>`;
+      html += `<div class="rate">${count}</div>`;
+      html += `<div class="unit">in 24h (${rate1h}/h now)</div>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // ── Active claims by arm ──
+  html += '<div class="section">';
+  html += '<h2>Active Claims</h2>';
+  if (claims.length === 0) {
+    html += '<div class="empty">No active claims. Claims are created when tasks are assigned via --distribute.</div>';
+  } else {
+    // Summarize by arm
+    const claimsByArm = {};
+    for (const c of claims) {
+      if (!claimsByArm[c.arm]) claimsByArm[c.arm] = [];
+      claimsByArm[c.arm].push(c);
+    }
+    html += '<div class="claims-summary">';
+    for (const [arm, list] of Object.entries(claimsByArm).sort((a, b) => b[1].length - a[1].length)) {
+      html += `<span class="claim-chip"><span class="arm-badge-sm" style="background:${armColor(arm)}">${arm}</span> <span class="num">${list.length}</span></span>`;
+    }
+    html += '</div>';
+
+    // Claims table
+    html += '<table class="activity-table">';
+    html += '<thead><tr><th>Task</th><th>Arm</th><th>Contributor</th><th>Claimed</th><th>Expires</th></tr></thead>';
+    html += '<tbody>';
+    const sorted = [...claims].sort((a, b) => (b.claimed_at || '').localeCompare(a.claimed_at || ''));
+    for (const c of sorted.slice(0, 50)) {
+      html += '<tr>';
+      html += `<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.instance_id}">${c.instance_id}</td>`;
+      html += `<td><span class="arm-badge-sm" style="background:${armColor(c.arm)}">${c.arm}</span></td>`;
+      html += `<td>${c.contributor}</td>`;
+      html += `<td>${relativeTime(c.claimed_at)}</td>`;
+      html += `<td>${relativeTime(c.expires_at)}</td>`;
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    if (claims.length > 50) {
+      html += `<div style="text-align:center;padding:8px;color:var(--text3);font-size:12px;">Showing 50 of ${claims.length} claims</div>`;
+    }
+  }
+  html += '</div>';
+
+  // ── Active contributors detail ──
+  html += '<div class="section">';
+  html += '<h2>Active Contributors</h2>';
+  if (activity.length === 0) {
+    html += '<div class="empty">No active contributors detected in the last 30 minutes.</div>';
+  } else {
+    html += '<table class="activity-table">';
+    html += '<thead><tr><th>Contributor</th><th>Arm</th><th>Last Seen</th><th>Expires</th></tr></thead>';
+    html += '<tbody>';
+    const sortedAct = [...activity].sort((a, b) => (b.last_seen || '').localeCompare(a.last_seen || ''));
+    for (const a of sortedAct) {
+      html += '<tr>';
+      html += `<td>${a.contributor}</td>`;
+      html += `<td><span class="arm-badge-sm" style="background:${armColor(a.arm)}">${a.arm}</span></td>`;
+      html += `<td>${relativeTime(a.last_seen)}</td>`;
+      html += `<td>${relativeTime(a.expires_at)}</td>`;
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+
+  document.getElementById('main').innerHTML = html;
+
+  // Wire dataset tabs
+  for (const btn of document.querySelectorAll('.ds-tab')) {
+    btn.addEventListener('click', function() {
+      activeDs = this.dataset.ds;
+      render();
+    });
+  }
+}
+
+function renderPressureCard(arm, count, maxPressure, totalResults, contributors) {
+  const pct = (count / maxPressure) * 100;
+  const color = armColor(arm);
+  const uniqueContrib = [...new Set(contributors)];
+  let html = '<div class="pressure-card">';
+  html += '<div class="pressure-arm">';
+  html += `<span class="arm-badge" style="background:${color}">${arm}</span>`;
+  html += `<span class="count">${count}</span>`;
+  html += '</div>';
+  html += '<div class="pressure-bar">';
+  html += `<div class="fill" style="width:${pct}%;background:${color}"></div>`;
+  html += '</div>';
+  html += `<div class="pressure-detail">${totalResults} total results`;
+  if (uniqueContrib.length > 0) html += ` &middot; ${uniqueContrib.join(', ')}`;
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+// ── Theme toggle ──
+const toggle = document.getElementById('theme-toggle');
+function updateToggle() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  toggle.textContent = light ? '\u263E' : '\u2600';
+}
+toggle.addEventListener('click', () => {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('kodo-bench-theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('kodo-bench-theme', 'light');
+  }
+  updateToggle();
+});
+updateToggle();
+
+// ── Init ──
+loadAll();
+setInterval(loadAll, 30000); // refresh every 30s (scheduling data is live)
+</script>
+</body>
+</html>

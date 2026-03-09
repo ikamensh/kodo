@@ -105,17 +105,25 @@ def _get_provenance() -> dict:
     global _provenance
     if _provenance is None:
         _provenance = collect_provenance()
-    return _provenance
+    # Always use fresh timestamp (the rest is cached for performance — ipinfo etc.)
+    from datetime import datetime, timezone
+    return {**_provenance, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+def _request(method: str, path: str, data: dict | None = None, timeout: int = 30) -> bytes:
+    """Send an authenticated request to the benchmark server. Returns response body."""
+    url = f"{BENCH_URL.rstrip('/')}{path}"
+    body = json.dumps(data).encode() if data is not None else None
+    req = urllib.request.Request(url, data=body, method=method)
+    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
+    if body is not None:
+        req.add_header("Content-Type", "application/json")
+    return urllib.request.urlopen(req, timeout=timeout).read()
 
 
 def _post(path: str, data: dict) -> None:
     """POST JSON to the benchmark server. Raises on HTTP errors."""
-    url = f"{BENCH_URL.rstrip('/')}{path}"
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
-    req.add_header("Content-Type", "application/json")
-    urllib.request.urlopen(req, timeout=30)
+    _request("POST", path, data)
 
 
 # ── Safe wrappers for runner integration ─────────────────────────────
@@ -212,7 +220,7 @@ def fetch_unevaluated(dataset: str) -> list[dict] | None:
         return None
     ds = dataset_key(dataset) or dataset
     try:
-        result = _get_json(f"/api/unevaluated/{ds}")
+        result = _get_json(f"/api/unevaluated/{ds}", timeout=300)
         return result.get("predictions", [])
     except Exception as exc:
         log.warning("Failed to fetch unevaluated predictions: %s", exc)
@@ -220,20 +228,10 @@ def fetch_unevaluated(dataset: str) -> list[dict] | None:
 
 
 def _post_json(path: str, data: dict) -> dict:
-    """POST JSON to the benchmark server and return parsed response."""
-    url = f"{BENCH_URL.rstrip('/')}{path}"
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
-    req.add_header("Content-Type", "application/json")
-    resp = urllib.request.urlopen(req, timeout=30)
-    return json.loads(resp.read())
+    """POST JSON and return parsed response."""
+    return json.loads(_request("POST", path, data))
 
 
 def _get_json(path: str, *, timeout: int = 60) -> dict:
-    """GET from the benchmark server and return parsed response."""
-    url = f"{BENCH_URL.rstrip('/')}{path}"
-    req = urllib.request.Request(url, method="GET")
-    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
-    resp = urllib.request.urlopen(req, timeout=timeout)
-    return json.loads(resp.read())
+    """GET and return parsed response."""
+    return json.loads(_request("GET", path, timeout=timeout))

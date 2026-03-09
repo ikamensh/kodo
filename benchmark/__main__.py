@@ -1,14 +1,12 @@
 """SWE-bench benchmark: kodo vs raw Claude Code / Cursor / Codex / Gemini.
 
-Uses SWE-bench Pro (731 tasks) by default. Pass --dataset lite for SWE-bench Lite.
-
-Arms: "claude", "cursor", "codex", "gemini", "kodo", "kodo:<team>".
+By default, connects to the central server (KODO_BENCH_URL) to receive task
+assignments and auto-detects available backends. Use --local for standalone runs.
 
 Usage:
-    uv run python -m benchmark --distribute              # server decides everything
-    uv run python -m benchmark --subset benchmark/subsets/pro-20.json
-    uv run python -m benchmark --subset benchmark/subsets/pro-20.json --arm kodo:solo --limit 2
-    uv run python -m benchmark --arm cursor --arm kodo:solo --limit 2 --skip-eval
+    uv run python -m benchmark                           # server decides everything
+    uv run python -m benchmark --local --subset benchmark/subsets/pro-20.json
+    uv run python -m benchmark --local --arm kodo:solo --limit 2 --skip-eval
 """
 
 from __future__ import annotations
@@ -155,18 +153,18 @@ def main() -> int:
         "(Requires KODO_BENCH_URL/TOKEN and Docker.)",
     )
 
-    # Distributed mode
+    # Mode
     parser.add_argument(
-        "--distribute",
+        "--local",
         action="store_true",
-        help="Let the central server decide which tasks and backends to run. "
-        "Auto-detects available backends unless --backends is given.",
+        help="Run locally instead of connecting to the central server. "
+        "Required when KODO_BENCH_URL/TOKEN are not set.",
     )
     parser.add_argument(
         "--backends",
         type=str,
         default=None,
-        help="Override backend detection for --distribute (e.g. 'claude,kodo:solo'). "
+        help="Override backend detection (e.g. 'claude,kodo:solo'). "
         "Default: auto-detect from PATH.",
     )
 
@@ -215,83 +213,34 @@ def main() -> int:
         return generate_report(workspace, run_id)
 
     # Run agents
-    import json as _json
+    import json
 
+    from benchmark.online.client import fetch_assignments, is_configured
     from benchmark.runner import run_benchmark
-    from benchmark.tasks import DATASET_LITE, DATASET_PRO, DATASET_VERIFIED, load_tasks
+    from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
     # Resolve dataset and instance_ids from --subset if provided
     instance_ids = args.instance_ids
-    _DATASET_MAP = {"pro": DATASET_PRO, "verified": DATASET_VERIFIED, "lite": DATASET_LITE}
-    dataset = _DATASET_MAP[args.dataset]
+    dataset = DATASET_MAP[args.dataset]
     if args.subset:
-        subset_data = _json.loads(args.subset.read_text())
+        subset_data = json.loads(args.subset.read_text())
         instance_ids = subset_data["instance_ids"]
         dataset = subset_data.get("dataset", dataset)
 
-    # Distributed mode: server decides what to run across all datasets
-    assignments = None
-    if args.distribute:
-        from benchmark.online.client import fetch_assignments, is_configured
+    # Mode: distribute (default when configured) vs local
+    local_mode = args.local or args.subset or args.instance_ids
+    if not local_mode and is_configured():
+        return _run_distributed(args, workspace, run_id)
 
-        if not is_configured():
-            log.error("--distribute requires KODO_BENCH_URL and KODO_BENCH_TOKEN "
-                      "environment variables to be set.")
-            return 1
-
-        # Backends: explicit --backends > explicit --arm > auto-detect
-        if args.backends:
-            dist_backends = args.backends.split(",")
-        elif args.arm:
-            dist_backends = args.arm
-        else:
-            dist_backends = detect_backends()
-            log.info("Auto-detected backends: %s", dist_backends)
-
-        # Load tasks from all datasets so server can pick across them
-        all_datasets: dict[str, list[str]] = {}
-        all_tasks: dict[str, list] = {}  # instance_id -> task
-        for ds_key, ds_name in [("pro", DATASET_PRO), ("verified", DATASET_VERIFIED)]:
-            ds_tasks = load_tasks(dataset=ds_name)
-            all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
-            for t in ds_tasks:
-                all_tasks[t.instance_id] = t
-            log.info("Loaded %d tasks from %s", len(ds_tasks), ds_key)
-
-        try:
-            server_assignments = fetch_assignments(
-                backends=dist_backends,
-                datasets=all_datasets,
-                limit=args.limit or 20,
-            )
-        except Exception as exc:
-            log.error("Failed to get assignments from %s: %s",
-                      os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
-            return 1
-
-        if not server_assignments:
-            log.info("No tasks need evaluation — all covered!")
-            return 0
-        else:
-            assignments = server_assignments
-            tasks = [all_tasks[a["instance_id"]] for a in assignments
-                     if a["instance_id"] in all_tasks]
-            arms = list({a["arm"] for a in assignments})
-            # Use the first assignment's dataset for run_benchmark (it groups by dataset)
-            ds_keys = {a.get("dataset", "pro") for a in assignments}
-            dataset = _DATASET_MAP.get(
-                next(iter(ds_keys)), DATASET_PRO) if ds_keys else DATASET_PRO
-            log.info("Server assigned %d task/arm pairs across %s (datasets: %s)",
-                     len(assignments), arms, ds_keys)
-    else:
-        tasks = load_tasks(
-            dataset=dataset,
-            limit=args.limit,
-            instance_ids=instance_ids,
-            repo_filter=args.repo,
-            language=args.language,
-            offset=args.offset,
-        )
+    # Local mode
+    tasks = load_tasks(
+        dataset=dataset,
+        limit=args.limit,
+        instance_ids=instance_ids,
+        repo_filter=args.repo,
+        language=args.language,
+        offset=args.offset,
+    )
 
     if not tasks:
         log.error("No tasks matched the filters.")
@@ -309,13 +258,84 @@ def main() -> int:
         parallel=args.parallel,
         dataset=dataset,
         seed=args.seed,
-        assignments=assignments,
     )
 
     if not args.skip_eval:
         evaluate_predictions(workspace, run_id)
 
     return generate_report(workspace, run_id)
+
+
+def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> int:
+    """Poll central server for task assignments and run them in batches."""
+    from benchmark.online.client import fetch_assignments
+    from benchmark.runner import run_benchmark
+    from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
+
+    # Backends: explicit --backends > explicit --arm > auto-detect
+    if args.backends:
+        backends = args.backends.split(",")
+    elif args.arm:
+        backends = args.arm
+    else:
+        backends = detect_backends()
+        log.info("Auto-detected backends: %s", backends)
+
+    # Load tasks from all datasets so server can pick across them
+    all_datasets: dict[str, list[str]] = {}
+    all_tasks: dict[str, list] = {}  # instance_id -> task
+    for ds_key, ds_name in [("pro", DATASET_PRO), ("verified", DATASET_VERIFIED)]:
+        ds_tasks = load_tasks(dataset=ds_name)
+        all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
+        for t in ds_tasks:
+            all_tasks[t.instance_id] = t
+        log.info("Loaded %d tasks from %s", len(ds_tasks), ds_key)
+
+    batch_size = args.limit or 20
+    total_completed = 0
+
+    while True:
+        try:
+            assignments = fetch_assignments(
+                backends=backends,
+                datasets=all_datasets,
+                limit=batch_size,
+            )
+        except Exception as exc:
+            log.error("Failed to get assignments from %s: %s",
+                      os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
+            return 1 if total_completed == 0 else 0
+
+        if not assignments:
+            if total_completed == 0:
+                log.info("No tasks need evaluation — all covered!")
+            else:
+                log.info("No more tasks. Completed %d total.", total_completed)
+            return 0
+
+        tasks = [all_tasks[a["instance_id"]] for a in assignments
+                 if a["instance_id"] in all_tasks]
+        arms = list({a["arm"] for a in assignments})
+        ds_keys = {a.get("dataset", "pro") for a in assignments}
+        dataset = DATASET_MAP.get(next(iter(ds_keys)), DATASET_PRO)
+        log.info("Server assigned %d task/arm pairs across %s (datasets: %s)",
+                 len(assignments), arms, ds_keys)
+
+        run_benchmark(
+            tasks=tasks,
+            arms=arms,
+            workspace=workspace,
+            run_id=run_id,
+            timeout=args.timeout,
+            timeout_kodo=args.timeout_kodo,
+            parallel=args.parallel,
+            dataset=dataset,
+            seed=args.seed,
+            assignments=assignments,
+        )
+        total_completed += len(tasks)
+        log.info("Batch done. %d completed so far, polling for more...",
+                 total_completed)
 
 
 if __name__ == "__main__":

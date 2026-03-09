@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kodo bench — progress</title>
+<script>
+(function() {
+  var s = localStorage.getItem('kodo-bench-theme');
+  var p = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if ((s || (p ? 'dark' : 'light')) === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+</script>
+<style>
+/* ── Theme (shared with main viewer) ── */
+:root {
+  --bg: #0d1117; --bg2: #161b22; --surface: #1c2128; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+  --accent: #58a6ff; --accent2: #388bfd;
+  --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #a371f7;
+  --green-bg: rgba(63,185,80,0.12); --red-bg: rgba(248,81,73,0.12);
+  --orange-bg: rgba(210,153,34,0.12); --accent-bg: rgba(88,166,255,0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.4); --code-bg: #161b22;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --bg2: #ffffff; --surface: #ffffff; --border: #d0d7de;
+  --text: #1f2328; --text2: #656d76; --text3: #b1bac4;
+  --accent: #0969da; --accent2: #0550ae;
+  --green: #1a7f37; --red: #cf222e; --orange: #9a6700; --purple: #8250df;
+  --green-bg: rgba(26,127,55,0.1); --red-bg: rgba(207,34,46,0.1);
+  --orange-bg: rgba(154,103,0,0.1); --accent-bg: rgba(9,105,218,0.06);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08); --code-bg: #f6f8fa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
+
+/* ── Layout ── */
+header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--bg2); }
+header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+header h1 a { color: var(--text); text-decoration: none; }
+header h1 a:hover { color: var(--accent); }
+header .breadcrumb { color: var(--text2); font-size: 17px; font-weight: 700; }
+header .stats { color: var(--text2); font-size: 12px; margin-left: auto; }
+.theme-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; color: var(--text2); font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+main { padding: 32px 24px; max-width: 1100px; margin: 0 auto; }
+.loading { text-align: center; padding: 64px; color: var(--text2); font-size: 14px; }
+
+/* ── Summary cards ── */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 6px; }
+.card .value { font-size: 28px; font-weight: 700; }
+.card .sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+/* ── Filter bar ── */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.filter-bar select { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+.filter-bar .refresh-info { margin-left: auto; font-size: 11px; color: var(--text3); }
+
+/* ── Timeline ── */
+.timeline { list-style: none; }
+.tl-item { display: grid; grid-template-columns: 140px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; transition: background .1s; }
+.tl-item:hover { background: var(--bg2); }
+.tl-time { color: var(--text2); font-size: 12px; white-space: nowrap; }
+.tl-body { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tl-task { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-arm { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; }
+.tl-ds { font-size: 11px; color: var(--text3); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.tl-meta { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.status-badge.resolved { background: var(--green-bg); color: var(--green); }
+.status-badge.failed { background: var(--red-bg); color: var(--red); }
+.status-badge.error { background: var(--orange-bg); color: var(--orange); }
+.status-badge.timeout { background: var(--orange-bg); color: var(--orange); }
+.status-badge.ok { background: var(--accent-bg); color: var(--accent); }
+.status-badge.partial { background: var(--accent-bg); color: var(--purple); }
+.tl-contributor { font-size: 11px; color: var(--text3); white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.tl-elapsed { font-size: 11px; color: var(--text3); white-space: nowrap; }
+
+/* ── Show more ── */
+.show-more { display: block; width: 100%; padding: 12px; text-align: center; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 500; margin-top: 16px; }
+.show-more:hover { border-color: var(--accent); }
+
+/* ── Contributor list ── */
+.contrib-section { margin-top: 32px; }
+.contrib-section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 12px; font-weight: 600; }
+.contrib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.contrib-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.contrib-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contrib-count { color: var(--text2); font-size: 12px; flex-shrink: 0; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  main { padding: 16px; }
+  .tl-item { grid-template-columns: 1fr; gap: 4px; }
+  .tl-time { order: -1; }
+  .tl-meta { justify-content: flex-start; }
+}
+*, header, .card, .tl-item, .contrib-card, .filter-bar select { transition: background .2s, border-color .2s, color .2s; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><a href="/">kodo bench</a> <span class="breadcrumb">/ progress</span></h1>
+  <div style="display:flex;gap:12px;"><a href="/scheduling.html" style="font-size:12px;color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Scheduling &rarr;</a></div>
+  <span class="stats" id="header-stats"></span>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
+</header>
+
+<main id="main"><div class="loading">Loading...</div></main>
+
+<script>
+// ── State ──
+let allEvents = [];
+let visibleCount = 100;
+let filterDataset = 'all';
+let filterArm = 'all';
+let allData = {};
+
+// ── Palette ──
+const ARM_COLORS = {
+  claude: '#a371f7', cursor: '#f0883e', codex: '#7ee787', gemini: '#d29922', kodo: '#58a6ff'
+};
+function armColor(arm) {
+  for (const [k, v] of Object.entries(ARM_COLORS)) { if (arm.startsWith(k)) return v; }
+  return '#8b949e';
+}
+
+// ── Time helpers ──
+function relativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const now = Date.now();
+  const diff = (now - d.getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+  return d.toLocaleDateString();
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatElapsed(s) {
+  if (!s && s !== 0) return '';
+  if (s < 60) return Math.round(s) + 's';
+  if (s < 3600) return Math.round(s / 60) + 'm';
+  return (s / 3600).toFixed(1) + 'h';
+}
+
+// ── Data loading ──
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+async function loadAll() {
+  const [verified, pro] = await Promise.all([
+    fetchJSON('data/verified/index.json'),
+    fetchJSON('data/pro/index.json'),
+  ]);
+  allData = { verified, pro };
+
+  // Flatten results into timeline events
+  allEvents = [];
+  for (const [ds, data] of Object.entries(allData)) {
+    if (!data || !data.results) continue;
+    for (const [iid, arms] of Object.entries(data.results)) {
+      for (const [arm, result] of Object.entries(arms)) {
+        const ts = (result.provenance && result.provenance.timestamp) || '';
+        allEvents.push({
+          timestamp: ts,
+          instance_id: iid,
+          arm: arm,
+          dataset: ds,
+          status: result.resolved !== undefined ? (result.resolved ? 'resolved' : 'failed') : result.status || 'ok',
+          eval_status: result.eval_status || false,
+          elapsed_s: result.elapsed_s || 0,
+          patch_len: result.patch_len || 0,
+          contributor: result.provenance ? (result.provenance.user || '') : '',
+          host: result.provenance ? (result.provenance.host || '') : '',
+          run_id: result.run_id || '',
+        });
+      }
+    }
+  }
+
+  // Sort newest first
+  allEvents.sort((a, b) => {
+    if (!a.timestamp && !b.timestamp) return 0;
+    if (!a.timestamp) return 1;
+    if (!b.timestamp) return -1;
+    return b.timestamp.localeCompare(a.timestamp);
+  });
+
+  render();
+}
+
+// ── Rendering ──
+function getFilteredEvents() {
+  return allEvents.filter(e => {
+    if (filterDataset !== 'all' && e.dataset !== filterDataset) return false;
+    if (filterArm !== 'all' && !e.arm.startsWith(filterArm)) return false;
+    return true;
+  });
+}
+
+function render() {
+  const events = getFilteredEvents();
+  const visible = events.slice(0, visibleCount);
+
+  // Summary stats
+  const totalResults = allEvents.length;
+  const last24h = allEvents.filter(e => {
+    if (!e.timestamp) return false;
+    return (Date.now() - new Date(e.timestamp).getTime()) < 86400000;
+  }).length;
+  const contributors = new Set(allEvents.map(e => e.contributor).filter(Boolean));
+  const uniqueArms = new Set(allEvents.map(e => e.arm));
+  const evaluated = allEvents.filter(e => e.eval_status).length;
+
+  // Header stats
+  const lastUpdate = allData.verified?.meta?.last_updated || allData.pro?.meta?.last_updated || '';
+  document.getElementById('header-stats').textContent = lastUpdate ? 'Updated ' + relativeTime(lastUpdate) : '';
+
+  // Build arm filter options
+  const armOptions = ['all', ...Array.from(new Set(
+    allEvents.map(e => e.arm.includes(':') ? e.arm.split(':')[0] : e.arm)
+  )).sort()];
+
+  let html = '';
+
+  // Summary cards
+  html += '<div class="summary">';
+  html += `<div class="card"><div class="label">Total Results</div><div class="value">${totalResults}</div><div class="sub">${evaluated} evaluated</div></div>`;
+  html += `<div class="card"><div class="label">Last 24 Hours</div><div class="value">${last24h}</div><div class="sub">new results</div></div>`;
+  html += `<div class="card"><div class="label">Contributors</div><div class="value">${contributors.size}</div><div class="sub">${Array.from(contributors).slice(0, 3).join(', ') || 'n/a'}</div></div>`;
+  html += `<div class="card"><div class="label">Backends</div><div class="value">${uniqueArms.size}</div><div class="sub">${Array.from(uniqueArms).slice(0, 4).join(', ')}</div></div>`;
+  html += '</div>';
+
+  // Filters
+  html += '<div class="filter-bar">';
+  html += '<select id="filter-ds">';
+  html += '<option value="all"' + (filterDataset === 'all' ? ' selected' : '') + '>All datasets</option>';
+  html += '<option value="verified"' + (filterDataset === 'verified' ? ' selected' : '') + '>Verified</option>';
+  html += '<option value="pro"' + (filterDataset === 'pro' ? ' selected' : '') + '>Pro</option>';
+  html += '</select>';
+  html += '<select id="filter-arm">';
+  for (const a of armOptions) {
+    html += `<option value="${a}"${filterArm === a ? ' selected' : ''}>${a === 'all' ? 'All backends' : a}</option>`;
+  }
+  html += '</select>';
+  html += '<span class="refresh-info">Auto-refreshes every 60s</span>';
+  html += '</div>';
+
+  // Timeline
+  html += '<ul class="timeline">';
+  if (visible.length === 0) {
+    html += '<li style="padding: 32px; text-align: center; color: var(--text2);">No results yet.</li>';
+  }
+  for (const e of visible) {
+    const statusClass = e.status;
+    const statusLabel = e.eval_status
+      ? (e.status === 'resolved' ? 'resolved' : 'failed')
+      : e.status;
+    const contribText = e.contributor ? (e.contributor + (e.host ? '@' + e.host.split('.')[0] : '')) : '';
+
+    html += '<li class="tl-item">';
+    html += `<span class="tl-time" title="${formatTime(e.timestamp)}">${relativeTime(e.timestamp)}</span>`;
+    html += '<div class="tl-body">';
+    html += `<span class="tl-arm" style="background:${armColor(e.arm)}">${e.arm}</span>`;
+    html += `<span class="tl-task" title="${e.instance_id}">${e.instance_id}</span>`;
+    html += `<span class="tl-ds">${e.dataset}</span>`;
+    html += '</div>';
+    html += '<div class="tl-meta">';
+    html += `<span class="status-badge ${statusClass}">${statusLabel}</span>`;
+    if (e.elapsed_s) html += `<span class="tl-elapsed">${formatElapsed(e.elapsed_s)}</span>`;
+    if (contribText) html += `<span class="tl-contributor" title="${contribText}">${contribText}</span>`;
+    html += '</div>';
+    html += '</li>';
+  }
+  html += '</ul>';
+
+  if (events.length > visibleCount) {
+    html += `<button class="show-more" id="show-more">Show more (${events.length - visibleCount} remaining)</button>`;
+  }
+
+  // Contributors section
+  if (contributors.size > 0) {
+    const contribCounts = {};
+    for (const e of allEvents) {
+      const key = e.contributor || 'unknown';
+      contribCounts[key] = (contribCounts[key] || 0) + 1;
+    }
+    const sorted = Object.entries(contribCounts).sort((a, b) => b[1] - a[1]);
+
+    html += '<div class="contrib-section">';
+    html += '<h2>Contributors</h2>';
+    html += '<div class="contrib-grid">';
+    for (const [name, count] of sorted) {
+      html += `<div class="contrib-card"><span class="contrib-name">${name}</span><span class="contrib-count">${count} results</span></div>`;
+    }
+    html += '</div></div>';
+  }
+
+  document.getElementById('main').innerHTML = html;
+
+  // Wire up filters
+  document.getElementById('filter-ds').addEventListener('change', function() {
+    filterDataset = this.value;
+    visibleCount = 100;
+    render();
+  });
+  document.getElementById('filter-arm').addEventListener('change', function() {
+    filterArm = this.value;
+    visibleCount = 100;
+    render();
+  });
+
+  const showMoreBtn = document.getElementById('show-more');
+  if (showMoreBtn) {
+    showMoreBtn.addEventListener('click', function() {
+      visibleCount += 100;
+      render();
+    });
+  }
+}
+
+// ── Theme toggle ──
+const toggle = document.getElementById('theme-toggle');
+function updateToggle() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  toggle.textContent = light ? '\u263E' : '\u2600';
+}
+toggle.addEventListener('click', () => {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('kodo-bench-theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('kodo-bench-theme', 'light');
+  }
+  updateToggle();
+});
+updateToggle();
+
+// ── Init ──
+loadAll();
+setInterval(loadAll, 60000);
+</script>
+</body>
+</html>
