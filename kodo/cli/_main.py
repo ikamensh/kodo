@@ -301,15 +301,10 @@ def _main_inner() -> None:
     )
     skip_prompts = non_interactive or args.yes
 
-    if not args.json:
-        _print_banner()
-
     if non_interactive and args.resume is not None:
         _fail("--resume cannot be used with --goal/--goal-file/--improve")
 
     project_dir = Path(args.project).resolve()
-    if not args.json:
-        print(f"  Project: {project_dir}")
 
     # --debug: skip intake, let normal flow handle the rest
     if args.debug:
@@ -333,6 +328,9 @@ def _main_inner() -> None:
                 _fail(f"Could not parse run from {log_file}")
             state = _parsed
 
+        if not args.json:
+            _print_banner()
+            print(f"  Project: {project_dir}")
         print(f"  Goal: {state.goal[:80]}{'...' if len(state.goal) > 80 else ''}")
         print(f"  Cycles completed: {state.completed_cycles}/{state.max_cycles}")
         if not skip_prompts:
@@ -375,6 +373,9 @@ def _main_inner() -> None:
         else:
             _fail("No goal provided. Use --goal, --goal-file, or --improve.")
     else:
+        if not args.json:
+            _print_banner()
+            print(f"  Project: {project_dir}")
         goal_file = next(
             (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None,
         )
@@ -396,6 +397,11 @@ def _main_inner() -> None:
                     goal_text = get_goal()
         else:
             goal_text = get_goal()
+
+    # Print banner after validation passes (non-interactive)
+    if non_interactive and not args.json:
+        _print_banner()
+        print(f"  Project: {project_dir}")
 
     # 2. Select parameters
     if non_interactive:
