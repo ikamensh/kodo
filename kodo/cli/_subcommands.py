@@ -417,8 +417,8 @@ def _cmd_teams_auto(mode_name: str) -> None:
     config = {
         "name": mode_name,
         "description": base_config.get("description", ""),
-        "max_exchanges": base_config.get("max_exchanges", 20),
-        "max_cycles": base_config.get("max_cycles", 1),
+        "max_exchanges": base_config.get("max_exchanges", 30),
+        "max_cycles": base_config.get("max_cycles", 5),
         "verifiers": verifiers,
         "agents": agents,
     }
@@ -591,11 +591,11 @@ def _cmd_teams_add(name: str) -> None:
     if description is None:
         _cancel()
 
-    max_exchanges = questionary.text("Max exchanges:", default="20").ask()
+    max_exchanges = questionary.text("Max exchanges:", default="30").ask()
     if max_exchanges is None:
         _cancel()
 
-    max_cycles = questionary.text("Max cycles:", default="1").ask()
+    max_cycles = questionary.text("Max cycles:", default="5").ask()
     if max_cycles is None:
         _cancel()
 
@@ -768,7 +768,7 @@ def _cmd_teams_edit(name: str) -> None:
 
             exc = questionary.text(
                 "Max exchanges:",
-                default=str(config.get("max_exchanges", 20)),
+                default=str(config.get("max_exchanges", 30)),
             ).ask()
             if exc is not None:
                 try:
@@ -779,7 +779,7 @@ def _cmd_teams_edit(name: str) -> None:
 
             cyc = questionary.text(
                 "Max cycles:",
-                default=str(config.get("max_cycles", 1)),
+                default=str(config.get("max_cycles", 5)),
             ).ask()
             if cyc is not None:
                 try:

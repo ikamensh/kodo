@@ -1,6 +1,8 @@
 {
   "name": "quick",
   "description": "Fast + smart worker(s) solving one issue, orchestrator as quality gate",
+  "max_exchanges": 20,
+  "max_cycles": 1,
   "verifiers": {
     "testers": [],
     "browser_testers": [],
