@@ -163,3 +163,77 @@ def maybe_upload_run(run_id: str, **kwargs) -> None:
         upload_run(run_id, **kwargs)
     except Exception as exc:
         log.debug("Online run registration failed: %s", exc)
+
+
+# ── Task distribution ────────────────────────────────────────────────
+
+
+def fetch_assignments(
+    dataset: str,
+    backends: list[str],
+    *,
+    instance_ids: list[str] | None = None,
+    limit: int = 20,
+    contributor: str = "",
+) -> list[dict] | None:
+    """Fetch task assignments from the central server.
+
+    Returns list of {"instance_id": ..., "arm": ...} dicts, or None
+    if the server is unreachable or unconfigured.
+    """
+    if not is_configured():
+        return None
+
+    if not contributor:
+        prov = _get_provenance()
+        contributor = f"{prov.get('user', 'unknown')}@{prov.get('host', 'unknown')}"
+
+    try:
+        result = _post_json("/api/next-tasks", {
+            "dataset": dataset_key(dataset) or dataset,
+            "backends": backends,
+            "instance_ids": instance_ids or [],
+            "limit": limit,
+            "contributor": contributor,
+        })
+        return result.get("assignments", [])
+    except Exception as exc:
+        log.warning("Failed to fetch assignments from server: %s", exc)
+        return None
+
+
+def fetch_unevaluated(dataset: str) -> list[dict] | None:
+    """Fetch predictions that need evaluation from the central server.
+
+    Returns list of {"instance_id": ..., "arm": ..., "patch": ...} dicts,
+    or None if the server is unreachable or unconfigured.
+    """
+    if not is_configured():
+        return None
+    ds = dataset_key(dataset) or dataset
+    try:
+        result = _get_json(f"/api/unevaluated/{ds}")
+        return result.get("predictions", [])
+    except Exception as exc:
+        log.warning("Failed to fetch unevaluated predictions: %s", exc)
+        return None
+
+
+def _post_json(path: str, data: dict) -> dict:
+    """POST JSON to the benchmark server and return parsed response."""
+    url = f"{BENCH_URL.rstrip('/')}{path}"
+    body = json.dumps(data).encode()
+    req = urllib.request.Request(url, data=body, method="POST")
+    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
+    req.add_header("Content-Type", "application/json")
+    resp = urllib.request.urlopen(req, timeout=30)
+    return json.loads(resp.read())
+
+
+def _get_json(path: str, *, timeout: int = 60) -> dict:
+    """GET from the benchmark server and return parsed response."""
+    url = f"{BENCH_URL.rstrip('/')}{path}"
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    return json.loads(resp.read())

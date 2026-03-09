@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from pathlib import Path
 
 log = logging.getLogger("benchmark")
@@ -69,3 +70,25 @@ def setup_logging(verbose: bool = False) -> None:
         datefmt="%H:%M:%S",
         level=level,
     )
+
+
+# CLI tool name → arm name(s).  kodo is always available (it's this project).
+_BACKEND_CLI_MAP: list[tuple[str, list[str]]] = [
+    ("claude", ["claude"]),
+    ("cursor-agent", ["cursor"]),
+    ("codex", ["codex"]),
+    ("gemini", ["gemini"]),
+]
+
+
+def detect_backends() -> list[str]:
+    """Auto-detect which benchmark backends are available on this machine.
+
+    Checks PATH for each CLI tool.  ``kodo`` is always included since it's
+    the project itself (runs via ``uv run kodo``).
+    """
+    found: list[str] = ["kodo"]
+    for cli_name, arm_names in _BACKEND_CLI_MAP:
+        if shutil.which(cli_name):
+            found.extend(arm_names)
+    return found

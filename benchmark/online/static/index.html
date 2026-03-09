@@ -5,135 +5,158 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kodo bench</title>
 <script>
-// Apply theme before render to prevent flash of wrong theme
 (function() {
-  var stored = localStorage.getItem('kodo-bench-theme');
-  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  var theme = stored || (prefersDark ? 'dark' : 'light');
-  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  var s = localStorage.getItem('kodo-bench-theme');
+  var p = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if ((s || (p ? 'dark' : 'light')) === 'light') document.documentElement.setAttribute('data-theme', 'light');
 })();
 </script>
 <style>
-/* ── Theme variables ── */
+/* ── Theme ── */
 :root {
-  --bg: #0d1117; --surface: #161b22; --border: #30363d;
-  --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
-  --green: #3fb950; --red: #f85149; --orange: #d29922;
-  --gray: #21262d; --gray2: #30363d;
-  --badge-green-bg: rgba(63,185,80,0.15); --badge-red-bg: rgba(248,81,73,0.15);
-  --badge-orange-bg: rgba(210,153,34,0.15); --badge-accent-bg: rgba(88,166,255,0.1);
-  --shadow: 0 1px 3px rgba(0,0,0,0.3);
-  --code-bg: #1c2128;
+  --bg: #0d1117; --bg2: #161b22; --surface: #1c2128; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+  --accent: #58a6ff; --accent2: #388bfd;
+  --green: #3fb950; --red: #f85149; --orange: #d29922; --purple: #a371f7;
+  --green-bg: rgba(63,185,80,0.12); --red-bg: rgba(248,81,73,0.12);
+  --orange-bg: rgba(210,153,34,0.12); --accent-bg: rgba(88,166,255,0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.4); --code-bg: #161b22;
 }
 [data-theme="light"] {
-  --bg: #f6f8fa; --surface: #ffffff; --border: #d0d7de;
-  --text: #1f2328; --text2: #656d76; --accent: #0969da;
-  --green: #1a7f37; --red: #cf222e; --orange: #9a6700;
-  --gray: #eaeef2; --gray2: #d0d7de;
-  --badge-green-bg: rgba(26,127,55,0.12); --badge-red-bg: rgba(207,34,46,0.12);
-  --badge-orange-bg: rgba(154,103,0,0.12); --badge-accent-bg: rgba(9,105,218,0.08);
-  --shadow: 0 1px 3px rgba(0,0,0,0.1);
-  --code-bg: #eaeef2;
+  --bg: #f6f8fa; --bg2: #ffffff; --surface: #ffffff; --border: #d0d7de;
+  --text: #1f2328; --text2: #656d76; --text3: #b1bac4;
+  --accent: #0969da; --accent2: #0550ae;
+  --green: #1a7f37; --red: #cf222e; --orange: #9a6700; --purple: #8250df;
+  --green-bg: rgba(26,127,55,0.1); --red-bg: rgba(207,34,46,0.1);
+  --orange-bg: rgba(154,103,0,0.1); --accent-bg: rgba(9,105,218,0.06);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08); --code-bg: #f6f8fa;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); transition: background 0.2s, color 0.2s; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); transition: background .2s, color .2s; }
 
-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
-header h1 { font-size: 18px; font-weight: 600; }
-header .stats { color: var(--text2); font-size: 13px; margin-left: auto; }
+/* ── Layout ── */
+header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--bg2); }
+header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+header .stats { color: var(--text2); font-size: 12px; margin-left: auto; }
+.theme-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; color: var(--text2); font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
 
-.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 24px; }
-.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 14px; }
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+nav { display: flex; align-items: center; border-bottom: 1px solid var(--border); padding: 0 24px; background: var(--bg2); gap: 32px; }
+.ds-tabs, .v-tabs { display: flex; gap: 0; }
+.ds-tabs { margin-right: auto; }
+.ds-tab, .v-tab { padding: 10px 16px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 13px; font-weight: 500; background: none; border-top: none; border-left: none; border-right: none; }
+.ds-tab:hover, .v-tab:hover { color: var(--text); }
+.ds-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.v-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
-main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+main { padding: 32px 24px; max-width: 1200px; margin: 0 auto; }
+.loading { text-align: center; padding: 64px; color: var(--text2); font-size: 14px; }
 
-/* Summary cards */
-.summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; min-width: 180px; box-shadow: var(--shadow); transition: background 0.2s, border-color 0.2s; }
-.card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
-.card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
-.card .sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+/* ── Leaderboard ── */
+.lb-section { margin-bottom: 40px; }
+.lb-section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 20px; font-weight: 600; }
+.lb-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; padding: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; transition: border-color .15s; }
+.lb-row:hover { border-color: var(--accent); }
+.lb-row.is-kodo { border-left: 3px solid var(--accent); }
+.lb-rank { font-size: 14px; color: var(--text3); width: 20px; text-align: center; font-weight: 600; }
+.lb-name { width: 120px; font-size: 15px; font-weight: 600; flex-shrink: 0; }
+.lb-bar-track { flex: 1; height: 28px; background: var(--bg); border-radius: 4px; overflow: hidden; position: relative; }
+.lb-bar-fill { height: 100%; border-radius: 4px; transition: width .4s ease; }
+.lb-rate { font-size: 22px; font-weight: 700; width: 80px; text-align: right; }
+.lb-sub { font-size: 12px; color: var(--text2); width: 80px; text-align: right; }
 
-/* Task grid */
-.grid-section { margin-bottom: 32px; }
-.grid-section h3 { font-size: 14px; color: var(--text2); margin-bottom: 8px; }
-.grid-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.grid-header h2 { font-size: 16px; }
-.grid-header .rate { font-size: 14px; color: var(--text2); }
+/* ── H2H ── */
+.h2h-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.h2h-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.h2h-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.h2h-subtitle { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+.h2h-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+.h2h-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #fff; min-width: 2px; }
+.h2h-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text2); flex-wrap: wrap; }
+.h2h-legend span { display: flex; align-items: center; gap: 4px; }
+.h2h-legend .dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.h2h-net { font-size: 13px; font-weight: 600; margin-top: 8px; }
+.h2h-net.positive { color: var(--green); }
+.h2h-net.negative { color: var(--red); }
+.h2h-net.neutral { color: var(--text2); }
 
-.task-grid { display: flex; flex-wrap: wrap; gap: 2px; }
-.task-cell {
-  width: 14px; height: 14px; border-radius: 2px;
-  cursor: pointer; transition: transform 0.1s;
-  position: relative;
-}
-.task-cell:hover { transform: scale(1.8); z-index: 10; }
-.task-cell.resolved { background: var(--green); }
-.task-cell.failed { background: var(--red); }
-.task-cell.error { background: var(--orange); }
-.task-cell.not-evaluated { background: var(--gray); border: 1px solid var(--gray2); }
-.task-cell.not-run { background: var(--bg); border: 1px solid var(--gray2); }
+/* ── Toggle ── */
+.toggle-row { margin-top: 8px; font-size: 12px; color: var(--text2); }
+.toggle-row label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.toggle-row input { accent-color: var(--accent); }
 
-.legend { display: flex; gap: 16px; margin: 16px 0; font-size: 12px; color: var(--text2); }
-.legend-item { display: flex; align-items: center; gap: 4px; }
-.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+/* ── Task Map ── */
+.arm-pills { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.arm-pill { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; border: 2px solid var(--border); background: var(--bg2); color: var(--text2); transition: all .15s; user-select: none; }
+.arm-pill:hover { border-color: var(--text2); color: var(--text); }
+.arm-pill.active { color: #fff; }
 
-/* Results table */
-.table-section { margin-top: 32px; }
+.map-legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 12px; color: var(--text2); flex-wrap: wrap; }
+.map-legend-item { display: flex; align-items: center; gap: 5px; }
+.map-legend-dot { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+
+.repo-group { margin-bottom: 16px; }
+.repo-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.repo-label .repo-stats { font-weight: 400; }
+.repo-cells { display: flex; flex-wrap: wrap; gap: 3px; }
+.map-cell { width: 16px; height: 16px; border-radius: 2px; cursor: pointer; transition: transform .1s; position: relative; }
+.map-cell:hover { transform: scale(2); z-index: 10; }
+.map-cell.c-resolved { background: var(--green); }
+.map-cell.c-failed { background: var(--red); }
+.map-cell.c-error { background: var(--orange); }
+.map-cell.c-noeval { background: var(--bg); border: 1px solid var(--border); }
+.map-cell.c-notrun { background: transparent; border: 1px dashed var(--border); }
+.map-cell.c-both { background: var(--green); }
+.map-cell.c-only-a { background: var(--accent); }
+.map-cell.c-only-b { background: var(--orange); }
+.map-cell.c-neither { background: var(--red); opacity: 0.5; }
+
+/* ── Tooltip ── */
+#tooltip { position: absolute; background: var(--surface); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 12px; pointer-events: none; z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; max-width: 320px; line-height: 1.5; }
+
+/* ── Insights ── */
+.insight-section { margin-bottom: 32px; }
+.insight-section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 12px; font-weight: 600; }
+.repo-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.repo-table th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; }
+.repo-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.repo-table tr:hover td { background: var(--bg2); }
+.mini-bar { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; min-width: 60px; }
+.mini-bar-fill { height: 100%; border-radius: 3px; }
+.insight-list { list-style: none; font-size: 13px; }
+.insight-list li { padding: 4px 0; display: flex; align-items: center; gap: 8px; }
+.insight-list code { font-size: 12px; background: var(--code-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); }
+.insight-badge { padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+
+/* ── Details table ── */
 .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.filter-bar select, .filter-bar input {
-  background: var(--surface); border: 1px solid var(--border);
-  color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px;
-}
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; cursor: pointer; user-select: none; }
-th:hover { color: var(--text); }
-td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
-tr:hover td { background: var(--surface); }
-tr.expanded td { background: var(--surface); border-bottom: none; }
-.expand-row td { background: var(--surface); padding: 12px 24px; }
+.filter-bar select, .filter-bar input { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+table.detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.detail-table th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; cursor: pointer; user-select: none; }
+table.detail-table th:hover { color: var(--text); }
+table.detail-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+table.detail-table tr:hover td { background: var(--bg2); }
+table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none; }
+.expand-row td { background: var(--bg2); padding: 12px 24px; }
 .patch-view { background: var(--code-bg); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); }
 .patch-view .add { color: var(--green); }
 .patch-view .del { color: var(--red); }
 .patch-view .hunk { color: var(--accent); }
+.status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.status-badge.resolved { background: var(--green-bg); color: var(--green); }
+.status-badge.failed { background: var(--red-bg); color: var(--red); }
+.status-badge.error { background: var(--orange-bg); color: var(--orange); }
+.status-badge.ok { background: var(--accent-bg); color: var(--accent); }
+.status-badge.not-run { color: var(--text3); }
 
-.status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-.status-badge.resolved { background: var(--badge-green-bg); color: var(--green); }
-.status-badge.failed { background: var(--badge-red-bg); color: var(--red); }
-.status-badge.error { background: var(--badge-orange-bg); color: var(--orange); }
-.status-badge.ok { background: var(--badge-accent-bg); color: var(--accent); }
-.status-badge.pending { background: var(--gray); color: var(--text2); }
-
-.loading { text-align: center; padding: 48px; color: var(--text2); }
-
-/* Bar chart */
-.bar-chart { margin: 16px 0; }
-.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.bar-label { width: 120px; text-align: right; font-size: 13px; color: var(--text2); flex-shrink: 0; }
-.bar-track { flex: 1; height: 24px; background: var(--gray); border-radius: 4px; overflow: hidden; display: flex; }
-.bar-fill { height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; min-width: 24px; color: #fff; }
-.bar-fill.resolved { background: var(--green); }
-.bar-fill.failed { background: var(--red); }
-.bar-fill.error { background: var(--orange); }
-.bar-value { width: 48px; font-size: 13px; color: var(--text2); }
-
-/* Theme toggle */
-.theme-toggle {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-  width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; font-size: 18px; line-height: 1; color: var(--text2);
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-  flex-shrink: 0;
-}
-.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
-.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* Smooth transitions for themed elements */
-header, .tabs, .tab, .filter-bar select, .filter-bar input,
-.expand-row td, .bar-track, .status-badge, .legend, th, td {
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
+/* ── Shared ── */
+*, header, nav, .lb-row, .h2h-card, .arm-pill, .filter-bar select, .filter-bar input, th, td { transition: background .2s, border-color .2s, color .2s; }
+@media (max-width: 768px) {
+  main { padding: 16px; }
+  .lb-name { width: 80px; font-size: 13px; }
+  .lb-rate { font-size: 18px; width: 60px; }
+  .h2h-grid { grid-template-columns: 1fr; }
+  .map-cell { width: 12px; height: 12px; }
 }
 </style>
 </head>
@@ -142,292 +165,563 @@ header, .tabs, .tab, .filter-bar select, .filter-bar input,
 <header>
   <h1>kodo bench</h1>
   <span class="stats" id="header-stats"></span>
-  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark mode"></button>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
 </header>
 
-<div class="tabs" id="tabs">
-  <div class="tab active" data-dataset="verified">SWE-bench Verified</div>
-  <div class="tab" data-dataset="pro">SWE-bench Pro</div>
-</div>
+<nav>
+  <div class="ds-tabs" id="ds-tabs">
+    <button class="ds-tab active" data-ds="verified">SWE-bench Verified</button>
+    <button class="ds-tab" data-ds="pro">SWE-bench Pro</button>
+  </div>
+  <div class="v-tabs" id="v-tabs">
+    <button class="v-tab active" data-view="leaderboard">Leaderboard</button>
+    <button class="v-tab" data-view="taskmap">Task Map</button>
+    <button class="v-tab" data-view="insights">Insights</button>
+    <button class="v-tab" data-view="details">Details</button>
+  </div>
+  <a href="/progress.html" style="margin-left:12px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Progress &rarr;</a>
+</nav>
 
-<main id="main">
-  <div class="loading">Loading...</div>
-</main>
+<main id="main"><div class="loading">Loading...</div></main>
+<div id="tooltip"></div>
 
 <script>
-const DATA_BASE = 'data';
+// ── State ──
 let currentDataset = 'verified';
+let currentView = 'leaderboard';
+let showAllKodo = false;
+let activeMapArms = [];
 let allData = {};
+let sortCol = '', sortAsc = true;
+
+// ── Palette ──
+const KODO_COLOR = '#58a6ff';
+const COMPETITOR_COLORS = { cursor: '#f0883e', claude: '#a371f7', codex: '#7ee787', gemini: '#d29922' };
+
+function armColor(arm) {
+  if (arm.startsWith('kodo')) return KODO_COLOR;
+  for (const [k, v] of Object.entries(COMPETITOR_COLORS)) { if (arm.startsWith(k)) return v; }
+  return '#8b949e';
+}
+
+function displayName(arm) {
+  if (arm.startsWith('kodo')) {
+    if (!showAllKodo) return 'Kodo';
+    if (arm === 'kodo') return 'Kodo';
+    if (arm === 'kodo:solo') return 'Kodo Solo';
+    if (arm === 'kodo:solo+opus') return 'Kodo Opus';
+    return arm.replace('kodo:', 'Kodo ');
+  }
+  const m = { claude: 'Claude Code', cursor: 'Cursor', codex: 'Codex', gemini: 'Gemini CLI' };
+  return m[arm] || arm;
+}
+
+// ── Data helpers ──
+
+function armStats(data, arm) {
+  const s = { resolved: 0, failed: 0, error: 0, run: 0, evaluated: 0 };
+  for (const t of data.tasks) {
+    const r = data.results[t.instance_id]?.[arm];
+    if (!r) continue;
+    s.run++;
+    if (r.eval_status) {
+      s.evaluated++;
+      if (r.resolved) s.resolved++;
+      else s.failed++;
+    }
+    if (r.status === 'error') s.error++;
+  }
+  return s;
+}
+
+function resolveRate(s) {
+  return s.evaluated > 0 ? s.resolved / s.evaluated : 0;
+}
+
+function getBestKodo(data) {
+  const kodo = (data.arms || []).filter(a => a.startsWith('kodo'));
+  if (kodo.length === 0) return null;
+  let best = kodo[0], bestR = -1;
+  for (const a of kodo) {
+    const r = resolveRate(armStats(data, a));
+    if (r > bestR) { bestR = r; best = a; }
+  }
+  return best;
+}
+
+function visibleArms(data) {
+  const arms = data.arms || [];
+  if (showAllKodo || arms.filter(a => a.startsWith('kodo')).length <= 1) return arms;
+  const best = getBestKodo(data);
+  return arms.filter(a => !a.startsWith('kodo') || a === best);
+}
+
+function headToHead(data, a, b) {
+  let onlyA = 0, onlyB = 0, both = 0, neither = 0;
+  for (const t of data.tasks) {
+    const ra = data.results[t.instance_id]?.[a];
+    const rb = data.results[t.instance_id]?.[b];
+    if (!ra?.eval_status || !rb?.eval_status) continue;
+    const aw = !!ra.resolved, bw = !!rb.resolved;
+    if (aw && bw) both++;
+    else if (aw) onlyA++;
+    else if (bw) onlyB++;
+    else neither++;
+  }
+  return { onlyA, onlyB, both, neither, total: onlyA + onlyB + both + neither };
+}
+
+function groupByRepo(tasks) {
+  const g = {};
+  for (const t of tasks) {
+    const repo = t.instance_id.split('__')[0].replace(/_/g, '/');
+    (g[repo] ??= []).push(t);
+  }
+  return Object.entries(g).sort((a, b) => b[1].length - a[1].length);
+}
 
 // ── Init ──
 
 async function init() {
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      currentDataset = tab.dataset.dataset;
-      render();
-    });
-  });
+  document.querySelectorAll('.ds-tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.ds-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentDataset = t.dataset.ds;
+    activeMapArms = defaultMapArms(allData[currentDataset]);
+    render();
+  }));
+
+  document.querySelectorAll('.v-tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.v-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentView = t.dataset.view;
+    render();
+  }));
 
   try {
-    const [verifiedIdx, proIdx] = await Promise.all([
-      fetchJSON(`${DATA_BASE}/verified/index.json`),
-      fetchJSON(`${DATA_BASE}/pro/index.json`),
+    const [v, p] = await Promise.all([
+      fetchJSON('data/verified/index.json'),
+      fetchJSON('data/pro/index.json'),
     ]);
     allData = {
-      verified: { ...(verifiedIdx || emptyIndex()), patches: {} },
-      pro: { ...(proIdx || emptyIndex()), patches: {} },
+      verified: v || emptyIndex(),
+      pro: p || emptyIndex(),
     };
-  } catch (e) {
-    allData = { verified: { ...emptyIndex(), patches: {} }, pro: { ...emptyIndex(), patches: {} } };
+  } catch {
+    allData = { verified: emptyIndex(), pro: emptyIndex() };
   }
 
+  activeMapArms = defaultMapArms(allData[currentDataset]);
   render();
 }
 
-function emptyIndex() {
-  return { tasks: [], arms: [], results: {}, meta: {} };
-}
+function emptyIndex() { return { tasks: [], arms: [], results: {}, meta: {} }; }
 
 async function fetchJSON(url) {
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) return null;
-    return await resp.json();
-  } catch { return null; }
+  try { const r = await fetch(url); return r.ok ? await r.json() : null; }
+  catch { return null; }
 }
 
-// ── Render ──
+function defaultMapArms(data) {
+  const best = getBestKodo(data);
+  const arms = [];
+  if (best) arms.push(best);
+  if ((data.arms || []).includes('cursor')) arms.push('cursor');
+  return arms.length ? arms : (data.arms || []).slice(0, 2);
+}
+
+// ── Render dispatch ──
 
 function render() {
   const data = allData[currentDataset];
-  if (!data || !data.tasks || data.tasks.length === 0) {
+  if (!data?.tasks?.length) {
     document.getElementById('main').innerHTML = '<div class="loading">No data for this dataset yet.</div>';
     document.getElementById('header-stats').textContent = '';
     return;
   }
 
-  const arms = data.arms || [];
-  const tasks = data.tasks || [];
-  const results = data.results || {};
-
-  // Compute stats
-  const stats = {};
-  for (const arm of arms) {
-    stats[arm] = { resolved: 0, failed: 0, error: 0, total: 0 };
-    for (const task of tasks) {
-      const r = results[task.instance_id]?.[arm];
-      if (!r) continue;
-      stats[arm].total++;
-      if (r.resolved) stats[arm].resolved++;
-      else if (r.status === 'error') stats[arm].error++;
-      else stats[arm].failed++;
-    }
-  }
-
-  const totalEvaluated = new Set();
-  for (const tid of tasks.map(t => t.instance_id)) {
-    for (const arm of arms) {
-      if (results[tid]?.[arm]) totalEvaluated.add(tid);
-    }
-  }
-
+  const arms = visibleArms(data);
   document.getElementById('header-stats').textContent =
-    `${tasks.length} tasks | ${totalEvaluated.size} evaluated | ${arms.length} arms`;
+    `${data.tasks.length} tasks \u00b7 ${arms.length} agents \u00b7 ${currentDataset}`;
 
-  let html = '';
+  const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails };
+  document.getElementById('main').innerHTML = (views[currentView] || renderLeaderboard)(data, arms);
 
-  // Summary cards
-  html += '<div class="summary">';
-  html += `<div class="card"><div class="label">Tasks</div><div class="value">${tasks.length}</div><div class="sub">${totalEvaluated.size} evaluated</div></div>`;
-  for (const arm of arms) {
+  // Attach handlers
+  if (currentView === 'leaderboard') attachLeaderboardHandlers();
+  if (currentView === 'taskmap') attachTaskMapHandlers(data, arms);
+  if (currentView === 'details') attachDetailHandlers(data, arms);
+}
+
+// ── Leaderboard ──
+
+function renderLeaderboard(data, arms) {
+  const stats = {};
+  for (const a of arms) stats[a] = armStats(data, a);
+  const sorted = [...arms].sort((a, b) => resolveRate(stats[b]) - resolveRate(stats[a]));
+
+  let html = '<div class="lb-section"><h2>Resolve Rates</h2>';
+  sorted.forEach((arm, i) => {
     const s = stats[arm];
-    const rate = s.total > 0 ? ((s.resolved / s.total) * 100).toFixed(1) : '—';
-    html += `<div class="card"><div class="label">${escapeHtml(arm)}</div><div class="value">${rate}%</div><div class="sub">${s.resolved}/${s.total} resolved</div></div>`;
+    const rate = resolveRate(s) * 100;
+    const isKodo = arm.startsWith('kodo');
+    html += `<div class="lb-row ${isKodo ? 'is-kodo' : ''}">
+      <div class="lb-rank">${i + 1}</div>
+      <div class="lb-name">${esc(displayName(arm))}</div>
+      <div class="lb-bar-track">
+        <div class="lb-bar-fill" style="width:${rate}%;background:${armColor(arm)}"></div>
+      </div>
+      <div class="lb-rate">${rate.toFixed(1)}%</div>
+      <div class="lb-sub">${s.resolved}/${s.evaluated}</div>
+    </div>`;
+  });
+
+  const kodoCount = (data.arms || []).filter(a => a.startsWith('kodo')).length;
+  if (kodoCount > 1) {
+    html += `<div class="toggle-row"><label><input type="checkbox" id="toggle-kodo" ${showAllKodo ? 'checked' : ''}> Show all Kodo variants (${kodoCount})</label></div>`;
   }
   html += '</div>';
 
-  // Bar chart: resolve rates
-  if (arms.length > 0) {
-    html += '<div class="grid-section"><h3>Resolve Rates</h3><div class="bar-chart">';
-    for (const arm of arms) {
-      const s = stats[arm];
-      const total = s.total || 1;
-      const rPct = (s.resolved / total * 100).toFixed(0);
-      const fPct = (s.failed / total * 100).toFixed(0);
-      const ePct = (s.error / total * 100).toFixed(0);
-      html += `<div class="bar-row">
-        <div class="bar-label">${escapeHtml(arm)}</div>
-        <div class="bar-track">
-          <div class="bar-fill resolved" style="width:${rPct}%">${s.resolved}</div>
-          <div class="bar-fill failed" style="width:${fPct}%">${s.failed ? s.failed : ''}</div>
-          <div class="bar-fill error" style="width:${ePct}%">${s.error ? s.error : ''}</div>
+  // Head to head vs kodo
+  const kodo = getBestKodo(data);
+  const opponents = sorted.filter(a => a !== kodo && !a.startsWith('kodo'));
+  if (kodo && opponents.length) {
+    html += '<div class="lb-section"><h2>Head-to-Head vs ' + esc(displayName(kodo)) + '</h2>';
+    html += '<div class="h2h-grid">';
+    for (const opp of opponents) {
+      const h = headToHead(data, kodo, opp);
+      if (h.total === 0) continue;
+      const net = h.onlyA - h.onlyB;
+      const netCls = net > 0 ? 'positive' : net < 0 ? 'negative' : 'neutral';
+      const netLabel = net > 0 ? `+${net} for ${esc(displayName(kodo))}` : net < 0 ? `+${-net} for ${esc(displayName(opp))}` : 'Even';
+
+      html += `<div class="h2h-card">
+        <div class="h2h-title">${esc(displayName(kodo))} vs ${esc(displayName(opp))}</div>
+        <div class="h2h-subtitle">${h.total} overlapping evaluated tasks</div>
+        <div class="h2h-bar">
+          ${h2hSeg(h.onlyA, h.total, KODO_COLOR)}
+          ${h2hSeg(h.both, h.total, 'var(--green)')}
+          ${h2hSeg(h.onlyB, h.total, armColor(opp))}
+          ${h2hSeg(h.neither, h.total, 'var(--border)')}
         </div>
-        <div class="bar-value">${rPct}%</div>
+        <div class="h2h-legend">
+          <span><span class="dot" style="background:${KODO_COLOR}"></span>Only ${esc(displayName(kodo))}: ${h.onlyA}</span>
+          <span><span class="dot" style="background:var(--green)"></span>Both: ${h.both}</span>
+          <span><span class="dot" style="background:${armColor(opp)}"></span>Only ${esc(displayName(opp))}: ${h.onlyB}</span>
+          <span><span class="dot" style="background:var(--border)"></span>Neither: ${h.neither}</span>
+        </div>
+        <div class="h2h-net ${netCls}">${netLabel}</div>
       </div>`;
     }
     html += '</div></div>';
   }
-
-  // Task grids per arm
-  html += '<div class="grid-section"><h3>Task Coverage</h3>';
-  html += `<div class="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Resolved</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Failed</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Error</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--gray);border:1px solid var(--gray2)"></div> Run (no eval)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--bg);border:1px solid var(--gray2)"></div> Not run</div>
-  </div>`;
-
-  for (const arm of arms) {
-    const s = stats[arm];
-    const rate = s.total > 0 ? ((s.resolved / s.total) * 100).toFixed(0) : '—';
-    html += `<div class="grid-header"><h2>${escapeHtml(arm)}</h2><span class="rate">${s.resolved}/${s.total} (${rate}%)</span></div>`;
-    html += '<div class="task-grid">';
-    for (const task of tasks) {
-      const r = results[task.instance_id]?.[arm];
-      let cls = 'not-run';
-      if (r) {
-        if (r.resolved) cls = 'resolved';
-        else if (r.status === 'error') cls = 'error';
-        else if (r.eval_status) cls = 'failed';
-        else cls = 'not-evaluated';
-      }
-      html += `<div class="task-cell ${cls}" title="${task.instance_id}" data-id="${task.instance_id}"></div>`;
-    }
-    html += '</div>';
-  }
-  html += '</div>';
-
-  // Results table
-  html += renderTable(tasks, arms, results);
-
-  document.getElementById('main').innerHTML = html;
-  attachTableHandlers();
-}
-
-function renderTable(tasks, arms, results) {
-  let html = '<div class="table-section">';
-  html += '<div class="filter-bar">';
-  html += `<select id="filter-arm"><option value="">All arms</option>${arms.map(a => `<option value="${a}">${a}</option>`).join('')}</select>`;
-  html += `<select id="filter-status"><option value="">All statuses</option><option value="resolved">Resolved</option><option value="failed">Failed</option><option value="error">Error</option><option value="pending">Not evaluated</option></select>`;
-  html += '<input type="text" id="filter-search" placeholder="Search instance ID...">';
-  html += '</div>';
-
-  html += '<table id="results-table"><thead><tr>';
-  html += '<th data-sort="id">Instance ID</th><th data-sort="repo">Repo</th>';
-  for (const arm of arms) {
-    html += `<th data-sort="${arm}">${escapeHtml(arm)}</th>`;
-  }
-  html += '<th data-sort="elapsed">Time</th>';
-  html += '</tr></thead><tbody>';
-
-  for (const task of tasks) {
-    const rowArms = arms.map(arm => {
-      const r = results[task.instance_id]?.[arm];
-      if (!r) return { status: 'not-run', label: '—' };
-      if (r.resolved) return { status: 'resolved', label: 'Resolved' };
-      if (r.status === 'error') return { status: 'error', label: 'Error' };
-      if (r.eval_status) return { status: 'failed', label: 'Failed' };
-      return { status: 'ok', label: 'Run' };
-    });
-
-    const elapsed = arms.map(arm => results[task.instance_id]?.[arm]?.elapsed_s || 0).filter(x => x > 0);
-    const avgTime = elapsed.length > 0 ? (elapsed.reduce((a,b) => a+b, 0) / elapsed.length) : 0;
-    const repo = task.instance_id.split('__')[0];
-
-    html += `<tr class="result-row" data-id="${task.instance_id}">`;
-    html += `<td><code>${task.instance_id.split('__').pop()}</code></td>`;
-    html += `<td>${repo}</td>`;
-    for (const a of rowArms) {
-      html += `<td><span class="status-badge ${a.status}">${a.label}</span></td>`;
-    }
-    html += `<td>${avgTime > 0 ? formatTime(avgTime) : '—'}</td>`;
-    html += '</tr>';
-  }
-
-  html += '</tbody></table></div>';
   return html;
 }
 
-function attachTableHandlers() {
-  // Row expansion
-  document.querySelectorAll('.result-row').forEach(row => {
-    row.addEventListener('click', () => toggleExpand(row));
+function h2hSeg(count, total, color) {
+  if (!count) return '';
+  const pct = (count / total * 100).toFixed(1);
+  return `<div class="h2h-seg" style="width:${pct}%;background:${color}">${count > 2 ? count : ''}</div>`;
+}
+
+function attachLeaderboardHandlers() {
+  const toggle = document.getElementById('toggle-kodo');
+  if (toggle) toggle.addEventListener('change', () => { showAllKodo = toggle.checked; render(); });
+}
+
+// ── Task Map ──
+
+function renderTaskMap(data, arms) {
+  let html = '<div class="arm-pills">';
+  for (const arm of arms) {
+    const active = activeMapArms.includes(arm);
+    const bg = active ? armColor(arm) : 'transparent';
+    const border = active ? armColor(arm) : '';
+    html += `<div class="arm-pill ${active ? 'active' : ''}" data-arm="${esc(arm)}" style="${active ? `background:${bg};border-color:${bg}` : ''}">${esc(displayName(arm))}</div>`;
+  }
+  html += '</div>';
+
+  // Legend
+  html += '<div class="map-legend">';
+  if (activeMapArms.length === 2) {
+    const [a, b] = activeMapArms;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--green)"></div>Both solved</div>`;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:${armColor(a)}"></div>Only ${esc(displayName(a))}</div>`;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:${armColor(b)}"></div>Only ${esc(displayName(b))}</div>`;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--red);opacity:.5"></div>Neither</div>`;
+  } else if (activeMapArms.length === 1) {
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--green)"></div>Resolved</div>`;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--red)"></div>Failed</div>`;
+    html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--orange)"></div>Error</div>`;
+  }
+  html += `<div class="map-legend-item"><div class="map-legend-dot" style="background:var(--bg);border:1px solid var(--border)"></div>Not evaluated</div>`;
+  html += `<div class="map-legend-item"><div class="map-legend-dot" style="border:1px dashed var(--border)"></div>Not run</div>`;
+  html += '</div>';
+
+  // Grouped by repo
+  const repos = groupByRepo(data.tasks);
+  for (const [repo, tasks] of repos) {
+    html += `<div class="repo-group"><div class="repo-label">${esc(repo)} <span class="repo-stats">(${tasks.length})</span></div><div class="repo-cells">`;
+    for (const t of tasks) {
+      const cls = cellClass(data, t.instance_id, activeMapArms);
+      html += `<div class="map-cell ${cls}" data-id="${esc(t.instance_id)}"></div>`;
+    }
+    html += '</div></div>';
+  }
+  return html;
+}
+
+function cellClass(data, iid, selArms) {
+  if (selArms.length === 0) {
+    // Any arm
+    const res = data.results[iid] || {};
+    const any = Object.values(res);
+    if (!any.length) return 'c-notrun';
+    if (any.some(r => r.resolved)) return 'c-resolved';
+    if (any.some(r => r.eval_status)) return 'c-failed';
+    return 'c-noeval';
+  }
+  if (selArms.length === 1) {
+    const r = data.results[iid]?.[selArms[0]];
+    if (!r) return 'c-notrun';
+    if (r.resolved) return 'c-resolved';
+    if (r.status === 'error') return 'c-error';
+    if (r.eval_status) return 'c-failed';
+    return 'c-noeval';
+  }
+  // 2 arms: comparative
+  const [a, b] = selArms;
+  const ra = data.results[iid]?.[a];
+  const rb = data.results[iid]?.[b];
+  if (!ra && !rb) return 'c-notrun';
+  if (!ra?.eval_status && !rb?.eval_status) return 'c-noeval';
+  const aw = !!ra?.resolved, bw = !!rb?.resolved;
+  if (aw && bw) return 'c-both';
+  if (aw) return 'c-only-a';
+  if (bw) return 'c-only-b';
+  return 'c-neither';
+}
+
+function attachTaskMapHandlers(data, arms) {
+  document.querySelectorAll('.arm-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const arm = pill.dataset.arm;
+      const idx = activeMapArms.indexOf(arm);
+      if (idx >= 0) {
+        activeMapArms.splice(idx, 1);
+      } else {
+        if (activeMapArms.length >= 2) activeMapArms.shift();
+        activeMapArms.push(arm);
+      }
+      render();
+    });
   });
 
-  // Filters
-  const filterArm = document.getElementById('filter-arm');
-  const filterStatus = document.getElementById('filter-status');
-  const filterSearch = document.getElementById('filter-search');
-  if (filterArm) filterArm.addEventListener('change', applyFilters);
-  if (filterStatus) filterStatus.addEventListener('change', applyFilters);
-  if (filterSearch) filterSearch.addEventListener('input', applyFilters);
+  document.querySelectorAll('.map-cell').forEach(cell => {
+    cell.addEventListener('mouseenter', e => {
+      const iid = cell.dataset.id;
+      let tip = `<strong>${esc(iid)}</strong>`;
+      for (const arm of activeMapArms) {
+        const r = data.results[iid]?.[arm];
+        const status = !r ? 'not run' : r.resolved ? 'resolved' : r.eval_status ? 'failed' : r.status || 'run';
+        tip += `<br>${esc(displayName(arm))}: ${status}`;
+        if (r?.elapsed_s) tip += ` (${formatTime(r.elapsed_s)})`;
+      }
+      showTooltip(e, tip);
+    });
+    cell.addEventListener('mouseleave', hideTooltip);
+    cell.addEventListener('mousemove', e => moveTooltip(e));
+  });
+}
 
-  // Sort
-  document.querySelectorAll('th[data-sort]').forEach(th => {
+// ── Insights ──
+
+function renderInsights(data, arms) {
+  let html = '';
+
+  // Per-repo breakdown
+  const repos = groupByRepo(data.tasks);
+  html += '<div class="insight-section"><h2>Resolve Rate by Repository</h2>';
+  html += '<table class="repo-table"><thead><tr><th>Repository</th><th>Tasks</th>';
+  for (const a of arms) html += `<th>${esc(displayName(a))}</th>`;
+  html += '</tr></thead><tbody>';
+
+  for (const [repo, tasks] of repos) {
+    html += `<tr><td><strong>${esc(repo)}</strong></td><td>${tasks.length}</td>`;
+    for (const arm of arms) {
+      let res = 0, evald = 0;
+      for (const t of tasks) {
+        const r = data.results[t.instance_id]?.[arm];
+        if (r?.eval_status) { evald++; if (r.resolved) res++; }
+      }
+      const rate = evald > 0 ? (res / evald * 100).toFixed(0) : '\u2014';
+      const pct = evald > 0 ? res / evald * 100 : 0;
+      html += `<td><div style="display:flex;align-items:center;gap:8px">
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%;background:${armColor(arm)}"></div></div>
+        <span style="font-size:12px;color:var(--text2)">${rate}%</span></div></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+
+  // Unique wins
+  const kodo = getBestKodo(data);
+  if (kodo) {
+    html += '<div class="insight-section"><h2>Unique Wins</h2>';
+    html += '<p style="font-size:13px;color:var(--text2);margin-bottom:12px">Tasks solved by only one agent (among evaluated overlaps)</p>';
+    for (const arm of arms) {
+      const others = arms.filter(x => x !== arm);
+      const unique = [];
+      for (const t of data.tasks) {
+        const r = data.results[t.instance_id]?.[arm];
+        if (!r?.resolved) continue;
+        const othersResolved = others.some(o => data.results[t.instance_id]?.[o]?.resolved);
+        if (!othersResolved) unique.push(t.instance_id);
+      }
+      if (unique.length) {
+        html += `<details style="margin-bottom:8px"><summary style="cursor:pointer;font-size:13px;font-weight:500;color:${armColor(arm)}">${esc(displayName(arm))}: ${unique.length} unique win${unique.length > 1 ? 's' : ''}</summary>`;
+        html += '<ul class="insight-list" style="margin:6px 0 0 20px">';
+        for (const id of unique) html += `<li><code>${esc(id)}</code></li>`;
+        html += '</ul></details>';
+      }
+    }
+    html += '</div>';
+  }
+
+  // Unsolved tasks
+  const unsolved = data.tasks.filter(t => {
+    return !arms.some(a => data.results[t.instance_id]?.[a]?.resolved);
+  }).filter(t => {
+    return arms.some(a => data.results[t.instance_id]?.[a]?.eval_status);
+  });
+  if (unsolved.length) {
+    html += `<div class="insight-section"><h2>Unsolved Tasks (${unsolved.length})</h2>`;
+    html += '<p style="font-size:13px;color:var(--text2);margin-bottom:8px">No agent solved these (among those evaluated)</p>';
+    html += '<ul class="insight-list">';
+    for (const t of unsolved.slice(0, 30)) html += `<li><code>${esc(t.instance_id)}</code></li>`;
+    if (unsolved.length > 30) html += `<li style="color:var(--text2)">... and ${unsolved.length - 30} more</li>`;
+    html += '</ul></div>';
+  }
+
+  // Avg time
+  html += '<div class="insight-section"><h2>Average Solve Time</h2>';
+  for (const arm of arms) {
+    const times = [];
+    for (const t of data.tasks) {
+      const r = data.results[t.instance_id]?.[arm];
+      if (r?.elapsed_s > 0) times.push(r.elapsed_s);
+    }
+    if (!times.length) continue;
+    const avg = times.reduce((a, b) => a + b, 0) / times.length;
+    const max = Math.max(...arms.map(a2 => {
+      const tt = data.tasks.map(t => data.results[t.instance_id]?.[a2]?.elapsed_s || 0);
+      return tt.reduce((a, b) => a + b, 0) / (tt.filter(x => x > 0).length || 1);
+    }));
+    const pct = max > 0 ? (avg / max * 100) : 0;
+    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <div style="width:100px;text-align:right;font-size:13px;font-weight:500">${esc(displayName(arm))}</div>
+      <div class="mini-bar" style="flex:1;height:20px"><div class="mini-bar-fill" style="width:${pct}%;background:${armColor(arm)};height:100%"></div></div>
+      <div style="width:60px;font-size:13px;color:var(--text2)">${formatTime(avg)}</div>
+    </div>`;
+  }
+  html += '</div>';
+
+  return html;
+}
+
+// ── Details ──
+
+function renderDetails(data, arms) {
+  let html = '<div class="filter-bar">';
+  html += `<select id="f-arm"><option value="">All agents</option>${arms.map(a => `<option value="${a}">${displayName(a)}</option>`).join('')}</select>`;
+  html += `<select id="f-status"><option value="">All statuses</option><option value="resolved">Resolved</option><option value="failed">Failed</option><option value="error">Error</option><option value="pending">Not evaluated</option></select>`;
+  html += '<input type="text" id="f-search" placeholder="Search instance ID...">';
+  html += '</div>';
+
+  html += '<table class="detail-table"><thead><tr>';
+  html += '<th data-sort="id">Instance ID</th><th data-sort="repo">Repo</th>';
+  for (const a of arms) html += `<th data-sort="${esc(a)}">${esc(displayName(a))}</th>`;
+  html += '<th data-sort="time">Time</th></tr></thead><tbody>';
+
+  for (const t of data.tasks) {
+    const repo = t.instance_id.split('__')[0].replace(/_/g, '/');
+    const shortId = t.instance_id.split('__').pop();
+    html += `<tr class="result-row" data-id="${esc(t.instance_id)}">`;
+    html += `<td><code>${esc(shortId)}</code></td><td style="font-size:12px">${esc(repo)}</td>`;
+    for (const arm of arms) {
+      const r = data.results[t.instance_id]?.[arm];
+      let cls = 'not-run', label = '\u2014';
+      if (r) {
+        if (r.resolved) { cls = 'resolved'; label = 'Resolved'; }
+        else if (r.status === 'error') { cls = 'error'; label = 'Error'; }
+        else if (r.eval_status) { cls = 'failed'; label = 'Failed'; }
+        else { cls = 'ok'; label = 'Run'; }
+      }
+      html += `<td><span class="status-badge ${cls}">${label}</span></td>`;
+    }
+    const times = arms.map(a => data.results[t.instance_id]?.[a]?.elapsed_s || 0).filter(x => x > 0);
+    const avg = times.length ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    html += `<td style="color:var(--text2);font-size:12px">${avg > 0 ? formatTime(avg) : '\u2014'}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function attachDetailHandlers(data, arms) {
+  document.querySelectorAll('.result-row').forEach(row => {
+    row.addEventListener('click', () => toggleExpand(row, data));
+  });
+  const fArm = document.getElementById('f-arm');
+  const fStat = document.getElementById('f-status');
+  const fSearch = document.getElementById('f-search');
+  const filter = () => applyFilters(data);
+  if (fArm) fArm.addEventListener('change', filter);
+  if (fStat) fStat.addEventListener('change', filter);
+  if (fSearch) fSearch.addEventListener('input', filter);
+  document.querySelectorAll('.detail-table th[data-sort]').forEach(th => {
     th.addEventListener('click', () => sortTable(th.dataset.sort));
   });
 }
 
-function applyFilters() {
-  const arm = document.getElementById('filter-arm')?.value || '';
-  const status = document.getElementById('filter-status')?.value || '';
-  const search = (document.getElementById('filter-search')?.value || '').toLowerCase();
-  const data = allData[currentDataset];
-
+function applyFilters(data) {
+  const arm = document.getElementById('f-arm')?.value || '';
+  const status = document.getElementById('f-status')?.value || '';
+  const search = (document.getElementById('f-search')?.value || '').toLowerCase();
   document.querySelectorAll('.result-row').forEach(row => {
     const id = row.dataset.id;
     let show = true;
-
     if (search && !id.toLowerCase().includes(search)) show = false;
-
-    if (arm && show) {
-      const r = data.results[id]?.[arm];
-      if (!r) show = false;
-    }
-
+    if (arm && show && !data.results[id]?.[arm]) show = false;
     if (status && show) {
-      const matchesStatus = data.arms.some(a => {
+      const arms = visibleArms(data);
+      const match = arms.some(a => {
         const r = data.results[id]?.[a];
-        if (!r) return status === 'pending';
-        if (status === 'resolved') return r.resolved;
-        if (status === 'failed') return r.eval_status && !r.resolved;
-        if (status === 'error') return r.status === 'error';
+        if (status === 'resolved') return r?.resolved;
+        if (status === 'failed') return r?.eval_status && !r?.resolved;
+        if (status === 'error') return r?.status === 'error';
+        if (status === 'pending') return r && !r.eval_status;
         return false;
       });
-      if (!matchesStatus) show = false;
+      if (!match) show = false;
     }
-
     row.style.display = show ? '' : 'none';
-    // Also hide expand row if hidden
     const next = row.nextElementSibling;
     if (next?.classList.contains('expand-row')) next.style.display = show ? '' : 'none';
   });
 }
 
-let sortCol = '';
-let sortAsc = true;
-
 function sortTable(col) {
   if (sortCol === col) sortAsc = !sortAsc;
   else { sortCol = col; sortAsc = true; }
-
-  const tbody = document.querySelector('#results-table tbody');
+  const tbody = document.querySelector('.detail-table tbody');
   if (!tbody) return;
-  const rows = Array.from(tbody.querySelectorAll('.result-row'));
-
+  const rows = [...tbody.querySelectorAll('.result-row')];
   rows.sort((a, b) => {
     let va = a.dataset.id, vb = b.dataset.id;
-    if (col === 'repo') {
-      va = va.split('__')[0];
-      vb = vb.split('__')[0];
-    }
+    if (col === 'repo') { va = va.split('__')[0]; vb = vb.split('__')[0]; }
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
   });
-
   rows.forEach(r => {
     tbody.appendChild(r);
     const next = r.nextElementSibling;
@@ -435,28 +729,21 @@ function sortTable(col) {
   });
 }
 
-function toggleExpand(row) {
+function toggleExpand(row, data) {
   const existing = row.nextElementSibling;
-  if (existing?.classList.contains('expand-row')) {
-    existing.remove();
-    row.classList.remove('expanded');
-    return;
-  }
-
+  if (existing?.classList.contains('expand-row')) { existing.remove(); row.classList.remove('expanded'); return; }
   row.classList.add('expanded');
   const id = row.dataset.id;
-  const data = allData[currentDataset];
+  const arms = visibleArms(data);
   const expandRow = document.createElement('tr');
   expandRow.className = 'expand-row';
-
   let html = '<td colspan="100">';
-  for (const arm of data.arms) {
+  for (const arm of arms) {
     const r = data.results[id]?.[arm];
     if (!r) continue;
-    html += `<h4 style="margin:8px 0 4px;color:var(--accent)">${escapeHtml(arm)}</h4>`;
-    html += `<div style="font-size:12px;color:var(--text2)">Status: ${r.status} | Elapsed: ${formatTime(r.elapsed_s || 0)} | Patch: ${r.patch_len || 0} chars</div>`;
-    html += `<div class="patch-view" id="patch-${escapeHtml(id)}-${escapeHtml(arm)}">Loading patch...</div>`;
-    // Lazy-fetch patch
+    html += `<h4 style="margin:8px 0 4px;color:${armColor(arm)}">${esc(displayName(arm))}</h4>`;
+    html += `<div style="font-size:12px;color:var(--text2)">Status: ${r.status || '\u2014'} | Elapsed: ${formatTime(r.elapsed_s || 0)} | Patch: ${r.patch_len || 0} chars</div>`;
+    html += `<div class="patch-view" id="patch-${esc(id)}-${esc(arm)}">Loading patch...</div>`;
     fetchPatch(currentDataset, id, arm);
   }
   html += '</td>';
@@ -464,74 +751,73 @@ function toggleExpand(row) {
   row.after(expandRow);
 }
 
-async function fetchPatch(dataset, instanceId, arm) {
-  const el = document.getElementById(`patch-${instanceId}-${arm}`);
+async function fetchPatch(ds, iid, arm) {
+  const el = document.getElementById(`patch-${iid}-${arm}`);
   if (!el) return;
   try {
-    const resp = await fetch(`api/patch/${dataset}/${instanceId}/${arm}`);
-    if (!resp.ok) { el.textContent = '(no patch available)'; return; }
-    const text = await resp.text();
-    el.innerHTML = highlightDiff(text);
-  } catch {
-    el.textContent = '(failed to load patch)';
-  }
+    const r = await fetch(`api/patch/${ds}/${iid}/${arm}`);
+    if (!r.ok) { el.textContent = '(no patch available)'; return; }
+    el.innerHTML = highlightDiff(await r.text());
+  } catch { el.textContent = '(failed to load)'; }
 }
 
 function highlightDiff(text) {
-  return text.split('\n').map(line => {
-    if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="add">${escapeHtml(line)}</span>`;
-    if (line.startsWith('-') && !line.startsWith('---')) return `<span class="del">${escapeHtml(line)}</span>`;
-    if (line.startsWith('@@')) return `<span class="hunk">${escapeHtml(line)}</span>`;
-    return escapeHtml(line);
+  return text.split('\n').map(l => {
+    if (l.startsWith('+') && !l.startsWith('+++')) return `<span class="add">${esc(l)}</span>`;
+    if (l.startsWith('-') && !l.startsWith('---')) return `<span class="del">${esc(l)}</span>`;
+    if (l.startsWith('@@')) return `<span class="hunk">${esc(l)}</span>`;
+    return esc(l);
   }).join('\n');
 }
 
+// ── Shared utils ──
+
 function formatTime(s) {
+  if (!s) return '\u2014';
   if (s < 60) return `${Math.round(s)}s`;
-  if (s < 3600) return `${Math.round(s/60)}m`;
-  return `${(s/3600).toFixed(1)}h`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  return `${(s / 3600).toFixed(1)}h`;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-// ── Theme toggle ──
+function showTooltip(e, html) {
+  const tip = document.getElementById('tooltip');
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  tip.style.left = (e.pageX + 14) + 'px';
+  tip.style.top = (e.pageY - 14) + 'px';
+}
+function moveTooltip(e) {
+  const tip = document.getElementById('tooltip');
+  if (tip.style.display === 'block') {
+    tip.style.left = (e.pageX + 14) + 'px';
+    tip.style.top = (e.pageY - 14) + 'px';
+  }
+}
+function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+
+// ── Theme ──
 
 function initTheme() {
   const stored = localStorage.getItem('kodo-bench-theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = stored || (prefersDark ? 'dark' : 'light');
-  applyTheme(theme);
-
+  applyTheme(stored || (prefersDark ? 'dark' : 'light'));
   document.getElementById('theme-toggle').addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
+    const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const next = cur === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     localStorage.setItem('kodo-bench-theme', next);
   });
-
-  // React to system preference changes (only if user hasn't set a preference)
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (!localStorage.getItem('kodo-bench-theme')) {
-      applyTheme(e.matches ? 'dark' : 'light');
-    }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (!localStorage.getItem('kodo-bench-theme')) applyTheme(e.matches ? 'dark' : 'light');
   });
 }
 
 function applyTheme(theme) {
-  if (theme === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-  }
-  updateToggleIcon(theme);
-}
-
-function updateToggleIcon(theme) {
+  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
   const btn = document.getElementById('theme-toggle');
-  if (!btn) return;
-  // Sun icon for dark mode (click to go light), Moon icon for light mode (click to go dark)
   btn.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
   btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
 }

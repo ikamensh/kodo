@@ -25,6 +25,14 @@
               │   Benchmark Runner │  benchmark/online/client.py
               │   (per-task upload)│  any machine with a token
               └────────────────────┘
+                       ▲        ▲
+                       │        │
+              ┌────────┴────────┴──┐
+              │   Eval Machine     │  benchmark/evaluate_pending.py
+              │ (--evaluate-pending│  any machine with Docker + token
+              │  fetch → eval →    │  GET /api/unevaluated → eval → POST /api/eval-results
+              │  upload results)   │
+              └────────────────────┘
 ```
 
 ## Data Stores
@@ -52,6 +60,12 @@ patches/{dataset}/{instance_id}/{arm}.diff
 | `POST` | `/api/task-result` | Upload one task result + patch |
 | `POST` | `/api/run` | Register a benchmark run |
 | `POST` | `/api/eval-results` | Upload evaluation results |
+
+### Read (authenticated)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/unevaluated/{dataset}` | Predictions needing evaluation (with patches). Returns `{dataset, predictions: [{instance_id, arm, patch}]}`. Scans Firestore for results with `status` but no `eval_status`, fetches patches from GCS. Only `ok`/`partial` status included. |
 
 ### Read (public)
 

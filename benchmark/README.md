@@ -45,8 +45,10 @@ uv run python -m benchmark --evaluate-only --run-id 20260309_105930
 --run-id <id>                 Resume or reference a run
 --skip-eval                   Skip evaluation after run
 --evaluate-only               Evaluate existing predictions
+--evaluate-pending            Fetch & eval unevaluated results from server
 --report-only                 Generate report from existing results
 --publish                     Publish to GitHub Pages
+--upload-pending              Upload results not yet sent to server
 --status                      Show all runs
 ```
 
@@ -109,6 +111,25 @@ All runs are saved locally at `~/.kodo/benchmark/runs/<run_id>/`:
 ## Evaluation
 
 Uses the standard swebench harness (`swebench.harness.run_evaluation`). See [METHODOLOGY.md](METHODOLOGY.md) for full details on prompting, diff capture, and comparison with major lab methodology.
+
+### Evaluating Pending Results
+
+Contributors run agents and upload results to the server. Evaluation (Docker-based swebench harness) can happen separately on any machine with Docker:
+
+```bash
+# Fetch all unevaluated predictions from the server, run Docker eval, upload results back
+uv run python -m benchmark --evaluate-pending --dataset verified
+```
+
+This enables a separation of concerns: contributors only need agent access (Claude/Cursor/etc.), while evaluation can run on a dedicated machine with Docker and swebench installed.
+
+**Flow:**
+1. Fetches predictions missing `eval_status` from the server (`GET /api/unevaluated/{dataset}`)
+2. Writes them as `predictions-{arm}.jsonl` files in a synthetic run directory
+3. Runs `evaluate_predictions()` (Docker swebench harness)
+4. Uploads `resolved`/`failed`/`error` arrays back via `POST /api/eval-results`
+
+Only predictions with status `ok` or `partial` are fetched (errors/timeouts are skipped).
 
 ## Subsets
 

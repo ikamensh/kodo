@@ -312,6 +312,43 @@ def get_all_patches(dataset: str) -> dict[str, str]:
     return patches
 
 
+def get_unevaluated(dataset: str) -> list[dict]:
+    """Find task results that have not been evaluated yet.
+
+    Scans all result docs for the dataset and returns arms where
+    ``status`` is present (task ran) but ``eval_status`` is absent.
+    Fetches the corresponding patch from GCS for each entry.
+
+    Only returns entries with status ``"ok"`` or ``"partial"`` and a
+    non-empty patch — errors/timeouts without patches are skipped.
+    """
+    coll = _db().collection("datasets").document(dataset).collection("results")
+
+    pending: list[tuple[str, str]] = []  # (instance_id, arm)
+    for doc in coll.stream():
+        iid = doc.id
+        data = doc.to_dict() or {}
+        for arm_name, arm_data in data.get("arms", {}).items():
+            if not arm_data.get("status"):
+                continue
+            if arm_data.get("eval_status"):
+                continue  # already evaluated
+            if arm_data["status"] not in ("ok", "partial"):
+                continue  # no useful patch
+            pending.append((iid, arm_name))
+
+    # Fetch patches from GCS
+    results: list[dict] = []
+    for iid, arm in pending:
+        patch = get_patch(dataset, iid, arm)
+        if not patch:
+            continue
+        results.append({"instance_id": iid, "arm": arm, "patch": patch})
+
+    log.info("Found %d unevaluated predictions for dataset %s", len(results), dataset)
+    return results
+
+
 # ── Token management ─────────────────────────────────────────────────────
 #
 # Tokens stored in Firestore: tokens/{sha256_of_token}
@@ -404,3 +441,110 @@ def revoke_token(token_hash_or_prefix: str) -> bool:
             doc.reference.update({"active": False})
             return True
     return False
+
+
+# ── Task distribution ─────────────────────────────────────────────────────
+
+CLAIM_TTL_SECONDS = 14400  # 4 hours
+
+
+def get_next_tasks(
+    dataset: str,
+    instance_ids: list[str],
+    backends: list[str],
+    contributor: str,
+    limit: int = 20,
+    ttl_seconds: int = CLAIM_TTL_SECONDS,
+) -> list[dict]:
+    """Get prioritized task assignments with claim creation.
+
+    Uses client-provided instance_ids as the task pool and checks
+    Firestore for existing results and active claims.
+    """
+    from .distribute import prioritize_assignments
+
+    # Get existing results from materialized index (cheap GCS read)
+    try:
+        index_bytes = get_index_json(dataset)
+        index = json.loads(index_bytes)
+        results = index.get("results", {})
+    except Exception:
+        results = {}
+
+    active = _get_active_claims(dataset)
+
+    assignments = prioritize_assignments(
+        all_instance_ids=instance_ids,
+        results=results,
+        backends=backends,
+        active_claims=active,
+        limit=limit,
+    )
+
+    if assignments:
+        _create_claims(dataset, assignments, contributor, ttl_seconds)
+
+    return assignments
+
+
+def _get_active_claims(dataset: str) -> set[tuple[str, str]]:
+    """Return (instance_id, arm) pairs with active (non-expired) claims."""
+    now = datetime.now(timezone.utc)
+    claims: set[tuple[str, str]] = set()
+    coll = _db().collection("datasets").document(dataset).collection("claims")
+    for doc in coll.stream():
+        data = doc.to_dict() or {}
+        expires_at = data.get("expires_at")
+        if expires_at is None:
+            continue
+        # Firestore timestamps may or may not have tzinfo
+        if hasattr(expires_at, "replace"):
+            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        else:
+            continue
+        if exp > now:
+            iid = data.get("instance_id", "")
+            arm = data.get("arm", "")
+            if iid and arm:
+                claims.add((iid, arm))
+    return claims
+
+
+def _create_claims(
+    dataset: str,
+    assignments: list[dict],
+    contributor: str,
+    ttl_seconds: int,
+) -> None:
+    """Batch-create claims for assignments."""
+    from datetime import timedelta
+
+    from google.cloud import firestore
+
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ttl_seconds)
+
+    coll = _db().collection("datasets").document(dataset).collection("claims")
+
+    # Firestore batches max 500 operations
+    for i in range(0, len(assignments), 500):
+        batch = _db().batch()
+        for a in assignments[i : i + 500]:
+            doc_id = f"{a['instance_id']}___{a['arm']}"
+            batch.set(coll.document(doc_id), {
+                "instance_id": a["instance_id"],
+                "arm": a["arm"],
+                "contributor": contributor,
+                "claimed_at": firestore.SERVER_TIMESTAMP,
+                "expires_at": expires_at,
+            })
+        batch.commit()
+
+
+def release_claim(dataset: str, instance_id: str, arm: str) -> None:
+    """Release a claim (called when a result is uploaded)."""
+    doc_id = f"{instance_id}___{arm}"
+    try:
+        _db().collection("datasets").document(dataset).collection("claims").document(doc_id).delete()
+    except Exception:
+        pass  # best-effort

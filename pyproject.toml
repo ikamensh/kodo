@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.217"
+version = "0.4.218"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -45,13 +45,15 @@ filterwarnings = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["kodo*"]
+include = ["kodo*", "benchmark*"]
 
 [tool.setuptools.package-data]
 kodo = ["*.html"]
+benchmark = ["online/static/*.html"]
 
 [project.scripts]
 kodo = "kodo.cli:main"
+kodo-bench = "benchmark.__main__:main"
 
 [tool.ruff.lint.per-file-ignores]
 # Scripts often need sys.path manipulation or other setup before imports; E402 is unfixable.

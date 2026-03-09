@@ -10,6 +10,9 @@ Admin endpoints (require admin token from KODO_BENCH_ADMIN_TOKEN env var):
     GET    /admin/tokens    — list all tokens with metadata
     DELETE /admin/tokens/{id_or_prefix} — revoke a token
 
+Read endpoints (authenticated):
+    GET /api/unevaluated/{dataset}    — predictions needing evaluation (with patches)
+
 Read endpoints (public):
     GET /data/{dataset}/index.json    — aggregated results (from Firestore, cached)
     GET /data/{dataset}/patches.json  — all patches (from GCS, cached)
@@ -45,6 +48,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/data/"):
             self._serve_data()
+        elif self.path.startswith("/api/unevaluated/"):
+            if self._check_api_token():
+                self._handle_unevaluated()
         elif self.path.startswith("/api/patch/"):
             self._serve_patch()
         elif self.path == "/admin/tokens":
@@ -66,6 +72,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif self.path == "/api/eval-results":
             if self._check_api_token():
                 self._handle_eval_results()
+        elif self.path == "/api/next-tasks":
+            if self._check_api_token():
+                self._handle_next_tasks()
         else:
             self.send_error(404)
 
@@ -197,6 +206,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(500, str(e))
             return
 
+        # Release any claim on this (instance_id, arm) pair
+        try:
+            db.release_claim(dataset, iid, arm)
+        except Exception:
+            pass  # best-effort
+
         # db.save_task_result already sets dirty flag — materialization happens on next read
         _cache.pop(f"index:{dataset}", None)
 
@@ -240,7 +255,49 @@ class Handler(http.server.BaseHTTPRequestHandler):
         _cache.pop(f"index:{dataset}", None)
         self._json_ok({"ok": True})
 
+    def _handle_next_tasks(self):
+        """Distribute tasks: return prioritized assignments for a contributor."""
+        body = self._read_json()
+        if body is None:
+            return
+
+        dataset = body.get("dataset", "")
+        backends = body.get("backends", [])
+        instance_ids = body.get("instance_ids", [])
+        if not dataset or not backends or not instance_ids:
+            self.send_error(400, "Missing dataset, backends, or instance_ids")
+            return
+
+        try:
+            assignments = db.get_next_tasks(
+                dataset=dataset,
+                instance_ids=instance_ids,
+                backends=backends,
+                contributor=body.get("contributor", "unknown"),
+                limit=body.get("limit", 20),
+                ttl_seconds=body.get("ttl_seconds", db.CLAIM_TTL_SECONDS),
+            )
+        except Exception as e:
+            self.send_error(500, str(e))
+            return
+
+        self._json_ok({"assignments": assignments})
+
     # ── Read handlers ─────────────────────────────────────────────────
+
+    def _handle_unevaluated(self):
+        """Serve GET /api/unevaluated/{dataset} — predictions needing evaluation."""
+        m = re.match(r"/api/unevaluated/(\w+)$", self.path)
+        if not m:
+            self.send_error(404)
+            return
+        dataset = m.group(1)
+        try:
+            predictions = db.get_unevaluated(dataset)
+        except Exception as e:
+            self.send_error(502, f"Backend error: {e}")
+            return
+        self._json_ok({"dataset": dataset, "predictions": predictions})
 
     def _serve_data(self):
         """Serve /data/{dataset}/index.json or patches.json from Firestore/GCS."""

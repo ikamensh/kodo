@@ -100,6 +100,11 @@ uv tool install git+https://github.com/ikamensh/kodo
 
 That's it. `kodo` is now on your PATH.
 
+To also install the **SWE-bench benchmark harness** (`kodo-bench`):
+```bash
+uv tool install --with 'kodo[benchmark]' git+https://github.com/ikamensh/kodo
+```
+
 ### Prerequisites
 
 You need **at least one** agent backend installed:

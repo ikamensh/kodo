@@ -5,6 +5,7 @@ Uses SWE-bench Pro (731 tasks) by default. Pass --dataset lite for SWE-bench Lit
 Arms: "claude", "cursor", "codex", "gemini", "kodo", "kodo:<team>".
 
 Usage:
+    uv run python -m benchmark --distribute              # server decides everything
     uv run python -m benchmark --subset benchmark/subsets/pro-20.json
     uv run python -m benchmark --subset benchmark/subsets/pro-20.json --arm kodo:solo --limit 2
     uv run python -m benchmark --arm cursor --arm kodo:solo --limit 2 --skip-eval
@@ -12,15 +13,24 @@ Usage:
 
 from __future__ import annotations
 
+# Suppress noisy urllib3/chardet version mismatch warning from requests
+# (triggered transitively via datasets/swebench imports).
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=r"urllib3.*doesn't match a supported version",
+)
+
 from dotenv import load_dotenv
 load_dotenv()
 
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from benchmark._util import log, setup_logging
+from benchmark._util import detect_backends, log, setup_logging
 
 WORKSPACE = Path.home() / ".kodo" / "benchmark"
 
@@ -96,6 +106,11 @@ def main() -> int:
     parser.add_argument(
         "--parallel", type=int, default=1, help="Concurrent tasks (default: 1)"
     )
+    parser.add_argument(
+        "--seed", type=int, default=0,
+        help="Seed for deduplication. Same task+arm+seed won't re-run. "
+        "Use different seeds to get multiple runs of the same tasks (default: 0).",
+    )
 
     # Phase control
     parser.add_argument(
@@ -132,6 +147,28 @@ def main() -> int:
         action="store_true",
         help="Upload results not yet sent to the online server (requires KODO_BENCH_URL/TOKEN)",
     )
+    parser.add_argument(
+        "--evaluate-pending",
+        action="store_true",
+        help="Fetch unevaluated predictions from the online server and run Docker-based "
+        "swebench evaluation locally. Uploads results back when done. "
+        "(Requires KODO_BENCH_URL/TOKEN and Docker.)",
+    )
+
+    # Distributed mode
+    parser.add_argument(
+        "--distribute",
+        action="store_true",
+        help="Let the central server decide which tasks and backends to run. "
+        "Auto-detects available backends unless --backends is given.",
+    )
+    parser.add_argument(
+        "--backends",
+        type=str,
+        default=None,
+        help="Override backend detection for --distribute (e.g. 'claude,kodo:solo'). "
+        "Default: auto-detect from PATH.",
+    )
 
     args = parser.parse_args()
     setup_logging()
@@ -162,6 +199,11 @@ def main() -> int:
 
         return flush_pending_uploads(workspace)
 
+    if args.evaluate_pending:
+        from benchmark.evaluate_pending import evaluate_pending
+
+        return evaluate_pending(workspace, dataset_arg=args.dataset)
+
     from benchmark.evaluate import evaluate_predictions
     from benchmark.report import generate_report
 
@@ -189,11 +231,11 @@ def main() -> int:
 
     tasks = load_tasks(
         dataset=dataset,
-        limit=args.limit,
+        limit=args.limit if not args.distribute else None,
         instance_ids=instance_ids,
         repo_filter=args.repo,
         language=args.language,
-        offset=args.offset,
+        offset=args.offset if not args.distribute else 0,
     )
 
     if not tasks:
@@ -201,6 +243,46 @@ def main() -> int:
         return 1
 
     log.info("Loaded %d tasks", len(tasks))
+
+    # Distributed mode: server decides what to run
+    assignments = None
+    if args.distribute:
+        from benchmark.online.client import fetch_assignments, is_configured
+
+        if not is_configured():
+            log.error("--distribute requires KODO_BENCH_URL and KODO_BENCH_TOKEN "
+                      "environment variables to be set.")
+            return 1
+
+        # Backends: explicit --backends > explicit --arm > auto-detect
+        if args.backends:
+            dist_backends = args.backends.split(",")
+        elif args.arm:
+            dist_backends = args.arm
+        else:
+            dist_backends = detect_backends()
+            log.info("Auto-detected backends: %s", dist_backends)
+
+        server_assignments = fetch_assignments(
+            dataset=dataset,
+            backends=dist_backends,
+            instance_ids=[t.instance_id for t in tasks],
+            limit=args.limit or 20,
+        )
+
+        if server_assignments is None:
+            log.error("Server unreachable at %s",
+                      os.environ.get("KODO_BENCH_URL", "(not set)"))
+            return 1
+        elif not server_assignments:
+            log.info("No tasks need evaluation — all covered!")
+            return 0
+        else:
+            assignments = server_assignments
+            assigned_ids = {a["instance_id"] for a in assignments}
+            tasks = [t for t in tasks if t.instance_id in assigned_ids]
+            arms = list({a["arm"] for a in assignments})
+            log.info("Server assigned %d task/arm pairs across %s", len(assignments), arms)
 
     run_benchmark(
         tasks=tasks,
@@ -211,6 +293,8 @@ def main() -> int:
         timeout_kodo=args.timeout_kodo,
         parallel=args.parallel,
         dataset=dataset,
+        seed=args.seed,
+        assignments=assignments,
     )
 
     if not args.skip_eval:

@@ -54,18 +54,42 @@ def run_benchmark(
     timeout_kodo: int = 43200,
     parallel: int = 1,
     dataset: str = "",
+    seed: int = 0,
+    assignments: list[dict] | None = None,
 ) -> None:
-    """Run all tasks across all arms. Supports resumption."""
+    """Run all tasks across all arms. Supports resumption.
+
+    The ``seed`` parameter controls deduplication: tasks completed with a
+    different seed are ignored, allowing the same tasks to be re-run for
+    variance measurement.  Default seed=0 gives standard dedup behavior.
+
+    When ``assignments`` is provided (distributed mode), only the specified
+    (instance_id, arm) pairs are executed. Local crash-recovery dedup still
+    applies but global dedup is skipped (the server already handled it).
+    """
     run_dir = workspace / RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    _save_run_meta(run_dir, tasks, arms, timeout, dataset=dataset)
-    # Load completed tasks: prior runs (skip errors for retry) + current run (all statuses)
-    completed = _load_global_completed(workspace, exclude_run_dir=run_dir)
-    completed |= _load_completed(run_dir)
+    _save_run_meta(run_dir, tasks, arms, timeout, dataset=dataset, seed=seed)
+
+    if assignments is not None:
+        # Distributed mode: only run server-assigned pairs.
+        # Local completed set from THIS run for crash recovery only.
+        assigned_set = {(a["instance_id"], a["arm"]) for a in assignments}
+        completed = _load_completed(run_dir)
+        # Mark everything not assigned as "completed" to skip it
+        all_pairs = {(t.instance_id, arm) for t in tasks for arm in arms}
+        completed |= (all_pairs - assigned_set)
+    else:
+        # Normal mode: skip globally completed + current run
+        completed = _load_global_completed(workspace, exclude_run_dir=run_dir, seed=seed)
+        completed |= _load_completed(run_dir)
+
     total = len(tasks) * len(arms)
 
-    log.info("Benchmark run %s: %d tasks x %d arm(s)", run_id, len(tasks), len(arms))
+    log.info("Benchmark run %s: %d tasks x %d arm(s)%s",
+             run_id, len(tasks), len(arms),
+             f" [seed={seed}]" if seed else "")
     log.info("  Timeout: %ds (non-kodo), %ds (kodo)", timeout, timeout_kodo)
     log.info("  Already completed: %d/%d", len(completed), total)
     log.info("  Workspace: %s", workspace)
@@ -73,9 +97,9 @@ def run_benchmark(
     _upload_run_online(run_id, tasks, arms, timeout, dataset)
 
     if parallel > 1:
-        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset)
+        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset, seed)
     else:
-        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset)
+        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset, seed)
 
     log.info("Run complete. Results in %s", run_dir)
 
@@ -89,6 +113,7 @@ def _run_sequential(
     timeout_kodo: int,
     completed: set[tuple[str, str]],
     dataset: str = "",
+    seed: int = 0,
 ) -> None:
     for i, task in enumerate(tasks):
         for arm in arms:
@@ -98,7 +123,7 @@ def _run_sequential(
             t = _timeout_for_arm(arm, timeout, timeout_kodo)
             log.info("[%d/%d] %s (%s) [timeout %ds]", i + 1, len(tasks), task.instance_id, arm, t)
             result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
-            _append_result(run_dir, result)
+            _append_result(run_dir, result, seed=seed)
             _append_prediction(run_dir, result)
             _upload_task_online(result, run_dir.name, dataset, workspace)
             completed.add((task.instance_id, arm))
@@ -114,6 +139,7 @@ def _run_parallel(
     parallel: int,
     completed: set[tuple[str, str]],
     dataset: str = "",
+    seed: int = 0,
 ) -> None:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -132,7 +158,7 @@ def _run_parallel(
         for future in as_completed(futures):
             task, arm = futures[future]
             result = future.result()
-            _append_result(run_dir, result)
+            _append_result(run_dir, result, seed=seed)
             _append_prediction(run_dir, result)
             _upload_task_online(result, run_dir.name, dataset, workspace)
             log.info("  %s (%s): %s (%.0fs, %d chars patch)",
@@ -481,7 +507,7 @@ def _parse_json_output(stdout: str) -> dict:
     return {}
 
 
-def _append_result(run_dir: Path, result: TaskResult) -> None:
+def _append_result(run_dir: Path, result: TaskResult, *, seed: int = 0) -> None:
     entry = {
         "instance_id": result.instance_id,
         "arm": result.arm,
@@ -490,6 +516,7 @@ def _append_result(run_dir: Path, result: TaskResult) -> None:
         "error": result.error,
         "patch_len": len(result.patch),
         "agent_output": result.agent_output,
+        "seed": seed,
     }
     try:
         with open(run_dir / "results.jsonl", "a") as f:
@@ -521,9 +548,12 @@ def _append_prediction(run_dir: Path, result: TaskResult) -> None:
 
 
 def _load_global_completed(
-    workspace: Path, exclude_run_dir: Path | None = None,
+    workspace: Path, exclude_run_dir: Path | None = None, seed: int = 0,
 ) -> set[tuple[str, str]]:
     """Load completed (instance_id, arm) pairs from all prior runs.
+
+    Only considers results with matching ``seed`` (default 0).  Results
+    without a ``seed`` field are treated as seed=0 for backward compat.
 
     Skips error/timeout results so they get retried in new runs.
     Skips ``exclude_run_dir`` (typically the current run) to avoid
@@ -546,6 +576,8 @@ def _load_global_completed(
                 continue
             try:
                 entry = json.loads(line)
+                if entry.get("seed", 0) != seed:
+                    continue
                 status = entry.get("status", "")
                 if status not in ("error", "timeout"):
                     completed.add((entry["instance_id"], entry["arm"]))
@@ -571,7 +603,7 @@ def _load_completed(run_dir: Path) -> set[tuple[str, str]]:
 
 def _save_run_meta(
     run_dir: Path, tasks: list[SWETask], arms: list[str], timeout: int,
-    *, dataset: str = "",
+    *, dataset: str = "", seed: int = 0,
 ) -> None:
     meta_file = run_dir / "meta.json"
     if not meta_file.exists():
@@ -583,6 +615,7 @@ def _save_run_meta(
             "timeout": timeout,
             "dataset": dataset,
             "instance_ids": [t.instance_id for t in tasks],
+            "seed": seed,
         }
         meta_file.write_text(json.dumps(meta, indent=2))
 
