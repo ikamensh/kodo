@@ -227,6 +227,17 @@ def fetch_unevaluated(dataset: str) -> list[dict] | None:
         return None
 
 
+def whoami() -> str | None:
+    """Return the display name for the current token, or None."""
+    if not is_configured():
+        return None
+    try:
+        result = _get_json("/api/whoami")
+        return result.get("name") or result.get("issued_to") or None
+    except Exception:
+        return None
+
+
 def _post_json(path: str, data: dict) -> dict:
     """POST JSON and return parsed response."""
     return json.loads(_request("POST", path, data))

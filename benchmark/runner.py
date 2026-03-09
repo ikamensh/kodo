@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from benchmark._util import docker_safe, log
+from benchmark._util import docker_safe, fmt_duration, log, short_iid
 from benchmark.tasks import SWETask
 
 REPO_CACHE_DIR = "repos"
@@ -28,6 +28,15 @@ class TaskResult:
     status: str  # "ok", "timeout", "error"
     error: str = ""
     agent_output: dict = field(default_factory=dict)
+
+
+def _fmt_size(chars: int) -> str:
+    """Format character count: 1200 -> '1.2k', 0 -> 'empty'."""
+    if chars == 0:
+        return "empty"
+    if chars < 1000:
+        return f"{chars}"
+    return f"{chars / 1000:.1f}k"
 
 
 def parse_arm(arm: str) -> tuple[str, str | None]:
@@ -87,21 +96,31 @@ def run_benchmark(
 
     total = len(tasks) * len(arms)
 
-    log.info("Benchmark run %s: %d tasks x %d arm(s)%s",
-             run_id, len(tasks), len(arms),
-             f" [seed={seed}]" if seed else "")
-    log.info("  Timeout: %ds (non-kodo), %ds (kodo)", timeout, timeout_kodo)
-    log.info("  Already completed: %d/%d", len(completed), total)
-    log.info("  Workspace: %s", workspace)
+    remaining = total - len(completed)
+    log.info("─── Benchmark %s ───", run_id)
+    log.info("  Tasks:   %d (%d remaining)", len(tasks), remaining)
+    log.info("  Agents:  %s", ", ".join(arms))
+    log.info("  Timeout: %s per task (%s for kodo)", fmt_duration(timeout), fmt_duration(timeout_kodo))
+    if remaining < total:
+        log.info("  Skipped: %d already completed", len(completed))
 
     _upload_run_online(run_id, tasks, arms, timeout, dataset)
 
-    if parallel > 1:
-        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset, seed)
-    else:
-        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset, seed)
+    try:
+        if parallel > 1:
+            _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset, seed)
+        else:
+            _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset, seed)
+    except BenchmarkInterrupted:
+        raise  # let caller handle summary
 
     log.info("Run complete. Results in %s", run_dir)
+
+
+class BenchmarkInterrupted(Exception):
+    """Raised when the user cancels a benchmark run."""
+    def __init__(self, completed_count: int = 0):
+        self.completed_count = completed_count
 
 
 def _run_sequential(
@@ -115,18 +134,32 @@ def _run_sequential(
     dataset: str = "",
     seed: int = 0,
 ) -> None:
-    for i, task in enumerate(tasks):
+    newly_completed = 0
+    total_work = sum(
+        1 for t in tasks for a in arms if (t.instance_id, a) not in completed
+    )
+    for task in tasks:
         for arm in arms:
             if (task.instance_id, arm) in completed:
                 continue
-
-            t = _timeout_for_arm(arm, timeout, timeout_kodo)
-            log.info("[%d/%d] %s (%s) [timeout %ds]", i + 1, len(tasks), task.instance_id, arm, t)
-            result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
-            _append_result(run_dir, result, seed=seed)
-            _append_prediction(run_dir, result)
-            _upload_task_online(result, run_dir.name, dataset, workspace)
-            completed.add((task.instance_id, arm))
+            try:
+                t = _timeout_for_arm(arm, timeout, timeout_kodo)
+                log.info("[%d/%d] %s | %s | started (timeout %s)",
+                         newly_completed + 1, total_work,
+                         short_iid(task.instance_id), arm, fmt_duration(t))
+                result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
+                _append_result(run_dir, result, seed=seed)
+                _append_prediction(run_dir, result)
+                _upload_task_online(result, run_dir.name, dataset, workspace)
+                completed.add((task.instance_id, arm))
+                newly_completed += 1
+                log.info("[%d/%d] %s | %s | %s (%s, %s patch)",
+                         newly_completed, total_work,
+                         short_iid(task.instance_id), arm,
+                         result.status, fmt_duration(int(result.elapsed_s)),
+                         _fmt_size(len(result.patch)))
+            except KeyboardInterrupt:
+                raise BenchmarkInterrupted(newly_completed)
 
 
 def _run_parallel(
@@ -150,19 +183,30 @@ def _run_parallel(
         if (task.instance_id, arm) not in completed
     ]
 
+    newly_completed = 0
+    total_work = len(work)
     with ThreadPoolExecutor(max_workers=parallel) as pool:
-        futures = {
-            pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo), run_dir): (task, arm)
-            for task, arm in work
-        }
-        for future in as_completed(futures):
-            task, arm = futures[future]
-            result = future.result()
-            _append_result(run_dir, result, seed=seed)
-            _append_prediction(run_dir, result)
-            _upload_task_online(result, run_dir.name, dataset, workspace)
-            log.info("  %s (%s): %s (%.0fs, %d chars patch)",
-                     task.instance_id, arm, result.status, result.elapsed_s, len(result.patch))
+        futures = {}
+        for task, arm in work:
+            f = pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo), run_dir)
+            futures[f] = (task, arm)
+            log.info("[·/%d] %s | %s | started", total_work, short_iid(task.instance_id), arm)
+        try:
+            for future in as_completed(futures):
+                task, arm = futures[future]
+                result = future.result()
+                _append_result(run_dir, result, seed=seed)
+                _append_prediction(run_dir, result)
+                _upload_task_online(result, run_dir.name, dataset, workspace)
+                newly_completed += 1
+                log.info("[%d/%d] %s | %s | %s (%s, %s patch)",
+                         newly_completed, total_work,
+                         short_iid(task.instance_id), arm,
+                         result.status, fmt_duration(int(result.elapsed_s)),
+                         _fmt_size(len(result.patch)))
+        except KeyboardInterrupt:
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise BenchmarkInterrupted(newly_completed)
 
 
 def _safe_run(

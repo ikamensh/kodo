@@ -69,6 +69,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._serve_patch(p)
         elif p == "/admin/tokens":
             self._handle_list_tokens()
+        elif p == "/api/whoami":
+            if self._check_api_token():
+                self._handle_whoami()
         elif p == "/api/health":
             self._json_ok({"status": "ok"})
         else:
@@ -90,6 +93,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif p == "/api/next-tasks":
             if self._check_api_token():
                 self._handle_next_tasks()
+        elif p == "/api/register":
+            self._handle_register()
         else:
             self.send_error(404)
 
@@ -321,6 +326,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         self._json_ok({"assignments": all_assignments})
+
+    # ── Token identity ─────────────────────────────────────────────
+
+    def _handle_whoami(self):
+        token = self._get_bearer_token()
+        try:
+            meta = db.validate_token(token)
+        except Exception:
+            meta = None
+        if not meta:
+            self.send_error(401)
+            return
+        self._json_ok({
+            "name": meta.get("name", ""),
+            "issued_to": meta.get("issued_to", ""),
+        })
+
+    # ── Self-service registration ───────────────────────────────────
+
+    def _handle_register(self):
+        body = self._read_json()
+        if body is None:
+            return
+        name = (body.get("name") or "").strip()
+        agreed = body.get("agreed", False)
+        if not name:
+            self.send_error(400, "Missing name")
+            return
+        if not agreed:
+            self.send_error(400, "Must agree to the benchmark guidelines")
+            return
+        try:
+            token = db.create_token(
+                name=name,
+                issued_to=name,
+                notes="self-registered",
+            )
+        except Exception as e:
+            self.send_error(500, str(e))
+            return
+        self._json_ok({"token": token})
 
     # ── Read handlers ─────────────────────────────────────────────────
 

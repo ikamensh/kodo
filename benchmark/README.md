@@ -73,23 +73,34 @@ If these variables are not set, the benchmark runs in local-only mode (no upload
 
 ### Getting a Token
 
-Ask the project admin. Tokens are managed via the admin API:
+**Self-service**: Go to the [registration page](https://kodo-bench-430011644943.europe-west1.run.app/register.html), enter your name and GitHub username, agree to the benchmark guidelines, and get a token instantly.
+
+**Admin**: Tokens can also be managed via the admin API (`KODO_BENCH_ADMIN_TOKEN` required):
 
 ```bash
-# Create (admin only)
 curl -X POST $KODO_BENCH_URL/admin/tokens \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "descriptive-name", "issued_to": "user@example.com"}'
-
-# List all tokens (admin only)
-curl $KODO_BENCH_URL/admin/tokens \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Revoke (admin only)
-curl -X DELETE $KODO_BENCH_URL/admin/tokens/<prefix> \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+### Contributing Results
+
+1. Register at the [benchmark page](https://kodo-bench-430011644943.europe-west1.run.app/register.html) to get a token
+2. Install agents you want to benchmark (any of: Claude Code, Cursor, Codex, Gemini CLI)
+3. Configure your environment:
+   ```bash
+   export KODO_BENCH_URL=https://kodo-bench-430011644943.europe-west1.run.app
+   export KODO_BENCH_TOKEN=<your-token>
+   ```
+4. Run the benchmark:
+   ```bash
+   uv run python -m benchmark
+   ```
+
+The harness auto-detects installed agents and requests task assignments from the central server. Results upload after each task — if the process crashes, completed work is preserved.
+
+To run specific backends: `uv run python -m benchmark --backends claude,cursor`
 
 ### Architecture
 

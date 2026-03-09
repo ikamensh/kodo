@@ -15,6 +15,31 @@ log = logging.getLogger("benchmark")
 _UNSAFE_RE = re.compile(r"[^a-zA-Z0-9_.-]")
 
 
+def fmt_duration(seconds: int) -> str:
+    """Format seconds as human-readable duration: 7200 -> '2h', 300 -> '5m'."""
+    if seconds >= 3600:
+        h = seconds / 3600
+        return f"{h:.0f}h" if h == int(h) else f"{h:.1f}h"
+    if seconds >= 60:
+        return f"{seconds // 60}m"
+    return f"{seconds}s"
+
+
+def short_iid(instance_id: str) -> str:
+    """Shorten instance_id for display: 'django__django-13195' -> 'django/django#13195'."""
+    parts = instance_id.split("__", 1)
+    if len(parts) != 2:
+        return instance_id
+    owner = parts[0].replace("_", "-")
+    rest = parts[1]
+    dash_idx = rest.rfind("-")
+    if dash_idx > 0:
+        repo = rest[:dash_idx].replace("_", "-")
+        issue = rest[dash_idx + 1:]
+        return f"{owner}/{repo}#{issue}"
+    return f"{owner}/{rest}"
+
+
 def docker_safe(name: str) -> str:
     """Replace chars invalid in Docker container names with underscores."""
     return _UNSAFE_RE.sub("_", name)

@@ -181,6 +181,7 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
   </div>
   <a id="progress-link" href="/progress.html" style="margin-left:12px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Progress &rarr;</a>
   <a id="scheduling-link" href="/scheduling.html" style="margin-left:8px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Scheduling &rarr;</a>
+  <a id="join-link" href="/register.html" style="margin-left:8px;font-size:12px;padding:4px 12px;border:1px solid var(--accent);border-radius:12px;color:var(--accent);text-decoration:none;white-space:nowrap;font-weight:500;" onmouseover="this.style.background='var(--accent)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--accent)'">Contribute</a>
 </nav>
 
 <main id="main"><div class="loading">Loading...</div></main>
@@ -197,6 +198,7 @@ const BASE = (() => {
 
 { const pl = document.getElementById('progress-link'); if (pl) pl.href = (BASE || '/') + 'progress.html'; }
 { const sl = document.getElementById('scheduling-link'); if (sl) sl.href = (BASE || '/') + 'scheduling.html'; }
+{ const jl = document.getElementById('join-link'); if (jl) jl.href = (BASE || '/') + 'register.html'; }
 
 // ── State ──
 let currentDataset = 'verified';

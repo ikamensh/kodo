@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kodo bench — join</title>
+<script>
+(function() {
+  var s = localStorage.getItem('kodo-bench-theme');
+  var p = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if ((s || (p ? 'dark' : 'light')) === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+</script>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --surface: #1c2128; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #484f58;
+  --accent: #58a6ff; --accent2: #388bfd;
+  --green: #3fb950; --red: #f85149; --orange: #d29922;
+  --green-bg: rgba(63,185,80,0.12); --red-bg: rgba(248,81,73,0.12);
+  --shadow: 0 1px 3px rgba(0,0,0,0.4); --code-bg: #161b22;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --bg2: #ffffff; --surface: #ffffff; --border: #d0d7de;
+  --text: #1f2328; --text2: #656d76; --text3: #b1bac4;
+  --accent: #0969da; --accent2: #0550ae;
+  --green: #1a7f37; --red: #cf222e; --orange: #9a6700;
+  --green-bg: rgba(26,127,55,0.1); --red-bg: rgba(207,34,46,0.1);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08); --code-bg: #f6f8fa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; background: var(--bg2); }
+header h1 { font-size: 17px; font-weight: 700; }
+header h1 a { color: var(--text); text-decoration: none; }
+header h1 a:hover { color: var(--accent); }
+header .breadcrumb { color: var(--text2); font-size: 17px; font-weight: 700; }
+main { max-width: 600px; margin: 48px auto; padding: 0 24px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
+h2 { font-size: 20px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+.field input[type="text"] { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; }
+.field input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.guidelines { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.7; color: var(--text2); }
+.guidelines strong { color: var(--text); }
+.guidelines ul { margin: 8px 0 0 20px; }
+.checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 24px; font-size: 13px; cursor: pointer; }
+.checkbox-row input { margin-top: 2px; accent-color: var(--accent); }
+.btn { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--accent2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.error { color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
+.result { display: none; margin-top: 24px; }
+.result .success { background: var(--green-bg); border: 1px solid var(--green); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.result .success h3 { color: var(--green); font-size: 14px; margin-bottom: 4px; }
+.result .success p { font-size: 13px; color: var(--text2); }
+.token-display { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; word-break: break-all; margin-bottom: 16px; position: relative; cursor: pointer; }
+.token-display:hover { border-color: var(--accent); }
+.token-display .copy-hint { position: absolute; right: 8px; top: 8px; font-size: 11px; color: var(--text3); font-family: -apple-system, sans-serif; }
+.instructions { font-size: 13px; line-height: 1.7; color: var(--text2); }
+.instructions code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); font-size: 12px; }
+.instructions pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin: 8px 0; overflow-x: auto; font-size: 12px; color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><a href="/">kodo bench</a> <span class="breadcrumb">/ contribute</span></h1>
+</header>
+
+<main>
+<div class="card">
+  <div id="form-section">
+    <h2>Join the benchmark</h2>
+    <p class="subtitle">
+      Help evaluate AI coding agents on SWE-bench. Run benchmarks on your machine,
+      results upload automatically to the shared leaderboard.
+    </p>
+
+    <div class="field">
+      <label for="name">Display name</label>
+      <input type="text" id="name" placeholder="Alice">
+    </div>
+
+    <div class="guidelines">
+      <strong>Benchmark guidelines</strong>
+      <ul>
+        <li>Run agents with the standard benchmark harness as-is</li>
+        <li>Do not modify the evaluation pipeline or test outcomes</li>
+        <li>Do not fabricate, cherry-pick, or alter results</li>
+        <li>Each agent must work autonomously — no human-in-the-loop</li>
+        <li>All submissions are public and attributable to you</li>
+      </ul>
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" id="agree">
+      <span>I agree to follow these guidelines and understand that my submissions are public and tied to my identity.</span>
+    </label>
+
+    <button class="btn" id="register-btn" disabled>Get API token</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <div class="result" id="result-section">
+    <div class="success">
+      <h3>You're in!</h3>
+      <p>Save this token — it cannot be retrieved again.</p>
+    </div>
+    <div class="token-display" id="token-display" title="Click to copy">
+      <span class="copy-hint">click to copy</span>
+      <span id="token-value"></span>
+    </div>
+    <div class="instructions">
+      <strong>Setup:</strong>
+      <pre id="setup-instructions"></pre>
+      <p>Then run the benchmark:</p>
+      <pre>uv run python -m benchmark</pre>
+      <p style="margin-top:12px">
+        The harness auto-detects which agents you have installed (Claude Code, Cursor, Codex, Gemini)
+        and requests task assignments from the server. Results upload after each task.
+      </p>
+      <p style="margin-top:8px">
+        To run specific agents: <code>uv run python -m benchmark --backends claude,cursor</code>
+      </p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+const BASE = (() => {
+  let p = window.location.pathname;
+  const i = p.lastIndexOf('/');
+  return i > 0 ? p.slice(0, i) : '';
+})();
+
+const agreeBox = document.getElementById('agree');
+const btn = document.getElementById('register-btn');
+const errorEl = document.getElementById('error');
+
+agreeBox.addEventListener('change', () => { btn.disabled = !agreeBox.checked; });
+
+btn.addEventListener('click', async () => {
+  const name = document.getElementById('name').value.trim();
+  if (!name) {
+    errorEl.textContent = 'Please enter a display name.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    const r = await fetch(BASE + '/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, agreed: true }),
+    });
+    if (!r.ok) {
+      const text = await r.text();
+      throw new Error(text || r.statusText);
+    }
+    const data = await r.json();
+    document.getElementById('token-value').textContent = data.token;
+
+    const serverUrl = window.location.origin + (BASE || '');
+    document.getElementById('setup-instructions').textContent =
+      `# Add to your .env or shell profile\n` +
+      `export KODO_BENCH_URL=${serverUrl}\n` +
+      `export KODO_BENCH_TOKEN=${data.token}`;
+
+    document.getElementById('form-section').style.display = 'none';
+    document.getElementById('result-section').style.display = 'block';
+  } catch (e) {
+    errorEl.textContent = 'Registration failed: ' + e.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Get API token';
+  }
+});
+
+document.getElementById('token-display').addEventListener('click', () => {
+  const token = document.getElementById('token-value').textContent;
+  navigator.clipboard.writeText(token).then(() => {
+    document.querySelector('.copy-hint').textContent = 'copied!';
+    setTimeout(() => { document.querySelector('.copy-hint').textContent = 'click to copy'; }, 2000);
+  });
+});
+</script>
+</body>
+</html>

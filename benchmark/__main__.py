@@ -215,8 +215,8 @@ def main() -> int:
     # Run agents
     import json
 
-    from benchmark.online.client import fetch_assignments, is_configured
-    from benchmark.runner import run_benchmark
+    from benchmark.online.client import fetch_assignments, is_configured, whoami
+    from benchmark.runner import BenchmarkInterrupted, run_benchmark
     from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
     # Resolve dataset and instance_ids from --subset if provided
@@ -230,6 +230,9 @@ def main() -> int:
     # Mode: distribute (default when configured) vs local
     local_mode = args.local or args.subset or args.instance_ids
     if not local_mode and is_configured():
+        identity = whoami()
+        if identity:
+            log.info("Authenticated as: %s", identity)
         return _run_distributed(args, workspace, run_id)
 
     # Local mode
@@ -248,17 +251,20 @@ def main() -> int:
 
     log.info("Running %d tasks", len(tasks))
 
-    run_benchmark(
-        tasks=tasks,
-        arms=arms,
-        workspace=workspace,
-        run_id=run_id,
-        timeout=args.timeout,
-        timeout_kodo=args.timeout_kodo,
-        parallel=args.parallel,
-        dataset=dataset,
-        seed=args.seed,
-    )
+    try:
+        run_benchmark(
+            tasks=tasks,
+            arms=arms,
+            workspace=workspace,
+            run_id=run_id,
+            timeout=args.timeout,
+            timeout_kodo=args.timeout_kodo,
+            parallel=args.parallel,
+            dataset=dataset,
+            seed=args.seed,
+        )
+    except BenchmarkInterrupted as exc:
+        return _print_interrupted(exc.completed_count)
 
     if not args.skip_eval:
         evaluate_predictions(workspace, run_id)
@@ -279,7 +285,7 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
         backends = args.arm
     else:
         backends = detect_backends()
-        log.info("Auto-detected backends: %s", backends)
+        log.info("Detected agents: %s", ", ".join(backends))
 
     # Load tasks from all datasets so server can pick across them
     all_datasets: dict[str, list[str]] = {}
@@ -289,54 +295,77 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
         all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
         for t in ds_tasks:
             all_tasks[t.instance_id] = t
-        log.info("Loaded %d tasks from %s", len(ds_tasks), ds_key)
+    total_tasks = sum(len(v) for v in all_datasets.values())
+    log.info("Task pool: %d tasks (%s)",
+             total_tasks, ", ".join(f"{k}: {len(v)}" for k, v in all_datasets.items()))
 
     batch_size = args.limit or 20
     total_completed = 0
 
-    while True:
-        try:
-            assignments = fetch_assignments(
-                backends=backends,
-                datasets=all_datasets,
-                limit=batch_size,
+    try:
+        while True:
+            try:
+                assignments = fetch_assignments(
+                    backends=backends,
+                    datasets=all_datasets,
+                    limit=batch_size,
+                )
+            except Exception as exc:
+                log.error("Failed to get assignments from %s: %s",
+                          os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
+                return 1 if total_completed == 0 else 0
+
+            if not assignments:
+                if total_completed == 0:
+                    log.info("No tasks need evaluation — all covered!")
+                else:
+                    log.info("No more tasks. Completed %d total.", total_completed)
+                return 0
+
+            tasks = [all_tasks[a["instance_id"]] for a in assignments
+                     if a["instance_id"] in all_tasks]
+            arms = list({a["arm"] for a in assignments})
+            ds_keys = {a.get("dataset", "pro") for a in assignments}
+            dataset = DATASET_MAP.get(next(iter(ds_keys)), DATASET_PRO)
+            unique_tasks = len({a["instance_id"] for a in assignments})
+            log.info("Received %d tasks x %d agents (%s) from %s",
+                     unique_tasks, len(arms), ", ".join(arms), "/".join(ds_keys))
+
+            run_benchmark(
+                tasks=tasks,
+                arms=arms,
+                workspace=workspace,
+                run_id=run_id,
+                timeout=args.timeout,
+                timeout_kodo=args.timeout_kodo,
+                parallel=args.parallel,
+                dataset=dataset,
+                seed=args.seed,
+                assignments=assignments,
             )
-        except Exception as exc:
-            log.error("Failed to get assignments from %s: %s",
-                      os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
-            return 1 if total_completed == 0 else 0
+            total_completed += len(tasks)
+            log.info("Batch done. %d completed so far, polling for more...",
+                     total_completed)
+    except (KeyboardInterrupt, BenchmarkInterrupted) as exc:
+        n = exc.completed_count if isinstance(exc, BenchmarkInterrupted) else 0
+        return _print_interrupted(total_completed + n)
 
-        if not assignments:
-            if total_completed == 0:
-                log.info("No tasks need evaluation — all covered!")
-            else:
-                log.info("No more tasks. Completed %d total.", total_completed)
-            return 0
 
-        tasks = [all_tasks[a["instance_id"]] for a in assignments
-                 if a["instance_id"] in all_tasks]
-        arms = list({a["arm"] for a in assignments})
-        ds_keys = {a.get("dataset", "pro") for a in assignments}
-        dataset = DATASET_MAP.get(next(iter(ds_keys)), DATASET_PRO)
-        log.info("Server assigned %d task/arm pairs across %s (datasets: %s)",
-                 len(assignments), arms, ds_keys)
-
-        run_benchmark(
-            tasks=tasks,
-            arms=arms,
-            workspace=workspace,
-            run_id=run_id,
-            timeout=args.timeout,
-            timeout_kodo=args.timeout_kodo,
-            parallel=args.parallel,
-            dataset=dataset,
-            seed=args.seed,
-            assignments=assignments,
-        )
-        total_completed += len(tasks)
-        log.info("Batch done. %d completed so far, polling for more...",
-                 total_completed)
+def _print_interrupted(completed: int) -> int:
+    """Print a clean summary on Ctrl+C."""
+    print()  # newline after ^C
+    if completed > 1:
+        log.info("Interrupted. %d tasks completed and uploaded. Thanks for contributing!", completed)
+    elif completed == 1:
+        log.info("Interrupted. 1 task completed and uploaded.")
+    else:
+        log.info("Interrupted. No tasks completed.")
+    log.info("Claimed tasks will be reassigned automatically.")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(_print_interrupted(0))
