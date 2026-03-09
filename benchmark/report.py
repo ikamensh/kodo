@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime
 from pathlib import Path
+
+from benchmark._util import docker_safe, load_json, load_jsonl
 
 
 def generate_report(workspace: Path, run_id: str) -> int:
     """Generate and print a benchmark report. Returns 0 on success."""
     run_dir = workspace / "runs" / run_id
 
-    meta = _load_json(run_dir / "meta.json")
-    eval_summary = _load_json(run_dir / "eval-summary.json")
-    results = _load_jsonl(run_dir / "results.jsonl")
+    meta = load_json(run_dir / "meta.json")
+    eval_summary = load_json(run_dir / "eval-summary.json")
+    results = load_jsonl(run_dir / "results.jsonl")
 
     lines: list[str] = []
     dataset_label = meta.get("dataset", "").rsplit("/", 1)[-1] or "SWE-bench"
@@ -118,7 +118,7 @@ def _dataset_short(dataset: str) -> str:
 
 def _eval_key(arm: str) -> str:
     """Map arm name to eval-summary key (sanitized for Docker container names)."""
-    return re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
+    return docker_safe(arm)
 
 
 def print_status(workspace: Path) -> int:
@@ -141,7 +141,7 @@ def print_status(workspace: Path) -> int:
     total_evaluated: set[str] = set()
 
     for rd in run_dirs:
-        meta = _load_json(rd / "meta.json")
+        meta = load_json(rd / "meta.json")
         if not meta:
             continue
 
@@ -150,13 +150,13 @@ def print_status(workspace: Path) -> int:
         dataset = _dataset_short(meta.get("dataset", ""))
 
         # Count completed results
-        results = _load_jsonl(rd / "results.jsonl")
+        results = load_jsonl(rd / "results.jsonl")
         # Unique instance_ids that have results (across all arms)
         done_ids = {r["instance_id"] for r in results if "instance_id" in r}
         done_count = len(done_ids)
 
         # Eval info
-        eval_summary = _load_json(rd / "eval-summary.json")
+        eval_summary = load_json(rd / "eval-summary.json")
         has_eval = bool(eval_summary)
         rates: list[str] = []
         if has_eval:
@@ -232,27 +232,6 @@ def print_status(workspace: Path) -> int:
     print()
     return 0
 
-
-def _load_json(path: Path) -> dict:
-    if path.exists():
-        try:
-            return json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
-
-def _load_jsonl(path: Path) -> list[dict]:
-    results: list[dict] = []
-    if path.exists():
-        for line in path.read_text().splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    results.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    return results
 
 
 def _median(values: list[float]) -> float:

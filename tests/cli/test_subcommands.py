@@ -274,67 +274,73 @@ class TestCmdBackends:
         assert "sk-ant-1234567890abcdef" not in out
 
     def test_available_backend_shows_version(self, capsys):
-        """When backend is available and version command succeeds, show version string."""
-        from subprocess import CompletedProcess
-
-        mock_result = CompletedProcess(
-            args=["claude", "--version"],
-            returncode=0,
-            stdout="Claude Code CLI 2.5.0\nExtra line",
-            stderr="",
-        )
-
+        """When backend is available and healthy, show version string."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
             patch("kodo.factory.check_api_key", return_value=None),
-            patch("subprocess.run", return_value=mock_result),
+            patch("kodo.factory.check_backend_status", return_value=("Claude Code CLI 2.5.0", None)),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
 
         out = capsys.readouterr().out
         assert "Claude Code CLI 2.5.0" in out
-        # Should only show first line of output
-        assert "Extra line" not in out
 
     def test_version_command_fails_shows_error(self, capsys):
-        """When version command returns non-zero exit code, show error message."""
-        from subprocess import CompletedProcess
-
-        mock_result = CompletedProcess(
-            args=["claude", "--version"],
-            returncode=127,
-            stdout="",
-            stderr="command not found",
-        )
-
+        """When version command returns non-zero exit code, show error and warning."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
             patch("kodo.factory.check_api_key", return_value=None),
-            patch("subprocess.run", return_value=mock_result),
+            patch("kodo.factory.check_backend_status", return_value=("error (exit 127)", "claude: Binary not working — reinstall or check PATH.")),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
 
         out = capsys.readouterr().out
         assert "error (exit 127)" in out
+        assert "Binary not working" in out
 
     def test_version_command_timeout(self, capsys):
-        """When version command times out, show 'error'."""
-        from subprocess import TimeoutExpired
-
+        """When version command times out, show timeout warning."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
             patch("kodo.factory.check_api_key", return_value=None),
-            patch("subprocess.run", side_effect=TimeoutExpired("claude --version", 10)),
+            patch("kodo.factory.check_backend_status", return_value=("timeout", "Version check timed out (15 s)")),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
 
         out = capsys.readouterr().out
-        assert "error" in out
-        # Should not have "error (exit N)" format
-        assert "exit" not in out or "error" in out
+        assert "timeout" in out
+        assert "timed out" in out
+
+    def test_auth_warning_shown_yellow(self, capsys):
+        """When backend has auth issues, show warning detail on next line."""
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("kodo.factory.check_backend_status", return_value=("1.0.0", "Authentication issue — check your API key or login status")),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "Authentication issue" in out
+        assert "\033[33m" in out  # YELLOW escape code
+
+    def test_healthy_backend_green(self, capsys):
+        """Healthy backend name is displayed in green."""
+        with (
+            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.factory.check_api_key", return_value=None),
+            patch("kodo.factory.check_backend_status", return_value=("1.0.0", None)),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "\033[32m" in out  # GREEN escape code
+        assert "1.0.0" in out
 
     def test_orchestrator_models_listed(self, capsys):
         """Orchestrator model aliases and their full IDs should appear in output."""

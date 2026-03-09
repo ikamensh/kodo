@@ -4,15 +4,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kodo bench</title>
+<script>
+// Apply theme before render to prevent flash of wrong theme
+(function() {
+  var stored = localStorage.getItem('kodo-bench-theme');
+  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var theme = stored || (prefersDark ? 'dark' : 'light');
+  if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+</script>
 <style>
+/* ── Theme variables ── */
 :root {
   --bg: #0d1117; --surface: #161b22; --border: #30363d;
   --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
   --green: #3fb950; --red: #f85149; --orange: #d29922;
   --gray: #21262d; --gray2: #30363d;
+  --badge-green-bg: rgba(63,185,80,0.15); --badge-red-bg: rgba(248,81,73,0.15);
+  --badge-orange-bg: rgba(210,153,34,0.15); --badge-accent-bg: rgba(88,166,255,0.1);
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --code-bg: #1c2128;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --surface: #ffffff; --border: #d0d7de;
+  --text: #1f2328; --text2: #656d76; --accent: #0969da;
+  --green: #1a7f37; --red: #cf222e; --orange: #9a6700;
+  --gray: #eaeef2; --gray2: #d0d7de;
+  --badge-green-bg: rgba(26,127,55,0.12); --badge-red-bg: rgba(207,34,46,0.12);
+  --badge-orange-bg: rgba(154,103,0,0.12); --badge-accent-bg: rgba(9,105,218,0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --code-bg: #eaeef2;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); transition: background 0.2s, color 0.2s; }
 
 header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
 header h1 { font-size: 18px; font-weight: 600; }
@@ -27,7 +51,7 @@ main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 
 /* Summary cards */
 .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; min-width: 180px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; min-width: 180px; box-shadow: var(--shadow); transition: background 0.2s, border-color 0.2s; }
 .card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
 .card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
 .card .sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
@@ -70,16 +94,16 @@ td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--surface); }
 tr.expanded td { background: var(--surface); border-bottom: none; }
 .expand-row td { background: var(--surface); padding: 12px 24px; }
-.patch-view { background: var(--bg); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin-top: 8px; }
+.patch-view { background: var(--code-bg); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); }
 .patch-view .add { color: var(--green); }
 .patch-view .del { color: var(--red); }
 .patch-view .hunk { color: var(--accent); }
 
 .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-.status-badge.resolved { background: rgba(63,185,80,0.15); color: var(--green); }
-.status-badge.failed { background: rgba(248,81,73,0.15); color: var(--red); }
-.status-badge.error { background: rgba(210,153,34,0.15); color: var(--orange); }
-.status-badge.ok { background: rgba(88,166,255,0.1); color: var(--accent); }
+.status-badge.resolved { background: var(--badge-green-bg); color: var(--green); }
+.status-badge.failed { background: var(--badge-red-bg); color: var(--red); }
+.status-badge.error { background: var(--badge-orange-bg); color: var(--orange); }
+.status-badge.ok { background: var(--badge-accent-bg); color: var(--accent); }
 .status-badge.pending { background: var(--gray); color: var(--text2); }
 
 .loading { text-align: center; padding: 48px; color: var(--text2); }
@@ -89,11 +113,28 @@ tr.expanded td { background: var(--surface); border-bottom: none; }
 .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .bar-label { width: 120px; text-align: right; font-size: 13px; color: var(--text2); flex-shrink: 0; }
 .bar-track { flex: 1; height: 24px; background: var(--gray); border-radius: 4px; overflow: hidden; display: flex; }
-.bar-fill { height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; min-width: 24px; }
+.bar-fill { height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; min-width: 24px; color: #fff; }
 .bar-fill.resolved { background: var(--green); }
 .bar-fill.failed { background: var(--red); }
 .bar-fill.error { background: var(--orange); }
 .bar-value { width: 48px; font-size: 13px; color: var(--text2); }
+
+/* Theme toggle */
+.theme-toggle {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  width: 36px; height: 36px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 18px; line-height: 1; color: var(--text2);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Smooth transitions for themed elements */
+header, .tabs, .tab, .filter-bar select, .filter-bar input,
+.expand-row td, .bar-track, .status-badge, .legend, th, td {
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
 </style>
 </head>
 <body>
@@ -101,6 +142,7 @@ tr.expanded td { background: var(--surface); border-bottom: none; }
 <header>
   <h1>kodo bench</h1>
   <span class="stats" id="header-stats"></span>
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark mode"></button>
 </header>
 
 <div class="tabs" id="tabs">
@@ -113,7 +155,7 @@ tr.expanded td { background: var(--surface); border-bottom: none; }
 </main>
 
 <script>
-const DATA_BASE = '/data';
+const DATA_BASE = 'data';
 let currentDataset = 'verified';
 let allData = {};
 
@@ -130,13 +172,16 @@ async function init() {
   });
 
   try {
-    const [verified, pro] = await Promise.all([
+    const [verifiedIdx, proIdx] = await Promise.all([
       fetchJSON(`${DATA_BASE}/verified/index.json`),
       fetchJSON(`${DATA_BASE}/pro/index.json`),
     ]);
-    allData = { verified: verified || emptyIndex(), pro: pro || emptyIndex() };
+    allData = {
+      verified: { ...(verifiedIdx || emptyIndex()), patches: {} },
+      pro: { ...(proIdx || emptyIndex()), patches: {} },
+    };
   } catch (e) {
-    allData = { verified: emptyIndex(), pro: emptyIndex() };
+    allData = { verified: { ...emptyIndex(), patches: {} }, pro: { ...emptyIndex(), patches: {} } };
   }
 
   render();
@@ -196,7 +241,7 @@ function render() {
 
   // Summary cards
   html += '<div class="summary">';
-  html += `<div class="card"><div class="label">Total Tasks</div><div class="value">${tasks.length}</div><div class="sub">${totalEvaluated.size} with results</div></div>`;
+  html += `<div class="card"><div class="label">Tasks</div><div class="value">${tasks.length}</div><div class="sub">${totalEvaluated.size} evaluated</div></div>`;
   for (const arm of arms) {
     const s = stats[arm];
     const rate = s.total > 0 ? ((s.resolved / s.total) * 100).toFixed(1) : '—';
@@ -390,7 +435,7 @@ function sortTable(col) {
   });
 }
 
-async function toggleExpand(row) {
+function toggleExpand(row) {
   const existing = row.nextElementSibling;
   if (existing?.classList.contains('expand-row')) {
     existing.remove();
@@ -410,26 +455,25 @@ async function toggleExpand(row) {
     if (!r) continue;
     html += `<h4 style="margin:8px 0 4px;color:var(--accent)">${escapeHtml(arm)}</h4>`;
     html += `<div style="font-size:12px;color:var(--text2)">Status: ${r.status} | Elapsed: ${formatTime(r.elapsed_s || 0)} | Patch: ${r.patch_len || 0} chars</div>`;
-
-    if (r.patch_url) {
-      html += '<div class="patch-view" id="patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id + '">Loading patch...</div>';
-      loadPatch(r.patch_url, 'patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id);
-    }
+    html += `<div class="patch-view" id="patch-${escapeHtml(id)}-${escapeHtml(arm)}">Loading patch...</div>`;
+    // Lazy-fetch patch
+    fetchPatch(currentDataset, id, arm);
   }
   html += '</td>';
   expandRow.innerHTML = html;
   row.after(expandRow);
 }
 
-async function loadPatch(url, elementId) {
+async function fetchPatch(dataset, instanceId, arm) {
+  const el = document.getElementById(`patch-${instanceId}-${arm}`);
+  if (!el) return;
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(`api/patch/${dataset}/${instanceId}/${arm}`);
+    if (!resp.ok) { el.textContent = '(no patch available)'; return; }
     const text = await resp.text();
-    const el = document.getElementById(elementId);
-    if (el) el.innerHTML = highlightDiff(text);
-  } catch (e) {
-    const el = document.getElementById(elementId);
-    if (el) el.textContent = 'Failed to load patch';
+    el.innerHTML = highlightDiff(text);
+  } catch {
+    el.textContent = '(failed to load patch)';
   }
 }
 
@@ -452,6 +496,47 @@ function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Theme toggle ──
+
+function initTheme() {
+  const stored = localStorage.getItem('kodo-bench-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = stored || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('kodo-bench-theme', next);
+  });
+
+  // React to system preference changes (only if user hasn't set a preference)
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (!localStorage.getItem('kodo-bench-theme')) {
+      applyTheme(e.matches ? 'dark' : 'light');
+    }
+  });
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  updateToggleIcon(theme);
+}
+
+function updateToggleIcon(theme) {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  // Sun icon for dark mode (click to go light), Moon icon for light mode (click to go dark)
+  btn.textContent = theme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+initTheme();
 init();
 </script>
 </body>

@@ -73,7 +73,7 @@ def _row_to_task(row: dict) -> SWETask:
     )
 
 
-def _parse_list_field(value: str | list) -> list:
+def _parse_list_field(value: str | list[str]) -> list[str]:
     """Parse a field that may be a list, JSON string, or Python repr string."""
     if isinstance(value, list):
         return value

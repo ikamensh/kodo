@@ -225,6 +225,63 @@ def _detect_backend(agent: "Agent") -> str | None:
     return _SESSION_BACKEND_MAP.get(cls_name)
 
 
+def check_backend_status(name: str) -> tuple[str, str | None]:
+    """Run the preflight command and classify output for health issues.
+
+    Returns ``(version_string, warning_or_none)``.  A non-None warning
+    means the backend is *installed* but may have auth / quota / billing
+    problems (detected from stderr patterns).
+    """
+    cmd = _PREFLIGHT_CMDS.get(name)
+    if cmd is None:
+        return ("?", None)
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        return ("timeout", "Version check timed out (15 s)")
+    except OSError as exc:
+        return ("error", str(exc))
+
+    combined = f"{proc.stderr}\n{proc.stdout}"
+
+    # Extract version string
+    if proc.returncode == 0:
+        version = proc.stdout.strip().split("\n")[0] or "ok"
+    else:
+        version = f"error (exit {proc.returncode})"
+
+    # Scan for auth / quota problems (may appear even on rc 0)
+    from kodo.sessions.base import (
+        _AUTH_PATTERNS,
+        _SUBSCRIPTION_PATTERNS,
+        classify_session_error,
+    )
+
+    if _AUTH_PATTERNS.search(combined):
+        return (version, "Authentication issue — check your API key or login status")
+    if _SUBSCRIPTION_PATTERNS.search(combined):
+        return (version, "Quota/billing issue — check your account status")
+
+    if proc.returncode != 0:
+        hint = classify_session_error(
+            proc.returncode, proc.stderr, proc.stdout, name,
+        )
+        if hint:
+            return (version, hint)
+        snippet = combined.strip()[:200]
+        return (version, snippet or f"Preflight failed with exit code {proc.returncode}")
+
+    return (version, None)
+
+
 def preflight_check_backends(team: "TeamConfig") -> list[str]:
     """Run a lightweight smoke test on each backend in the team.
 

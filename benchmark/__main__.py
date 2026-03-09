@@ -12,15 +12,21 @@ Usage:
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import argparse
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from benchmark._util import log, setup_logging
+
 WORKSPACE = Path.home() / ".kodo" / "benchmark"
 
 
 def main() -> int:
+    """CLI entrypoint for the SWE-bench benchmark harness."""
     parser = argparse.ArgumentParser(
         description="SWE-bench benchmark: kodo vs raw Claude Code",
     )
@@ -111,15 +117,28 @@ def main() -> int:
         help="Only generate report from existing results",
     )
     parser.add_argument(
-        "--upload",
+        "--publish",
         action="store_true",
-        help="Upload results to GCS and regenerate viewer index",
+        help="Publish results to GitHub Pages for the online viewer",
+    )
+    parser.add_argument(
+        "--extract-patch",
+        nargs=2,
+        metavar=("INSTANCE_ID", "ARM"),
+        help="Print a patch from published data",
+    )
+    parser.add_argument(
+        "--upload-pending",
+        action="store_true",
+        help="Upload results not yet sent to the online server (requires KODO_BENCH_URL/TOKEN)",
     )
 
     args = parser.parse_args()
+    setup_logging()
     workspace: Path = args.workspace
     workspace.mkdir(parents=True, exist_ok=True)
 
+    # UTC timestamp as run ID
     run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     arms = args.arm if args.arm else ["claude", "kodo"]
 
@@ -128,10 +147,20 @@ def main() -> int:
 
         return print_status(workspace)
 
-    if args.upload:
-        from benchmark.upload import upload_results
+    if args.publish:
+        from benchmark.online.publish import publish_results
 
-        return upload_results(workspace, run_id=args.run_id)
+        return publish_results(workspace, run_id=args.run_id)
+
+    if args.extract_patch:
+        from benchmark.online.publish import extract_patch
+
+        return extract_patch(args.extract_patch[0], args.extract_patch[1])
+
+    if args.upload_pending:
+        from benchmark.online.upload_tracker import flush_pending_uploads
+
+        return flush_pending_uploads(workspace)
 
     from benchmark.evaluate import evaluate_predictions
     from benchmark.report import generate_report
@@ -168,10 +197,10 @@ def main() -> int:
     )
 
     if not tasks:
-        print("No tasks matched the filters.")
+        log.error("No tasks matched the filters.")
         return 1
 
-    print(f"Loaded {len(tasks)} tasks")
+    log.info("Loaded %d tasks", len(tasks))
 
     run_benchmark(
         tasks=tasks,

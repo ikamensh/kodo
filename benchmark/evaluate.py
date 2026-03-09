@@ -7,19 +7,20 @@ and the standard swebench harness for Lite/Verified.
 from __future__ import annotations
 
 import json
-import re
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-
-def _docker_safe(name: str) -> str:
-    """Replace chars invalid in Docker container names with underscores."""
-    return re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
+from benchmark._util import docker_safe as _docker_safe, log
 
 # Location of the cloned scaleapi/SWE-bench_Pro-os repo
-_PRO_EVAL_DIR = Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"
+_PRO_EVAL_DIR = Path(os.environ.get(
+    "SWEBENCH_PRO_EVAL_DIR",
+    str(Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"),
+))
 
 
 def evaluate_predictions(workspace: Path, run_id: str) -> None:
@@ -36,7 +37,7 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
 
     for pred_file in sorted(run_dir.glob("predictions-*.jsonl")):
         arm = pred_file.stem.replace("predictions-", "")
-        print(f"\nEvaluating {arm}...")
+        log.info("Evaluating %s...", arm)
 
         if is_pro:
             _evaluate_pro(pred_file, arm, run_dir)
@@ -52,10 +53,9 @@ def evaluate_predictions(workspace: Path, run_id: str) -> None:
 def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
     """Evaluate using Scale AI's SWE-bench Pro eval script."""
     if not _PRO_EVAL_DIR.exists():
-        print(
-            f"  WARNING: SWE-bench Pro eval repo not found at {_PRO_EVAL_DIR}\n"
-            f"  Clone it: git clone https://github.com/scaleapi/SWE-bench_Pro-os.git {_PRO_EVAL_DIR}"
-        )
+        log.warning("SWE-bench Pro eval repo not found at %s\n"
+                     "  Clone it: git clone https://github.com/scaleapi/SWE-bench_Pro-os.git %s",
+                     _PRO_EVAL_DIR, _PRO_EVAL_DIR)
         return
 
     # Convert our predictions JSONL to the patch JSON format Scale expects
@@ -86,17 +86,17 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
         "--patch_path", str(patch_file),
         "--output_dir", str(eval_dir),
         "--scripts_dir", str(_PRO_EVAL_DIR / "run_scripts"),
-        "--dockerhub_username", "jefzda",
-        "--num_workers", "4",
+        "--dockerhub_username", os.environ.get("DOCKERHUB_USERNAME", "jefzda"),
+        "--num_workers", os.environ.get("SWEBENCH_EVAL_WORKERS", "4"),
         "--use_local_docker",
     ]
 
     try:
         subprocess.run(cmd, check=True, timeout=7200, cwd=str(_PRO_EVAL_DIR))
     except subprocess.TimeoutExpired:
-        print(f"  WARNING: Evaluation timed out for {arm}")
+        log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
-        print(f"  WARNING: Evaluation failed for {arm}: {exc}")
+        log.warning("Evaluation failed for %s: %s", arm, exc)
 
 
 def _write_pro_samples(sample_file: Path, instance_ids: list[str]) -> None:
@@ -138,14 +138,11 @@ def _evaluate_standard(
     try:
         subprocess.run(cmd, check=True, timeout=7200)
     except subprocess.TimeoutExpired:
-        print(f"  WARNING: Evaluation timed out for {arm}")
+        log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
-        print(f"  WARNING: Evaluation failed for {arm}: {exc}")
+        log.warning("Evaluation failed for %s: %s", arm, exc)
     except FileNotFoundError:
-        print(
-            "  WARNING: swebench not installed. "
-            "Install with: uv pip install 'swebench>=1.0'"
-        )
+        log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
 
     # Copy swebench logs into the run's eval dir so results persist
     safe_key = _docker_safe(f"{run_id}_{arm}")
@@ -155,7 +152,7 @@ def _evaluate_standard(
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(swebench_log_dir, dest)
-        print(f"  Copied swebench logs to {dest}")
+        log.info("Copied swebench logs to %s", dest)
 
 
 # ── Result Collection ───────────────────────────────────────────────────
@@ -169,7 +166,7 @@ def _collect_eval_results(
     if not eval_base.exists():
         eval_base.mkdir(parents=True)
 
-    summary: dict[str, dict] = {}
+    summary: dict[str, dict[str, Any]] = {}
 
     if is_pro:
         for arm_dir in sorted(eval_base.iterdir()):
@@ -206,7 +203,7 @@ def _collect_eval_results(
 
     summary_file = run_dir / "eval-summary.json"
     summary_file.write_text(json.dumps(summary, indent=2))
-    print(f"\nEval summary written to {summary_file}")
+    log.info("Eval summary written to %s", summary_file)
 
 
 def _parse_pro_results(eval_dir: Path) -> dict:

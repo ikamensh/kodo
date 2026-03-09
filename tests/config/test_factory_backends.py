@@ -20,6 +20,7 @@ from kodo.factory import (
     _build_team_quick,
     _quick_system_prompt,
     check_api_key,
+    check_backend_status,
 )
 
 
@@ -207,3 +208,102 @@ class TestCheckApiKey:
     def test_anthropic_key_accepted(self):
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
             assert check_api_key("api", "opus") is None
+
+
+# ---------------------------------------------------------------------------
+# Backend health status checks
+# ---------------------------------------------------------------------------
+
+
+class TestCheckBackendStatus:
+    """check_backend_status() runs the preflight command and classifies output."""
+
+    def test_healthy_backend(self):
+        from subprocess import CompletedProcess
+
+        result = CompletedProcess(["claude", "--version"], 0, stdout="CLI 2.5.0\n", stderr="")
+        with patch("kodo.factory.subprocess.run", return_value=result):
+            version, warning = check_backend_status("claude")
+        assert version == "CLI 2.5.0"
+        assert warning is None
+
+    def test_auth_pattern_in_stderr(self):
+        """Auth errors in stderr should produce a warning even on rc 0."""
+        from subprocess import CompletedProcess
+
+        result = CompletedProcess(
+            ["claude", "--version"], 0,
+            stdout="CLI 2.5.0\n",
+            stderr="Warning: authentication failed for current session\n",
+        )
+        with patch("kodo.factory.subprocess.run", return_value=result):
+            version, warning = check_backend_status("claude")
+        assert version == "CLI 2.5.0"
+        assert warning is not None
+        assert "Authentication" in warning
+
+    def test_subscription_pattern_in_stderr(self):
+        """Subscription/quota errors should produce a warning."""
+        from subprocess import CompletedProcess
+
+        result = CompletedProcess(
+            ["claude", "--version"], 0,
+            stdout="CLI 2.5.0\n",
+            stderr="quota exceeded\n",
+        )
+        with patch("kodo.factory.subprocess.run", return_value=result):
+            version, warning = check_backend_status("claude")
+        assert version == "CLI 2.5.0"
+        assert warning is not None
+        assert "Quota" in warning or "billing" in warning.lower()
+
+    def test_nonzero_exit_with_auth_error(self):
+        """Non-zero exit + auth pattern → version error + auth warning."""
+        from subprocess import CompletedProcess
+
+        result = CompletedProcess(
+            ["claude", "--version"], 1,
+            stdout="",
+            stderr="401 Unauthorized\n",
+        )
+        with patch("kodo.factory.subprocess.run", return_value=result):
+            version, warning = check_backend_status("claude")
+        assert "error" in version
+        assert warning is not None
+        assert "Authentication" in warning
+
+    def test_nonzero_exit_generic(self):
+        """Non-zero exit without known pattern → includes stderr snippet."""
+        from subprocess import CompletedProcess
+
+        result = CompletedProcess(
+            ["claude", "--version"], 42,
+            stdout="",
+            stderr="something unexpected\n",
+        )
+        with patch("kodo.factory.subprocess.run", return_value=result):
+            version, warning = check_backend_status("claude")
+        assert "error (exit 42)" in version
+        assert warning is not None
+        assert "something unexpected" in warning
+
+    def test_timeout(self):
+        from subprocess import TimeoutExpired
+
+        with patch("kodo.factory.subprocess.run", side_effect=TimeoutExpired("cmd", 15)):
+            version, warning = check_backend_status("claude")
+        assert version == "timeout"
+        assert warning is not None
+        assert "timed out" in warning
+
+    def test_os_error(self):
+        with patch("kodo.factory.subprocess.run", side_effect=OSError("permission denied")):
+            version, warning = check_backend_status("claude")
+        assert version == "error"
+        assert "permission denied" in warning
+
+    def test_unknown_backend(self):
+        """Backend with no preflight command returns '?' and no warning."""
+        version, warning = check_backend_status("nonexistent")
+        assert version == "?"
+        assert warning is None

@@ -105,14 +105,14 @@ def _cmd_logs() -> None:
 def _cmd_backends() -> None:
     """List available backends (CLI agents and API orchestrator models)."""
     import os
-    import subprocess
 
     from kodo.factory import (
         _MODEL_ALIASES,
-        _PREFLIGHT_CMDS,
         available_backends,
         check_api_key,
+        check_backend_status,
     )
+    from kodo.formatting import DIM as _DIM, GREEN as _GRN, RESET as _RST, YELLOW as _YLW
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -130,36 +130,26 @@ def _cmd_backends() -> None:
     for name, present in backends.items():
         if not present:
             link = _INSTALL_LINKS.get(name, "")
-            print(f"  {name:<12}  not found  {link}")
+            print(f"  {_DIM}{name:<12}  not found  {link}{_RST}")
             continue
 
-        # Get version
-        cmd = _PREFLIGHT_CMDS.get(name)
-        version = "?"
-        if cmd:
-            try:
-                proc = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                )
-                if proc.returncode == 0:
-                    version = proc.stdout.strip().split("\n")[0]
-                else:
-                    version = f"error (exit {proc.returncode})"
-            except (subprocess.TimeoutExpired, OSError):
-                version = "error"
+        version, warning = check_backend_status(name)
 
-        print(f"  {name:<12}  {version}")
+        if warning:
+            print(f"  {_YLW}{name:<12}  {version}{_RST}")
+            print(f"  {_YLW}{'':14}{warning}{_RST}")
+        else:
+            print(f"  {_GRN}{name:<12}{_RST}  {version}")
 
     # --- API orchestrator models ---
     print("\nOrchestrator models (API):")
     for alias, full_id in sorted(_MODEL_ALIASES.items()):
         key_err = check_api_key("api", alias)
-        status = "ready" if key_err is None else "no key"
         provider = "Gemini" if full_id.startswith("gemini") else "Anthropic"
-        print(f"  {alias:<14}  {full_id:<35}  {provider:<10}  {status}")
+        if key_err is None:
+            print(f"  {_GRN}{alias:<14}{_RST}  {full_id:<35}  {provider:<10}  ready")
+        else:
+            print(f"  {_DIM}{alias:<14}  {full_id:<35}  {provider:<10}  no key{_RST}")
 
     # --- API key status ---
     print("\nAPI keys:")
@@ -171,19 +161,19 @@ def _cmd_backends() -> None:
         return f"{val[:4]}...{val[-4:]}" if len(val) > 12 else "***"
 
     if anthropic_key:
-        print(f"  ANTHROPIC_API_KEY       set ({_masked(anthropic_key)})")
+        print(f"  {_GRN}ANTHROPIC_API_KEY{_RST}       set ({_masked(anthropic_key)})")
     else:
         print(
-            "  ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys",
+            f"  {_YLW}ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys{_RST}",
         )
 
     # GEMINI_API_KEY and GOOGLE_API_KEY are interchangeable for Gemini
     gkey = gemini_key or google_key
     if gkey:
         source = "GEMINI_API_KEY" if gemini_key else "GOOGLE_API_KEY"
-        print(f"  Gemini                  set via {source} ({_masked(gkey)})")
+        print(f"  {_GRN}Gemini{_RST}                  set via {source} ({_masked(gkey)})")
     else:
-        print("  Gemini                  not set  https://aistudio.google.com/apikey")
+        print(f"  {_YLW}Gemini                  not set  https://aistudio.google.com/apikey{_RST}")
 
 
 # ---------------------------------------------------------------------------
@@ -482,7 +472,7 @@ def _ask_agent_fields(
     _BACKEND_MODELS: dict[str, list[str]] = {
         "claude": ["sonnet", "opus"],
         "cursor": ["composer-1.5"],
-        "codex": ["gpt-5.3-codex", "gpt-5.2-codex", "o3"],
+        "codex": ["gpt-5.4", "gpt-5.3-codex", "o3"],
         "gemini-cli": ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-pro"],
     }
     model_suggestions = _BACKEND_MODELS.get(backend, [])

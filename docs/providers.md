@@ -94,7 +94,7 @@ For overnight/unattended kodo runs, set `CODEX_API_KEY` in your environment or `
 
 ### Notes
 
-- Default model: `o4-mini`. Configurable in team builders.
+- Default model: `gpt-5.4`. Configurable in team builders.
 - Codex CLI and the Codex desktop app share the same underlying engine (App Server) — they are different frontends for the same technology.
 - Supports session resume (agents continue their prior thread on `kodo --resume`).
 - Runs in `workspace-write` sandbox mode by default (can read anything, writes limited to project directory).

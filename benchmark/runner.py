@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -10,6 +11,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from benchmark._util import docker_safe, log
 from benchmark.tasks import SWETask
 
 REPO_CACHE_DIR = "repos"
@@ -58,24 +60,24 @@ def run_benchmark(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     _save_run_meta(run_dir, tasks, arms, timeout, dataset=dataset)
-    completed = _load_completed(run_dir)
-    # Seed from prior runs: copy results for matching (instance_id, arm) pairs
-    needed = {(t.instance_id, a) for t in tasks for a in arms} - completed
-    seeded = _seed_from_prior_runs(workspace, run_dir, needed)
-    completed |= seeded
+    # Load completed tasks: prior runs (skip errors for retry) + current run (all statuses)
+    completed = _load_global_completed(workspace, exclude_run_dir=run_dir)
+    completed |= _load_completed(run_dir)
     total = len(tasks) * len(arms)
 
-    print(f"Benchmark run {run_id}: {len(tasks)} tasks x {len(arms)} arm(s)")
-    print(f"  Timeout: {timeout}s (non-kodo), {timeout_kodo}s (kodo)")
-    print(f"  Already completed: {len(completed)}/{total} ({len(seeded)} from prior runs)")
-    print(f"  Workspace: {workspace}")
+    log.info("Benchmark run %s: %d tasks x %d arm(s)", run_id, len(tasks), len(arms))
+    log.info("  Timeout: %ds (non-kodo), %ds (kodo)", timeout, timeout_kodo)
+    log.info("  Already completed: %d/%d", len(completed), total)
+    log.info("  Workspace: %s", workspace)
+
+    _upload_run_online(run_id, tasks, arms, timeout, dataset)
 
     if parallel > 1:
-        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed)
+        _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset)
     else:
-        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed)
+        _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset)
 
-    print(f"\nRun complete. Results in {run_dir}")
+    log.info("Run complete. Results in %s", run_dir)
 
 
 def _run_sequential(
@@ -86,6 +88,7 @@ def _run_sequential(
     timeout: int,
     timeout_kodo: int,
     completed: set[tuple[str, str]],
+    dataset: str = "",
 ) -> None:
     for i, task in enumerate(tasks):
         for arm in arms:
@@ -93,10 +96,11 @@ def _run_sequential(
                 continue
 
             t = _timeout_for_arm(arm, timeout, timeout_kodo)
-            print(f"\n[{i + 1}/{len(tasks)}] {task.instance_id} ({arm}) [timeout {t}s]")
+            log.info("[%d/%d] %s (%s) [timeout %ds]", i + 1, len(tasks), task.instance_id, arm, t)
             result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
             _append_result(run_dir, result)
             _append_prediction(run_dir, result)
+            _upload_task_online(result, run_dir.name, dataset, workspace)
             completed.add((task.instance_id, arm))
 
 
@@ -109,6 +113,7 @@ def _run_parallel(
     timeout_kodo: int,
     parallel: int,
     completed: set[tuple[str, str]],
+    dataset: str = "",
 ) -> None:
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -129,11 +134,9 @@ def _run_parallel(
             result = future.result()
             _append_result(run_dir, result)
             _append_prediction(run_dir, result)
-            print(
-                f"  {task.instance_id} ({arm}): "
-                f"{result.status} ({result.elapsed_s:.0f}s, "
-                f"{len(result.patch)} chars patch)"
-            )
+            _upload_task_online(result, run_dir.name, dataset, workspace)
+            log.info("  %s (%s): %s (%.0fs, %d chars patch)",
+                     task.instance_id, arm, result.status, result.elapsed_s, len(result.patch))
 
 
 def _safe_run(
@@ -216,7 +219,7 @@ def _prepare_repo(task: SWETask, workspace: Path, arm: str) -> Path:
 
     with repo_lock:
         if not bare_path.exists():
-            print(f"  Cloning {task.repo} (bare)...")
+            log.info("  Cloning %s (bare)...", task.repo)
             subprocess.run(
                 [
                     "git",
@@ -229,6 +232,11 @@ def _prepare_repo(task: SWETask, workspace: Path, arm: str) -> Path:
                 capture_output=True,
                 timeout=600,
             )
+
+    # Clean up the lock now that bare_path exists (subsequent calls skip via .exists())
+    if bare_path.exists():
+        with _clone_locks_lock:
+            _clone_locks.pop(repo_slug, None)
 
     work_dir = workspace / WORK_DIR / task.instance_id / arm
     if work_dir.exists():
@@ -340,9 +348,8 @@ def _run_codex(
         "exec",
         "--full-auto",
         "--json",
+        "-m", model or "gpt-5.4",
     ]
-    if model:
-        cmd.extend(["-m", model])
     cmd.append(prompt)
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
 
@@ -366,8 +373,6 @@ def _run_gemini(
 def _clean_env(*, keep_api_key: bool = False) -> dict[str, str]:
     """Return a copy of os.environ without vars that block nested sessions
     or that force API billing instead of subscription."""
-    import os
-
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
     if not keep_api_key:
@@ -412,9 +417,8 @@ def _save_logs(
 ) -> None:
     """Best-effort: save raw stdout/stderr and kodo trace to log directory."""
     try:
-        import re
-        safe_arm = re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
-        log_dir = run_dir / "logs" / instance_id / safe_arm
+        safe = docker_safe(arm)
+        log_dir = run_dir / "logs" / instance_id / safe
         log_dir.mkdir(parents=True, exist_ok=True)
 
         if raw_stdout:
@@ -487,35 +491,54 @@ def _append_result(run_dir: Path, result: TaskResult) -> None:
         "patch_len": len(result.patch),
         "agent_output": result.agent_output,
     }
-    with open(run_dir / "results.jsonl", "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    try:
+        with open(run_dir / "results.jsonl", "a") as f:
+            f.write(json.dumps(entry) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as exc:
+        log.warning("Failed to write result for %s/%s: %s",
+                    result.instance_id, result.arm, exc)
 
 
 def _append_prediction(run_dir: Path, result: TaskResult) -> None:
     # Use arm as model name; sanitize for filenames and Docker container names
-    import re
-    safe_arm = re.sub(r"[^a-zA-Z0-9_.-]", "_", result.arm)
+    safe = docker_safe(result.arm)
     entry = {
         "instance_id": result.instance_id,
-        "model_name_or_path": safe_arm,
+        "model_name_or_path": safe,
+        "arm": result.arm,  # original unsanitized arm for lossless round-trips
         "model_patch": result.patch,
     }
-    with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    try:
+        with open(run_dir / f"predictions-{safe}.jsonl", "a") as f:
+            f.write(json.dumps(entry) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as exc:
+        log.warning("Failed to write prediction for %s/%s: %s",
+                    result.instance_id, result.arm, exc)
 
 
-def _seed_from_prior_runs(
-    workspace: Path, run_dir: Path, needed: set[tuple[str, str]],
+def _load_global_completed(
+    workspace: Path, exclude_run_dir: Path | None = None,
 ) -> set[tuple[str, str]]:
-    """Copy results from prior runs for matching (instance_id, arm) pairs."""
-    seeded: set[tuple[str, str]] = set()
-    if not needed:
-        return seeded
+    """Load completed (instance_id, arm) pairs from all prior runs.
+
+    Skips error/timeout results so they get retried in new runs.
+    Skips ``exclude_run_dir`` (typically the current run) to avoid
+    double-counting with ``_load_completed``.
+    """
+    completed: set[tuple[str, str]] = set()
     runs_dir = workspace / RUNS_DIR
-    for other_dir in sorted(runs_dir.iterdir()):
-        if other_dir == run_dir or not other_dir.is_dir():
+    if not runs_dir.is_dir():
+        return completed
+    for run_dir in runs_dir.iterdir():
+        if not run_dir.is_dir():
             continue
-        results_file = other_dir / "results.jsonl"
+        if exclude_run_dir and run_dir == exclude_run_dir:
+            continue
+        results_file = run_dir / "results.jsonl"
         if not results_file.exists():
             continue
         for line in results_file.read_text().splitlines():
@@ -523,40 +546,12 @@ def _seed_from_prior_runs(
                 continue
             try:
                 entry = json.loads(line)
-                key = (entry["instance_id"], entry["arm"])
+                status = entry.get("status", "")
+                if status not in ("error", "timeout"):
+                    completed.add((entry["instance_id"], entry["arm"]))
             except (json.JSONDecodeError, KeyError):
                 continue
-            if key not in needed or key in seeded:
-                continue
-            # Skip error/timeout results so they get retried
-            # "partial" (kodo exit 2) still has a valid patch — keep it
-            if entry.get("status") in ("error", "timeout"):
-                continue
-            # Copy result and prediction into current run
-            _append_result_raw(run_dir, line)
-            # Find matching prediction
-            safe_arm = entry["arm"].replace(":", "_")
-            pred_file = other_dir / f"predictions-{safe_arm}.jsonl"
-            if pred_file.exists():
-                for pred_line in pred_file.read_text().splitlines():
-                    if not pred_line.strip():
-                        continue
-                    try:
-                        pred = json.loads(pred_line)
-                        if pred["instance_id"] == entry["instance_id"]:
-                            with open(run_dir / f"predictions-{safe_arm}.jsonl", "a") as f:
-                                f.write(pred_line + "\n")
-                            break
-                    except (json.JSONDecodeError, KeyError):
-                        continue
-            seeded.add(key)
-    return seeded
-
-
-def _append_result_raw(run_dir: Path, line: str) -> None:
-    """Append a raw JSON line to results.jsonl."""
-    with open(run_dir / "results.jsonl", "a") as f:
-        f.write(line.strip() + "\n")
+    return completed
 
 
 def _load_completed(run_dir: Path) -> set[tuple[str, str]]:
@@ -590,3 +585,71 @@ def _save_run_meta(
             "instance_ids": [t.instance_id for t in tasks],
         }
         meta_file.write_text(json.dumps(meta, indent=2))
+
+
+# ── Online Upload ────────────────────────────────────────────────────────
+
+
+def _upload_task_online(
+    result: TaskResult, run_id: str, dataset: str, workspace: Path,
+) -> None:
+    """Best-effort upload of a single task result to the online store.
+
+    On success, records the upload in the workspace tracker so it won't
+    be re-uploaded by ``--upload-pending``.
+    """
+    try:
+        from benchmark.online.client import maybe_upload_task_result
+
+        ok = maybe_upload_task_result(
+            instance_id=result.instance_id,
+            arm=result.arm,
+            status=result.status,
+            elapsed_s=result.elapsed_s,
+            patch=result.patch,
+            error=result.error,
+            run_id=run_id,
+            dataset=dataset,
+        )
+        if ok:
+            from benchmark.online.upload_tracker import mark_uploaded
+
+            mark_uploaded(workspace, result.instance_id, result.arm, run_id)
+    except Exception:
+        pass
+
+
+_upload_warned = False
+
+
+def _upload_run_online(
+    run_id: str, tasks: list[SWETask], arms: list[str], timeout: int, dataset: str,
+) -> None:
+    """Best-effort registration of a benchmark run.
+
+    Logs a one-time warning if online uploads are not configured.
+    """
+    global _upload_warned
+    try:
+        from benchmark.online.client import is_configured, maybe_upload_run
+
+        if not is_configured():
+            if not _upload_warned:
+                log.warning("Online uploads disabled (KODO_BENCH_URL / KODO_BENCH_TOKEN not set). "
+                            "Use --upload-pending later to upload results.")
+                _upload_warned = True
+            return
+
+        from kodo import __version__ as kodo_version
+
+        maybe_upload_run(
+            run_id,
+            kodo_version=kodo_version,
+            task_count=len(tasks),
+            arms=arms,
+            timeout=timeout,
+            dataset=dataset,
+            instance_ids=[t.instance_id for t in tasks],
+        )
+    except Exception:
+        pass
