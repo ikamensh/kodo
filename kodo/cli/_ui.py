@@ -43,7 +43,7 @@ def _backend_label(agent) -> str:
 
 def _print_banner() -> None:
     print(f"\n  🦉 kodo v{__version__} — autonomous multi-agent coding")
-    print("  https://github.com/ikamen/kodo\n")
+    print("  https://github.com/ikamensh/kodo\n")
 
 
 def _print_agent(text: str) -> None:

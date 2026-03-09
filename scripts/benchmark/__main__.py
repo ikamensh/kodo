@@ -93,6 +93,11 @@ def main() -> int:
 
     # Phase control
     parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show status of all benchmark runs and exit",
+    )
+    parser.add_argument(
         "--skip-eval", action="store_true", help="Skip swebench evaluation"
     )
     parser.add_argument(
@@ -112,6 +117,11 @@ def main() -> int:
 
     run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     arms = args.arm if args.arm else ["claude", "kodo"]
+
+    if args.status:
+        from scripts.benchmark.report import print_status
+
+        return print_status(workspace)
 
     from scripts.benchmark.evaluate import evaluate_predictions
     from scripts.benchmark.report import generate_report

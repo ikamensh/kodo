@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 
@@ -23,10 +24,6 @@ def generate_report(workspace: Path, run_id: str) -> int:
     lines.append("")
 
     arms = meta.get("arms", [])
-
-    def _eval_key(arm: str) -> str:
-        """Map arm name to eval-summary key (sanitized for Docker container names)."""
-        return re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
 
     # Resolution rates (only if eval was run)
     if eval_summary:
@@ -104,6 +101,135 @@ def generate_report(workspace: Path, run_id: str) -> int:
     report_file.write_text(report_text)
     print(report_text)
     print(f"\nReport written to: {report_file}")
+    return 0
+
+
+def _dataset_short(dataset: str) -> str:
+    """Map full dataset name to short label."""
+    low = dataset.lower()
+    if "verified" in low:
+        return "Verified"
+    if "pro" in low:
+        return "Pro"
+    if "lite" in low:
+        return "Lite"
+    return dataset.rsplit("/", 1)[-1]
+
+
+def _eval_key(arm: str) -> str:
+    """Map arm name to eval-summary key (sanitized for Docker container names)."""
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", arm)
+
+
+def print_status(workspace: Path) -> int:
+    """Scan all runs and print a compact status table. Returns 0."""
+    runs_dir = workspace / "runs"
+    if not runs_dir.is_dir():
+        print("No runs found.")
+        return 0
+
+    run_dirs = sorted(
+        [d for d in runs_dir.iterdir() if d.is_dir()],
+        key=lambda d: d.name,
+    )
+    if not run_dirs:
+        print("No runs found.")
+        return 0
+
+    # Collect row data
+    rows: list[dict] = []
+    total_evaluated: set[str] = set()
+
+    for rd in run_dirs:
+        meta = _load_json(rd / "meta.json")
+        if not meta:
+            continue
+
+        arms = meta.get("arms", [])
+        task_count = meta.get("task_count", 0)
+        dataset = _dataset_short(meta.get("dataset", ""))
+
+        # Count completed results
+        results = _load_jsonl(rd / "results.jsonl")
+        # Unique instance_ids that have results (across all arms)
+        done_ids = {r["instance_id"] for r in results if "instance_id" in r}
+        done_count = len(done_ids)
+
+        # Eval info
+        eval_summary = _load_json(rd / "eval-summary.json")
+        has_eval = bool(eval_summary)
+        rates: list[str] = []
+        if has_eval:
+            for arm in arms:
+                e = eval_summary.get(_eval_key(arm), {})
+                rate = e.get("resolve_rate", 0)
+                rates.append(f"{rate:.0%}")
+            # Count evaluated tasks
+            for arm in arms:
+                e = eval_summary.get(_eval_key(arm), {})
+                total_evaluated.update(e.get("resolved", []))
+                total_evaluated.update(e.get("failed", []))
+                total_evaluated.update(e.get("error", []))
+
+        # Date from meta.json mtime
+        meta_path = rd / "meta.json"
+        mtime = meta_path.stat().st_mtime
+        date_str = datetime.fromtimestamp(mtime).strftime("%b %d")
+
+        rows.append(
+            {
+                "run_id": rd.name,
+                "arms": ",".join(arms),
+                "dataset": dataset,
+                "tasks": f"{done_count}/{task_count}",
+                "done": str(done_count),
+                "eval": "\u2713" if has_eval else "-",
+                "rate": ",".join(rates) if rates else "-",
+                "date": date_str,
+            }
+        )
+
+    # Column definitions: (header, key, min_width)
+    columns = [
+        ("Run ID", "run_id", 10),
+        ("Arms", "arms", 10),
+        ("Dataset", "dataset", 8),
+        ("Tasks", "tasks", 5),
+        ("Done", "done", 4),
+        ("Eval", "eval", 4),
+        ("Rate", "rate", 5),
+        ("Date", "date", 6),
+    ]
+
+    # Calculate column widths
+    widths: list[int] = []
+    for header, key, min_w in columns:
+        w = max(min_w, len(header), *(len(r[key]) for r in rows))
+        widths.append(w)
+
+    total_width = sum(widths) + 2 * (len(columns) - 1)  # 2-space gap
+
+    # Print header
+    print()
+    print("SWE-bench Benchmark Status")
+    print("\u2550" * total_width)
+
+    header_parts = []
+    for i, (header, _, _) in enumerate(columns):
+        header_parts.append(header.ljust(widths[i]))
+    print("  ".join(header_parts))
+    print("\u2500" * total_width)
+
+    # Print rows
+    for row in rows:
+        parts = []
+        for i, (_, key, _) in enumerate(columns):
+            parts.append(row[key].ljust(widths[i]))
+        print("  ".join(parts))
+
+    print("\u2500" * total_width)
+    print(f"{len(rows)} runs | {len(total_evaluated)} unique tasks evaluated")
+    print()
     return 0
 
 
