@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kodo bench</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --orange: #d29922;
+  --gray: #21262d; --gray2: #30363d;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+header h1 { font-size: 18px; font-weight: 600; }
+header .stats { color: var(--text2); font-size: 13px; margin-left: auto; }
+
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 24px; }
+.tab { padding: 10px 20px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 14px; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+/* Summary cards */
+.summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; min-width: 180px; }
+.card .label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+.card .sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+/* Task grid */
+.grid-section { margin-bottom: 32px; }
+.grid-section h3 { font-size: 14px; color: var(--text2); margin-bottom: 8px; }
+.grid-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.grid-header h2 { font-size: 16px; }
+.grid-header .rate { font-size: 14px; color: var(--text2); }
+
+.task-grid { display: flex; flex-wrap: wrap; gap: 2px; }
+.task-cell {
+  width: 14px; height: 14px; border-radius: 2px;
+  cursor: pointer; transition: transform 0.1s;
+  position: relative;
+}
+.task-cell:hover { transform: scale(1.8); z-index: 10; }
+.task-cell.resolved { background: var(--green); }
+.task-cell.failed { background: var(--red); }
+.task-cell.error { background: var(--orange); }
+.task-cell.not-evaluated { background: var(--gray); border: 1px solid var(--gray2); }
+.task-cell.not-run { background: var(--bg); border: 1px solid var(--gray2); }
+
+.legend { display: flex; gap: 16px; margin: 16px 0; font-size: 12px; color: var(--text2); }
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+/* Results table */
+.table-section { margin-top: 32px; }
+.filter-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); font-weight: 500; cursor: pointer; user-select: none; }
+th:hover { color: var(--text); }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--surface); }
+tr.expanded td { background: var(--surface); border-bottom: none; }
+.expand-row td { background: var(--surface); padding: 12px 24px; }
+.patch-view { background: var(--bg); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; margin-top: 8px; }
+.patch-view .add { color: var(--green); }
+.patch-view .del { color: var(--red); }
+.patch-view .hunk { color: var(--accent); }
+
+.status-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.status-badge.resolved { background: rgba(63,185,80,0.15); color: var(--green); }
+.status-badge.failed { background: rgba(248,81,73,0.15); color: var(--red); }
+.status-badge.error { background: rgba(210,153,34,0.15); color: var(--orange); }
+.status-badge.ok { background: rgba(88,166,255,0.1); color: var(--accent); }
+.status-badge.pending { background: var(--gray); color: var(--text2); }
+
+.loading { text-align: center; padding: 48px; color: var(--text2); }
+
+/* Bar chart */
+.bar-chart { margin: 16px 0; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bar-label { width: 120px; text-align: right; font-size: 13px; color: var(--text2); flex-shrink: 0; }
+.bar-track { flex: 1; height: 24px; background: var(--gray); border-radius: 4px; overflow: hidden; display: flex; }
+.bar-fill { height: 100%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; min-width: 24px; }
+.bar-fill.resolved { background: var(--green); }
+.bar-fill.failed { background: var(--red); }
+.bar-fill.error { background: var(--orange); }
+.bar-value { width: 48px; font-size: 13px; color: var(--text2); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>kodo bench</h1>
+  <span class="stats" id="header-stats"></span>
+</header>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-dataset="verified">SWE-bench Verified</div>
+  <div class="tab" data-dataset="pro">SWE-bench Pro</div>
+</div>
+
+<main id="main">
+  <div class="loading">Loading...</div>
+</main>
+
+<script>
+const DATA_BASE = '/data';
+let currentDataset = 'verified';
+let allData = {};
+
+// ── Init ──
+
+async function init() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentDataset = tab.dataset.dataset;
+      render();
+    });
+  });
+
+  try {
+    const [verified, pro] = await Promise.all([
+      fetchJSON(`${DATA_BASE}/verified/index.json`),
+      fetchJSON(`${DATA_BASE}/pro/index.json`),
+    ]);
+    allData = { verified: verified || emptyIndex(), pro: pro || emptyIndex() };
+  } catch (e) {
+    allData = { verified: emptyIndex(), pro: emptyIndex() };
+  }
+
+  render();
+}
+
+function emptyIndex() {
+  return { tasks: [], arms: [], results: {}, meta: {} };
+}
+
+async function fetchJSON(url) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+// ── Render ──
+
+function render() {
+  const data = allData[currentDataset];
+  if (!data || !data.tasks || data.tasks.length === 0) {
+    document.getElementById('main').innerHTML = '<div class="loading">No data for this dataset yet.</div>';
+    document.getElementById('header-stats').textContent = '';
+    return;
+  }
+
+  const arms = data.arms || [];
+  const tasks = data.tasks || [];
+  const results = data.results || {};
+
+  // Compute stats
+  const stats = {};
+  for (const arm of arms) {
+    stats[arm] = { resolved: 0, failed: 0, error: 0, total: 0 };
+    for (const task of tasks) {
+      const r = results[task.instance_id]?.[arm];
+      if (!r) continue;
+      stats[arm].total++;
+      if (r.resolved) stats[arm].resolved++;
+      else if (r.status === 'error') stats[arm].error++;
+      else stats[arm].failed++;
+    }
+  }
+
+  const totalEvaluated = new Set();
+  for (const tid of tasks.map(t => t.instance_id)) {
+    for (const arm of arms) {
+      if (results[tid]?.[arm]) totalEvaluated.add(tid);
+    }
+  }
+
+  document.getElementById('header-stats').textContent =
+    `${tasks.length} tasks | ${totalEvaluated.size} evaluated | ${arms.length} arms`;
+
+  let html = '';
+
+  // Summary cards
+  html += '<div class="summary">';
+  html += `<div class="card"><div class="label">Total Tasks</div><div class="value">${tasks.length}</div><div class="sub">${totalEvaluated.size} with results</div></div>`;
+  for (const arm of arms) {
+    const s = stats[arm];
+    const rate = s.total > 0 ? ((s.resolved / s.total) * 100).toFixed(1) : '—';
+    html += `<div class="card"><div class="label">${escapeHtml(arm)}</div><div class="value">${rate}%</div><div class="sub">${s.resolved}/${s.total} resolved</div></div>`;
+  }
+  html += '</div>';
+
+  // Bar chart: resolve rates
+  if (arms.length > 0) {
+    html += '<div class="grid-section"><h3>Resolve Rates</h3><div class="bar-chart">';
+    for (const arm of arms) {
+      const s = stats[arm];
+      const total = s.total || 1;
+      const rPct = (s.resolved / total * 100).toFixed(0);
+      const fPct = (s.failed / total * 100).toFixed(0);
+      const ePct = (s.error / total * 100).toFixed(0);
+      html += `<div class="bar-row">
+        <div class="bar-label">${escapeHtml(arm)}</div>
+        <div class="bar-track">
+          <div class="bar-fill resolved" style="width:${rPct}%">${s.resolved}</div>
+          <div class="bar-fill failed" style="width:${fPct}%">${s.failed ? s.failed : ''}</div>
+          <div class="bar-fill error" style="width:${ePct}%">${s.error ? s.error : ''}</div>
+        </div>
+        <div class="bar-value">${rPct}%</div>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  // Task grids per arm
+  html += '<div class="grid-section"><h3>Task Coverage</h3>';
+  html += `<div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Resolved</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Failed</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div> Error</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gray);border:1px solid var(--gray2)"></div> Run (no eval)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--bg);border:1px solid var(--gray2)"></div> Not run</div>
+  </div>`;
+
+  for (const arm of arms) {
+    const s = stats[arm];
+    const rate = s.total > 0 ? ((s.resolved / s.total) * 100).toFixed(0) : '—';
+    html += `<div class="grid-header"><h2>${escapeHtml(arm)}</h2><span class="rate">${s.resolved}/${s.total} (${rate}%)</span></div>`;
+    html += '<div class="task-grid">';
+    for (const task of tasks) {
+      const r = results[task.instance_id]?.[arm];
+      let cls = 'not-run';
+      if (r) {
+        if (r.resolved) cls = 'resolved';
+        else if (r.status === 'error') cls = 'error';
+        else if (r.eval_status) cls = 'failed';
+        else cls = 'not-evaluated';
+      }
+      html += `<div class="task-cell ${cls}" title="${task.instance_id}" data-id="${task.instance_id}"></div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Results table
+  html += renderTable(tasks, arms, results);
+
+  document.getElementById('main').innerHTML = html;
+  attachTableHandlers();
+}
+
+function renderTable(tasks, arms, results) {
+  let html = '<div class="table-section">';
+  html += '<div class="filter-bar">';
+  html += `<select id="filter-arm"><option value="">All arms</option>${arms.map(a => `<option value="${a}">${a}</option>`).join('')}</select>`;
+  html += `<select id="filter-status"><option value="">All statuses</option><option value="resolved">Resolved</option><option value="failed">Failed</option><option value="error">Error</option><option value="pending">Not evaluated</option></select>`;
+  html += '<input type="text" id="filter-search" placeholder="Search instance ID...">';
+  html += '</div>';
+
+  html += '<table id="results-table"><thead><tr>';
+  html += '<th data-sort="id">Instance ID</th><th data-sort="repo">Repo</th>';
+  for (const arm of arms) {
+    html += `<th data-sort="${arm}">${escapeHtml(arm)}</th>`;
+  }
+  html += '<th data-sort="elapsed">Time</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const task of tasks) {
+    const rowArms = arms.map(arm => {
+      const r = results[task.instance_id]?.[arm];
+      if (!r) return { status: 'not-run', label: '—' };
+      if (r.resolved) return { status: 'resolved', label: 'Resolved' };
+      if (r.status === 'error') return { status: 'error', label: 'Error' };
+      if (r.eval_status) return { status: 'failed', label: 'Failed' };
+      return { status: 'ok', label: 'Run' };
+    });
+
+    const elapsed = arms.map(arm => results[task.instance_id]?.[arm]?.elapsed_s || 0).filter(x => x > 0);
+    const avgTime = elapsed.length > 0 ? (elapsed.reduce((a,b) => a+b, 0) / elapsed.length) : 0;
+    const repo = task.instance_id.split('__')[0];
+
+    html += `<tr class="result-row" data-id="${task.instance_id}">`;
+    html += `<td><code>${task.instance_id.split('__').pop()}</code></td>`;
+    html += `<td>${repo}</td>`;
+    for (const a of rowArms) {
+      html += `<td><span class="status-badge ${a.status}">${a.label}</span></td>`;
+    }
+    html += `<td>${avgTime > 0 ? formatTime(avgTime) : '—'}</td>`;
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function attachTableHandlers() {
+  // Row expansion
+  document.querySelectorAll('.result-row').forEach(row => {
+    row.addEventListener('click', () => toggleExpand(row));
+  });
+
+  // Filters
+  const filterArm = document.getElementById('filter-arm');
+  const filterStatus = document.getElementById('filter-status');
+  const filterSearch = document.getElementById('filter-search');
+  if (filterArm) filterArm.addEventListener('change', applyFilters);
+  if (filterStatus) filterStatus.addEventListener('change', applyFilters);
+  if (filterSearch) filterSearch.addEventListener('input', applyFilters);
+
+  // Sort
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => sortTable(th.dataset.sort));
+  });
+}
+
+function applyFilters() {
+  const arm = document.getElementById('filter-arm')?.value || '';
+  const status = document.getElementById('filter-status')?.value || '';
+  const search = (document.getElementById('filter-search')?.value || '').toLowerCase();
+  const data = allData[currentDataset];
+
+  document.querySelectorAll('.result-row').forEach(row => {
+    const id = row.dataset.id;
+    let show = true;
+
+    if (search && !id.toLowerCase().includes(search)) show = false;
+
+    if (arm && show) {
+      const r = data.results[id]?.[arm];
+      if (!r) show = false;
+    }
+
+    if (status && show) {
+      const matchesStatus = data.arms.some(a => {
+        const r = data.results[id]?.[a];
+        if (!r) return status === 'pending';
+        if (status === 'resolved') return r.resolved;
+        if (status === 'failed') return r.eval_status && !r.resolved;
+        if (status === 'error') return r.status === 'error';
+        return false;
+      });
+      if (!matchesStatus) show = false;
+    }
+
+    row.style.display = show ? '' : 'none';
+    // Also hide expand row if hidden
+    const next = row.nextElementSibling;
+    if (next?.classList.contains('expand-row')) next.style.display = show ? '' : 'none';
+  });
+}
+
+let sortCol = '';
+let sortAsc = true;
+
+function sortTable(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+
+  const tbody = document.querySelector('#results-table tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('.result-row'));
+
+  rows.sort((a, b) => {
+    let va = a.dataset.id, vb = b.dataset.id;
+    if (col === 'repo') {
+      va = va.split('__')[0];
+      vb = vb.split('__')[0];
+    }
+    return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+
+  rows.forEach(r => {
+    tbody.appendChild(r);
+    const next = r.nextElementSibling;
+    if (next?.classList.contains('expand-row')) tbody.appendChild(next);
+  });
+}
+
+async function toggleExpand(row) {
+  const existing = row.nextElementSibling;
+  if (existing?.classList.contains('expand-row')) {
+    existing.remove();
+    row.classList.remove('expanded');
+    return;
+  }
+
+  row.classList.add('expanded');
+  const id = row.dataset.id;
+  const data = allData[currentDataset];
+  const expandRow = document.createElement('tr');
+  expandRow.className = 'expand-row';
+
+  let html = '<td colspan="100">';
+  for (const arm of data.arms) {
+    const r = data.results[id]?.[arm];
+    if (!r) continue;
+    html += `<h4 style="margin:8px 0 4px;color:var(--accent)">${escapeHtml(arm)}</h4>`;
+    html += `<div style="font-size:12px;color:var(--text2)">Status: ${r.status} | Elapsed: ${formatTime(r.elapsed_s || 0)} | Patch: ${r.patch_len || 0} chars</div>`;
+
+    if (r.patch_url) {
+      html += '<div class="patch-view" id="patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id + '">Loading patch...</div>';
+      loadPatch(r.patch_url, 'patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id);
+    }
+  }
+  html += '</td>';
+  expandRow.innerHTML = html;
+  row.after(expandRow);
+}
+
+async function loadPatch(url, elementId) {
+  try {
+    const resp = await fetch(url);
+    const text = await resp.text();
+    const el = document.getElementById(elementId);
+    if (el) el.innerHTML = highlightDiff(text);
+  } catch (e) {
+    const el = document.getElementById(elementId);
+    if (el) el.textContent = 'Failed to load patch';
+  }
+}
+
+function highlightDiff(text) {
+  return text.split('\n').map(line => {
+    if (line.startsWith('+') && !line.startsWith('+++')) return `<span class="add">${escapeHtml(line)}</span>`;
+    if (line.startsWith('-') && !line.startsWith('---')) return `<span class="del">${escapeHtml(line)}</span>`;
+    if (line.startsWith('@@')) return `<span class="hunk">${escapeHtml(line)}</span>`;
+    return escapeHtml(line);
+  }).join('\n');
+}
+
+function formatTime(s) {
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) return `${Math.round(s/60)}m`;
+  return `${(s/3600).toFixed(1)}h`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

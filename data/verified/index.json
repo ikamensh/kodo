@@ -1,0 +1,6405 @@
+{
+  "tasks": [
+    {
+      "instance_id": "astropy__astropy-12907"
+    },
+    {
+      "instance_id": "astropy__astropy-13033"
+    },
+    {
+      "instance_id": "astropy__astropy-13236"
+    },
+    {
+      "instance_id": "astropy__astropy-13398"
+    },
+    {
+      "instance_id": "astropy__astropy-13453"
+    },
+    {
+      "instance_id": "astropy__astropy-13579"
+    },
+    {
+      "instance_id": "astropy__astropy-13977"
+    },
+    {
+      "instance_id": "astropy__astropy-14096"
+    },
+    {
+      "instance_id": "astropy__astropy-14182"
+    },
+    {
+      "instance_id": "astropy__astropy-14309"
+    },
+    {
+      "instance_id": "astropy__astropy-14365"
+    },
+    {
+      "instance_id": "astropy__astropy-14369"
+    },
+    {
+      "instance_id": "astropy__astropy-14508"
+    },
+    {
+      "instance_id": "astropy__astropy-14539"
+    },
+    {
+      "instance_id": "astropy__astropy-14598"
+    },
+    {
+      "instance_id": "astropy__astropy-14995"
+    },
+    {
+      "instance_id": "astropy__astropy-7166"
+    },
+    {
+      "instance_id": "astropy__astropy-7336"
+    },
+    {
+      "instance_id": "astropy__astropy-7606"
+    },
+    {
+      "instance_id": "astropy__astropy-7671"
+    },
+    {
+      "instance_id": "astropy__astropy-8707"
+    },
+    {
+      "instance_id": "astropy__astropy-8872"
+    },
+    {
+      "instance_id": "django__django-10554"
+    },
+    {
+      "instance_id": "django__django-10973"
+    },
+    {
+      "instance_id": "django__django-10999"
+    },
+    {
+      "instance_id": "django__django-11087"
+    },
+    {
+      "instance_id": "django__django-11095"
+    },
+    {
+      "instance_id": "django__django-11138"
+    },
+    {
+      "instance_id": "django__django-11141"
+    },
+    {
+      "instance_id": "django__django-11149"
+    },
+    {
+      "instance_id": "django__django-11206"
+    },
+    {
+      "instance_id": "django__django-11239"
+    },
+    {
+      "instance_id": "django__django-11265"
+    },
+    {
+      "instance_id": "django__django-11276"
+    },
+    {
+      "instance_id": "django__django-11292"
+    },
+    {
+      "instance_id": "django__django-11333"
+    },
+    {
+      "instance_id": "django__django-11400"
+    },
+    {
+      "instance_id": "django__django-11433"
+    },
+    {
+      "instance_id": "django__django-11477"
+    },
+    {
+      "instance_id": "django__django-11532"
+    },
+    {
+      "instance_id": "django__django-11551"
+    },
+    {
+      "instance_id": "django__django-11728"
+    },
+    {
+      "instance_id": "django__django-11734"
+    },
+    {
+      "instance_id": "django__django-11740"
+    },
+    {
+      "instance_id": "django__django-11749"
+    },
+    {
+      "instance_id": "django__django-11815"
+    },
+    {
+      "instance_id": "django__django-11820"
+    },
+    {
+      "instance_id": "django__django-11848"
+    },
+    {
+      "instance_id": "django__django-11885"
+    },
+    {
+      "instance_id": "django__django-11964"
+    },
+    {
+      "instance_id": "django__django-11999"
+    },
+    {
+      "instance_id": "django__django-12039"
+    },
+    {
+      "instance_id": "django__django-12050"
+    },
+    {
+      "instance_id": "django__django-12143"
+    },
+    {
+      "instance_id": "django__django-12155"
+    },
+    {
+      "instance_id": "django__django-12276"
+    },
+    {
+      "instance_id": "django__django-12308"
+    },
+    {
+      "instance_id": "django__django-12325"
+    },
+    {
+      "instance_id": "django__django-12406"
+    },
+    {
+      "instance_id": "django__django-12708"
+    },
+    {
+      "instance_id": "django__django-12713"
+    },
+    {
+      "instance_id": "django__django-12741"
+    },
+    {
+      "instance_id": "django__django-12754"
+    },
+    {
+      "instance_id": "django__django-12774"
+    },
+    {
+      "instance_id": "django__django-13033"
+    },
+    {
+      "instance_id": "django__django-13089"
+    },
+    {
+      "instance_id": "django__django-13112"
+    },
+    {
+      "instance_id": "django__django-13121"
+    },
+    {
+      "instance_id": "django__django-13128"
+    },
+    {
+      "instance_id": "django__django-13195"
+    },
+    {
+      "instance_id": "django__django-13212"
+    },
+    {
+      "instance_id": "django__django-13279"
+    },
+    {
+      "instance_id": "django__django-13315"
+    },
+    {
+      "instance_id": "django__django-13344"
+    },
+    {
+      "instance_id": "django__django-13346"
+    },
+    {
+      "instance_id": "django__django-13401"
+    },
+    {
+      "instance_id": "django__django-13410"
+    },
+    {
+      "instance_id": "django__django-13417"
+    },
+    {
+      "instance_id": "django__django-13449"
+    },
+    {
+      "instance_id": "django__django-13512"
+    },
+    {
+      "instance_id": "django__django-13513"
+    },
+    {
+      "instance_id": "django__django-13551"
+    },
+    {
+      "instance_id": "django__django-13590"
+    },
+    {
+      "instance_id": "django__django-13658"
+    },
+    {
+      "instance_id": "django__django-13741"
+    },
+    {
+      "instance_id": "django__django-13786"
+    },
+    {
+      "instance_id": "django__django-13794"
+    },
+    {
+      "instance_id": "django__django-13807"
+    },
+    {
+      "instance_id": "django__django-13809"
+    },
+    {
+      "instance_id": "django__django-13810"
+    },
+    {
+      "instance_id": "django__django-13820"
+    },
+    {
+      "instance_id": "django__django-13821"
+    },
+    {
+      "instance_id": "django__django-13837"
+    },
+    {
+      "instance_id": "django__django-13933"
+    },
+    {
+      "instance_id": "django__django-14007"
+    },
+    {
+      "instance_id": "django__django-14011"
+    },
+    {
+      "instance_id": "django__django-14034"
+    },
+    {
+      "instance_id": "django__django-14053"
+    },
+    {
+      "instance_id": "django__django-14122"
+    },
+    {
+      "instance_id": "django__django-14140"
+    },
+    {
+      "instance_id": "django__django-14155"
+    },
+    {
+      "instance_id": "django__django-14170"
+    },
+    {
+      "instance_id": "django__django-14311"
+    },
+    {
+      "instance_id": "django__django-14315"
+    },
+    {
+      "instance_id": "django__django-14351"
+    },
+    {
+      "instance_id": "django__django-14376"
+    },
+    {
+      "instance_id": "django__django-14434"
+    },
+    {
+      "instance_id": "django__django-14559"
+    },
+    {
+      "instance_id": "django__django-14608"
+    },
+    {
+      "instance_id": "django__django-14631"
+    },
+    {
+      "instance_id": "django__django-14725"
+    },
+    {
+      "instance_id": "django__django-14752"
+    },
+    {
+      "instance_id": "django__django-14765"
+    },
+    {
+      "instance_id": "django__django-14792"
+    },
+    {
+      "instance_id": "django__django-14855"
+    },
+    {
+      "instance_id": "django__django-14999"
+    },
+    {
+      "instance_id": "django__django-15037"
+    },
+    {
+      "instance_id": "django__django-15103"
+    },
+    {
+      "instance_id": "django__django-15127"
+    },
+    {
+      "instance_id": "django__django-15128"
+    },
+    {
+      "instance_id": "django__django-15161"
+    },
+    {
+      "instance_id": "django__django-15252"
+    },
+    {
+      "instance_id": "django__django-15268"
+    },
+    {
+      "instance_id": "django__django-15278"
+    },
+    {
+      "instance_id": "django__django-15280"
+    },
+    {
+      "instance_id": "django__django-15315"
+    },
+    {
+      "instance_id": "django__django-15382"
+    },
+    {
+      "instance_id": "django__django-15499"
+    },
+    {
+      "instance_id": "django__django-15503"
+    },
+    {
+      "instance_id": "django__django-15554"
+    },
+    {
+      "instance_id": "django__django-15561"
+    },
+    {
+      "instance_id": "django__django-15563"
+    },
+    {
+      "instance_id": "django__django-15629"
+    },
+    {
+      "instance_id": "django__django-15732"
+    },
+    {
+      "instance_id": "django__django-15916"
+    },
+    {
+      "instance_id": "django__django-15957"
+    },
+    {
+      "instance_id": "django__django-16032"
+    },
+    {
+      "instance_id": "django__django-16100"
+    },
+    {
+      "instance_id": "django__django-16116"
+    },
+    {
+      "instance_id": "django__django-16136"
+    },
+    {
+      "instance_id": "django__django-16145"
+    },
+    {
+      "instance_id": "django__django-16256"
+    },
+    {
+      "instance_id": "django__django-16263"
+    },
+    {
+      "instance_id": "django__django-16315"
+    },
+    {
+      "instance_id": "django__django-16454"
+    },
+    {
+      "instance_id": "django__django-16502"
+    },
+    {
+      "instance_id": "django__django-16560"
+    },
+    {
+      "instance_id": "django__django-16569"
+    },
+    {
+      "instance_id": "django__django-16595"
+    },
+    {
+      "instance_id": "django__django-16631"
+    },
+    {
+      "instance_id": "django__django-16661"
+    },
+    {
+      "instance_id": "django__django-16801"
+    },
+    {
+      "instance_id": "django__django-16877"
+    },
+    {
+      "instance_id": "django__django-16901"
+    },
+    {
+      "instance_id": "django__django-16938"
+    },
+    {
+      "instance_id": "django__django-16950"
+    },
+    {
+      "instance_id": "django__django-17084"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-14623"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-20488"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-20676"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-20826"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-20859"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-21568"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-22865"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-22871"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-23299"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24026"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24149"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24870"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24970"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25122"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25287"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25332"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25479"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25775"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25960"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-26342"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-26466"
+    },
+    {
+      "instance_id": "mwaskom__seaborn-3069"
+    },
+    {
+      "instance_id": "mwaskom__seaborn-3187"
+    },
+    {
+      "instance_id": "pallets__flask-5014"
+    },
+    {
+      "instance_id": "psf__requests-1142"
+    },
+    {
+      "instance_id": "psf__requests-1724"
+    },
+    {
+      "instance_id": "psf__requests-1766"
+    },
+    {
+      "instance_id": "psf__requests-1921"
+    },
+    {
+      "instance_id": "psf__requests-2317"
+    },
+    {
+      "instance_id": "psf__requests-2931"
+    },
+    {
+      "instance_id": "psf__requests-5414"
+    },
+    {
+      "instance_id": "psf__requests-6028"
+    },
+    {
+      "instance_id": "pydata__xarray-2905"
+    },
+    {
+      "instance_id": "pydata__xarray-3095"
+    },
+    {
+      "instance_id": "pydata__xarray-3151"
+    },
+    {
+      "instance_id": "pydata__xarray-3305"
+    },
+    {
+      "instance_id": "pydata__xarray-3677"
+    },
+    {
+      "instance_id": "pydata__xarray-3993"
+    },
+    {
+      "instance_id": "pydata__xarray-4075"
+    },
+    {
+      "instance_id": "pydata__xarray-4094"
+    },
+    {
+      "instance_id": "pydata__xarray-4356"
+    },
+    {
+      "instance_id": "pydata__xarray-4629"
+    },
+    {
+      "instance_id": "pydata__xarray-4687"
+    },
+    {
+      "instance_id": "pydata__xarray-4695"
+    },
+    {
+      "instance_id": "pydata__xarray-4966"
+    },
+    {
+      "instance_id": "pydata__xarray-6461"
+    },
+    {
+      "instance_id": "pydata__xarray-6599"
+    },
+    {
+      "instance_id": "pydata__xarray-6744"
+    },
+    {
+      "instance_id": "pydata__xarray-6938"
+    },
+    {
+      "instance_id": "pydata__xarray-6992"
+    },
+    {
+      "instance_id": "pydata__xarray-7229"
+    },
+    {
+      "instance_id": "pydata__xarray-7233"
+    },
+    {
+      "instance_id": "pydata__xarray-7393"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4551"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4604"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4661"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-4970"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6386"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6528"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-6903"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-7080"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-7277"
+    },
+    {
+      "instance_id": "pylint-dev__pylint-8898"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-10051"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-10081"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-10356"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5262"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5631"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5787"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5809"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5840"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-6197"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-6202"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7205"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7236"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7324"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7432"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7490"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7521"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7571"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-8399"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-10297"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-11310"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-12682"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-12973"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13142"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13328"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13439"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13496"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14087"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14496"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14629"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14894"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14983"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-15100"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-25102"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-25232"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-25931"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-25973"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-26194"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-9288"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10435"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10449"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10614"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10673"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-11445"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-11510"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7454"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7462"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7590"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7748"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7757"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-7985"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8035"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8056"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8120"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8265"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8459"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8548"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8551"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8593"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9229"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9281"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9320"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9461"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9602"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-9711"
+    },
+    {
+      "instance_id": "sympy__sympy-11618"
+    },
+    {
+      "instance_id": "sympy__sympy-12419"
+    },
+    {
+      "instance_id": "sympy__sympy-12481"
+    },
+    {
+      "instance_id": "sympy__sympy-12489"
+    },
+    {
+      "instance_id": "sympy__sympy-13031"
+    },
+    {
+      "instance_id": "sympy__sympy-13091"
+    },
+    {
+      "instance_id": "sympy__sympy-13615"
+    },
+    {
+      "instance_id": "sympy__sympy-13798"
+    },
+    {
+      "instance_id": "sympy__sympy-13852"
+    },
+    {
+      "instance_id": "sympy__sympy-13877"
+    },
+    {
+      "instance_id": "sympy__sympy-13878"
+    },
+    {
+      "instance_id": "sympy__sympy-13974"
+    },
+    {
+      "instance_id": "sympy__sympy-14248"
+    },
+    {
+      "instance_id": "sympy__sympy-14531"
+    },
+    {
+      "instance_id": "sympy__sympy-15599"
+    },
+    {
+      "instance_id": "sympy__sympy-15809"
+    },
+    {
+      "instance_id": "sympy__sympy-15976"
+    },
+    {
+      "instance_id": "sympy__sympy-16597"
+    },
+    {
+      "instance_id": "sympy__sympy-16792"
+    },
+    {
+      "instance_id": "sympy__sympy-17318"
+    },
+    {
+      "instance_id": "sympy__sympy-18189"
+    },
+    {
+      "instance_id": "sympy__sympy-18199"
+    },
+    {
+      "instance_id": "sympy__sympy-18698"
+    },
+    {
+      "instance_id": "sympy__sympy-19346"
+    },
+    {
+      "instance_id": "sympy__sympy-19495"
+    },
+    {
+      "instance_id": "sympy__sympy-19783"
+    },
+    {
+      "instance_id": "sympy__sympy-20154"
+    },
+    {
+      "instance_id": "sympy__sympy-20428"
+    },
+    {
+      "instance_id": "sympy__sympy-20438"
+    },
+    {
+      "instance_id": "sympy__sympy-21379"
+    },
+    {
+      "instance_id": "sympy__sympy-21596"
+    },
+    {
+      "instance_id": "sympy__sympy-22080"
+    },
+    {
+      "instance_id": "sympy__sympy-22456"
+    },
+    {
+      "instance_id": "sympy__sympy-23413"
+    },
+    {
+      "instance_id": "sympy__sympy-24443"
+    },
+    {
+      "instance_id": "sympy__sympy-24661"
+    }
+  ],
+  "arms": [
+    "claude",
+    "cursor",
+    "kodo:solo",
+    "kodo:solo+opus"
+  ],
+  "results": {
+    "django__django-13344": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 163.1,
+        "patch_len": 4477,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 772.6,
+        "patch_len": 712,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 230.3,
+        "patch_len": 1444,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1485.2,
+        "patch_len": 3369,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-13195": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 35.6,
+        "patch_len": 2667,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 28.8,
+        "patch_len": 962,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 109.5,
+        "patch_len": 962,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 291.7,
+        "patch_len": 2301,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-15629": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 34.3,
+        "patch_len": 1052,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 77.2,
+        "patch_len": 848,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 145.9,
+        "patch_len": 2533,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 449.2,
+        "patch_len": 868,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "matplotlib__matplotlib-24870": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 64.3,
+        "patch_len": 1302,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 134.3,
+        "patch_len": 905,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 181.3,
+        "patch_len": 1227,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 676.3,
+        "patch_len": 2781,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "matplotlib__matplotlib-25775": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 94.4,
+        "patch_len": 7316,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 263.5,
+        "patch_len": 3293,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 268.9,
+        "patch_len": 7983,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1170.1,
+        "patch_len": 12893,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pydata__xarray-3305": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 42.4,
+        "patch_len": 2321,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 60.3,
+        "patch_len": 1479,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 86.8,
+        "patch_len": 1828,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 366.5,
+        "patch_len": 2416,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pydata__xarray-3993": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 17.7,
+        "patch_len": 1477,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 39.3,
+        "patch_len": 2145,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 121.5,
+        "patch_len": 2046,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 226.6,
+        "patch_len": 2441,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11400": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 22.1,
+        "patch_len": 1467,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 48.2,
+        "patch_len": 1467,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 86.2,
+        "patch_len": 1469,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 205.2,
+        "patch_len": 2488,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pydata__xarray-6938": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 43.4,
+        "patch_len": 1032,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 50.7,
+        "patch_len": 538,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 98.1,
+        "patch_len": 1270,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "error",
+        "elapsed_s": 1920.4,
+        "patch_len": 1874,
+        "error": "   -     -     -  3m09s   0 \u2502\n  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n  \u2502 Total                             6       -             31m60s     \u2502\n  \u2502   API:   -      Virtual:   -      Wall: 31m60s                     \u2502\n  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n\n  View run: uv run python -m kodo.viewer /Users/ikamen/.kodo/runs/20260305_170056/run.jsonl\n\n{\"status\": \"error\", \"error\": \"Exceeded maximum retries (1) for output validation\"}\n",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "matplotlib__matplotlib-14623": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 54.4,
+        "patch_len": 773,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 101.6,
+        "patch_len": 854,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 132.4,
+        "patch_len": 668,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1080.3,
+        "patch_len": 3237,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-6386": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 62.5,
+        "patch_len": 2372,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 97.9,
+        "patch_len": 1033,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 120.3,
+        "patch_len": 1563,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 303.7,
+        "patch_len": 1742,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-4551": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 109.8,
+        "patch_len": 4621,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 276.8,
+        "patch_len": 2384,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 510.0,
+        "patch_len": 4835,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 2108.8,
+        "patch_len": 15433,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-8898": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 46.0,
+        "patch_len": 2205,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 84.9,
+        "patch_len": 2394,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 289.6,
+        "patch_len": 31564,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "partial",
+        "elapsed_s": 757.0,
+        "patch_len": 5219,
+        "error": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n  \u2502 worker               Cursor      40       -     -     -  7m57s   0 \u2502\n  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n  \u2502 Total                            40       -             12m37s     \u2502\n  \u2502   API:   -      Virtual:   -      Wall: 12m37s                     \u2502\n  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n\n  View run: uv run python -m kodo.viewer /Users/ikamen/.kodo/runs/20260305_174245/run.jsonl\n\n",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-4661": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 129.0,
+        "patch_len": 2164,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 39.9,
+        "patch_len": 1546,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 193.9,
+        "patch_len": 1746,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 713.7,
+        "patch_len": 3718,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-13877": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 45.9,
+        "patch_len": 686,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 134.5,
+        "patch_len": 574,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 332.4,
+        "patch_len": 2689,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 461.0,
+        "patch_len": 574,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-10673": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 119.1,
+        "patch_len": 6547,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 134.5,
+        "patch_len": 1975,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 276.9,
+        "patch_len": 3838,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 935.6,
+        "patch_len": 3590,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-9461": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 102.5,
+        "patch_len": 1947,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 364.7,
+        "patch_len": 3028,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 349.2,
+        "patch_len": 8994,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1540.7,
+        "patch_len": 18478,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-19783": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 41.2,
+        "patch_len": 1227,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 251.3,
+        "patch_len": 1267,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 156.6,
+        "patch_len": 1031,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1148.4,
+        "patch_len": 1359,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-14248": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 87.9,
+        "patch_len": 3329,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 540.9,
+        "patch_len": 5174,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 506.9,
+        "patch_len": 6867,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1046.1,
+        "patch_len": 7000,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-20438": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 81.5,
+        "patch_len": 1256,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 183.5,
+        "patch_len": 1094,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo+opus": {
+        "status": "ok",
+        "elapsed_s": 90.1,
+        "patch_len": 1331,
+        "error": "",
+        "run_id": "kodo_opus_verified_20",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 676.9,
+        "patch_len": 4628,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14508": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 79.8,
+        "patch_len": 978,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 40.4,
+        "patch_len": 1942,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 528.4,
+        "patch_len": 1370,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-8707": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 49.9,
+        "patch_len": 842,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 39.1,
+        "patch_len": 1656,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 603.1,
+        "patch_len": 2495,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13398": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 166.3,
+        "patch_len": 3833,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 63.8,
+        "patch_len": 3502,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 667.6,
+        "patch_len": 4868,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11532": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 55.7,
+        "patch_len": 1195,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 23.1,
+        "patch_len": 873,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 508.4,
+        "patch_len": 421,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11138": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 198.9,
+        "patch_len": 7817,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 103.2,
+        "patch_len": 7902,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 368.4,
+        "patch_len": 8145,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14369": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 390.4,
+        "patch_len": 8069,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 278.8,
+        "patch_len": 11645,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 511.2,
+        "patch_len": 10430,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-13121": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 379.6,
+        "patch_len": 2445,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 86.1,
+        "patch_len": 1959,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1853.9,
+        "patch_len": 5448,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-14315": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 26.7,
+        "patch_len": 554,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 34.4,
+        "patch_len": 485,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 272.2,
+        "patch_len": 539,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-14631": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 206.3,
+        "patch_len": 3585,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 56.9,
+        "patch_len": 3890,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 184.2,
+        "patch_len": 3774,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11734": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 798.5,
+        "patch_len": 637,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 109.0,
+        "patch_len": 2224,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1158.3,
+        "patch_len": 1845,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "matplotlib__matplotlib-25479": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 64.7,
+        "patch_len": 399,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 40.0,
+        "patch_len": 592,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1736.5,
+        "patch_len": 5101,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pydata__xarray-3095": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 44.8,
+        "patch_len": 703,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 60.0,
+        "patch_len": 1017,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 456.6,
+        "patch_len": 941,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "mwaskom__seaborn-3187": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 227.4,
+        "patch_len": 568,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 68.2,
+        "patch_len": 1312,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 439.0,
+        "patch_len": 1535725,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pydata__xarray-6992": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 30.4,
+        "patch_len": 625,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 27.3,
+        "patch_len": 607,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1295.5,
+        "patch_len": 6472,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-4604": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 168.3,
+        "patch_len": 674,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 78.2,
+        "patch_len": 639,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 402.9,
+        "patch_len": 1617,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pytest-dev__pytest-8399": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 18.0,
+        "patch_len": 549,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 39.9,
+        "patch_len": 549,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1247.3,
+        "patch_len": 2460,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "pytest-dev__pytest-5840": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 83.1,
+        "patch_len": 644,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 154.6,
+        "patch_len": 4391,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 919.9,
+        "patch_len": 823,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "scikit-learn__scikit-learn-12682": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 92.2,
+        "patch_len": 2977,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 59.7,
+        "patch_len": 6011,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 332.7,
+        "patch_len": 10175,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "scikit-learn__scikit-learn-25102": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 87.2,
+        "patch_len": 1947,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 56.0,
+        "patch_len": 2314,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 931.7,
+        "patch_len": 22557,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-7462": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 20.0,
+        "patch_len": 1044,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 30.9,
+        "patch_len": 640,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 320.8,
+        "patch_len": 1089,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "pylint-dev__pylint-6528": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 344.7,
+        "patch_len": 2913,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 109.0,
+        "patch_len": 2916,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 731.7,
+        "patch_len": 3717,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-8120": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 76.6,
+        "patch_len": 718,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 54.6,
+        "patch_len": 718,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 422.7,
+        "patch_len": 718,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-8548": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 174.0,
+        "patch_len": 2457,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 111.9,
+        "patch_len": 5256,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 881.6,
+        "patch_len": 11668,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-8551": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 180.2,
+        "patch_len": 1564,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 61.9,
+        "patch_len": 984,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 535.3,
+        "patch_len": 834,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-8593": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 94.8,
+        "patch_len": 619,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 42.3,
+        "patch_len": 643,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 253.2,
+        "patch_len": 654,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-16597": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 211.4,
+        "patch_len": 392,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 54.6,
+        "patch_len": 446,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 656.0,
+        "patch_len": 2976,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-19346": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 38.5,
+        "patch_len": 756,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 45.3,
+        "patch_len": 736,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 478.6,
+        "patch_len": 1358,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-17318": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 157.9,
+        "patch_len": 837,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 75.4,
+        "patch_len": 939,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 265.0,
+        "patch_len": 381,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sympy__sympy-22080": {
+      "claude": {
+        "status": "ok",
+        "elapsed_s": 972.7,
+        "patch_len": 1236,
+        "error": "",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 77.6,
+        "patch_len": 493,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1003.7,
+        "patch_len": 751,
+        "error": "",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "sphinx-doc__sphinx-7590": {
+      "claude": {
+        "status": "timeout",
+        "elapsed_s": 7200.0,
+        "patch_len": 849,
+        "error": "Timed out after 7200s",
+        "run_id": "claude_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 57.9,
+        "patch_len": 1189,
+        "error": "",
+        "run_id": "cursor_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "partial",
+        "elapsed_s": 1289.5,
+        "patch_len": 5138,
+        "error": "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n  \u2502 worker               Cursor      40       -     -     - 10m24s   0 \u2502\n  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n  \u2502 Total                            40       -             21m29s     \u2502\n  \u2502   API:   -      Virtual:   -      Wall: 21m29s                     \u2502\n  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n\n  View run: uv run python -m kodo.viewer /Users/ikamen/.kodo/runs/20260305_181602/run.jsonl\n\n",
+        "run_id": "kodo_solo_verified_50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14539": {
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1594.9,
+        "patch_len": 532,
+        "error": "",
+        "run_id": "kodo_solo_new50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        }
+      }
+    },
+    "astropy__astropy-14995": {
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 189.2,
+        "patch_len": 4703,
+        "error": "",
+        "run_id": "kodo_solo_new50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        }
+      }
+    },
+    "astropy__astropy-7166": {
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1465.2,
+        "patch_len": 533,
+        "error": "",
+        "run_id": "kodo_solo_new50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        }
+      }
+    },
+    "django__django-11292": {
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 844.1,
+        "patch_len": 1243,
+        "error": "",
+        "run_id": "kodo_solo_new50",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        }
+      }
+    },
+    "astropy__astropy-12907": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 29.7,
+        "patch_len": 506,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 390.2,
+        "patch_len": 506,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13033": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 22.0,
+        "patch_len": 1383,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 279.0,
+        "patch_len": 1820,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13236": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 32.3,
+        "patch_len": 830,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1274.5,
+        "patch_len": 1782,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13453": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 34.5,
+        "patch_len": 483,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1815.2,
+        "patch_len": 4311,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13579": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 162.1,
+        "patch_len": 1358,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 699.6,
+        "patch_len": 1497,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-13977": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 37.0,
+        "patch_len": 1109,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 379.2,
+        "patch_len": 6526,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14096": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 79.0,
+        "patch_len": 4805,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1866.0,
+        "patch_len": 6840,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14182": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 49.3,
+        "patch_len": 715,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1462.9,
+        "patch_len": 2304,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14309": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 23.7,
+        "patch_len": 599,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 587.9,
+        "patch_len": 1817,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14365": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 27.5,
+        "patch_len": 776,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 250.0,
+        "patch_len": 619,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-14598": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 61.8,
+        "patch_len": 830,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 364.1,
+        "patch_len": 1002,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-7336": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 19.7,
+        "patch_len": 632,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1068.1,
+        "patch_len": 789,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-7606": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 15.0,
+        "patch_len": 465,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 399.2,
+        "patch_len": 592,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-7671": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 31.9,
+        "patch_len": 1053,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 332.1,
+        "patch_len": 1530,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "astropy__astropy-8872": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 29.8,
+        "patch_len": 1075,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 196.1,
+        "patch_len": 2894,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-10554": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 43.8,
+        "patch_len": 686,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 2071.3,
+        "patch_len": 696,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-10973": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 30.2,
+        "patch_len": 2428,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 240.8,
+        "patch_len": 2781,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-10999": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 26.1,
+        "patch_len": 497,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 156.8,
+        "patch_len": 497,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11087": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 39.3,
+        "patch_len": 890,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 503.3,
+        "patch_len": 1734,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11095": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 31.6,
+        "patch_len": 3521,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 228.8,
+        "patch_len": 1273,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11141": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 64.7,
+        "patch_len": 1668,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 315.1,
+        "patch_len": 777,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11149": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 52.0,
+        "patch_len": 2757,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 2032.7,
+        "patch_len": 3038,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11206": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 30.3,
+        "patch_len": 795,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 238.7,
+        "patch_len": 2897,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11239": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 19.5,
+        "patch_len": 742,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 212.0,
+        "patch_len": 1296,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11265": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 32.5,
+        "patch_len": 702,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 696.9,
+        "patch_len": 3343,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11276": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 29.5,
+        "patch_len": 1480,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 235.4,
+        "patch_len": 993,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11333": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 29.4,
+        "patch_len": 638,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 217.3,
+        "patch_len": 669,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11433": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 47.3,
+        "patch_len": 845,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 401.0,
+        "patch_len": 1172,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11551": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 21.5,
+        "patch_len": 2482,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 274.5,
+        "patch_len": 2482,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11728": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 46.0,
+        "patch_len": 1451,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 191.1,
+        "patch_len": 4815,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11749": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 61.9,
+        "patch_len": 1436,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 321.3,
+        "patch_len": 1172,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11815": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 20.8,
+        "patch_len": 761,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 819.3,
+        "patch_len": 717,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11820": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 37.2,
+        "patch_len": 783,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 371.2,
+        "patch_len": 1649,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11848": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 32.9,
+        "patch_len": 736,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 180.9,
+        "patch_len": 660,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11885": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 59.3,
+        "patch_len": 1801,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1124.6,
+        "patch_len": 968,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-11964": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 63.5,
+        "patch_len": 1838,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 518.3,
+        "patch_len": 5991,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-11999": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 33.0,
+        "patch_len": 844,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1273.2,
+        "patch_len": 1086,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12039": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 32.1,
+        "patch_len": 1146,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 292.0,
+        "patch_len": 1512,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12050": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 6.6,
+        "patch_len": 500,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 184.3,
+        "patch_len": 500,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12155": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 31.3,
+        "patch_len": 679,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 345.5,
+        "patch_len": 793,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12276": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 11.2,
+        "patch_len": 836,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 205.0,
+        "patch_len": 836,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12325": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 28.9,
+        "patch_len": 964,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 285.4,
+        "patch_len": 885,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-12406": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 41.5,
+        "patch_len": 1136,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 335.0,
+        "patch_len": 1629,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    },
+    "django__django-12708": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 17.6,
+        "patch_len": 754,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 380.2,
+        "patch_len": 754,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12713": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 17.0,
+        "patch_len": 1811,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 168.9,
+        "patch_len": 1811,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12741": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 16.5,
+        "patch_len": 2610,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 240.5,
+        "patch_len": 1514,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12754": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 55.1,
+        "patch_len": 1323,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 1490.0,
+        "patch_len": 4054,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-12774": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 30.9,
+        "patch_len": 1539,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 704.3,
+        "patch_len": 1362,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-13033": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 61.3,
+        "patch_len": 1318,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 362.5,
+        "patch_len": 891,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-13089": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 13.0,
+        "patch_len": 891,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      },
+      "kodo:solo": {
+        "status": "ok",
+        "elapsed_s": 115.8,
+        "patch_len": 879,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": true,
+        "eval_status": true
+      }
+    },
+    "django__django-13112": {
+      "cursor": {
+        "status": "ok",
+        "elapsed_s": 92.9,
+        "patch_len": 3106,
+        "error": "",
+        "run_id": "verified_250_cursor_vs_kodo",
+        "provenance": {
+          "user": "ikamen",
+          "host": "raven",
+          "platform": "Darwin arm64",
+          "timestamp": "2026-03-09T09:46:29.342021+00:00",
+          "ip": "89.1.214.195",
+          "city": "K\u00f6ln",
+          "region": "North Rhine-Westphalia",
+          "country": "DE"
+        },
+        "resolved": false,
+        "eval_status": true
+      }
+    }
+  },
+  "meta": {
+    "dataset": "verified",
+    "total_tasks": 320,
+    "total_evaluated": 101,
+    "last_updated": "2026-03-09T09:46:29.812113+00:00"
+  }
+}
