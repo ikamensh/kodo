@@ -113,7 +113,7 @@ tr.expanded td { background: var(--surface); border-bottom: none; }
 </main>
 
 <script>
-const DATA_BASE = '/data';
+const DATA_BASE = 'data';
 let currentDataset = 'verified';
 let allData = {};
 
@@ -130,13 +130,18 @@ async function init() {
   });
 
   try {
-    const [verified, pro] = await Promise.all([
+    const [verifiedIdx, proIdx, verifiedPatches, proPatches] = await Promise.all([
       fetchJSON(`${DATA_BASE}/verified/index.json`),
       fetchJSON(`${DATA_BASE}/pro/index.json`),
+      fetchJSON(`${DATA_BASE}/verified/patches.json`),
+      fetchJSON(`${DATA_BASE}/pro/patches.json`),
     ]);
-    allData = { verified: verified || emptyIndex(), pro: pro || emptyIndex() };
+    allData = {
+      verified: { ...(verifiedIdx || emptyIndex()), patches: verifiedPatches || {} },
+      pro: { ...(proIdx || emptyIndex()), patches: proPatches || {} },
+    };
   } catch (e) {
-    allData = { verified: emptyIndex(), pro: emptyIndex() };
+    allData = { verified: { ...emptyIndex(), patches: {} }, pro: { ...emptyIndex(), patches: {} } };
   }
 
   render();
@@ -390,7 +395,7 @@ function sortTable(col) {
   });
 }
 
-async function toggleExpand(row) {
+function toggleExpand(row) {
   const existing = row.nextElementSibling;
   if (existing?.classList.contains('expand-row')) {
     existing.remove();
@@ -411,26 +416,15 @@ async function toggleExpand(row) {
     html += `<h4 style="margin:8px 0 4px;color:var(--accent)">${escapeHtml(arm)}</h4>`;
     html += `<div style="font-size:12px;color:var(--text2)">Status: ${r.status} | Elapsed: ${formatTime(r.elapsed_s || 0)} | Patch: ${r.patch_len || 0} chars</div>`;
 
-    if (r.patch_url) {
-      html += '<div class="patch-view" id="patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id + '">Loading patch...</div>';
-      loadPatch(r.patch_url, 'patch-' + arm.replace(/[^a-z0-9]/gi,'_') + '-' + id);
+    const patchKey = id + '/' + arm;
+    const patchText = data.patches?.[patchKey];
+    if (patchText) {
+      html += '<div class="patch-view">' + highlightDiff(patchText) + '</div>';
     }
   }
   html += '</td>';
   expandRow.innerHTML = html;
   row.after(expandRow);
-}
-
-async function loadPatch(url, elementId) {
-  try {
-    const resp = await fetch(url);
-    const text = await resp.text();
-    const el = document.getElementById(elementId);
-    if (el) el.innerHTML = highlightDiff(text);
-  } catch (e) {
-    const el = document.getElementById(elementId);
-    if (el) el.textContent = 'Failed to load patch';
-  }
 }
 
 function highlightDiff(text) {
