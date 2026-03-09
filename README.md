@@ -9,7 +9,7 @@
   <a href="https://cursor.com"><img src="https://img.shields.io/badge/Cursor-supported-orange?logo=cursor&logoColor=white" alt="Cursor"></a>
   <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/Codex-supported-green?logo=openai&logoColor=white" alt="OpenAI Codex"></a>
   <a href="https://github.com/google-gemini/gemini-cli"><img src="https://img.shields.io/badge/Gemini_CLI-supported-blue?logo=google&logoColor=white" alt="Gemini CLI"></a>
-  <a href="https://github.com/nicepkg/kimi-cli"><img src="https://img.shields.io/badge/Kimi-supported-red?logo=data:image/svg+xml;base64,&logoColor=white" alt="Kimi"></a>
+  <a href="https://github.com/nicepkg/kimi-cli"><img src="https://img.shields.io/badge/%F0%9F%8C%99_Kimi-supported-red" alt="Kimi"></a>
 </p>
 
 ---
