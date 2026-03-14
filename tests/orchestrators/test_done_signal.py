@@ -306,7 +306,7 @@ class TestDoneSignalThreadSafety:
         for t in threads:
             t.start()
 
-        time.sleep(0.02)
+        time.sleep(0.005)
         stop.set()
 
         for t in threads:

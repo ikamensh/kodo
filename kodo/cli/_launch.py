@@ -369,6 +369,11 @@ def launch_run(
             log.emit("preflight_warnings", warnings=preflight_warnings)
 
     if not json_mode:
+        print(f"  Team: {team_preset.name}")
+        print(f"  Orchestrator: {params['orchestrator']} ({orchestrator.model})")
+        print("  Agents:")
+        for k, a in team.items():
+            print(f"    {k} ({_backend_label(a)} / {a.session.model})")
         print(f"  Log: {log_path}")
         print()
 
@@ -593,7 +598,7 @@ def launch_resume(
 
     if _original_stdout is None:
         print(f"\nResuming run: {state.run_id}")
-        print(f"Team: {team_preset.name} — {team_preset.description}")
+        print(f"Team: {team_preset.name}")
         print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
         print("Team:")
         for k, a in team.items():

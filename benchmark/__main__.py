@@ -202,6 +202,17 @@ def main() -> int:
 
         return evaluate_pending(workspace, dataset_arg=args.dataset)
 
+    # Distribute mode: check before heavy imports (evaluate, report, tasks)
+    local_mode = args.local or args.subset or args.instance_ids
+    if not local_mode:
+        from benchmark.online.client import is_configured, whoami
+
+        if is_configured():
+            identity = whoami()
+            if identity:
+                log.info("Authenticated as: %s", identity)
+            return _run_distributed(args, workspace, run_id)
+
     from benchmark.evaluate import evaluate_predictions
     from benchmark.report import generate_report
 
@@ -215,7 +226,6 @@ def main() -> int:
     # Run agents
     import json
 
-    from benchmark.online.client import fetch_assignments, is_configured, whoami
     from benchmark.runner import BenchmarkInterrupted, run_benchmark
     from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
@@ -227,15 +237,7 @@ def main() -> int:
         instance_ids = subset_data["instance_ids"]
         dataset = subset_data.get("dataset", dataset)
 
-    # Mode: distribute (default when configured) vs local
-    local_mode = args.local or args.subset or args.instance_ids
-    if not local_mode and is_configured():
-        identity = whoami()
-        if identity:
-            log.info("Authenticated as: %s", identity)
-        return _run_distributed(args, workspace, run_id)
-
-    # Local mode
+    # Local mode (distribute path handled earlier)
     tasks = load_tasks(
         dataset=dataset,
         limit=args.limit,

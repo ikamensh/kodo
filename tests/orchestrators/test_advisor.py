@@ -26,6 +26,9 @@ from kodo.orchestrators.base import (
 from kodo.summarizer import Summarizer
 from tests.conftest import make_agent
 
+# Import once at load; _build_advisor reads env when called, not at import
+from kodo.cli._launch import _build_advisor
+
 
 # ---------------------------------------------------------------------------
 # Unit tests for AdvisorDecision and make_stage
@@ -538,8 +541,6 @@ class TestRunAdaptive:
 class TestBuildAdvisor:
     def test_returns_advisor_with_gemini_key(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        from kodo.cli._launch import _build_advisor
-
         advisor = _build_advisor({"orchestrator_model": "gemini-flash"})
         assert advisor is not None
         assert "google-gla:" in advisor.model

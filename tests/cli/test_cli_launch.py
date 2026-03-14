@@ -1092,6 +1092,16 @@ class TestLaunchRunEffortFlowThrough:
         call_kwargs = self.mock_orch.return_value.run.call_args[1]
         assert call_kwargs["effort"] == "max"
 
+    def test_launch_prints_team_and_backends(self, tmp_path, capsys):
+        """Normal launch should print team preset, orchestrator, and agents with backends."""
+        params = _minimal_params()
+        launch_run(self.run_dir, "test goal", params)
+        out = capsys.readouterr().out
+        assert "Team: full" in out
+        assert "Orchestrator:" in out
+        assert "Agents:" in out
+        assert "worker" in out
+
     def test_standard_effort_default_passed_to_orchestrator(self, tmp_path):
         """No effort in params → default 'standard' reaches orchestrator.run()."""
         params = _minimal_params()  # no effort key
