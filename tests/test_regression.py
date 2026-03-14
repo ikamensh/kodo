@@ -186,7 +186,7 @@ class TestInvalidSavedTeamConfig:
         # we short-circuit by raising SystemExit via the mocked select_params)
         with (
             patch(
-                "kodo.cli._params.select_params",
+                "kodo.cli._params.select_params", autospec=True,
                 side_effect=SystemExit(99),
             ),
             pytest.raises(SystemExit) as exc_info,

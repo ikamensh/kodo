@@ -897,7 +897,7 @@ class TestHandleDoneEdgeCases:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
 
-        with patch("kodo.log.emit") as mock_emit:
+        with patch("kodo.log.emit", autospec=True) as mock_emit:
             result = handle_done(
                 SUMMARY, True, done_signal, GOAL, team, tmp_project,
                 orchestrator_tag="custom_orch",
@@ -918,7 +918,7 @@ class TestHandleDoneEdgeCases:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
 
-        with patch("kodo.orchestrators.base._auto_commit") as mock_commit:
+        with patch("kodo.orchestrators.base._auto_commit", autospec=True) as mock_commit:
             handle_done(
                 SUMMARY, True, done_signal, GOAL, team, tmp_project,
                 config=CycleConfig(verification="skip", auto_commit=True),
@@ -933,7 +933,7 @@ class TestHandleDoneEdgeCases:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
 
-        with patch("kodo.orchestrators.base._auto_commit") as mock_commit:
+        with patch("kodo.orchestrators.base._auto_commit", autospec=True) as mock_commit:
             handle_done(
                 SUMMARY, True, done_signal, GOAL, team, tmp_project,
                 config=CycleConfig(verification="skip", auto_commit=False),

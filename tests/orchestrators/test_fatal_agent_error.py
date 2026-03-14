@@ -22,8 +22,8 @@ from tests.conftest import FakeRunResult, FakeSession
 def _noop_summarizer():
     """Summarizer that does nothing."""
     with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
+        patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+        patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
         return Summarizer()
 
@@ -187,7 +187,7 @@ def test_cycle_aborts_when_all_workers_fatal(tmp_path: Path):
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
         patch.object(ApiOrchestrator, "_summarize", return_value="summary"),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")

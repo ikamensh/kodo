@@ -217,7 +217,7 @@ class TestBuildTeam:
         orch = KnowledgeOrchestrator(agent_model="claude-sonnet-4-6")
 
         with mock.patch(
-            "kodo.knowledge.sessions.make_knowledge_session"
+            "kodo.knowledge.sessions.make_knowledge_session", autospec=True
         ) as mock_make:
             # Create a fake session that the Agent constructor can use
             from kodo.sessions.base import QueryResult, SessionStats
@@ -275,7 +275,7 @@ class TestAutoAssess:
         convergence.round_number = 1
         orch = KnowledgeOrchestrator()
 
-        with mock.patch("kodo.knowledge.convergence.assess") as mock_assess:
+        with mock.patch("kodo.knowledge.convergence.assess", autospec=True) as mock_assess:
             mock_assess.return_value = {
                 "confidence": 0.5,
                 "stability": 0.3,
@@ -306,7 +306,7 @@ class TestAutoAssess:
         ]
         orch = KnowledgeOrchestrator()
 
-        with mock.patch("kodo.knowledge.convergence.assess") as mock_assess:
+        with mock.patch("kodo.knowledge.convergence.assess", autospec=True) as mock_assess:
             mock_assess.return_value = {
                 "confidence": 0.7,
                 "stability": 0.6,
@@ -330,7 +330,7 @@ class TestAutoAssess:
         convergence.round_number = 1
         orch = KnowledgeOrchestrator()
 
-        with mock.patch("kodo.knowledge.convergence.assess") as mock_assess:
+        with mock.patch("kodo.knowledge.convergence.assess", autospec=True) as mock_assess:
             mock_assess.return_value = {
                 "confidence": 0.85,
                 "stability": 0.90,
@@ -358,7 +358,7 @@ class TestAutoAssess:
         convergence.history = []
         orch = KnowledgeOrchestrator()
 
-        with mock.patch("kodo.knowledge.convergence.assess") as mock_assess:
+        with mock.patch("kodo.knowledge.convergence.assess", autospec=True) as mock_assess:
             mock_assess.return_value = {
                 "confidence": 0.6,
                 "stability": 0.5,
@@ -756,7 +756,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         assert len(captured_prompt) == 1
@@ -803,7 +803,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         prompt = captured_prompt[0]
@@ -851,7 +851,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         prompt = captured_prompt[0]
@@ -899,7 +899,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         prompt = captured_prompt[0]
@@ -952,7 +952,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         prompt = captured_prompt[0]
@@ -1004,7 +1004,7 @@ class TestPromptConstruction:
 
             return FakeAgent()
 
-        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", side_effect=capture_agent_init):
+        with mock.patch("kodo.knowledge.orchestrator.PydanticAgent", autospec=True, side_effect=capture_agent_init):
             orch._run_round(goal, design, team, workspace, convergence, max_exchanges=10)
 
         prompt = captured_prompt[0]
@@ -1057,7 +1057,7 @@ class TestRun:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.design_team",
+                "kodo.knowledge.orchestrator.design_team", autospec=True,
                 return_value=design,
             ),
             mock.patch.object(orch, "_build_team", return_value={}),
@@ -1083,7 +1083,7 @@ class TestRun:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.design_team",
+                "kodo.knowledge.orchestrator.design_team", autospec=True,
                 return_value=design,
             ),
             mock.patch.object(orch, "_build_team", return_value=team),
@@ -1108,7 +1108,7 @@ class TestRun:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.design_team",
+                "kodo.knowledge.orchestrator.design_team", autospec=True,
                 return_value=design,
             ),
             mock.patch.object(orch, "_build_team", return_value=team),
@@ -1138,13 +1138,13 @@ class TestRun:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.design_team",
+                "kodo.knowledge.orchestrator.design_team", autospec=True,
                 return_value=design,
             ),
             mock.patch.object(orch, "_build_team", return_value={}),
             mock.patch.object(orch, "_run_loop", return_value=result),
             mock.patch.object(orch._summarizer, "shutdown"),
-            mock.patch("kodo.knowledge.orchestrator.log") as mock_log,
+            mock.patch("kodo.knowledge.orchestrator.log", autospec=True) as mock_log,
         ):
             mock_log.emit = capture_emit
             mock_log.tprint = mock.MagicMock()
@@ -1242,7 +1242,7 @@ class TestRunRoundErrors:
         orch = KnowledgeOrchestrator()
 
         with mock.patch(
-            "kodo.knowledge.orchestrator.PydanticAgent",
+            "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
             side_effect=self._make_raising_agent(
                 UsageLimitExceeded("limit exceeded")
             ),
@@ -1262,7 +1262,7 @@ class TestRunRoundErrors:
         orch = KnowledgeOrchestrator()
 
         with mock.patch(
-            "kodo.knowledge.orchestrator.PydanticAgent",
+            "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
             side_effect=self._make_raising_agent(
                 UnexpectedModelBehavior("bad output")
             ),
@@ -1282,7 +1282,7 @@ class TestRunRoundErrors:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.PydanticAgent",
+                "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
                 side_effect=self._make_raising_agent(
                     ModelHTTPError(401, "test-model")
                 ),
@@ -1304,7 +1304,7 @@ class TestRunRoundErrors:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.PydanticAgent",
+                "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
                 side_effect=self._make_raising_agent(
                     ModelHTTPError(403, "test-model")
                 ),
@@ -1336,10 +1336,10 @@ class TestRunRoundErrors:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.PydanticAgent",
+                "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
                 side_effect=counting_agent_init,
             ),
-            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            mock.patch("kodo.knowledge.orchestrator.time.sleep", autospec=True) as mock_sleep,
             pytest.raises(ModelHTTPError) as exc_info,
         ):
             orch._run_round(
@@ -1374,10 +1374,10 @@ class TestRunRoundErrors:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.PydanticAgent",
+                "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
                 side_effect=counting_agent_init,
             ),
-            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            mock.patch("kodo.knowledge.orchestrator.time.sleep", autospec=True) as mock_sleep,
             pytest.raises(httpx.TimeoutException),
         ):
             orch._run_round(
@@ -1406,10 +1406,10 @@ class TestRunRoundErrors:
 
         with (
             mock.patch(
-                "kodo.knowledge.orchestrator.PydanticAgent",
+                "kodo.knowledge.orchestrator.PydanticAgent", autospec=True,
                 side_effect=counting_agent_init,
             ),
-            mock.patch("kodo.knowledge.orchestrator.time.sleep") as mock_sleep,
+            mock.patch("kodo.knowledge.orchestrator.time.sleep", autospec=True) as mock_sleep,
             pytest.raises(httpx.ConnectError),
         ):
             orch._run_round(

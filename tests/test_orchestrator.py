@@ -40,8 +40,8 @@ from tests.conftest import make_agent
 def _noop_summarizer():
     """Summarizer that does nothing."""
     with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
+        patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+        patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
         return Summarizer()
 

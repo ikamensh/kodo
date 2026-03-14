@@ -83,11 +83,11 @@ class TestTryAutoFixTeam:
         }
 
         with (
-            patch("builtins.input", return_value="y"),
-            patch("kodo.cli._subcommands._cmd_teams_auto_all"),
-            patch("kodo.cli._launch.load_team_config", return_value=fake_config),
-            patch("kodo.cli._launch.get_team", return_value=_fake_team_preset()),
-            patch("kodo.cli._launch.build_team_from_json", return_value=fake_team),
+            patch("builtins.input", autospec=True, return_value="y"),
+            patch("kodo.cli._subcommands._cmd_teams_auto_all", autospec=True),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=fake_config),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=_fake_team_preset()),
+            patch("kodo.cli._launch.build_team_from_json", autospec=True, return_value=fake_team),
         ):
             team, system_prompt, verifiers = _try_auto_fix_team(
                 "full", Path("/fake"), RuntimeError("missing backend"),
@@ -103,10 +103,10 @@ class TestTryAutoFixTeam:
         preset = _fake_team_preset(build_team=lambda: fake_team)
 
         with (
-            patch("builtins.input", return_value=""),
-            patch("kodo.cli._subcommands._cmd_teams_auto_all"),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.get_team", return_value=preset),
+            patch("builtins.input", autospec=True, return_value=""),
+            patch("kodo.cli._subcommands._cmd_teams_auto_all", autospec=True),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
         ):
             team, system_prompt, verifiers = _try_auto_fix_team(
                 "full", Path("/fake"), RuntimeError("missing"),
@@ -119,7 +119,7 @@ class TestTryAutoFixTeam:
     def test_user_declines_auto_fix_exits(self):
         """User types 'n' → _fail is called → SystemExit."""
         with (
-            patch("builtins.input", return_value="n"),
+            patch("builtins.input", autospec=True, return_value="n"),
             pytest.raises(SystemExit),
         ):
             _try_auto_fix_team("full", Path("/fake"), RuntimeError("missing"))
@@ -127,7 +127,7 @@ class TestTryAutoFixTeam:
     def test_eof_during_prompt_exits(self):
         """EOFError during input → declines → exits."""
         with (
-            patch("builtins.input", side_effect=EOFError),
+            patch("builtins.input", autospec=True, side_effect=EOFError),
             pytest.raises(SystemExit),
         ):
             _try_auto_fix_team("full", Path("/fake"), RuntimeError("missing"))
@@ -135,7 +135,7 @@ class TestTryAutoFixTeam:
     def test_keyboard_interrupt_during_prompt_exits(self):
         """KeyboardInterrupt during input → declines → exits."""
         with (
-            patch("builtins.input", side_effect=KeyboardInterrupt),
+            patch("builtins.input", autospec=True, side_effect=KeyboardInterrupt),
             pytest.raises(SystemExit),
         ):
             _try_auto_fix_team("full", Path("/fake"), RuntimeError("missing"))
@@ -158,8 +158,8 @@ class TestBuildTeamFromConfig:
         preset = _fake_team_preset()
 
         with (
-            patch("kodo.cli._launch.build_team_from_json", return_value=fake_team),
-            patch("kodo.cli._launch.validate_verifiers", return_value={"testers": ["worker"]}),
+            patch("kodo.cli._launch.build_team_from_json", autospec=True, return_value=fake_team),
+            patch("kodo.cli._launch.validate_verifiers", autospec=True, return_value={"testers": ["worker"]}),
         ):
             team, prompt, verifiers = _build_team_from_config(
                 config, preset, "full", Path("/fake"),
@@ -189,11 +189,11 @@ class TestBuildTeamFromConfig:
 
         with (
             patch(
-                "kodo.cli._launch.build_team_from_json",
+                "kodo.cli._launch.build_team_from_json", autospec=True,
                 side_effect=RuntimeError("no backend"),
             ),
             patch(
-                "kodo.cli._launch._try_auto_fix_team",
+                "kodo.cli._launch._try_auto_fix_team", autospec=True,
                 return_value=(fake_team, "prompt", None),
             ) as mock_fix,
         ):
@@ -210,7 +210,7 @@ class TestBuildTeamFromConfig:
 
         with (
             patch(
-                "kodo.cli._launch.build_team_from_json",
+                "kodo.cli._launch.build_team_from_json", autospec=True,
                 side_effect=ValueError("bad config"),
             ),
             pytest.raises(SystemExit),
@@ -294,7 +294,7 @@ class TestBuildAdvisor:
         """GEMINI_API_KEY → Advisor with google-gla model."""
         with (
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True),
-            patch("kodo.orchestrators.advisor.Advisor") as MockAdvisor,
+            patch("kodo.orchestrators.advisor.Advisor", autospec=True) as MockAdvisor,
         ):
             _build_advisor(_minimal_params())
 
@@ -305,7 +305,7 @@ class TestBuildAdvisor:
         """ANTHROPIC_API_KEY (no Gemini) → Advisor with mapped model."""
         with (
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-ant-test"}, clear=True),
-            patch("kodo.orchestrators.advisor.Advisor") as MockAdvisor,
+            patch("kodo.orchestrators.advisor.Advisor", autospec=True) as MockAdvisor,
         ):
             _build_advisor(_minimal_params(orchestrator_model="opus"))
 
@@ -525,7 +525,7 @@ class TestLaunchResume:
     @pytest.fixture(autouse=True)
     def _mock_log(self):
         """Mock log.init_append to avoid needing real log files."""
-        with patch("kodo.cli._launch.log") as mock_log:
+        with patch("kodo.cli._launch.log", autospec=True) as mock_log:
             # Let print_stats_table be a no-op
             mock_log.print_stats_table = MagicMock()
             mock_log.init_append = MagicMock()
@@ -574,11 +574,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -606,11 +606,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -633,11 +633,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -664,11 +664,11 @@ class TestLaunchResume:
             return preset
 
         with (
-            patch("kodo.cli._launch.get_team", side_effect=get_team_side_effect),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, side_effect=get_team_side_effect),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -692,11 +692,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -719,8 +719,8 @@ class TestLaunchResume:
             return preset
 
         with (
-            patch("kodo.cli._launch.get_team", side_effect=get_team_side_effect),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, side_effect=get_team_side_effect),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
             pytest.raises(SystemExit),
         ):
             launch_resume(run_dir, state, team_override="nonexistent")
@@ -747,11 +747,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -773,10 +773,10 @@ class TestLaunchResume:
         preset = _fake_team_preset(build_team=lambda: fake_team)
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
             pytest.raises(SystemExit),
         ):
             mock_orch.return_value.model = "gemini-flash"
@@ -796,13 +796,13 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
-            patch("kodo.cli._launch._apply_effort_to_team") as mock_effort,
-            patch("kodo.prompts.roles.build_orchestrator_prompt", return_value="effort prompt"),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+            patch("kodo.cli._launch._apply_effort_to_team", autospec=True) as mock_effort,
+            patch("kodo.prompts.roles.build_orchestrator_prompt", autospec=True, return_value="effort prompt"),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -828,11 +828,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -866,13 +866,13 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_team_from_json", return_value=fake_team),
-            patch("kodo.cli._launch.validate_verifiers", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_team_from_json", autospec=True, return_value=fake_team),
+            patch("kodo.cli._launch.validate_verifiers", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -893,11 +893,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -919,14 +919,14 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
             patch(
-                "kodo.cli._launch.load_team_config",
+                "kodo.cli._launch.load_team_config", autospec=True,
                 side_effect=ValueError("bad config"),
             ),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -954,11 +954,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -985,11 +985,11 @@ class TestLaunchResume:
         )
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.build_orchestrator") as mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=True),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
             mock_orch.return_value.model = "gemini-flash"
@@ -1055,13 +1055,13 @@ class TestLaunchRunEffortFlowThrough:
             cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
         )
         with (
-            patch("kodo.cli._launch.log") as mock_log,
-            patch("kodo.cli._launch.get_team", return_value=self.preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
-            patch("kodo.cli._launch.build_orchestrator") as self.mock_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=False),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.log", autospec=True) as mock_log,
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=self.preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", autospec=True, return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as self.mock_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=False),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_log.init = MagicMock(return_value=Path("/fake/log"))
             mock_log.emit = MagicMock()
@@ -1075,7 +1075,7 @@ class TestLaunchRunEffortFlowThrough:
     def test_high_effort_passed_to_orchestrator_run(self, tmp_path):
         """effort='high' in params must reach orchestrator.run(effort='high')."""
         params = _minimal_params(effort="high")
-        with patch("kodo.cli._launch._apply_effort_to_team") as mock_apply:
+        with patch("kodo.cli._launch._apply_effort_to_team", autospec=True) as mock_apply:
             launch_run(self.run_dir, "test goal", params)
 
         call_kwargs = self.mock_orch.return_value.run.call_args[1]
@@ -1086,7 +1086,7 @@ class TestLaunchRunEffortFlowThrough:
     def test_max_effort_passed_to_orchestrator_run(self, tmp_path):
         """effort='max' in params must reach orchestrator.run(effort='max')."""
         params = _minimal_params(effort="max")
-        with patch("kodo.cli._launch._apply_effort_to_team"):
+        with patch("kodo.cli._launch._apply_effort_to_team", autospec=True):
             launch_run(self.run_dir, "test goal", params)
 
         call_kwargs = self.mock_orch.return_value.run.call_args[1]
@@ -1104,8 +1104,8 @@ class TestLaunchRunEffortFlowThrough:
         """Non-standard effort must trigger build_orchestrator_prompt."""
         params = _minimal_params(effort="high")
         with (
-            patch("kodo.cli._launch._apply_effort_to_team"),
-            patch("kodo.prompts.roles.build_orchestrator_prompt",
+            patch("kodo.cli._launch._apply_effort_to_team", autospec=True),
+            patch("kodo.prompts.roles.build_orchestrator_prompt", autospec=True,
                   return_value="effort-enhanced prompt") as mock_build,
         ):
             launch_run(self.run_dir, "test goal", params)
@@ -1133,12 +1133,12 @@ class TestLaunchRunAutoCommitFlowThrough:
             cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
         )
         with (
-            patch("kodo.cli._launch.log") as mock_log,
-            patch("kodo.cli._launch.get_team", return_value=self.preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
-            patch("kodo.cli._launch.build_orchestrator") as self.mock_orch,
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.log", autospec=True) as mock_log,
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=self.preset),
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", autospec=True, return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as self.mock_orch,
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_log.init = MagicMock(return_value=Path("/fake/log"))
             mock_log.emit = MagicMock()
@@ -1152,7 +1152,7 @@ class TestLaunchRunAutoCommitFlowThrough:
     def test_auto_commit_false_reaches_orchestrator(self, tmp_path):
         """auto_commit=False in params must reach orchestrator.run(auto_commit=False)."""
         params = _minimal_params(auto_commit=False)
-        with patch("kodo.cli._launch._resolve_auto_commit", return_value=False):
+        with patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=False):
             launch_run(self.run_dir, "test goal", params)
 
         call_kwargs = self.mock_orch.return_value.run.call_args[1]
@@ -1162,7 +1162,7 @@ class TestLaunchRunAutoCommitFlowThrough:
     def test_auto_commit_true_reaches_orchestrator(self, tmp_path):
         """auto_commit=True in params must reach orchestrator.run(auto_commit=True)."""
         params = _minimal_params(auto_commit=True)
-        with patch("kodo.cli._launch._resolve_auto_commit", return_value=True):
+        with patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=True):
             launch_run(self.run_dir, "test goal", params)
 
         call_kwargs = self.mock_orch.return_value.run.call_args[1]
@@ -1171,7 +1171,7 @@ class TestLaunchRunAutoCommitFlowThrough:
     def test_resolve_auto_commit_is_called(self, tmp_path):
         """launch_run must call _resolve_auto_commit (not hardcode the value)."""
         params = _minimal_params(auto_commit=True)
-        with patch("kodo.cli._launch._resolve_auto_commit",
+        with patch("kodo.cli._launch._resolve_auto_commit", autospec=True,
                     return_value=False) as mock_resolve:
             launch_run(self.run_dir, "test goal", params)
 
@@ -1196,8 +1196,8 @@ class TestLaunchRunDebugMode:
             cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
         )
         with (
-            patch("kodo.cli._launch.log") as mock_log,
-            patch("kodo.cli._launch.get_team",
+            patch("kodo.cli._launch.log", autospec=True) as mock_log,
+            patch("kodo.cli._launch.get_team", autospec=True,
                   return_value=_fake_team_preset()),
         ):
             mock_log.init = MagicMock(return_value=Path("/fake/log"))
@@ -1225,9 +1225,9 @@ class TestLaunchRunDebugMode:
         mock_alloc.assignments = [("A", "orchestrator")]
 
         with (
-            patch("kodo.debug.build_debug_team",
+            patch("kodo.debug.build_debug_team", autospec=True,
                   return_value=(fake_team, {"worker": FakeDebugSession("B")})) as mock_build_team,
-            patch("kodo.debug.build_mock_orchestrator",
+            patch("kodo.debug.build_mock_orchestrator", autospec=True,
                   return_value=(mock_orch, FakeDebugSession("A"))) as mock_build_orch,
             patch("kodo.debug._allocator", mock_alloc),
         ):
@@ -1256,12 +1256,12 @@ class TestLaunchRunDebugMode:
         mock_alloc.assignments = [("A", "orchestrator")]
 
         with (
-            patch("kodo.debug.build_debug_team",
+            patch("kodo.debug.build_debug_team", autospec=True,
                   return_value=(fake_team, {"worker": FakeDebugSession("B")})),
-            patch("kodo.debug.build_mock_orchestrator",
+            patch("kodo.debug.build_mock_orchestrator", autospec=True,
                   return_value=(mock_orch, FakeDebugSession("A"))),
             patch("kodo.debug._allocator", mock_alloc),
-            patch("kodo.cli._launch.build_orchestrator") as mock_real_orch,
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_real_orch,
         ):
             params = _minimal_params()
             launch_run(self.run_dir, "test goal", params, debug=True)
@@ -1275,12 +1275,12 @@ class TestLaunchRunDebugMode:
         preset = _fake_team_preset(build_team=lambda: fake_team)
 
         with (
-            patch("kodo.cli._launch.get_team", return_value=preset),
-            patch("kodo.cli._launch.load_team_config", return_value=None),
-            patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
-            patch("kodo.cli._launch.build_orchestrator") as mock_real_orch,
-            patch("kodo.cli._launch._resolve_auto_commit", return_value=False),
-            patch("kodo.cli._launch._build_advisor", return_value=None),
+            patch("kodo.cli._launch.get_team", return_value=preset),  # noqa: autospec
+            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch("kodo.cli._launch.preflight_check_backends", autospec=True, return_value=[]),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_real_orch,
+            patch("kodo.cli._launch._resolve_auto_commit", autospec=True, return_value=False),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
         ):
             mock_real_orch.return_value.run.return_value = self.fake_result
             mock_real_orch.return_value.model = "test-model"

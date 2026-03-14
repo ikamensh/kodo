@@ -36,7 +36,7 @@ def test_done_with_success_false(tmp_path: Path):
         agent_tools = tools or []
         self.run_sync = fake_run_sync
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
             "build feature", tmp_path, _make_team(), max_exchanges=10,
@@ -85,7 +85,7 @@ def test_agent_crash_returns_error_string(tmp_path: Path):
         agent_tools = tools or []
         self.run_sync = fake_run_sync
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         orch.cycle(
             "build feature", tmp_path, team, max_exchanges=10,
@@ -164,7 +164,7 @@ def test_cost_calculation_with_unknown_model(tmp_path: Path):
         agent_tools = tools or []
         self.run_sync = fake_run_sync
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="some-unknown-model-2026")
         result = orch.cycle(
             "goal", tmp_path, _make_team(), max_exchanges=5,

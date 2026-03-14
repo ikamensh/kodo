@@ -26,16 +26,16 @@ def _base_patches(done_signal):
 
     with (
         patch(
-            "kodo.orchestrators.cli_base.build_mcp_server", return_value=mock_mcp
+            "kodo.orchestrators.cli_base.build_mcp_server", autospec=True, return_value=mock_mcp
         ),
         patch(
-            "kodo.orchestrators.cli_base.McpServerContext", return_value=mock_ctx
+            "kodo.orchestrators.cli_base.McpServerContext", autospec=True, return_value=mock_ctx
         ),
-        patch("kodo.orchestrators.cli_base.build_cycle_prompt", return_value="go"),
-        patch("kodo.orchestrators.cli_base.DoneSignal", return_value=done_signal),
-        patch("kodo.orchestrators.cli_base.VerificationState"),
-        patch("kodo.orchestrators.cli_base.log"),
-        patch("kodo.orchestrators.cursor_cli.log"),
+        patch("kodo.orchestrators.cli_base.build_cycle_prompt", autospec=True, return_value="go"),
+        patch("kodo.orchestrators.cli_base.DoneSignal", autospec=True, return_value=done_signal),
+        patch("kodo.orchestrators.cli_base.VerificationState", autospec=True),
+        patch("kodo.orchestrators.cli_base.log", autospec=True),
+        patch("kodo.orchestrators.cursor_cli.log", autospec=True),
     ):
         yield
 
@@ -72,9 +72,9 @@ class TestCursorStreamParsing:
             {"type": "result", "result": "final answer"},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.exchanges >= 2
@@ -87,9 +87,9 @@ class TestCursorStreamParsing:
             {"type": "result", "result": "Here is your answer"},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "Here is your answer" in result.summary
@@ -102,9 +102,9 @@ class TestCursorStreamParsing:
             {"type": "result", "result": "ok"},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "ok" in result.summary
@@ -131,11 +131,11 @@ class TestCursorMcpConfig:
 
         with (
             _base_patches(done),
-            patch("subprocess.Popen", return_value=proc),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
             patch.object(Path, "write_text", capture_write),
         ):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # At least one write should contain kodo_team
@@ -152,9 +152,9 @@ class TestCursorMcpConfig:
         original = json.dumps({"mcpServers": {"other": {"url": "http://other"}}})
         config_path.write_text(original)
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # After cycle, original config should be restored
@@ -166,9 +166,9 @@ class TestCursorMcpConfig:
         done = MagicMock(called=True, success=True, summary="done", terminal="goal_done")
         proc = _make_popen([{"type": "result", "result": "ok"}])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         config_path = tmp_path / ".cursor" / "mcp.json"
@@ -186,9 +186,9 @@ class TestCursorErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=1, stderr_text="connection refused")
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "connection refused" in result.summary
@@ -198,9 +198,9 @@ class TestCursorErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=7, stderr_text="")
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "7" in result.summary

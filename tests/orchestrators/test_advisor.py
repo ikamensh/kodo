@@ -145,7 +145,7 @@ class TestAdvisorAssess:
         )
         plan = GoalPlan(context="ctx", stages=[])
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent") as MockAgent:
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
             instance = MockAgent.return_value
             instance.run_sync.return_value = self._mock_run_sync(decision)
 
@@ -163,7 +163,7 @@ class TestAdvisorAssess:
         )
         plan = GoalPlan(context="ctx", stages=[])
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent") as MockAgent:
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
             instance = MockAgent.return_value
             instance.run_sync.return_value = self._mock_run_sync(decision)
 
@@ -175,7 +175,7 @@ class TestAdvisorAssess:
 
     def test_agent_cached_across_calls(self):
         """PydanticAgent is created once in __init__, reused across assess() calls."""
-        with patch("kodo.orchestrators.advisor.PydanticAgent") as MockAgent:
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
             instance = MockAgent.return_value
             result_mock = MagicMock()
             result_mock.output = AdvisorDecision(action="next_stage", stage_name="S1")
@@ -225,7 +225,7 @@ class TestRunAdaptive:
         """Create an advisor that returns canned decisions in sequence."""
         call_idx = 0
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent"):
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True):
             advisor = Advisor(model="test-model", max_stages=20)
 
         def fake_assess(goal, plan, summaries, count):
@@ -423,7 +423,7 @@ class TestRunAdaptive:
                 acceptance_criteria="ok",
             )
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent"):
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True):
             advisor = Advisor(model="test-model")
         advisor.assess = capture_assess
 
@@ -469,7 +469,7 @@ class TestRunAdaptive:
             # Second call crashes
             raise RuntimeError("API timeout in advisor")
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent"):
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True):
             advisor = Advisor(model="test-model", max_stages=20)
         advisor.assess = crashing_assess
 
@@ -503,7 +503,7 @@ class TestRunAdaptive:
         def always_crash(goal, plan, summaries, count):
             raise ConnectionError("Network down")
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent"):
+        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True):
             advisor = Advisor(model="test-model", max_stages=20)
         advisor.assess = always_crash
 

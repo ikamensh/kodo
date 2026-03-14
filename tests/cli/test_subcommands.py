@@ -65,7 +65,7 @@ class TestCmdRuns:
 
         with (
             patch("sys.argv", ["kodo", "runs"]),
-            patch("kodo.cli._subcommands.log.list_runs", return_value=[fake_run]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[fake_run]),
         ):
             _cmd_runs()
 
@@ -102,7 +102,7 @@ class TestCmdRuns:
 
         with (
             patch("sys.argv", ["kodo", "runs"]),
-            patch("kodo.cli._subcommands.log.list_runs", return_value=[fake_run]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[fake_run]),
         ):
             _cmd_runs()
 
@@ -137,7 +137,7 @@ class TestCmdRuns:
 
         with (
             patch("sys.argv", ["kodo", "runs"]),
-            patch("kodo.cli._subcommands.log.list_runs", return_value=[fake_run]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[fake_run]),
         ):
             _cmd_runs()
 
@@ -157,7 +157,7 @@ class TestCmdLogs:
         """_cmd_logs with no logfile should serve on default port 8080 with None path."""
         with (
             patch("sys.argv", ["kodo", "logs"]),
-            patch("kodo.viewer._serve") as mock_serve,
+            patch("kodo.viewer._serve", autospec=True) as mock_serve,
         ):
             from kodo.cli._subcommands import _cmd_logs
             _cmd_logs()
@@ -167,7 +167,7 @@ class TestCmdLogs:
         """_cmd_logs --port 9999 should serve on port 9999."""
         with (
             patch("sys.argv", ["kodo", "logs", "--port", "9999"]),
-            patch("kodo.viewer._serve") as mock_serve,
+            patch("kodo.viewer._serve", autospec=True) as mock_serve,
         ):
             from kodo.cli._subcommands import _cmd_logs
             _cmd_logs()
@@ -180,7 +180,7 @@ class TestCmdLogs:
 
         with (
             patch("sys.argv", ["kodo", "logs", str(logfile)]),
-            patch("kodo.viewer._serve") as mock_serve,
+            patch("kodo.viewer._serve", autospec=True) as mock_serve,
         ):
             from kodo.cli._subcommands import _cmd_logs
             _cmd_logs()
@@ -196,7 +196,7 @@ class TestCmdLogs:
 
         with (
             patch("sys.argv", ["kodo", "logs", str(nonexistent)]),
-            patch("kodo.viewer._serve") as mock_serve,
+            patch("kodo.viewer._serve", autospec=True) as mock_serve,
         ):
             from kodo.cli._subcommands import _cmd_logs
             with pytest.raises(SystemExit, match="1"):
@@ -220,9 +220,9 @@ class TestCmdBackends:
     @pytest.fixture(autouse=True)
     def _patch_factory(self):
         with (
-            patch("kodo.factory.available_backends", return_value=_NO_BACKENDS),
-            patch("kodo.factory.check_api_key", return_value="no key"),
-            patch("kodo.user_config.get_user_default", return_value=None),
+            patch("kodo.factory.available_backends", autospec=True, return_value=_NO_BACKENDS),
+            patch("kodo.factory.check_api_key", autospec=True, return_value="no key"),
+            patch("kodo.user_config.get_user_default", autospec=True, return_value=None),
         ):
             yield
 
@@ -254,7 +254,7 @@ class TestCmdBackends:
 
     def test_api_key_masked_when_set(self, capsys):
         with (
-            patch("kodo.factory.check_api_key", return_value=None),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
             patch.dict(
                 "os.environ",
                 {
@@ -277,8 +277,8 @@ class TestCmdBackends:
         """When backend is available and healthy, show version string."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.factory.check_api_key", return_value=None),
-            patch("kodo.factory.check_backend_status", return_value=("Claude Code CLI 2.5.0", None)),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=("Claude Code CLI 2.5.0", None)),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -290,8 +290,8 @@ class TestCmdBackends:
         """When version command returns non-zero exit code, show error and warning."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.factory.check_api_key", return_value=None),
-            patch("kodo.factory.check_backend_status", return_value=("error (exit 127)", "claude: Binary not working — reinstall or check PATH.")),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=("error (exit 127)", "claude: Binary not working — reinstall or check PATH.")),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -304,8 +304,8 @@ class TestCmdBackends:
         """When version command times out, show timeout warning."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.factory.check_api_key", return_value=None),
-            patch("kodo.factory.check_backend_status", return_value=("timeout", "Version check timed out (15 s)")),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=("timeout", "Version check timed out (15 s)")),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -318,8 +318,8 @@ class TestCmdBackends:
         """When backend has auth issues, show warning detail on next line."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.factory.check_api_key", return_value=None),
-            patch("kodo.factory.check_backend_status", return_value=("1.0.0", "Authentication issue — check your API key or login status")),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=("1.0.0", "Authentication issue — check your API key or login status")),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -332,8 +332,8 @@ class TestCmdBackends:
         """Healthy backend name is displayed in green."""
         with (
             patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.factory.check_api_key", return_value=None),
-            patch("kodo.factory.check_backend_status", return_value=("1.0.0", None)),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=("1.0.0", None)),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -345,7 +345,7 @@ class TestCmdBackends:
     def test_orchestrator_models_listed(self, capsys):
         """Orchestrator model aliases and their full IDs should appear in output."""
         with (
-            patch("kodo.factory.check_api_key", return_value="no key"),
+            patch("kodo.factory.check_api_key", return_value="no key"),  # noqa: autospec
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -359,7 +359,7 @@ class TestCmdBackends:
     def test_orchestrator_model_ready_status(self, capsys):
         """When API key is set, orchestrator models should show 'ready'."""
         with (
-            patch("kodo.factory.check_api_key", return_value=None),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
@@ -435,8 +435,8 @@ class TestCmdTeams:
     def test_list_no_teams(self, capsys):
         with (
             patch("sys.argv", ["kodo", "teams"]),
-            patch("kodo.team_config.list_available_teams", return_value=[]),
-            patch("kodo.factory.available_backends", return_value=_NO_BACKENDS),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[]),
+            patch("kodo.factory.available_backends", autospec=True, return_value=_NO_BACKENDS),
         ):
             _cmd_teams()
 
@@ -455,11 +455,11 @@ class TestCmdTeams:
         with (
             patch("sys.argv", ["kodo", "teams"]),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("full", "built-in", team_cfg, Path("/fake/defaults/team-full.json"))],
             ),
             patch(
-                "kodo.factory.available_backends",
+                "kodo.factory.available_backends", autospec=True,
                 return_value={
                     "claude": True,
                     "codex": False,
@@ -498,14 +498,14 @@ class TestCmdTeams:
         with (
             patch("sys.argv", ["kodo", "teams"]),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[
                     ("full", "built-in", builtin_cfg, Path("/fake/full.json")),
                     ("custom", "user", user_cfg, Path("/home/.kodo/teams/custom.json")),
                 ],
             ),
             patch(
-                "kodo.factory.available_backends",
+                "kodo.factory.available_backends", autospec=True,
                 return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False},
             ),
         ):
@@ -543,7 +543,7 @@ class TestCmdTeams:
     def test_auto_no_backends_exits(self, capsys):
         with (
             patch("sys.argv", ["kodo", "teams", "auto"]),
-            patch("kodo.factory.available_backends", return_value=_NO_BACKENDS),
+            patch("kodo.factory.available_backends", autospec=True, return_value=_NO_BACKENDS),
             pytest.raises(SystemExit, match="1"),
         ):
             _cmd_teams()
@@ -599,7 +599,7 @@ class TestSaveTeam:
             },
         }
 
-        with patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path):
+        with patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path):
             path = _save_team("test-team", config)
 
         assert path == tmp_path / "test-team.json"
@@ -630,7 +630,7 @@ class TestSaveTeam:
             teams_dir.mkdir(parents=True, exist_ok=True)
             return teams_dir
 
-        with patch("kodo.cli._subcommands._teams_dir", side_effect=mock_teams_dir):
+        with patch("kodo.cli._subcommands._teams_dir", autospec=True, side_effect=mock_teams_dir):
             path = _save_team("another-team", config)
 
         assert path.exists()
@@ -649,8 +649,8 @@ class TestCmdTeamsAuto:
     def test_template_not_found_exits(self, capsys):
         """Unknown mode name should exit with error."""
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("full", "built-in", {}, Path("/fake/full.json"))]),
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("full", "built-in", {}, Path("/fake/full.json"))]),
             pytest.raises(SystemExit, match="1"),
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
@@ -674,10 +674,10 @@ class TestCmdTeamsAuto:
         }
 
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("test")
@@ -705,10 +705,10 @@ class TestCmdTeamsAuto:
         }
 
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("test")
@@ -730,10 +730,10 @@ class TestCmdTeamsAuto:
         }
 
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("test")
@@ -758,10 +758,10 @@ class TestCmdTeamsAuto:
         }
 
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("test")
@@ -787,9 +787,9 @@ class TestCmdTeamsAuto:
         # Have one backend available but not used by any agent or fallback
         # This gets past the "no backends" check but fails to create any agents
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": False, "codex": False, "cursor": False, "gemini-cli": True}),
-            patch("kodo.team_config.list_available_teams", return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": False, "codex": False, "cursor": False, "gemini-cli": True}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("test", "built-in", base_config, Path("/fake/test.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
             pytest.raises(SystemExit, match="1"),
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
@@ -814,10 +814,10 @@ class TestCmdTeamsAuto:
         }
 
         with (
-            patch("kodo.factory.available_backends", return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
-            patch("kodo.team_config.list_available_teams", return_value=[("myteam", "built-in", base_config, Path("/fake/myteam.json"))]),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False}),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[("myteam", "built-in", base_config, Path("/fake/myteam.json"))]),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto
             _cmd_teams_auto("myteam")
@@ -859,15 +859,15 @@ class TestCmdTeamsAuto:
         # verifiers referencing it must be pruned.
         with (
             patch(
-                "kodo.factory.available_backends",
+                "kodo.factory.available_backends", autospec=True,
                 return_value={"claude": True, "codex": False, "cursor": False, "gemini-cli": False},
             ),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("test", "built-in", base_config, Path("/fake/test.json"))],
             ),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_auto("test")
 
@@ -890,7 +890,7 @@ class TestCmdTeamsAutoAll:
         """If no built-in templates found, exit with error."""
         # Point _defaults_dir to an empty directory so no team-*.json files exist
         with (
-            patch("kodo.team_config._defaults_dir", return_value=tmp_path),
+            patch("kodo.team_config._defaults_dir", autospec=True, return_value=tmp_path),
             pytest.raises(SystemExit, match="1"),
         ):
             from kodo.cli._subcommands import _cmd_teams_auto_all
@@ -906,8 +906,8 @@ class TestCmdTeamsAutoAll:
         (tmp_path / "team-quick.json").write_text('{"name": "quick"}')
 
         with (
-            patch("kodo.team_config._defaults_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._cmd_teams_auto") as mock_auto,
+            patch("kodo.team_config._defaults_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._cmd_teams_auto", autospec=True) as mock_auto,
         ):
             from kodo.cli._subcommands import _cmd_teams_auto_all
             _cmd_teams_auto_all()
@@ -934,7 +934,7 @@ class TestCmdTeamsDispatch:
         """'kodo teams add myteam' should dispatch to _cmd_teams_add."""
         with (
             patch("sys.argv", ["kodo", "teams", "add", "myteam"]),
-            patch("kodo.cli._subcommands._cmd_teams_add") as mock_add,
+            patch("kodo.cli._subcommands._cmd_teams_add", autospec=True) as mock_add,
         ):
             _cmd_teams()
 
@@ -944,7 +944,7 @@ class TestCmdTeamsDispatch:
         """'kodo teams edit myteam' should dispatch to _cmd_teams_edit."""
         with (
             patch("sys.argv", ["kodo", "teams", "edit", "myteam"]),
-            patch("kodo.cli._subcommands._cmd_teams_edit") as mock_edit,
+            patch("kodo.cli._subcommands._cmd_teams_edit", autospec=True) as mock_edit,
         ):
             _cmd_teams()
 
@@ -954,7 +954,7 @@ class TestCmdTeamsDispatch:
         """'kodo teams auto full' should dispatch to _cmd_teams_auto('full')."""
         with (
             patch("sys.argv", ["kodo", "teams", "auto", "full"]),
-            patch("kodo.cli._subcommands._cmd_teams_auto") as mock_auto,
+            patch("kodo.cli._subcommands._cmd_teams_auto", autospec=True) as mock_auto,
         ):
             _cmd_teams()
 
@@ -979,11 +979,11 @@ class TestCmdTeamsListMissingHint:
         with (
             patch("sys.argv", ["kodo", "teams"]),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("full", "built-in", team_cfg, Path("/fake/full.json"))],
             ),
             patch(
-                "kodo.factory.available_backends",
+                "kodo.factory.available_backends", autospec=True,
                 return_value=_CLAUDE_ONLY,
             ),
         ):
@@ -1015,14 +1015,14 @@ class TestCmdTeamsAutoOverwrite:
         existing.write_text("{}")
 
         with (
-            patch("kodo.factory.available_backends", return_value=_CLAUDE_ONLY),
+            patch("kodo.factory.available_backends", autospec=True, return_value=_CLAUDE_ONLY),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("myteam", "built-in", self._base_config(), Path("/fake"))],
             ),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
-            patch("builtins.input", return_value="y"),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             _cmd_teams_auto("myteam")
 
@@ -1034,14 +1034,14 @@ class TestCmdTeamsAutoOverwrite:
         existing.write_text("{}")
 
         with (
-            patch("kodo.factory.available_backends", return_value=_CLAUDE_ONLY),
+            patch("kodo.factory.available_backends", autospec=True, return_value=_CLAUDE_ONLY),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("myteam", "built-in", self._base_config(), Path("/fake"))],
             ),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
-            patch("builtins.input", return_value="n"),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
+            patch("builtins.input", autospec=True, return_value="n"),
         ):
             _cmd_teams_auto("myteam")
 
@@ -1055,7 +1055,7 @@ class TestTeamsDir:
 
     def test_creates_directory(self, tmp_path):
         """_teams_dir should create ~/.kodo/teams/ and return the path."""
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch("pathlib.Path.home", autospec=True, return_value=tmp_path):
             result = _teams_dir()
 
         expected = tmp_path / ".kodo" / "teams"
@@ -1086,15 +1086,15 @@ class TestWorkerSmartNonClaudeFallback:
         # Only cursor available — not claude, so fallback_model should be removed
         with (
             patch(
-                "kodo.factory.available_backends",
+                "kodo.factory.available_backends", autospec=True,
                 return_value={"claude": False, "codex": False, "cursor": True, "gemini-cli": False},
             ),
             patch(
-                "kodo.team_config.list_available_teams",
+                "kodo.team_config.list_available_teams", autospec=True,
                 return_value=[("test", "built-in", base_config, Path("/fake"))],
             ),
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_auto("test")
 
@@ -1156,9 +1156,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
         ):
             result = _ask_agent_fields()
 
@@ -1206,9 +1206,9 @@ class TestAskAgentFields:
         }
 
         with (
-            patch("questionary.select", side_effect=tracking_select),
-            patch("questionary.text", side_effect=tracking_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=tracking_select),
+            patch("questionary.text", autospec=True, side_effect=tracking_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
         ):
             result = _ask_agent_fields(defaults=defaults)
 
@@ -1236,9 +1236,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
         ):
             result = _ask_agent_fields()
 
@@ -1269,9 +1269,9 @@ class TestAskAgentFields:
 
         # Patch the local _BACKEND_MODELS dict to be empty for claude
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
             patch.dict(
                 "kodo.cli._subcommands._ask_agent_fields.__code__",
             ) if False else
@@ -1296,9 +1296,9 @@ class TestAskAgentFields:
                 confirm_returns=[False],
             )
             with (
-                patch("questionary.select", side_effect=mock_select2),
-                patch("questionary.text", side_effect=mock_text2),
-                patch("questionary.confirm", side_effect=mock_confirm2),
+                patch("questionary.select", side_effect=mock_select2),  # noqa: autospec
+                patch("questionary.text", side_effect=mock_text2),  # noqa: autospec
+                patch("questionary.confirm", side_effect=mock_confirm2),  # noqa: autospec
             ):
                 result = _ask_agent_fields()
 
@@ -1322,9 +1322,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
             pytest.raises(SystemExit),
         ):
             _ask_agent_fields()
@@ -1346,9 +1346,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
             pytest.raises(SystemExit),
         ):
             _ask_agent_fields()
@@ -1371,9 +1371,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
         ):
             result = _ask_agent_fields()
 
@@ -1397,9 +1397,9 @@ class TestAskAgentFields:
         )
 
         with (
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.confirm", side_effect=mock_confirm),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
         ):
             result = _ask_agent_fields()
 
@@ -1422,7 +1422,7 @@ class TestCmdTeamsAdd:
         existing.write_text("{}")
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
             pytest.raises(SystemExit, match="1"),
         ):
             _cmd_teams_add("myteam")
@@ -1459,10 +1459,10 @@ class TestCmdTeamsAdd:
             return m
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._ask_agent_fields", return_value=fake_agent),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, return_value=fake_agent),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_add("newteam")
 
@@ -1516,11 +1516,11 @@ class TestCmdTeamsAdd:
             return m
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
-            patch("questionary.checkbox", side_effect=mock_checkbox),
-            patch("kodo.cli._subcommands._ask_agent_fields", side_effect=lambda: next(fake_agents)),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("questionary.checkbox", autospec=True, side_effect=mock_checkbox),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, side_effect=lambda: next(fake_agents)),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_add("multi")
 
@@ -1553,10 +1553,10 @@ class TestCmdTeamsAdd:
         fake_agent = {"backend": "claude", "model": "sonnet", "description": "W", "max_turns": 15}
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._ask_agent_fields", return_value=fake_agent),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, return_value=fake_agent),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_add("team1")
 
@@ -1586,10 +1586,10 @@ class TestCmdTeamsAdd:
         fake_agent = {"backend": "claude", "model": "sonnet", "description": "W", "max_turns": 15}
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._ask_agent_fields", return_value=fake_agent),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, return_value=fake_agent),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_add("team2")
 
@@ -1610,8 +1610,8 @@ class TestCmdTeamsAdd:
             return m
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
             pytest.raises(SystemExit),
         ):
             _cmd_teams_add("cancelled")
@@ -1633,8 +1633,8 @@ class TestCmdTeamsAdd:
             return m
 
         with (
-            patch("kodo.cli._subcommands._teams_dir", return_value=tmp_path),
-            patch("questionary.text", side_effect=mock_text),
+            patch("kodo.cli._subcommands._teams_dir", autospec=True, return_value=tmp_path),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
             pytest.raises(SystemExit),
         ):
             _cmd_teams_add("cancelled2")
@@ -1667,7 +1667,7 @@ class TestCmdTeamsEdit:
     def test_team_not_found_exits(self, capsys):
         """Editing a non-existent team should exit with error."""
         with (
-            patch("kodo.team_config.list_available_teams", return_value=[]),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=[]),
             pytest.raises(SystemExit, match="1"),
         ):
             _cmd_teams_edit("nonexistent")
@@ -1698,9 +1698,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=multi_teams),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=multi_teams),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1722,9 +1722,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg, "built-in")),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg, "built-in")),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1742,9 +1742,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1764,9 +1764,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1794,11 +1794,11 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._ask_agent_fields", return_value=fake_new_agent),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, return_value=fake_new_agent),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1825,10 +1825,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team"),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._save_team", autospec=True),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1849,10 +1849,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._ask_agent_fields", return_value=updated_agent),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._ask_agent_fields", autospec=True, return_value=updated_agent),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1872,9 +1872,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team"),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1902,10 +1902,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.confirm", side_effect=mock_confirm),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1932,10 +1932,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.confirm", side_effect=mock_confirm),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -1955,9 +1955,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team"),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True),
         ):
             _cmd_teams_edit("test-team")
 
@@ -1989,10 +1989,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -2027,10 +2027,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -2060,10 +2060,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -2095,10 +2095,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.text", side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.text", autospec=True, side_effect=mock_text),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -2132,10 +2132,10 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("questionary.checkbox", side_effect=mock_checkbox),
-            patch("kodo.cli._subcommands._save_team") as mock_save,
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("questionary.checkbox", autospec=True, side_effect=mock_checkbox),
+            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
@@ -2156,9 +2156,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team"),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True),
         ):
             _cmd_teams_edit("test-team")
 
@@ -2176,9 +2176,9 @@ class TestCmdTeamsEdit:
             return m
 
         with (
-            patch("kodo.team_config.list_available_teams", return_value=self._mock_list_teams(cfg)),
-            patch("questionary.select", side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team"),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
+            patch("questionary.select", autospec=True, side_effect=mock_select),
+            patch("kodo.cli._subcommands._save_team", autospec=True),
         ):
             _cmd_teams_edit("test-team")
 

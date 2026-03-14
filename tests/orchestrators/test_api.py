@@ -35,8 +35,8 @@ def test_cycle_done_returns_finished(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -60,7 +60,7 @@ def test_cycle_no_done_returns_summary(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
         patch.object(ApiOrchestrator, "_summarize", return_value="summary of work"),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -82,7 +82,7 @@ def test_usage_limit_exceeded(tmp_path: Path):
 
     team = _make_fake_team()
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle("build feature", tmp_path, team, max_exchanges=5)
 
@@ -110,7 +110,7 @@ def test_529_fallback(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
         patch.object(ApiOrchestrator, "_summarize", return_value="done"),
     ):
         orch = ApiOrchestrator(
@@ -185,7 +185,7 @@ def test_build_tools_done_sets_signal(tmp_path: Path):
     done_tool = next(t for t in tools if t.name == "done")
 
     log.init(RunDir.create(tmp_path, "done_test"))
-    with patch("kodo.orchestrators.verification.verify_done", return_value=None):
+    with patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None):
         done_tool.function(summary="all done", success=True)
 
     assert done_signal.called is True
@@ -227,7 +227,7 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output="")
 
-        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -243,7 +243,7 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output="   \n\t  ")
 
-        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -259,7 +259,7 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output=None)
 
-        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -276,7 +276,7 @@ class TestSummarizeEmptyOutput:
                 output="Completed task X, pending task Y."
             )
 
-        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -352,7 +352,7 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             pytest.raises(ModelHTTPError) as exc_info,
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -375,7 +375,7 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             pytest.raises(ModelHTTPError) as exc_info,
         ):
             orch = ApiOrchestrator(model="gemini-2.5-pro")
@@ -401,8 +401,8 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-            patch("time.sleep"),  # Skip actual sleep
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch("time.sleep", autospec=True),  # Skip actual sleep
             pytest.raises(ModelHTTPError),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -431,9 +431,9 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
-            patch("time.sleep"),
+            patch("time.sleep", autospec=True),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
@@ -461,9 +461,9 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
-            patch("time.sleep"),
+            patch("time.sleep", autospec=True),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
@@ -488,8 +488,8 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-            patch("time.sleep"),  # Skip actual sleep
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch("time.sleep", autospec=True),  # Skip actual sleep
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -517,8 +517,8 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-            patch("time.sleep"),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -544,8 +544,8 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-            patch("time.sleep"),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -565,7 +565,7 @@ class TestApiErrorPaths:
 
         team = _make_fake_team()
 
-        with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
 
@@ -593,7 +593,7 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
@@ -634,8 +634,8 @@ class TestApiErrorPaths:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-            patch("time.sleep"),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -770,7 +770,7 @@ class TestCycleWithoutDoneMode:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch.object(ApiOrchestrator, "_summarize", return_value="progress"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")

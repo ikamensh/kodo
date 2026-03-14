@@ -257,8 +257,8 @@ def test_cycle_auto_commit_fires_on_done(tmp_path: Path) -> None:
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -296,8 +296,8 @@ def test_cycle_no_auto_commit_when_disabled(tmp_path: Path) -> None:
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -340,7 +340,7 @@ def test_cycle_auto_commit_skipped_on_rejection(tmp_path: Path) -> None:
         error_message="Missing file",
     )]
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
             GOAL,
@@ -446,8 +446,8 @@ def test_full_cycle_creates_real_commit(tmp_path: Path, git_project: Path) -> No
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
@@ -508,8 +508,8 @@ def test_no_commit_when_auto_commit_disabled_real_git(
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(

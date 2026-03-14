@@ -158,6 +158,10 @@ class ClaudeSession:
             # from the actual environment to prevent nested-session detection.
             os.environ.pop("CLAUDECODE", None)
 
+            # Prevent agent subprocesses from opening GUI windows that can
+            # steal focus and lock out the user (especially on macOS).
+            os.environ["SAGA2D_HEADLESS"] = "1"
+
             # Unless explicitly opted in, strip ANTHROPIC_API_KEY so the SDK
             # session uses the Claude.ai subscription instead of API billing.
             saved_api_key = None

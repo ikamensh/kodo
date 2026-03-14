@@ -485,7 +485,7 @@ def test_merge_conflict_agent_resolves(git_project: Path):
 
         # Mock _resolve_conflicts_with_agent to return True (resolved)
         with mock.patch(
-            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
+            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent", autospec=True,
             return_value=True,
         ):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
@@ -556,7 +556,7 @@ def test_merge_conflict_agent_fails(git_project: Path):
 
         # Mock _resolve_conflicts_with_agent to return False (failed)
         with mock.patch(
-            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
+            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent", autospec=True,
             return_value=False,
         ):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
@@ -617,7 +617,7 @@ def test_merge_non_conflict_failure(git_project: Path):
                 return FakeResult()
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         assert result.success is False
@@ -721,7 +721,7 @@ def test_remove_worktree_fallback_to_rmtree(git_project: Path):
             return FakeResult()
         return original_run(cmd, *args, **kwargs)
 
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
     # Worktree directory should be removed despite git command failure
@@ -784,7 +784,7 @@ def test_commit_worktree_commit_fails(git_project: Path):
                 return FakeResult()
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = commit_worktree_changes(worktree_dir, "test-stage")
 
         # Should return False when commit fails
@@ -834,7 +834,7 @@ def test_remove_worktree_git_remove_fails_dir_exists(git_project: Path):
             return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="error removing")
         return original_run(cmd, *args, **kwargs)
 
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         remove_worktree(git_project, worktree_dir, branch_name)
 
     assert not worktree_dir.exists()
@@ -854,7 +854,7 @@ def test_remove_worktree_dir_persists_after_git_remove(git_project: Path):
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         return original_run(cmd, *args, **kwargs)
 
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         remove_worktree(git_project, worktree_dir, branch_name)
 
     assert not worktree_dir.exists()
@@ -869,7 +869,7 @@ def test_resolve_conflicts_session_crash(git_project: Path):
 
     try:
         with mock.patch(
-            "kodo.make_session",
+            "kodo.make_session", autospec=True,
             side_effect=RuntimeError("Session creation failed"),
         ):
             result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
@@ -891,7 +891,7 @@ def test_resolve_conflicts_remaining_unresolved(git_project: Path):
         fake_session = FakeSession(response_text="I tried but could not resolve")
 
         with mock.patch(
-            "kodo.make_session",
+            "kodo.make_session", autospec=True,
             return_value=fake_session,
         ):
             result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
@@ -924,7 +924,7 @@ def test_resolve_conflicts_success(git_project: Path):
 
     try:
         with mock.patch(
-            "kodo.make_session",
+            "kodo.make_session", autospec=True,
             return_value=ResolvingSession(response_text="resolved"),
         ):
             result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
@@ -967,12 +967,12 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
 
     try:
         with mock.patch(
-            "kodo.make_session",
+            "kodo.make_session", autospec=True,
             return_value=ResolvingSession(response_text="resolved"),
         ):
             # Need to let session.query run normally first, then intercept commit
             # The mock_run only intercepts AFTER the session resolves
-            with mock.patch("subprocess.run", side_effect=mock_run):
+            with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
                 # This won't work because mock_run also intercepts git diff calls.
                 # Instead, mock only the commit call precisely.
                 pass
@@ -989,10 +989,10 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
 
         with (
             mock.patch(
-                "kodo.make_session",
+                "kodo.make_session", autospec=True,
                 return_value=ResolvingSession(response_text="resolved"),
             ),
-            mock.patch("subprocess.run", side_effect=mock_run_commit_fail),
+            mock.patch("subprocess.run", autospec=True, side_effect=mock_run_commit_fail),
         ):
             result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
 
@@ -1025,7 +1025,7 @@ def test_merge_rev_parse_fails(git_project: Path):
                 return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="rev-parse error")
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         assert result.success is False
@@ -1058,7 +1058,7 @@ def test_merge_checkout_branch_fails(git_project: Path):
                 )
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         assert result.success is False
@@ -1102,7 +1102,7 @@ def test_merge_checkout_main_back_fails(git_project: Path):
                     )
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         assert result.success is False
@@ -1134,7 +1134,7 @@ def test_merge_git_clean_fails(git_project: Path):
                 return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="clean failed")
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         # Merge should still succeed (clean failure is just logged)
@@ -1163,7 +1163,7 @@ def test_merge_checkout_branch_timeout(git_project: Path):
                 raise subprocess.TimeoutExpired(cmd, 60)
             return original_run(cmd, *args, **kwargs)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
         assert result.success is False
@@ -1260,7 +1260,7 @@ def test_cleanup_stale_worktrees_git_list_fails(git_project: Path):
         return original_run(cmd, *args, **kwargs)
 
     # Should not raise - just logs and returns
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         cleanup_stale_worktrees(git_project)
 
 
@@ -1271,7 +1271,7 @@ def test_cleanup_stale_worktrees_never_crashes(git_project: Path):
         raise RuntimeError("Unexpected error!")
 
     # Should not raise - wrapped in try/except
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         cleanup_stale_worktrees(git_project)
 
 
@@ -1306,7 +1306,7 @@ def test_cleanup_stale_worktrees_skips_non_kodo_paths(git_project: Path):
         return original_run(cmd, *args, **kwargs)
 
     # Should not attempt to remove non-kodo worktrees
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         cleanup_stale_worktrees(git_project)
 
 
@@ -1334,7 +1334,7 @@ def test_cleanup_stale_worktrees_handles_missing_worktree_paths(git_project: Pat
         return original_run(cmd, *args, **kwargs)
 
     # Should not crash when worktree path doesn't exist
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         cleanup_stale_worktrees(git_project)
 
 
@@ -1478,5 +1478,5 @@ def test_cleanup_orphaned_kodo_branches_handles_git_failure(git_project: Path):
     from kodo import log
 
     # Should not crash
-    with mock.patch("subprocess.run", side_effect=mock_run):
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
         _cleanup_orphaned_kodo_branches(git_project, set(), log)

@@ -17,11 +17,11 @@ def _force_claude_available():
 def _build_with_claude(**kwargs):
     """Build a team with all backends forced to claude-available-only."""
     with (
-        patch("kodo.factory.has_claude", return_value=True),
-        patch("kodo.factory.has_cursor", return_value=False),
-        patch("kodo.factory.has_codex", return_value=False),
-        patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.factory.has_kimi", return_value=False),
+        patch("kodo.factory.has_claude", autospec=True, return_value=True),
+        patch("kodo.factory.has_cursor", autospec=True, return_value=False),
+        patch("kodo.factory.has_codex", autospec=True, return_value=False),
+        patch("kodo.factory.has_gemini_cli", autospec=True, return_value=False),
+        patch("kodo.factory.has_kimi", autospec=True, return_value=False),
     ):
         return _build_team_core(**kwargs)
 
@@ -92,7 +92,7 @@ def test_notes_json_team():
         }
     }
     with (
-        patch("kodo.factory.available_backends", return_value={"claude": True}),
+        patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True}),
     ):
         team = build_team_from_json(config)
 

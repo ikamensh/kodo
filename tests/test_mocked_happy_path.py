@@ -120,21 +120,21 @@ def _fake_build_orchestrator(*args, **kwargs):
 def _mocked_patches():
     """Patches matching scripts/run_cli_mocked.py for CLI happy path."""
     return (
-        patch("kodo.cli._intake.make_session", side_effect=_fake_make_session),
-        patch("kodo.factory.make_session", side_effect=_fake_make_session),
-        patch("kodo.factory.has_claude", return_value=True),
-        patch("kodo.factory.has_cursor", return_value=True),
-        patch("kodo.factory.has_codex", return_value=False),
-        patch("kodo.factory.has_gemini_cli", return_value=False),
-        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-        patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.factory._build_team_quick", _fake_build_team),
-        patch("kodo.factory._build_team_full", _fake_build_team),
+        patch("kodo.cli._intake.make_session", autospec=True, side_effect=_fake_make_session),
+        patch("kodo.factory.make_session", autospec=True, side_effect=_fake_make_session),
+        patch("kodo.factory.has_claude", autospec=True, return_value=True),
+        patch("kodo.factory.has_cursor", autospec=True, return_value=True),
+        patch("kodo.factory.has_codex", autospec=True, return_value=False),
+        patch("kodo.factory.has_gemini_cli", autospec=True, return_value=False),
+        patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+        patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+        patch("kodo.factory._build_team_quick", autospec=True, side_effect=_fake_build_team),
+        patch("kodo.factory._build_team_full", autospec=True, side_effect=_fake_build_team),
         patch(
-            "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
+            "kodo.cli._launch.build_orchestrator", autospec=True, side_effect=_fake_build_orchestrator
         ),
-        patch("kodo.cli._main.run_improve_discovery", return_value=None),
-        patch("kodo.cli._launch.preflight_check_backends", return_value=[]),
+        patch("kodo.cli._main.run_improve_discovery", autospec=True, return_value=None),
+        patch("kodo.cli._launch.preflight_check_backends", autospec=True, return_value=[]),
     )
 
 
@@ -354,12 +354,12 @@ class TestGoalMdOserror:
         with (
             patch.object(Path, "read_text", patched_read_text),
             patch(
-                "kodo.cli._main.get_goal", return_value="Fallback goal from get_goal"
+                "kodo.cli._main.get_goal", autospec=True, return_value="Fallback goal from get_goal"
             ),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main._load_or_select_params") as mock_params,
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("builtins.input", return_value="y"),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main._load_or_select_params", autospec=True) as mock_params,
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             mock_params.return_value = {
                 "team": "full",
@@ -394,10 +394,10 @@ class TestGetTeamKeyError:
 
         with (
             patch(
-                "kodo.cli._main._build_params_from_flags", side_effect=fake_build_params
+                "kodo.cli._main._build_params_from_flags", autospec=True, side_effect=fake_build_params
             ),
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             sys.argv = [
                 "kodo",

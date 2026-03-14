@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import platform
 import re
 import shutil
+import subprocess
+import time
 from pathlib import Path
 
 log = logging.getLogger("benchmark")
@@ -107,6 +110,66 @@ _BACKEND_CLI_MAP: list[tuple[str, list[str]]] = [
     ("codex", ["codex"]),
     ("gemini", ["gemini"]),
 ]
+
+
+def ensure_docker_running(timeout: int = 60) -> bool:
+    """Check if Docker daemon is running; attempt to start it if not.
+
+    Returns True if Docker is available, False otherwise.
+    On macOS, tries OrbStack first, then Docker Desktop.
+    """
+    if _docker_is_ready():
+        return True
+
+    log.info("Docker daemon is not running. Attempting to start...")
+
+    if platform.system() != "Darwin":
+        log.warning("Docker is not running. Start it manually:\n"
+                     "  sudo systemctl start docker")
+        return False
+
+    if not _start_docker_macos():
+        log.error("Could not start Docker. Please start it manually.")
+        return False
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _docker_is_ready():
+            log.info("Docker is now running.")
+            return True
+        time.sleep(2)
+
+    log.error("Docker did not become ready within %ds.", timeout)
+    return False
+
+
+def _docker_is_ready() -> bool:
+    """Return True if ``docker info`` succeeds."""
+    try:
+        result = subprocess.run(
+            ["docker", "info"], capture_output=True, timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _start_docker_macos() -> bool:
+    """Try to start Docker on macOS via OrbStack or Docker Desktop."""
+    if shutil.which("orbctl"):
+        log.info("Starting Docker via OrbStack...")
+        try:
+            subprocess.run(["orbctl", "start"], check=True, timeout=30)
+            return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            log.warning("OrbStack start failed, trying Docker Desktop...")
+
+    try:
+        subprocess.run(["open", "-a", "Docker"], check=True, timeout=10)
+        log.info("Starting Docker Desktop (this may take 30-60s)...")
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
 
 def detect_backends() -> list[str]:

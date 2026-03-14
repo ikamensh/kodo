@@ -60,20 +60,20 @@ def _collect_fail_calls(argv: list[str]) -> list[tuple[str, bool]]:
 
     with (
         patch("sys.argv", argv),
-        patch("kodo.cli._main._fail", side_effect=fake_fail),
-        patch("kodo.cli._main._print_banner"),
+        patch("kodo.cli._main._fail", autospec=True, side_effect=fake_fail),
+        patch("kodo.cli._main._print_banner", autospec=True),
         # Block execution after validation to prevent LLM calls
         patch(
-            "kodo.cli._main._build_params_from_flags",
+            "kodo.cli._main._build_params_from_flags", autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
         patch(
-            "kodo.cli._main._load_or_select_params",
+            "kodo.cli._main._load_or_select_params", autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
         # Also block resume path
         patch(
-            "kodo.cli._main.log.find_incomplete_runs",
+            "kodo.cli._main.log.find_incomplete_runs", autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
     ):

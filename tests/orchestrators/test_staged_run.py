@@ -48,8 +48,8 @@ def mock_worktrees():
         pass  # cleanup handled by tmp
 
     with (
-        patch("kodo.orchestrators.parallel.create_worktree", side_effect=_fake_create),
-        patch("kodo.orchestrators.parallel.remove_worktree", side_effect=_fake_remove),
+        patch("kodo.orchestrators.parallel.create_worktree", autospec=True, side_effect=_fake_create),
+        patch("kodo.orchestrators.parallel.remove_worktree", autospec=True, side_effect=_fake_remove),
     ):
         yield
     import shutil
@@ -171,7 +171,7 @@ def tmp_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_all_stages_complete(mock_viewer, tmp_project):
     """Each stage finishes in 1 cycle; all 3 stages should complete."""
     plan = _make_plan(3)
@@ -184,7 +184,7 @@ def test_staged_run_all_stages_complete(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "overall goal",
             tmp_project,
@@ -199,7 +199,7 @@ def test_staged_run_all_stages_complete(mock_viewer, tmp_project):
     assert result.finished  # last cycle was finished
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_stage_takes_multiple_cycles(mock_viewer, tmp_project):
     """Stage 1 takes 2 cycles; stage 2 takes 1 cycle."""
     plan = _make_plan(2)
@@ -212,7 +212,7 @@ def test_staged_run_stage_takes_multiple_cycles(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -228,7 +228,7 @@ def test_staged_run_stage_takes_multiple_cycles(mock_viewer, tmp_project):
     assert len(result.stage_results[1].cycles) == 1
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_budget_exhausted(mock_viewer, tmp_project):
     """With max_cycles=2 and 3 stages, run stops when budget exhausted."""
     plan = _make_plan(3)
@@ -241,7 +241,7 @@ def test_staged_run_budget_exhausted(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -255,7 +255,7 @@ def test_staged_run_budget_exhausted(mock_viewer, tmp_project):
     assert not result.stage_results[1].finished  # budget ran out
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_stage_failure_stops_run(mock_viewer, tmp_project):
     """If stage 1 uses all budget without finishing, run stops."""
     plan = _make_plan(2)
@@ -267,7 +267,7 @@ def test_staged_run_stage_failure_stops_run(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -281,7 +281,7 @@ def test_staged_run_stage_failure_stops_run(mock_viewer, tmp_project):
     assert not result.stage_results[0].finished
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_no_plan_uses_single_mode(mock_viewer, tmp_project):
     """With plan=None, staged run is not used (backward compat)."""
     orch = FakeOrchestrator(
@@ -291,7 +291,7 @@ def test_staged_run_no_plan_uses_single_mode(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -305,7 +305,7 @@ def test_staged_run_no_plan_uses_single_mode(mock_viewer, tmp_project):
     assert result.stage_results == []
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_cycle_has_stage_index(mock_viewer, tmp_project):
     """Cycle results from staged runs should have stage_index set."""
     plan = _make_plan(2)
@@ -317,7 +317,7 @@ def test_staged_run_cycle_has_stage_index(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -330,7 +330,7 @@ def test_staged_run_cycle_has_stage_index(mock_viewer, tmp_project):
     assert result.cycles[1].stage_index == 2
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_run_goal_includes_completed_summaries(mock_viewer, tmp_project):
     """After stage 1 completes, stage 2's goal should include stage 1's summary."""
     plan = _make_plan(2)
@@ -342,7 +342,7 @@ def test_staged_run_goal_includes_completed_summaries(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # Second cycle's goal should mention stage 1's summary
@@ -353,7 +353,7 @@ def test_staged_run_goal_includes_completed_summaries(mock_viewer, tmp_project):
 # ── Staged resume tests ─────────────────────────────────────────────────
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_staged_resume_skips_completed_stages(mock_viewer, tmp_project):
     """Resuming after stage 1 completed should start at stage 2."""
     plan = _make_plan(3)
@@ -374,7 +374,7 @@ def test_staged_resume_skips_completed_stages(mock_viewer, tmp_project):
         current_stage_cycles=0,
     )
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "goal",
             tmp_project,
@@ -636,7 +636,7 @@ def _make_parallel_plan() -> GoalPlan:
     )
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stages_both_run(mock_viewer, tmp_project, mock_worktrees):
     """Both parallel stages should execute and produce stage results."""
     plan = _make_parallel_plan()
@@ -652,14 +652,14 @@ def test_parallel_stages_both_run(mock_viewer, tmp_project, mock_worktrees):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     assert len(result.stage_results) == 4
     assert all(sr.finished for sr in result.stage_results)
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project, mock_worktrees):
     """After parallel group, subsequent stage should see both summaries."""
     plan = _make_parallel_plan()
@@ -673,7 +673,7 @@ def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project, mock_work
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # The last cycle (stage 4) should have both parallel summaries in its goal
@@ -682,7 +682,7 @@ def test_parallel_stages_summaries_feed_next(mock_viewer, tmp_project, mock_work
     assert "FINDINGS_FROM_B" in fix_goal
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stages_share_snapshot(mock_viewer, tmp_project, mock_worktrees):
     """Parallel stages should see the same prior summaries, not each other's."""
     plan = _make_parallel_plan()
@@ -696,7 +696,7 @@ def test_parallel_stages_share_snapshot(mock_viewer, tmp_project, mock_worktrees
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # Both parallel stages should see "setup done" but not each other
@@ -706,7 +706,7 @@ def test_parallel_stages_share_snapshot(mock_viewer, tmp_project, mock_worktrees
         assert "setup done" in g
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_orchestrator_close_called(mock_viewer, tmp_project, mock_worktrees):
     """_run_in_own_loop should call close() on each parallel orchestrator copy."""
     plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
@@ -726,14 +726,14 @@ def test_parallel_orchestrator_close_called(mock_viewer, tmp_project, mock_workt
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # Two parallel stages => two close() calls (one per for_parallel() copy)
     assert len(close_calls) == 2
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_worktrees):
     """Parallel stages should not auto-commit (changes are discarded anyway)."""
     plan = _make_parallel_plan()
@@ -771,7 +771,7 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan, auto_commit=True)
 
     # Stage 1: auto_commit=True, stages 2+3: False (parallel/worktree), stage 4: True
@@ -782,7 +782,7 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
     assert auto_commit_per_call[3] is True  # stage 4
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_group_complete_failure_stops_run(
     mock_viewer, tmp_project, mock_worktrees,
 ):
@@ -801,7 +801,7 @@ def test_parallel_group_complete_failure_stops_run(
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # S4 must not have run — only 3 stages (S1, S2, S3)
@@ -810,7 +810,7 @@ def test_parallel_group_complete_failure_stops_run(
     assert not result.finished  # overall run not finished
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stage_results_sorted_by_index(
     mock_viewer, tmp_project, mock_worktrees,
 ):
@@ -826,7 +826,7 @@ def test_parallel_stage_results_sorted_by_index(
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     indices = [sr.stage_index for sr in result.stage_results]
@@ -917,7 +917,7 @@ class TestWorktreeHelpers:
 
 
 @pytest.mark.slow
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stages_use_worktrees(mock_viewer, git_project, tmp_path):
     """Parallel stages should receive worktree paths, not the main project dir."""
     project = git_project
@@ -957,7 +957,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, git_project, tmp_path):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", project, team, max_cycles=10, plan=plan)
 
     assert len(result.stage_results) == 4
@@ -977,7 +977,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, git_project, tmp_path):
         assert not Path(d).exists(), f"Worktree {d} should be cleaned up"
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
     """If git worktree creation fails, fall back to project_dir."""
     # tmp_path is NOT a git repo — worktree creation will fail
@@ -1017,7 +1017,7 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_path, team, max_cycles=10, plan=plan)
 
     # Should still complete — all stages fall back to project_dir
@@ -1025,7 +1025,7 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
     assert all(d == str(tmp_path) for d in project_dirs_seen)
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_sequential_stage_crash_after_parallel_is_caught(mock_viewer, tmp_project):
     """If a sequential stage after a parallel group crashes, it should be
     caught and logged rather than silently aborting with 'finished: true'."""
@@ -1051,7 +1051,7 @@ def test_sequential_stage_crash_after_parallel_is_caught(mock_viewer, tmp_projec
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # Stage 4 should appear as a failed stage result, not crash the run
@@ -1063,7 +1063,7 @@ def test_sequential_stage_crash_after_parallel_is_caught(mock_viewer, tmp_projec
     assert not result.finished
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_project):
     """If a sequential stage crashes, it should be caught and stop the run."""
     plan = _make_plan(3)
@@ -1084,7 +1084,7 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     # Stage 2 crashed — should be recorded and run should stop
@@ -1100,7 +1100,7 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
 
 
 @pytest.mark.slow
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
     """If KeyboardInterrupt fires during worktree creation, already-created
     worktrees must still be cleaned up (no leak)."""
@@ -1146,10 +1146,10 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
 
     with (
         patch(
-            "kodo.orchestrators.base.create_worktree", side_effect=create_then_interrupt
+            "kodo.orchestrators.base.create_worktree", autospec=True, side_effect=create_then_interrupt
         ),
-        patch("kodo.orchestrators.base.remove_worktree") as mock_remove,
-        patch("kodo.viewer.open_viewer", create=True),
+        patch("kodo.orchestrators.base.remove_worktree", autospec=True) as mock_remove,
+        patch("kodo.viewer.open_viewer", create=True),  # noqa: autospec
     ):
         # The KeyboardInterrupt should propagate but cleanup should happen first
         with pytest.raises(KeyboardInterrupt):
@@ -1294,7 +1294,7 @@ class TestMergeWorktreeBranch:
             return True
 
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            "kodo.orchestrators.base._resolve_conflicts_with_agent", autospec=True,
             side_effect=_fake_resolve,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")
@@ -1313,7 +1313,7 @@ class TestMergeWorktreeBranch:
         project, branch = conflict_project
 
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            "kodo.orchestrators.base._resolve_conflicts_with_agent", autospec=True,
             return_value=False,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")
@@ -1361,7 +1361,7 @@ def _make_persist_plan(persist_a=False, persist_b=False) -> GoalPlan:
 
 
 @pytest.mark.slow
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_persist_changes_merges_to_main(mock_viewer, git_project, tmp_path):
     """Parallel stage with persist_changes=True should merge files back."""
     project = git_project
@@ -1383,7 +1383,7 @@ def test_persist_changes_merges_to_main(mock_viewer, git_project, tmp_path):
     orch = FileWritingOrchestrator()
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", project, team, max_cycles=10, plan=plan, auto_commit=True)
 
     # WorkA (stage 2) had persist_changes=True — its file should be on main
@@ -1395,7 +1395,7 @@ def test_persist_changes_merges_to_main(mock_viewer, git_project, tmp_path):
 
 
 @pytest.mark.slow
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_persist_changes_false_discards(mock_viewer, git_project, tmp_path):
     """Default persist_changes=False should discard worktree changes (regression)."""
     project = git_project
@@ -1413,13 +1413,13 @@ def test_persist_changes_false_discards(mock_viewer, git_project, tmp_path):
     orch = FileWritingOrchestrator()
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", project, team, max_cycles=10, plan=plan)
 
     assert not (project / "should_vanish.py").exists()
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
     """persist_changes=True should pass auto_commit=True to parallel cycle."""
     plan = _make_persist_plan(persist_a=True, persist_b=False)
@@ -1457,7 +1457,7 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=10, plan=plan, auto_commit=True)
 
     # Stage 1: True, WorkA (persist): True, WorkB (no persist): False, Stage 4: True
@@ -1468,7 +1468,7 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
     assert auto_commit_per_call[3] is True  # stage 4
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_done_mode_propagates_to_stage_config(mock_viewer, tmp_project):
     """done_mode from the run-level CycleConfig is passed through _run_one_stage."""
     plan = _make_plan(2)
@@ -1504,7 +1504,7 @@ def test_done_mode_propagates_to_stage_config(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run(
             "goal",
             tmp_project,
@@ -1518,7 +1518,7 @@ def test_done_mode_propagates_to_stage_config(mock_viewer, tmp_project):
     assert done_modes_seen == ["legacy", "legacy"]
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_done_mode_default_is_new(mock_viewer, tmp_project):
     """Without explicit done_mode, stages should receive the default 'new' mode."""
     plan = _make_plan(1)
@@ -1551,7 +1551,7 @@ def test_done_mode_default_is_new(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=5, plan=plan)
 
     assert done_modes_seen == ["new"]

@@ -489,8 +489,10 @@ def _main_inner() -> None:
                 intake_result, intake_session = _offer_intake(run_dir, goal_text)
                 if isinstance(intake_result, GoalPlan):
                     plan = intake_result
+                    skip_prompts = True  # user confirmed in _offer_intake
                 elif isinstance(intake_result, str):
                     goal_text = intake_result
+                    skip_prompts = True  # user confirmed in _offer_intake
 
     # By this point, goal_text is always a str (None paths call _fail() or
     # _fail() is unreachable in --improve where it's set on line 410).

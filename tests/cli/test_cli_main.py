@@ -33,8 +33,8 @@ class TestDebugFlag:
     def _setup(self):
         """Mock dependencies to isolate _main.py logic."""
         with (
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.launch_run") as mock_launch,
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
         ):
             mock_launch.return_value = MagicMock(
                 finished=True,
@@ -64,7 +64,7 @@ class TestDebugFlag:
 
         with (
             patch("sys.argv", ["kodo", "--goal", "test", "--yes", "--debug", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
+            patch("kodo.cli._main.launch_run", side_effect=capture_launch),  # noqa: autospec
         ):
             _main_inner()
 
@@ -87,8 +87,8 @@ class TestDebugFlag:
 
         with (
             patch("sys.argv", ["kodo", "--goal", "test", "--yes", "--debug", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
-            patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
+            patch("kodo.cli._main.launch_run", side_effect=capture_launch),  # noqa: autospec
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True) as mock_intake,
         ):
             _main_inner()
 
@@ -136,9 +136,9 @@ class TestResumeInteractive:
 
         with (
             patch("sys.argv", ["kodo", "--resume", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.log.find_incomplete_runs", return_value=[fake_state]),
-            patch("builtins.input", return_value="n"),  # User cancels
-            patch("kodo.cli._main._print_banner"),
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[fake_state]),
+            patch("builtins.input", autospec=True, return_value="n"),  # User cancels
+            patch("kodo.cli._main._print_banner", autospec=True),
             pytest.raises(SystemExit) as exc_info,
         ):
             _main_inner()
@@ -171,13 +171,13 @@ class TestGoalMdAutoDetection:
 
         with (
             patch("sys.argv", ["kodo", "--project", str(project)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="SHOULD NOT BE USED") as mock_get,
-            patch("kodo.cli._main._load_or_select_params", return_value=_STANDARD_PARAMS),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run") as mock_launch,
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="SHOULD NOT BE USED") as mock_get,
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value=_STANDARD_PARAMS),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
             # User accepts goal.md (Enter = Y default) then accepts safety prompt
-            patch("builtins.input", return_value="y"),
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             _main_inner()
 
@@ -197,12 +197,12 @@ class TestGoalMdAutoDetection:
         # First input("Use this goal?") returns "n", get_goal provides fallback
         with (
             patch("sys.argv", ["kodo", "--project", str(project)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Fresh goal typed by user"),
-            patch("kodo.cli._main._load_or_select_params", return_value=_STANDARD_PARAMS),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("builtins.input", side_effect=["n", "y"]),  # reject goal.md, accept safety
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Fresh goal typed by user"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value=_STANDARD_PARAMS),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("builtins.input", autospec=True, side_effect=["n", "y"]),  # reject goal.md, accept safety
         ):
             _main_inner()
 
@@ -218,12 +218,12 @@ class TestGoalMdAutoDetection:
 
         with (
             patch("sys.argv", ["kodo", "--project", str(project)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Typed goal"),
-            patch("kodo.cli._main._load_or_select_params", return_value=_STANDARD_PARAMS),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("builtins.input", return_value="y"),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Typed goal"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value=_STANDARD_PARAMS),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             _main_inner()
 
@@ -239,12 +239,12 @@ class TestGoalMdAutoDetection:
 
         with (
             patch("sys.argv", ["kodo", "--project", str(project)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="SHOULD NOT BE USED") as mock_get,
-            patch("kodo.cli._main._load_or_select_params", return_value=_STANDARD_PARAMS),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("builtins.input", return_value="y"),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="SHOULD NOT BE USED") as mock_get,
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value=_STANDARD_PARAMS),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             _main_inner()
 
@@ -264,12 +264,12 @@ class TestGoalMdAutoDetection:
 
         with (
             patch("sys.argv", ["kodo", "--project", str(project)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="SHOULD NOT BE USED"),
-            patch("kodo.cli._main._load_or_select_params", return_value=_STANDARD_PARAMS),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("builtins.input", return_value="y"),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="SHOULD NOT BE USED"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value=_STANDARD_PARAMS),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("builtins.input", autospec=True, return_value="y"),
         ):
             _main_inner()
 
@@ -294,11 +294,11 @@ class TestSafetyConfirmation:
         """User can cancel at safety confirmation prompt."""
         with (
             patch("sys.argv", ["kodo", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Test goal"),
-            patch("kodo.cli._main._load_or_select_params", return_value={"team": "full", "orchestrator": "api", "orchestrator_model": "opus", "max_exchanges": 30, "max_cycles": 5}),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),  # Skip intake
-            patch("builtins.input", return_value="n"),  # Cancel at safety prompt
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Test goal"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value={"team": "full", "orchestrator": "api", "orchestrator_model": "opus", "max_exchanges": 30, "max_cycles": 5}),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),  # Skip intake
+            patch("builtins.input", autospec=True, return_value="n"),  # Cancel at safety prompt
             pytest.raises(SystemExit) as exc_info,
         ):
             _main_inner()
@@ -318,8 +318,8 @@ class TestFlagValidation:
     def _mock_backends(self):
         """Mock backend checks."""
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -359,8 +359,8 @@ class TestImproveFocusWiring:
     @pytest.fixture(autouse=True)
     def _mock_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -381,10 +381,10 @@ class TestImproveFocusWiring:
 
         with (
             patch("sys.argv", ["kodo", "--improve", "--focus", "security", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.run_improve_discovery", side_effect=capture_discovery),
-            patch("kodo.cli._main._build_fallback_plan", side_effect=capture_fallback),
-            patch("kodo.cli._main.launch_run", return_value=fake_result),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.run_improve_discovery", autospec=True, side_effect=capture_discovery),
+            patch("kodo.cli._main._build_fallback_plan", autospec=True, side_effect=capture_fallback),
+            patch("kodo.cli._main.launch_run", autospec=True, return_value=fake_result),
         ):
             _main_inner()
 
@@ -402,10 +402,10 @@ class TestImproveFocusWiring:
 
         with (
             patch("sys.argv", ["kodo", "--improve", "--focus", "error handling", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.run_improve_discovery", return_value=None),
-            patch("kodo.cli._main._build_fallback_plan", return_value=MagicMock(stages=[])),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.run_improve_discovery", autospec=True, return_value=None),
+            patch("kodo.cli._main._build_fallback_plan", autospec=True, return_value=MagicMock(stages=[])),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=capture_launch),
         ):
             _main_inner()
 
@@ -424,10 +424,10 @@ class TestAutoRefineNoBackend:
         """auto-refine without backend should fail with error."""
         with (
             patch("sys.argv", ["kodo", "--goal", "test", "--auto-refine", "--yes", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._params._build_params_from_flags", return_value={"team": "full", "orchestrator": "api", "orchestrator_model": "opus"}),
-            patch("kodo.cli._main._load_goal_plan", return_value=None),
-            patch("kodo.cli._main.preferred_backend", return_value=None),  # No backend
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._params._build_params_from_flags", autospec=True, return_value={"team": "full", "orchestrator": "api", "orchestrator_model": "opus"}),
+            patch("kodo.cli._main._load_goal_plan", autospec=True, return_value=None),
+            patch("kodo.cli._main.preferred_backend", autospec=True, return_value=None),  # No backend
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -505,16 +505,16 @@ class TestYesFlagSkipsPrompts:
 
         with (
             patch("sys.argv", ["kodo", "--yes", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Interactive goal"),
-            patch("kodo.cli._main._load_or_select_params", return_value={
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Interactive goal"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value={
                 "team": "full", "orchestrator": "api",
                 "orchestrator_model": "opus", "max_exchanges": 30, "max_cycles": 5,
             }),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=capture_launch),
             # If input() is called, the test FAILS — --yes should skip all prompts
-            patch("builtins.input", side_effect=AssertionError(
+            patch("builtins.input", autospec=True, side_effect=AssertionError(
                 "--yes should skip safety prompt but input() was called"
             )),
         ):
@@ -532,15 +532,15 @@ class TestYesFlagSkipsPrompts:
 
         with (
             patch("sys.argv", ["kodo", "-y", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Interactive goal"),
-            patch("kodo.cli._main._load_or_select_params", return_value={
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Interactive goal"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value={
                 "team": "full", "orchestrator": "api",
                 "orchestrator_model": "opus", "max_exchanges": 30, "max_cycles": 5,
             }),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
-            patch("builtins.input", side_effect=AssertionError(
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=capture_launch),
+            patch("builtins.input", autospec=True, side_effect=AssertionError(
                 "-y should skip safety prompt but input() was called"
             )),
         ):
@@ -554,11 +554,11 @@ class TestYesFlagSkipsPrompts:
 
         with (
             patch("sys.argv", ["kodo", "--resume", "--yes", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.log.find_incomplete_runs", return_value=[fake_state]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.launch_resume", return_value=_fake_run_result()) as mock_resume,
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[fake_state]),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.launch_resume", autospec=True, return_value=_fake_run_result()) as mock_resume,
             # If input() is called, the test FAILS
-            patch("builtins.input", side_effect=AssertionError(
+            patch("builtins.input", autospec=True, side_effect=AssertionError(
                 "--yes should skip resume prompt but input() was called"
             )),
         ):
@@ -570,14 +570,14 @@ class TestYesFlagSkipsPrompts:
         """Without --yes in interactive mode, safety prompt MUST fire."""
         with (
             patch("sys.argv", ["kodo", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main.get_goal", return_value="Test goal"),
-            patch("kodo.cli._main._load_or_select_params", return_value={
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Test goal"),
+            patch("kodo.cli._main._load_or_select_params", autospec=True, return_value={
                 "team": "full", "orchestrator": "api",
                 "orchestrator_model": "opus", "max_exchanges": 30, "max_cycles": 5,
             }),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
-            patch("builtins.input", return_value="n"),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
+            patch("builtins.input", autospec=True, return_value="n"),
             pytest.raises(SystemExit) as exc_info,
         ):
             _main_inner()
@@ -599,8 +599,8 @@ class TestAutoRefineCallsIntakeAuto:
     @pytest.fixture(autouse=True)
     def _mock_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -611,11 +611,11 @@ class TestAutoRefineCallsIntakeAuto:
                 "kodo", "--goal", "Build an API", "--auto-refine",
                 "--yes", "--project", str(tmp_path),
             ]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main._load_goal_plan", return_value=None),
-            patch("kodo.cli._main.preferred_backend", return_value="claude"),
-            patch("kodo.cli._main.run_intake_auto", return_value="Refined API goal") as mock_auto,
-            patch("kodo.cli._main.launch_run", return_value=_fake_run_result()),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main._load_goal_plan", autospec=True, return_value=None),
+            patch("kodo.cli._main.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._main.run_intake_auto", autospec=True, return_value="Refined API goal") as mock_auto,
+            patch("kodo.cli._main.launch_run", autospec=True, return_value=_fake_run_result()),
         ):
             _main_inner()
 
@@ -639,11 +639,11 @@ class TestAutoRefineCallsIntakeAuto:
                 "kodo", "--goal", "Build an API", "--auto-refine",
                 "--yes", "--project", str(tmp_path),
             ]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main._load_goal_plan", return_value=None),
-            patch("kodo.cli._main.preferred_backend", return_value="claude"),
-            patch("kodo.cli._main.run_intake_auto", return_value="Refined: Build a REST API with auth"),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main._load_goal_plan", autospec=True, return_value=None),
+            patch("kodo.cli._main.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._main.run_intake_auto", autospec=True, return_value="Refined: Build a REST API with auth"),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=capture_launch),
         ):
             _main_inner()
 
@@ -664,11 +664,11 @@ class TestAutoRefineCallsIntakeAuto:
                 "kodo", "--goal", "Build an API", "--auto-refine",
                 "--yes", "--project", str(tmp_path),
             ]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main._load_goal_plan", return_value=None),
-            patch("kodo.cli._main.preferred_backend", return_value="claude"),
-            patch("kodo.cli._main.run_intake_auto", return_value=None),
-            patch("kodo.cli._main.launch_run", side_effect=capture_launch),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main._load_goal_plan", autospec=True, return_value=None),
+            patch("kodo.cli._main.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._main.run_intake_auto", autospec=True, return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=capture_launch),
         ):
             _main_inner()
 
@@ -683,12 +683,12 @@ class TestAutoRefineCallsIntakeAuto:
                 "kodo", "--goal", "Build an API", "--auto-refine",
                 "--yes", "--project", str(tmp_path),
             ]),
-            patch("kodo.cli._main._print_banner"),
-            patch("kodo.cli._main._load_goal_plan", return_value=None),
-            patch("kodo.cli._main.preferred_backend", return_value="claude"),
-            patch("kodo.cli._main.run_intake_auto", return_value="Refined goal"),
-            patch("kodo.cli._main.launch_run", return_value=_fake_run_result()),
-            patch("kodo.cli._main.run_intake_noninteractive") as mock_noninteractive,
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("kodo.cli._main._load_goal_plan", autospec=True, return_value=None),
+            patch("kodo.cli._main.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._main.run_intake_auto", autospec=True, return_value="Refined goal"),
+            patch("kodo.cli._main.launch_run", autospec=True, return_value=_fake_run_result()),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True) as mock_noninteractive,
         ):
             _main_inner()
 
@@ -706,8 +706,8 @@ class TestResumeGoalConflictMessage:
     @pytest.fixture(autouse=True)
     def _mock_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -715,7 +715,7 @@ class TestResumeGoalConflictMessage:
         """--resume + --goal should produce error mentioning both flags."""
         with (
             patch("sys.argv", ["kodo", "--resume", "--goal", "X", "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
+            patch("kodo.cli._main._print_banner", autospec=True),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -730,7 +730,7 @@ class TestResumeGoalConflictMessage:
         goal_file.write_text("Build X")
         with (
             patch("sys.argv", ["kodo", "--resume", "--goal-file", str(goal_file), "--project", str(tmp_path)]),
-            patch("kodo.cli._main._print_banner"),
+            patch("kodo.cli._main._print_banner", autospec=True),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -764,9 +764,9 @@ def test_very_long_goal_preserved(tmp_path: Path):
     """A 10k-char goal passes through to launch_run without truncation."""
     long_goal = "x" * 10000
     with (
-        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-        patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.cli._main.launch_run") as mock_launch,
+        patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+        patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+        patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
     ):
         mock_launch.return_value = _fake_run_result()
         sys.argv = [
@@ -785,9 +785,9 @@ def test_unicode_and_special_chars_in_goal(tmp_path: Path):
         "Build a «café» app\nWith \"quotes\" and 'apostrophes'\nAnd emoji: 🚀"
     )
     with (
-        patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-        patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.cli._main.launch_run") as mock_launch,
+        patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+        patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+        patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
     ):
         mock_launch.return_value = _fake_run_result()
         sys.argv = [
@@ -816,8 +816,8 @@ def test_unreadable_goal_file_no_traceback(tmp_path: Path, capsys):
 
     try:
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             sys.argv = [
                 "kodo", "--goal-file", str(goal_file), "--skip-intake",
@@ -864,7 +864,7 @@ class TestCorruptConfigResume:
         (run_root / "goal.md").write_text("Fix bug")
         (run_root / "config.json").write_text("not valid json {{{")
 
-        with patch("kodo.cli._main.launch_resume") as mock_resume:
+        with patch("kodo.cli._main.launch_resume", autospec=True) as mock_resume:
             sys.argv = ["kodo", "--resume", run_id, "--yes", "--project", str(project)]
             _main_inner()
 

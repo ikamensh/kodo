@@ -49,7 +49,7 @@ class TestLoadTeamConfig:
         project_team = tmp_project / ".kodo" / "team.json"
         _write_team_json(project_team, {**MINIMAL_CONFIG, "name": "project"})
 
-        with patch("kodo.team_config.Path.home", return_value=tmp_project / "fakehome"):
+        with patch("kodo.team_config.Path.home", autospec=True, return_value=tmp_project / "fakehome"):
             user_team = tmp_project / "fakehome" / ".kodo" / "teams" / "full.json"
             _write_team_json(user_team, {**MINIMAL_CONFIG, "name": "user"})
 
@@ -62,13 +62,13 @@ class TestLoadTeamConfig:
         user_team = home / ".kodo" / "teams" / "full.json"
         _write_team_json(user_team, {**MINIMAL_CONFIG, "name": "user-full"})
 
-        with patch("kodo.team_config.Path.home", return_value=home):
+        with patch("kodo.team_config.Path.home", autospec=True, return_value=home):
             result = load_team_config("full", tmp_project)
             assert result is not None
             assert result["name"] == "user-full"
 
     def test_returns_none_when_no_config(self, tmp_project: Path):
-        with patch("kodo.team_config.Path.home", return_value=tmp_project / "fakehome"):
+        with patch("kodo.team_config.Path.home", autospec=True, return_value=tmp_project / "fakehome"):
             result = load_team_config("full", tmp_project)
             assert result is None
 
@@ -95,7 +95,7 @@ class TestLoadTeamConfig:
 
 class TestBuildTeamFromJson:
     @patch(
-        "kodo.team_config.available_backends",
+        "kodo.team_config.available_backends", autospec=True,
         return_value={
             "claude": True,
             "cursor": True,
@@ -103,7 +103,7 @@ class TestBuildTeamFromJson:
             "gemini-cli": False,
         },
     )
-    @patch("kodo.team_config.make_session")
+    @patch("kodo.team_config.make_session", autospec=True)
     def test_builds_team_with_available_backends(
         self, mock_make_session, mock_backends
     ):
@@ -135,7 +135,7 @@ class TestBuildTeamFromJson:
         assert team["tester"].max_turns == 15  # default
 
     @patch(
-        "kodo.team_config.available_backends",
+        "kodo.team_config.available_backends", autospec=True,
         return_value={
             "claude": True,
             "cursor": False,
@@ -143,7 +143,7 @@ class TestBuildTeamFromJson:
             "gemini-cli": False,
         },
     )
-    @patch("kodo.team_config.make_session")
+    @patch("kodo.team_config.make_session", autospec=True)
     def test_skips_unavailable_backend(self, mock_make_session, mock_backends):
         mock_make_session.return_value = FakeSession()
 
@@ -165,7 +165,7 @@ class TestBuildTeamFromJson:
         assert "fast_worker" not in team
 
     @patch(
-        "kodo.team_config.available_backends",
+        "kodo.team_config.available_backends", autospec=True,
         return_value={
             "claude": False,
             "cursor": False,
@@ -204,7 +204,7 @@ class TestBuildTeamFromJson:
             build_team_from_json(config)
 
     @patch(
-        "kodo.team_config.available_backends",
+        "kodo.team_config.available_backends", autospec=True,
         return_value={
             "claude": True,
             "cursor": False,
@@ -212,7 +212,7 @@ class TestBuildTeamFromJson:
             "gemini-cli": False,
         },
     )
-    @patch("kodo.team_config.make_session")
+    @patch("kodo.team_config.make_session", autospec=True)
     def test_chrome_and_fallback_model_passed(self, mock_make_session, mock_backends):
         mock_make_session.return_value = FakeSession()
 

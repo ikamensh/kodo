@@ -141,13 +141,13 @@ class TestProbeOllama:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("urllib.request.urlopen", autospec=True, return_value=mock_resp):
             result = _probe_ollama()
         assert result == "llama3.2:1b"
 
     def test_returns_none_on_connection_error(self):
         import urllib.error
-        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+        with patch("urllib.request.urlopen", autospec=True, side_effect=urllib.error.URLError("refused")):
             assert _probe_ollama() is None
 
     def test_returns_none_on_empty_models(self):
@@ -159,11 +159,11 @@ class TestProbeOllama:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("urllib.request.urlopen", autospec=True, return_value=mock_resp):
             assert _probe_ollama() is None
 
     def test_returns_none_on_timeout(self):
-        with patch("urllib.request.urlopen", side_effect=TimeoutError):
+        with patch("urllib.request.urlopen", autospec=True, side_effect=TimeoutError):
             assert _probe_ollama() is None
 
 
@@ -190,8 +190,8 @@ class TestEnsureBackend:
     def test_ollama_preferred_over_gemini(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", return_value="llama3"),
-            patch("kodo.summarizer._probe_gemini", return_value="gemini-key"),
+            patch("kodo.summarizer._probe_ollama", autospec=True, return_value="llama3"),
+            patch("kodo.summarizer._probe_gemini", autospec=True, return_value="gemini-key"),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -201,8 +201,8 @@ class TestEnsureBackend:
     def test_gemini_when_no_ollama(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", return_value=None),
-            patch("kodo.summarizer._probe_gemini", return_value="my-key"),
+            patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+            patch("kodo.summarizer._probe_gemini", autospec=True, return_value="my-key"),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -212,8 +212,8 @@ class TestEnsureBackend:
     def test_truncate_when_nothing_available(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", return_value=None),
-            patch("kodo.summarizer._probe_gemini", return_value=None),
+            patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+            patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -222,8 +222,8 @@ class TestEnsureBackend:
     def test_only_probes_once(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", return_value=None) as mock_ollama,
-            patch("kodo.summarizer._probe_gemini", return_value=None),
+            patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None) as mock_ollama,
+            patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -250,7 +250,7 @@ class TestSummarizeGemini:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("urllib.request.urlopen", autospec=True, return_value=mock_resp):
             result = _summarize_gemini("fake-key", "build feature", "Created X.py")
         assert result == "Summary of work done"
 
@@ -263,7 +263,7 @@ class TestSummarizeGemini:
         mock_resp.__enter__ = lambda s: s
         mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("urllib.request.urlopen", autospec=True, return_value=mock_resp):
             result = _summarize_gemini("fake-key", "task", "report")
         assert result == ""
 

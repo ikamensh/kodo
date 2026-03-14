@@ -27,6 +27,12 @@ _PRO_EVAL_DIR = Path(os.environ.get(
 
 def evaluate_predictions(workspace: Path, run_id: str) -> None:
     """Run swebench evaluation for each arm's predictions file."""
+    from benchmark._util import ensure_docker_running
+
+    if not ensure_docker_running():
+        log.error("Docker is required for evaluation but could not be started")
+        return
+
     run_dir = workspace / "runs" / run_id
 
     meta_file = run_dir / "meta.json"

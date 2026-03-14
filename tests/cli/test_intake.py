@@ -34,8 +34,8 @@ class TestIntakeInterviewLoop:
         inputs = iter(["We use React", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "Build a web app", staged=False)
 
@@ -53,8 +53,8 @@ class TestIntakeInterviewLoop:
         inputs = iter(["React and Node", ""])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "Build an API", staged=False)
 
@@ -72,8 +72,8 @@ class TestIntakeInterviewLoop:
         inputs = iter(["answer1", "answer2", "answer3", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
 
@@ -110,9 +110,9 @@ class TestIntakeInterviewLoop:
         )
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
             patch(
-                "builtins.input", side_effect=AssertionError("should not prompt user")
+                "builtins.input", autospec=True, side_effect=AssertionError("should not prompt user")
             ),
         ):
             result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
@@ -143,8 +143,8 @@ class TestIntakeOutputFile:
         inputs = iter(["Django", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             result, session_out = run_intake_chat("claude", run_dir, "Build a web app", staged=False)
 
@@ -183,8 +183,8 @@ class TestIntakeOutputFile:
         inputs = iter(["just do it", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
 
@@ -204,8 +204,8 @@ class TestIntakeOutputFile:
         inputs = iter(["something", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             result, session_out = run_intake_chat("claude", run_dir, "Vague goal", staged=False)
 
@@ -225,8 +225,8 @@ class TestIntakeEdgeCases:
         )
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=KeyboardInterrupt),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=KeyboardInterrupt),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
 
@@ -242,8 +242,8 @@ class TestIntakeEdgeCases:
         )
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=EOFError),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=EOFError),
         ):
             run_intake_chat("claude", run_dir, "My goal", staged=False)
 
@@ -266,7 +266,7 @@ class TestAutoRefine:
             },
         )
 
-        with patch("kodo.cli._intake.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result == "Refined: build a REST API with auth"
@@ -279,7 +279,7 @@ class TestAutoRefine:
             response_text="Implicit: needs pagination and rate limiting"
         )
 
-        with patch("kodo.cli._intake.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is not None
@@ -293,7 +293,7 @@ class TestAutoRefine:
         run_dir = RunDir.create(project, "test_auto_empty")
         session = FakeSession(response_text="")
 
-        with patch("kodo.cli._intake.make_session", return_value=session):
+        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is None
@@ -328,8 +328,8 @@ class TestIntakeChatSessionError:
         inputs = iter(["answer1", "answer2", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             run_intake_chat("claude", run_dir, "Build a thing", staged=False)
 
@@ -362,8 +362,8 @@ class TestIntakeChatSessionError:
         inputs = iter(["a", "b", "/done"])
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             # Should not raise — loop catches errors and continues
             result, session_out = run_intake_chat("claude", run_dir, "My goal", staged=False)

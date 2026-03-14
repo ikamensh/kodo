@@ -89,8 +89,8 @@ class TestFlagConflicts:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -168,8 +168,8 @@ class TestNoAutoCommit:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -203,7 +203,7 @@ class TestNoAutoCommit:
                     str(tmp_path),
                 ],
             ),
-            patch("kodo.cli._main.launch_run", side_effect=fake_launch),
+            patch("kodo.cli._main.launch_run", autospec=True, side_effect=fake_launch),
         ):
             _main_inner()
 
@@ -219,7 +219,7 @@ class TestResumeCLI:
     def test_resume_no_incomplete_runs(self, tmp_path):
         with (
             patch("sys.argv", ["kodo", "--resume", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.log.find_incomplete_runs", return_value=[]),
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[]),
             pytest.raises(SystemExit),
         ):
             _main_inner()
@@ -268,9 +268,9 @@ class TestResumeCLI:
         # --resume (no value) uses __latest__ path; project_dir is positional
         with (
             patch("sys.argv", ["kodo", "--resume", "--yes", "--project", str(tmp_path)]),
-            patch("kodo.cli._main.log.find_incomplete_runs", return_value=[fake_state]),
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[fake_state]),
             patch(
-                "kodo.cli._main.launch_resume", return_value=fake_result
+                "kodo.cli._main.launch_resume", autospec=True, return_value=fake_result
             ) as mock_resume,
         ):
             _main_inner()
@@ -286,7 +286,7 @@ class TestResumeCLI:
 class TestMainWrapper:
     def test_keyboard_interrupt_exits_130(self):
         with (
-            patch("kodo.cli._main._main_inner", side_effect=KeyboardInterrupt),
+            patch("kodo.cli._main._main_inner", autospec=True, side_effect=KeyboardInterrupt),
             pytest.raises(SystemExit) as exc_info,
         ):
             main()
@@ -295,7 +295,7 @@ class TestMainWrapper:
     def test_json_mode_wraps_exception(self, capsys):
         with (
             patch("sys.argv", ["kodo", "--json"]),
-            patch("kodo.cli._main._main_inner", side_effect=RuntimeError("boom")),
+            patch("kodo.cli._main._main_inner", autospec=True, side_effect=RuntimeError("boom")),
             pytest.raises(SystemExit),
         ):
             main()
@@ -303,7 +303,7 @@ class TestMainWrapper:
     def test_keyboard_interrupt_json_mode_outputs_json(self, capsys):
         """In --json mode, KeyboardInterrupt produces JSON error output."""
         with (
-            patch("kodo.cli._main._main_inner", side_effect=KeyboardInterrupt),
+            patch("kodo.cli._main._main_inner", autospec=True, side_effect=KeyboardInterrupt),
             pytest.raises(SystemExit) as exc_info,
         ):
             sys.argv = ["kodo", "--json", "--goal", "x", "--project", "."]

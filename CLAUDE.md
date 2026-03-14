@@ -47,3 +47,10 @@ Review lessons at session start for relevant project
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Conservative**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Key Patterns
+
+### Mock Conventions
+- All `unittest.mock.patch()` calls MUST use `autospec=True` (enforced by `tests/test_autospec_enforcement.py`)
+- Bare `MagicMock()`/`Mock()` passed as kwargs MUST use `spec=RealClass` or `create_autospec()`
+- Use `# noqa: autospec` on the `patch(` line when autospec is incompatible (create=True, double-patch)

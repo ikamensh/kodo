@@ -64,18 +64,18 @@ class TestOrchestratorApiKeyStripped:
         fake_done.success = True
         fake_done.summary = "test done"
 
-        fake_team = MagicMock()
+        fake_team = MagicMock(spec=dict)
 
         with (
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-key-12345"}),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server") as mock_mcp,
+            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", return_value="go"
+                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", return_value=fake_done),
-            patch("kodo.orchestrators.claude_code.VerificationState"),
-            patch("kodo.orchestrators.claude_code.log"),
+            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
+            patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):
             mock_mcp.return_value = MagicMock(_mcp_server=MagicMock())
 
@@ -106,19 +106,19 @@ class TestOrchestratorApiKeyStripped:
         fake_done.success = True
         fake_done.summary = "test done"
 
-        fake_team = MagicMock()
+        fake_team = MagicMock(spec=dict)
         original_key = "sk-test-key-12345"
 
         with (
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": original_key}),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server") as mock_mcp,
+            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", return_value="go"
+                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", return_value=fake_done),
-            patch("kodo.orchestrators.claude_code.VerificationState"),
-            patch("kodo.orchestrators.claude_code.log"),
+            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
+            patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):
             mock_mcp.return_value = MagicMock(_mcp_server=MagicMock())
 
@@ -149,7 +149,7 @@ class TestOrchestratorApiKeyStripped:
         fake_done.success = True
         fake_done.summary = "test done"
 
-        fake_team = MagicMock()
+        fake_team = MagicMock(spec=dict)
 
         env_without_key = {
             k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"
@@ -157,13 +157,13 @@ class TestOrchestratorApiKeyStripped:
         with (
             patch.dict(os.environ, env_without_key, clear=True),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server") as mock_mcp,
+            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", return_value="go"
+                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", return_value=fake_done),
-            patch("kodo.orchestrators.claude_code.VerificationState"),
-            patch("kodo.orchestrators.claude_code.log"),
+            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
+            patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):
             mock_mcp.return_value = MagicMock(_mcp_server=MagicMock())
 

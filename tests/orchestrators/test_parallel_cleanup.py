@@ -99,7 +99,7 @@ def test_cleanup_handles_session_close_raising_keyboard_interrupt():
 
     # Should not raise — SIGINT is suppressed during cleanup
     with mock.patch(
-        "kodo.orchestrators.parallel._suppress_keyboard_interrupt"
+        "kodo.orchestrators.parallel._suppress_keyboard_interrupt", autospec=True
     ) as mock_suppress:
         # Use a real context manager that doesn't actually suppress
         # (so we can test the BaseException handling directly)
@@ -137,11 +137,11 @@ def test_cleanup_handles_commit_worktree_changes_raising_base_exception():
     # Mock commit_worktree_changes to raise KeyboardInterrupt
     with (
         mock.patch(
-            "kodo.orchestrators.parallel.commit_worktree_changes",
+            "kodo.orchestrators.parallel.commit_worktree_changes", autospec=True,
             side_effect=KeyboardInterrupt("simulated"),
         ),
         mock.patch(
-            "kodo.orchestrators.parallel.remove_worktree",
+            "kodo.orchestrators.parallel.remove_worktree", autospec=True,
         ) as mock_remove,
     ):
         from kodo.orchestrators.parallel import _cleanup_and_merge_worktrees_inner
@@ -164,7 +164,7 @@ def test_cleanup_and_merge_worktrees_wraps_with_sigint_suppression():
     )
 
     with mock.patch(
-        "kodo.orchestrators.parallel._cleanup_and_merge_worktrees_inner",
+        "kodo.orchestrators.parallel._cleanup_and_merge_worktrees_inner", autospec=True,
     ) as mock_inner:
         cleanup_and_merge_worktrees(
             [stage], {}, {}, [], Path("/tmp/fake"),

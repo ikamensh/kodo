@@ -26,8 +26,8 @@ def _make_mcp_with_tools():
         "tester": make_agent("ALL CHECKS PASS"),
     }
     with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
+        patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+        patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
         summarizer = Summarizer()
     return build_mcp_server(
@@ -59,7 +59,7 @@ def test_mcp_context_starts_server_thread():
     """McpServerContext.__enter__ finds a free port and starts a background thread."""
     mcp = _make_mcp_with_tools()
 
-    with patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server):
+    with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
         with McpServerContext(mcp) as ctx:
             assert ctx.port > 0
             assert "127.0.0.1" in ctx.sse_url
@@ -71,7 +71,7 @@ def test_mcp_context_exit_joins_thread():
     """McpServerContext.__exit__ shuts down the server thread within a few seconds."""
     mcp = _make_mcp_with_tools()
 
-    with patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server):
+    with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
         start = time.monotonic()
         with McpServerContext(mcp) as ctx:
             pass
@@ -103,9 +103,9 @@ def test_summarize_api_failure_includes_fallback_context(tmp_path: Path):
         self.run_sync = run_sync_raises
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+        patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         orch._summarizer.summarize("worker", "task", "Did something")
@@ -125,8 +125,8 @@ def test_stdio_bridge_cmd_uses_npx_when_available():
     mcp = _make_mcp_with_tools()
 
     with (
-        patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server),
-        patch("shutil.which", return_value="/usr/bin/npx"),
+        patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server),
+        patch("shutil.which", autospec=True, return_value="/usr/bin/npx"),
     ):
         with McpServerContext(mcp) as ctx:
             cmd = ctx.stdio_bridge_cmd
@@ -142,8 +142,8 @@ def test_stdio_bridge_cmd_falls_back_to_python():
     mcp = _make_mcp_with_tools()
 
     with (
-        patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server),
-        patch("shutil.which", return_value=None),
+        patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server),
+        patch("shutil.which", autospec=True, return_value=None),
     ):
         with McpServerContext(mcp) as ctx:
             cmd = ctx.stdio_bridge_cmd
@@ -176,7 +176,7 @@ def test_enter_raises_on_server_runtime_error():
         return s
 
     with (
-        patch("uvicorn.Server", side_effect=fake_uvicorn_server),
+        patch("uvicorn.Server", autospec=True, side_effect=fake_uvicorn_server),
         pytest.raises(RuntimeError, match="port already in use"),
     ):
         with McpServerContext(mcp):
@@ -206,7 +206,7 @@ def test_enter_raises_on_server_generic_exception():
         return s
 
     with (
-        patch("uvicorn.Server", side_effect=fake_uvicorn_server),
+        patch("uvicorn.Server", autospec=True, side_effect=fake_uvicorn_server),
         pytest.raises(ValueError, match="bad config"),
     ):
         with McpServerContext(mcp):
@@ -251,8 +251,8 @@ def test_enter_raises_on_startup_timeout():
         return evt
 
     with (
-        patch("uvicorn.Server", side_effect=fake_uvicorn_server),
-        patch("threading.Event", side_effect=event_factory),
+        patch("uvicorn.Server", autospec=True, side_effect=fake_uvicorn_server),
+        patch("threading.Event", autospec=True, side_effect=event_factory),
         pytest.raises(RuntimeError, match="MCP server failed to start within 10s"),
     ):
         with McpServerContext(mcp):
@@ -263,7 +263,7 @@ def test_exit_handles_loop_already_closed():
     """__exit__ should handle RuntimeError when loop is already closed."""
     mcp = _make_mcp_with_tools()
 
-    with patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server):
+    with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
         ctx = McpServerContext(mcp)
         ctx.__enter__()
 
@@ -285,7 +285,7 @@ def test_exit_escalates_on_stuck_thread():
     """__exit__ should escalate when thread doesn't stop, calling loop.stop multiple times."""
     mcp = _make_mcp_with_tools()
 
-    with patch("uvicorn.Server", side_effect=_make_fake_uvicorn_server):
+    with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
         ctx = McpServerContext(mcp)
         ctx.__enter__()
 
@@ -321,7 +321,7 @@ def test_exit_escalates_on_stuck_thread():
         ctx._thread.is_alive = mock_is_alive
 
         # Mock log.emit to verify it's called
-        with patch("kodo.log.emit") as mock_emit:
+        with patch("kodo.log.emit", autospec=True) as mock_emit:
             ctx.__exit__(None, None, None)
 
             # Should have called call_soon_threadsafe twice (initial + escalation)

@@ -55,7 +55,7 @@ class TestFallback:
 class TestAssessWithMockedLLM:
     """Test actual convergence assessment with mocked dependencies."""
 
-    @patch("kodo.knowledge.convergence.run_in_thread")
+    @patch("kodo.knowledge.convergence.run_in_thread", autospec=True)
     def test_successful_assessment(self, mock_run_in_thread):
         # Arrange: Mock the LLM response
         mock_result = MagicMock()
@@ -80,7 +80,7 @@ class TestAssessWithMockedLLM:
         # Verify run_in_thread was called
         mock_run_in_thread.assert_called_once()
 
-    @patch("kodo.knowledge.convergence.run_in_thread")
+    @patch("kodo.knowledge.convergence.run_in_thread", autospec=True)
     def test_assessment_with_answer_truncation(self, mock_run_in_thread):
         """Test that long answers are truncated to 5000 chars in the prompt."""
         mock_result = MagicMock()
@@ -102,7 +102,7 @@ class TestAssessWithMockedLLM:
         assert result["confidence"] == 0.7
         assert result["should_continue"] is True
 
-    @patch("kodo.knowledge.convergence.run_in_thread")
+    @patch("kodo.knowledge.convergence.run_in_thread", autospec=True)
     def test_assessment_exception_triggers_fallback(self, mock_run_in_thread):
         """Test that exceptions during assessment trigger the fallback logic."""
         # Arrange: Mock run_in_thread to raise an exception
@@ -124,7 +124,7 @@ class TestAssessWithMockedLLM:
         assert "Assessment error" in result["reasoning"]
         assert "LLM timeout" in result["reasoning"]
 
-    @patch("kodo.knowledge.convergence.run_in_thread")
+    @patch("kodo.knowledge.convergence.run_in_thread", autospec=True)
     def test_assessment_with_invalid_llm_response(self, mock_run_in_thread):
         """Test that invalid JSON from LLM is handled gracefully."""
         mock_result = MagicMock()
@@ -144,8 +144,8 @@ class TestAssessWithMockedLLM:
         assert result["should_continue"] is True
         assert "could not parse" in result["reasoning"].lower()
 
-    @patch("kodo.knowledge.convergence.Agent")
-    @patch("kodo.knowledge.convergence.make_fresh_model")
+    @patch("kodo.knowledge.convergence.Agent", autospec=True)
+    @patch("kodo.knowledge.convergence.make_fresh_model", autospec=True)
     def test_assessment_creates_agent_with_correct_config(self, mock_make_model, mock_agent_class):
         """Test that the agent is created with correct model and system prompt."""
         # This test doesn't mock run_in_thread, so _run() executes and we get coverage of lines 48-50

@@ -76,7 +76,7 @@ class TestRunImproveDiscovery:
             ],
         )
 
-        with patch("kodo.cli._intake.run_single_turn_plan", return_value=raw_plan):
+        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=raw_plan):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is not None
@@ -87,7 +87,7 @@ class TestRunImproveDiscovery:
         """When single-turn plan returns None, discovery returns None."""
         run_dir = RunDir.create(tmp_path, "test")
 
-        with patch("kodo.cli._intake.run_single_turn_plan", return_value=None):
+        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=None):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is None
@@ -97,7 +97,7 @@ class TestRunImproveDiscovery:
         run_dir = RunDir.create(tmp_path, "test")
         empty_plan = GoalPlan(context="Test", stages=[])
 
-        with patch("kodo.cli._intake.run_single_turn_plan", return_value=empty_plan):
+        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=empty_plan):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is None
@@ -112,7 +112,7 @@ class TestRunImproveDiscovery:
             captured_kwargs["initial_message"] = initial_message
             return None
 
-        with patch("kodo.cli._intake.run_single_turn_plan", side_effect=capture_plan):
+        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan):
             run_improve_discovery(run_dir, "/tmp/report.md", focus="performance")
 
         assert "performance" in captured_kwargs["system_prompt"]
@@ -128,8 +128,8 @@ class TestRunImproveDiscovery:
             return None
 
         with (
-            patch("kodo.cli._intake.run_single_turn_plan", side_effect=capture_plan),
-            patch("kodo.cli._improve.detect_docker", return_value=True),
+            patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan),
+            patch("kodo.cli._improve.detect_docker", autospec=True, return_value=True),
         ):
             run_improve_discovery(run_dir, "/tmp/report.md")
 
@@ -146,8 +146,8 @@ class TestRunImproveDiscovery:
             return None
 
         with (
-            patch("kodo.cli._intake.run_single_turn_plan", side_effect=capture_plan),
-            patch("kodo.cli._improve.detect_docker", return_value=False),
+            patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan),
+            patch("kodo.cli._improve.detect_docker", autospec=True, return_value=False),
         ):
             run_improve_discovery(run_dir, "/tmp/report.md")
 
@@ -166,7 +166,7 @@ class TestRunImproveDiscovery:
         )
         prior = "\n## Prior items\n- issue1\n"
 
-        with patch("kodo.cli._intake.run_single_turn_plan", return_value=plan):
+        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=plan):
             result = run_improve_discovery(run_dir, "/tmp/report.md", prior_needs_decision=prior)
 
         assert result is not None
@@ -196,7 +196,7 @@ class TestCollectPriorNeedsDecision:
             "- evaluate migration to async\n"
         )
 
-        with patch("kodo.log._runs_root", return_value=runs_root):
+        with patch("kodo.log._runs_root", autospec=True, return_value=runs_root):
             result = _collect_prior_needs_decision(run_dir)
 
         assert "consider refactoring auth module" in result
@@ -214,7 +214,7 @@ class TestCollectPriorNeedsDecision:
             "## Needs decision\n- should not appear\n"
         )
 
-        with patch("kodo.log._runs_root", return_value=runs_root):
+        with patch("kodo.log._runs_root", autospec=True, return_value=runs_root):
             result = _collect_prior_needs_decision(run_dir)
 
         assert result == ""
@@ -225,7 +225,7 @@ class TestCollectPriorNeedsDecision:
         runs_root = tmp_path / "runs"
         runs_root.mkdir(parents=True)
 
-        with patch("kodo.log._runs_root", return_value=runs_root):
+        with patch("kodo.log._runs_root", autospec=True, return_value=runs_root):
             result = _collect_prior_needs_decision(run_dir)
 
         assert result == ""
@@ -235,7 +235,7 @@ class TestCollectPriorNeedsDecision:
         run_dir = RunDir.create(tmp_path, "current_run")
         nonexistent = tmp_path / "nonexistent_runs"
 
-        with patch("kodo.log._runs_root", return_value=nonexistent):
+        with patch("kodo.log._runs_root", autospec=True, return_value=nonexistent):
             result = _collect_prior_needs_decision(run_dir)
 
         assert result == ""
@@ -258,7 +258,7 @@ class TestCollectPriorNeedsDecision:
             return original_read_text(self, *args, **kwargs)
 
         with (
-            patch("kodo.log._runs_root", return_value=runs_root),
+            patch("kodo.log._runs_root", autospec=True, return_value=runs_root),
             patch.object(Path, "read_text", patched_read_text),
         ):
             result = _collect_prior_needs_decision(run_dir)
@@ -279,7 +279,7 @@ class TestCollectPriorNeedsDecision:
             "Not a bullet.\n"
         )
 
-        with patch("kodo.log._runs_root", return_value=runs_root):
+        with patch("kodo.log._runs_root", autospec=True, return_value=runs_root):
             result = _collect_prior_needs_decision(run_dir)
 
         assert "real item" in result

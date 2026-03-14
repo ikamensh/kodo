@@ -80,7 +80,7 @@ class TestApplyDoneSignal:
 class TestBuildCyclePrompt:
     def test_basic_prompt_contains_goal_and_dir(self, tmp_path: Path):
         with patch(
-            "kodo.orchestrators.run_status.read_run_status", return_value=""
+            "kodo.orchestrators.run_status.read_run_status", autospec=True, return_value=""
         ):
             prompt = build_cycle_prompt("Build X", tmp_path)
         assert "Build X" in prompt
@@ -89,7 +89,7 @@ class TestBuildCyclePrompt:
 
     def test_prior_summary_appended(self, tmp_path: Path):
         with patch(
-            "kodo.orchestrators.run_status.read_run_status", return_value=""
+            "kodo.orchestrators.run_status.read_run_status", autospec=True, return_value=""
         ):
             prompt = build_cycle_prompt("Build X", tmp_path, prior_summary="Did Y")
         assert "Previous progress" in prompt
@@ -98,14 +98,14 @@ class TestBuildCyclePrompt:
 
     def test_no_prior_summary_section_when_empty(self, tmp_path: Path):
         with patch(
-            "kodo.orchestrators.run_status.read_run_status", return_value=""
+            "kodo.orchestrators.run_status.read_run_status", autospec=True, return_value=""
         ):
             prompt = build_cycle_prompt("Build X", tmp_path, prior_summary="")
         assert "Previous progress" not in prompt
 
     def test_run_status_included(self, tmp_path: Path):
         with patch(
-            "kodo.orchestrators.run_status.read_run_status",
+            "kodo.orchestrators.run_status.read_run_status", autospec=True,
             return_value="## Status\nAll green",
         ):
             prompt = build_cycle_prompt("Build X", tmp_path)

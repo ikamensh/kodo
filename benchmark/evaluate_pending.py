@@ -35,6 +35,12 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro") -> int:
         log.error("KODO_BENCH_URL and KODO_BENCH_TOKEN must be set")
         return 1
 
+    from benchmark._util import ensure_docker_running
+
+    if not ensure_docker_running():
+        log.error("Docker is required for evaluation but could not be started")
+        return 1
+
     full_dataset = DATASET_MAP.get(dataset_arg, dataset_arg)
 
     log.info("Fetching unevaluated predictions for '%s'...", dataset_arg)
@@ -132,5 +138,57 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro") -> int:
             arm, len(resolved), len(failed), len(error),
         )
 
+        # Bulk upload results that weren't streamed via on_instance
+        # (e.g. Pro eval which doesn't support per-instance callbacks)
+        if resolved or failed or error:
+            try:
+                upload_eval_results(
+                    full_dataset, arm,
+                    resolved=resolved, failed=failed, error=error,
+                )
+                log.info("Bulk-uploaded eval results for %s", arm)
+            except Exception as exc:
+                upload_errors += 1
+                log.warning("Bulk upload failed for %s: %s", arm, exc)
+
     log.info("Evaluation complete: %d/%d resolved", total_resolved, total_evaluated)
     return 0 if upload_errors == 0 else 1
+
+
+def main() -> int:
+    """CLI entrypoint for standalone evaluate-pending runs."""
+    import argparse
+    import warnings
+
+    warnings.filterwarnings("ignore", message=r"urllib3.*doesn't match a supported version")
+    from dotenv import find_dotenv, load_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+
+    from benchmark._util import setup_logging
+
+    parser = argparse.ArgumentParser(
+        description="Fetch unevaluated predictions from the online server, "
+        "run Docker-based swebench evaluation locally, and upload results.",
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["pro", "verified", "lite"],
+        default="pro",
+        help="SWE-bench variant (default: pro)",
+    )
+    parser.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path.home() / ".kodo" / "benchmark",
+        help="Workspace directory (default: ~/.kodo/benchmark)",
+    )
+    args = parser.parse_args()
+
+    setup_logging()
+    args.workspace.mkdir(parents=True, exist_ok=True)
+    return evaluate_pending(args.workspace, dataset_arg=args.dataset)
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())

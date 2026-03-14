@@ -51,7 +51,7 @@ def tmp_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_resume_skips_completed_cycles(mock_viewer, tmp_project):
     """When resuming after 2 completed cycles with max_cycles=5, run starts at cycle 3."""
     orch = FakeOrchestrator(
@@ -71,7 +71,7 @@ def test_resume_skips_completed_cycles(mock_viewer, tmp_project):
         current_stage_cycles=0,
     )
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run(
             "test goal",
             tmp_project,
@@ -90,7 +90,7 @@ def test_resume_skips_completed_cycles(mock_viewer, tmp_project):
     assert result.finished is True
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_resume_prior_summary_passed(mock_viewer, tmp_project):
     """First resumed cycle receives the prior_summary from ResumeState."""
     orch = FakeOrchestrator(
@@ -109,13 +109,13 @@ def test_resume_prior_summary_passed(mock_viewer, tmp_project):
         current_stage_cycles=0,
     )
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         orch.run("goal", tmp_project, team, max_cycles=3, resume=resume)
 
     assert orch._cycle_calls[0]["prior_summary"] == "here is what happened before"
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_normal_run_unchanged(mock_viewer, tmp_project):
     """Without resume, run starts at cycle 1 with empty prior_summary."""
     orch = FakeOrchestrator(
@@ -125,7 +125,7 @@ def test_normal_run_unchanged(mock_viewer, tmp_project):
     )
     team = {"worker": make_agent()}
 
-    with patch("kodo.viewer.open_viewer", create=True):
+    with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
         result = orch.run("goal", tmp_project, team, max_cycles=5)
 
     assert len(orch._cycle_calls) == 1
@@ -133,7 +133,7 @@ def test_normal_run_unchanged(mock_viewer, tmp_project):
     assert result.finished is True
 
 
-@patch("kodo.orchestrators.base.open_viewer", create=True)
+@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_keyboard_interrupt_emits_run_end(mock_viewer, tmp_project):
     """KeyboardInterrupt during cycle loop still emits run_end via try/finally."""
 
@@ -145,7 +145,7 @@ def test_keyboard_interrupt_emits_run_end(mock_viewer, tmp_project):
     team = {"worker": make_agent()}
 
     with pytest.raises(KeyboardInterrupt):
-        with patch("kodo.viewer.open_viewer", create=True):
+        with patch("kodo.viewer.open_viewer", create=True):  # noqa: autospec
             orch.run("goal", tmp_project, team, max_cycles=3)
 
     # Verify run_end was emitted despite the interrupt
@@ -200,8 +200,8 @@ class TestInjectResumeSessions:
         inject_resume_sessions(team, None)
         # No exception, no attribute set — just a no-op
 
-    @patch("kodo.sessions.claude.ClaudeSession.__init__", lambda self, **kw: None)
-    def test_claude_session_sets_resume_session_id(self):
+    @patch("kodo.sessions.claude.ClaudeSession.__init__", autospec=True, side_effect=lambda self, **kw: None)
+    def test_claude_session_sets_resume_session_id(self, _mock_init):
         from kodo.orchestrators.resume import inject_resume_sessions
         from kodo.sessions.claude import ClaudeSession
 

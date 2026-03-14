@@ -28,12 +28,12 @@ from kodo.factory import (
 def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False):
     """Patch all has_* helpers at once."""
     with ExitStack() as stack:
-        stack.enter_context(patch("kodo.factory.has_claude", return_value=claude))
-        stack.enter_context(patch("kodo.factory.has_cursor", return_value=cursor))
-        stack.enter_context(patch("kodo.factory.has_codex", return_value=codex))
-        stack.enter_context(patch("kodo.factory.has_gemini_cli", return_value=gemini))
-        stack.enter_context(patch("kodo.factory.has_kimi", return_value=kimi))
-        stack.enter_context(patch("kodo.factory.make_session"))
+        stack.enter_context(patch("kodo.factory.has_claude", autospec=True, return_value=claude))
+        stack.enter_context(patch("kodo.factory.has_cursor", autospec=True, return_value=cursor))
+        stack.enter_context(patch("kodo.factory.has_codex", autospec=True, return_value=codex))
+        stack.enter_context(patch("kodo.factory.has_gemini_cli", autospec=True, return_value=gemini))
+        stack.enter_context(patch("kodo.factory.has_kimi", autospec=True, return_value=kimi))
+        stack.enter_context(patch("kodo.factory.make_session", autospec=True))
         yield
 
 
@@ -222,7 +222,7 @@ class TestCheckBackendStatus:
         from subprocess import CompletedProcess
 
         result = CompletedProcess(["claude", "--version"], 0, stdout="CLI 2.5.0\n", stderr="")
-        with patch("kodo.factory.subprocess.run", return_value=result):
+        with patch("kodo.factory.subprocess.run", autospec=True, return_value=result):
             version, warning = check_backend_status("claude")
         assert version == "CLI 2.5.0"
         assert warning is None
@@ -236,7 +236,7 @@ class TestCheckBackendStatus:
             stdout="CLI 2.5.0\n",
             stderr="Warning: authentication failed for current session\n",
         )
-        with patch("kodo.factory.subprocess.run", return_value=result):
+        with patch("kodo.factory.subprocess.run", autospec=True, return_value=result):
             version, warning = check_backend_status("claude")
         assert version == "CLI 2.5.0"
         assert warning is not None
@@ -251,7 +251,7 @@ class TestCheckBackendStatus:
             stdout="CLI 2.5.0\n",
             stderr="quota exceeded\n",
         )
-        with patch("kodo.factory.subprocess.run", return_value=result):
+        with patch("kodo.factory.subprocess.run", autospec=True, return_value=result):
             version, warning = check_backend_status("claude")
         assert version == "CLI 2.5.0"
         assert warning is not None
@@ -266,7 +266,7 @@ class TestCheckBackendStatus:
             stdout="",
             stderr="401 Unauthorized\n",
         )
-        with patch("kodo.factory.subprocess.run", return_value=result):
+        with patch("kodo.factory.subprocess.run", autospec=True, return_value=result):
             version, warning = check_backend_status("claude")
         assert "error" in version
         assert warning is not None
@@ -281,7 +281,7 @@ class TestCheckBackendStatus:
             stdout="",
             stderr="something unexpected\n",
         )
-        with patch("kodo.factory.subprocess.run", return_value=result):
+        with patch("kodo.factory.subprocess.run", autospec=True, return_value=result):
             version, warning = check_backend_status("claude")
         assert "error (exit 42)" in version
         assert warning is not None
@@ -290,14 +290,14 @@ class TestCheckBackendStatus:
     def test_timeout(self):
         from subprocess import TimeoutExpired
 
-        with patch("kodo.factory.subprocess.run", side_effect=TimeoutExpired("cmd", 15)):
+        with patch("kodo.factory.subprocess.run", autospec=True, side_effect=TimeoutExpired("cmd", 15)):
             version, warning = check_backend_status("claude")
         assert version == "timeout"
         assert warning is not None
         assert "timed out" in warning
 
     def test_os_error(self):
-        with patch("kodo.factory.subprocess.run", side_effect=OSError("permission denied")):
+        with patch("kodo.factory.subprocess.run", autospec=True, side_effect=OSError("permission denied")):
             version, warning = check_backend_status("claude")
         assert version == "error"
         assert "permission denied" in warning

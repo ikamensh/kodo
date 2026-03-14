@@ -27,16 +27,16 @@ def _base_patches(done_signal):
 
     with (
         patch(
-            "kodo.orchestrators.cli_base.build_mcp_server", return_value=mock_mcp
+            "kodo.orchestrators.cli_base.build_mcp_server", autospec=True, return_value=mock_mcp
         ),
         patch(
-            "kodo.orchestrators.cli_base.McpServerContext", return_value=mock_ctx
+            "kodo.orchestrators.cli_base.McpServerContext", autospec=True, return_value=mock_ctx
         ),
-        patch("kodo.orchestrators.cli_base.build_cycle_prompt", return_value="go"),
-        patch("kodo.orchestrators.cli_base.DoneSignal", return_value=done_signal),
-        patch("kodo.orchestrators.cli_base.VerificationState"),
-        patch("kodo.orchestrators.cli_base.log"),
-        patch("kodo.orchestrators.codex_cli.log"),
+        patch("kodo.orchestrators.cli_base.build_cycle_prompt", autospec=True, return_value="go"),
+        patch("kodo.orchestrators.cli_base.DoneSignal", autospec=True, return_value=done_signal),
+        patch("kodo.orchestrators.cli_base.VerificationState", autospec=True),
+        patch("kodo.orchestrators.cli_base.log", autospec=True),
+        patch("kodo.orchestrators.codex_cli.log", autospec=True),
     ):
         yield
 
@@ -73,9 +73,9 @@ class TestCodexJsonlParsing:
             {"type": "message", "msg": {"type": "message", "content": "hello"}},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.exchanges >= 2
@@ -88,9 +88,9 @@ class TestCodexJsonlParsing:
             {"type": "task_complete", "msg": {"type": "task_complete", "message": "All done!"}},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "All done!" in result.summary
@@ -103,9 +103,9 @@ class TestCodexJsonlParsing:
             {"type": "message", "msg": {"type": "message", "content": "Working on it"}},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "Working on it" in result.summary
@@ -120,9 +120,9 @@ class TestCodexJsonlParsing:
             {"type": "message", "msg": {"type": "message", "content": "ok"}},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # Should not crash, should capture "ok"
@@ -138,9 +138,9 @@ class TestCodexErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=1, stderr_text="model not found")
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "model not found" in result.summary
@@ -150,9 +150,9 @@ class TestCodexErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=42, stderr_text="")
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "42" in result.summary
@@ -170,9 +170,9 @@ class TestCodexDoneSignal:
             {"type": "message", "msg": {"type": "message", "content": "subprocess output"}},
         ])
 
-        with _base_patches(done), patch("subprocess.Popen", return_value=proc):
+        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.finished is True

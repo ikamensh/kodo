@@ -102,9 +102,9 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor",
+                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
                 return_value=mock_processor,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
@@ -131,9 +131,9 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor",
+                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
                 return_value=mock_processor,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
@@ -160,9 +160,9 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor",
+                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):

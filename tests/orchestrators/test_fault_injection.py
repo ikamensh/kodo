@@ -60,7 +60,7 @@ def test_agent_session_connection_error_handled(tmp_path: Path):
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init),
+        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
         patch.object(ApiOrchestrator, "_summarize", return_value="summary"),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -94,7 +94,7 @@ def test_summarize_failure_returns_fallback_and_emits_cycle_end(tmp_path: Path):
 
     team = _make_fake_team()
 
-    with patch("kodo.orchestrators.api.Agent.__init__", fake_agent_init):
+    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle("build feature", tmp_path, team, max_exchanges=10)
 

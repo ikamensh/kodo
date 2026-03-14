@@ -57,8 +57,8 @@ class TestBuildParamsFromFlags:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -128,7 +128,7 @@ class TestBuildParamsFromFlags:
     def test_api_key_validation_exits(self, project):
         args = _make_args(orchestrator="api", orchestrator_model="opus")
         with (
-            patch(
+            patch(  # noqa: autospec
                 "kodo.cli._params.check_api_key",
                 return_value="ANTHROPIC_API_KEY not set",
             ),
@@ -162,7 +162,7 @@ def test_unreadable_config_falls_back_to_selection(project):
         return original_read_text(self, *args, **kwargs)
 
     with patch.object(Path, "read_text", patched_read_text):
-        with patch("kodo.cli._params.select_params") as mock_select:
+        with patch("kodo.cli._params.select_params", autospec=True) as mock_select:
             mock_select.return_value = {
                 "team": "full",
                 "orchestrator": "api",
@@ -184,16 +184,16 @@ class TestNonInteractiveGoalInput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
     def test_inline_goal(self, project):
         """--goal 'text' passes goal_text correctly through to launch."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--goal", "Build a web app", "--project", str(project)]
             _main_inner()
@@ -206,8 +206,8 @@ class TestNonInteractiveGoalInput:
         goal_file.write_text("Build an API server")
 
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--goal-file", str(goal_file), "--project", str(project)]
             _main_inner()
@@ -273,8 +273,8 @@ class TestRunIntakeNoninteractive:
         )
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Build something")
 
@@ -311,8 +311,8 @@ class TestRunIntakeNoninteractive:
         )
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Build something")
 
@@ -325,8 +325,8 @@ class TestRunIntakeNoninteractive:
         session = make_scripted_session(["Hmm.", "Still nothing."], project)
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
         ):
             result = run_intake_noninteractive(run_dir, "Vague goal")
 
@@ -334,7 +334,7 @@ class TestRunIntakeNoninteractive:
 
     def test_returns_none_when_no_backend(self, project):
         run_dir = RunDir.create(project, "test")
-        with patch("kodo.cli._intake.preferred_backend", return_value=None):
+        with patch("kodo.cli._intake.preferred_backend", autospec=True, return_value=None):
             result = run_intake_noninteractive(run_dir, "Build something")
 
         assert result is None
@@ -345,9 +345,9 @@ class TestRunIntakeNoninteractive:
         session = make_scripted_session(["Done."], project)
 
         with (
-            patch("kodo.cli._intake.make_session", return_value=session),
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("builtins.input", side_effect=AssertionError("input() called")),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("builtins.input", autospec=True, side_effect=AssertionError("input() called")),
         ):
             run_intake_noninteractive(run_dir, "Build something")
 
@@ -361,22 +361,22 @@ class TestNonInteractiveEndToEnd:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
     def test_no_interactive_prompts(self, project):
         """The full non-interactive flow must never call input() or questionary."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
             patch(
-                "builtins.input",
+                "builtins.input", autospec=True,
                 side_effect=AssertionError("input() should not be called"),
             ),
             patch(
-                "questionary.select",
+                "questionary.select", autospec=True,
                 side_effect=AssertionError("questionary should not be called"),
             ),
         ):
@@ -387,8 +387,8 @@ class TestNonInteractiveEndToEnd:
     def test_params_passed_through(self, project):
         """CLI flags should be reflected in the params passed to launch_run."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = [
                 "kodo",
@@ -419,8 +419,8 @@ class TestNonInteractiveEndToEnd:
     def test_skip_intake_flag(self, project):
         """--skip-intake should prevent intake from running."""
         with (
-            patch("kodo.cli._main.launch_run"),
-            patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
+            patch("kodo.cli._main.launch_run", autospec=True),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True) as mock_intake,
         ):
             sys.argv = [
                 "kodo",
@@ -467,9 +467,9 @@ class TestNonInteractiveEndToEnd:
             return rd
 
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
-            patch("kodo.cli._main.RunDir.create", side_effect=create_with_plan),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True) as mock_intake,
+            patch("kodo.cli._main.RunDir.create", autospec=True, side_effect=create_with_plan),
         ):
             sys.argv = ["kodo", "--goal", "Build X", "--project", str(project)]
             _main_inner()
@@ -490,17 +490,17 @@ class TestImproveFlag:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
-            patch("kodo.cli._main.run_improve_discovery", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+            patch("kodo.cli._main.run_improve_discovery", autospec=True, return_value=None),
         ):
             yield
 
     def test_improve_populates_goal_from_template(self, project):
         """--improve should construct goal text from _IMPROVE_GOAL template."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
@@ -514,8 +514,8 @@ class TestImproveFlag:
     def test_improve_skips_intake(self, project):
         """--improve should skip intake interview."""
         with (
-            patch("kodo.cli._main.launch_run"),
-            patch("kodo.cli._main.run_intake_noninteractive") as mock_intake,
+            patch("kodo.cli._main.launch_run", autospec=True),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True) as mock_intake,
         ):
             sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
@@ -524,8 +524,8 @@ class TestImproveFlag:
     def test_improve_defaults_to_full_mode(self, project):
         """--improve should default mode to full."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
@@ -535,8 +535,8 @@ class TestImproveFlag:
     def test_improve_respects_explicit_team(self, project):
         """--improve should not override an explicitly set --team."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--improve", "--team", "quick", "--project", str(project)]
             _main_inner()
@@ -546,14 +546,14 @@ class TestImproveFlag:
     def test_improve_no_interactive_prompts(self, project):
         """--improve must never call input() or questionary."""
         with (
-            patch("kodo.cli._main.launch_run"),
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
             patch(
-                "builtins.input",
+                "builtins.input", autospec=True,
                 side_effect=AssertionError("input() should not be called"),
             ),
             patch(
-                "questionary.select",
+                "questionary.select", autospec=True,
                 side_effect=AssertionError("questionary should not be called"),
             ),
         ):
@@ -577,8 +577,8 @@ class TestImproveFlag:
     def test_improve_passes_staged_plan(self, project):
         """--improve should pass a GoalPlan (not None) to launch_run."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
@@ -594,8 +594,8 @@ class TestImproveFlag:
     def test_improve_plan_stage_order(self, project):
         """--improve stages should follow the right sequence."""
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
         ):
             sys.argv = ["kodo", "--improve", "--project", str(project)]
             _main_inner()
@@ -625,10 +625,10 @@ class TestImproveFlag:
             pytest.skip("fixtures/buggy_project not found")
 
         with (
-            patch("kodo.cli._main.launch_run") as mock_launch,
-            patch("kodo.cli._main.run_improve_discovery", return_value=None),
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._main.launch_run", autospec=True) as mock_launch,
+            patch("kodo.cli._main.run_improve_discovery", return_value=None),  # noqa: autospec
+            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),  # noqa: autospec
+            patch("kodo.cli._params.check_api_key", return_value=None),  # noqa: autospec
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
             sys.argv = ["kodo", "--improve", "--project", str(buggy_project)]
@@ -917,8 +917,8 @@ class TestInputValidation:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -1000,8 +1000,8 @@ class TestTeamConfigErrors:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -1049,8 +1049,8 @@ class TestPermissionErrors:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -1058,7 +1058,7 @@ class TestPermissionErrors:
         """PermissionError from _save_config should produce a clear error."""
         with (
             patch(
-                "kodo.cli._params._save_config",
+                "kodo.cli._params._save_config", autospec=True,
                 side_effect=PermissionError("mock permission denied"),
             ),
             pytest.raises(SystemExit),
@@ -1094,11 +1094,11 @@ class TestGoalMdOSErrorWarning:
 
         with (
             patch.object(Path, "read_text", patched_read_text),
-            patch("kodo.cli._main.get_goal", return_value="Fallback goal"),
-            patch("kodo.cli._main.launch_run"),
-            patch("kodo.cli._main._offer_intake", return_value=(None, None)),
+            patch("kodo.cli._main.get_goal", autospec=True, return_value="Fallback goal"),
+            patch("kodo.cli._main.launch_run", autospec=True),
+            patch("kodo.cli._main._offer_intake", autospec=True, return_value=(None, None)),
             patch(
-                "kodo.cli._main._load_or_select_params",
+                "kodo.cli._main._load_or_select_params", autospec=True,
                 return_value={
                     "team": "full",
                     "orchestrator": "api",
@@ -1125,8 +1125,8 @@ class TestInvalidModeDefensiveCheck:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", return_value="claude-code"),
-            patch("kodo.cli._params.check_api_key", return_value=None),
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
 
@@ -1140,8 +1140,8 @@ class TestInvalidModeDefensiveCheck:
             "max_cycles": 5,
         }
         with (
-            patch("kodo.cli._main._build_params_from_flags", return_value=bad_params),
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main._build_params_from_flags", autospec=True, return_value=bad_params),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
             patch("kodo.cli._launch._original_stdout", None),
             pytest.raises(SystemExit),
         ):
@@ -1157,8 +1157,8 @@ class TestInvalidModeDefensiveCheck:
             "max_cycles": 5,
         }
         with (
-            patch("kodo.cli._main._build_params_from_flags", return_value=bad_params),
-            patch("kodo.cli._main.run_intake_noninteractive", return_value=None),
+            patch("kodo.cli._main._build_params_from_flags", autospec=True, return_value=bad_params),
+            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
             patch("kodo.cli._launch._original_stdout", None),
             pytest.raises(SystemExit),
         ):

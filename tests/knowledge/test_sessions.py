@@ -33,7 +33,7 @@ class TestApiSession:
 class TestApiSessionQuery:
     """Test the query() method with various scenarios."""
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_successful(self, mock_run_in_thread, tmp_path):
         """Test successful query execution with token tracking."""
         # Mock successful agent result
@@ -64,7 +64,7 @@ class TestApiSessionQuery:
         # Verify run_in_thread was called
         mock_run_in_thread.assert_called_once()
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_with_empty_output(self, mock_run_in_thread, tmp_path):
         """Test query when agent returns empty output."""
         mock_result = MagicMock()
@@ -83,7 +83,7 @@ class TestApiSessionQuery:
         assert result.text == ""
         assert not result.is_error
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_unexpected_model_behavior(self, mock_run_in_thread, tmp_path):
         """Test that UnexpectedModelBehavior is treated as partial success."""
         # Create exception with UnexpectedModelBehavior in name
@@ -102,7 +102,7 @@ class TestApiSessionQuery:
         assert not result.is_error
         assert session.stats.queries == 1  # Still increments
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_http_error(self, mock_run_in_thread, tmp_path):
         """Test ModelHTTPError handling."""
         from pydantic_ai.exceptions import ModelHTTPError
@@ -119,7 +119,7 @@ class TestApiSessionQuery:
         assert "API error" in result.text
         assert result.is_error
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_timeout(self, mock_run_in_thread, tmp_path):
         """Test TimeoutError handling."""
         mock_run_in_thread.side_effect = TimeoutError("Thread timed out")
@@ -130,7 +130,7 @@ class TestApiSessionQuery:
         assert "Agent timed out after 300s" in result.text
         assert result.is_error
 
-    @patch("kodo.knowledge.sessions.run_in_thread")
+    @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_generic_error(self, mock_run_in_thread, tmp_path):
         """Test generic exception handling."""
         mock_run_in_thread.side_effect = ValueError("Something went wrong")
@@ -141,8 +141,8 @@ class TestApiSessionQuery:
         assert "Error: ValueError: Something went wrong" in result.text
         assert result.is_error
 
-    @patch("kodo.knowledge.sessions.PydanticAgent")
-    @patch("kodo.knowledge.sessions.make_fresh_model")
+    @patch("kodo.knowledge.sessions.PydanticAgent", autospec=True)
+    @patch("kodo.knowledge.sessions.make_fresh_model", autospec=True)
     def test_query_with_tools(self, mock_make_model, mock_agent_class, tmp_path):
         """Test that tools are correctly passed to the agent."""
         # Mock the agent and model

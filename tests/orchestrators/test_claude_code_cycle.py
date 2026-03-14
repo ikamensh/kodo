@@ -19,12 +19,12 @@ def _base_patches(fake_client_cls, done_signal):
         patch.dict(os.environ, env_without_key, clear=True),
         patch("claude_agent_sdk.ClaudeSDKClient", fake_client_cls),
         patch(
-            "kodo.orchestrators.claude_code.build_mcp_server", return_value=mock_mcp
+            "kodo.orchestrators.claude_code.build_mcp_server", autospec=True, return_value=mock_mcp
         ),
-        patch("kodo.orchestrators.claude_code.build_cycle_prompt", return_value="go"),
-        patch("kodo.orchestrators.claude_code.DoneSignal", return_value=done_signal),
-        patch("kodo.orchestrators.claude_code.VerificationState"),
-        patch("kodo.orchestrators.claude_code.log"),
+        patch("kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"),
+        patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=done_signal),
+        patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
+        patch("kodo.orchestrators.claude_code.log", autospec=True),
     ):
         yield
 
@@ -83,7 +83,7 @@ class TestCycleTracking:
 
         with _base_patches(FakeClient, done):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.exchanges >= 3
@@ -96,7 +96,7 @@ class TestCycleTracking:
 
         with _base_patches(FakeClient, done):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.finished is True
@@ -115,7 +115,7 @@ class TestCycleErrors:
 
         with _base_patches(FakeClient, done):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert "[Claude Code error]" in result.summary
@@ -128,7 +128,7 @@ class TestCycleErrors:
 
         with _base_patches(FakeClient, done):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # Should not crash; result should exist
@@ -157,7 +157,7 @@ class TestNudgeLoop:
 
         with _base_patches(CountingClient, done):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # Initial query + up to _MAX_NUDGES (3) nudge queries = 4
@@ -180,7 +180,7 @@ class TestDisconnect:
         with _base_patches(FakeClient, done):
             # Should not raise
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
         assert result is not None
 
@@ -197,6 +197,6 @@ class TestDisconnect:
                 _make_orch().cycle(
                     goal="test",
                     project_dir=tmp_path,
-                    team=MagicMock(),
+                    team=MagicMock(spec=dict),
                     max_exchanges=5,
                 )

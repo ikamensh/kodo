@@ -23,6 +23,7 @@ from kodo.cli._intake import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan
+from kodo.sessions.base import Session
 from tests.conftest import make_scripted_session
 
 
@@ -85,13 +86,13 @@ class TestStdinHasData:
 
     def test_handles_value_error(self):
         """ValueError from select → False."""
-        with patch("select.select", side_effect=ValueError):
+        with patch("select.select", autospec=True, side_effect=ValueError):
             result = _stdin_has_data()
         assert result is False
 
     def test_handles_os_error(self):
         """OSError from select → False."""
-        with patch("select.select", side_effect=OSError):
+        with patch("select.select", autospec=True, side_effect=OSError):
             result = _stdin_has_data()
         assert result is False
 
@@ -106,8 +107,8 @@ class TestGetGoal:
         """Single line followed by empty line."""
         inputs = iter(["Build a REST API", ""])
 
-        with patch("builtins.input", side_effect=lambda *a: next(inputs)):
-            with patch("kodo.cli._intake._stdin_has_data", return_value=False):
+        with patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)):
+            with patch("kodo.cli._intake._stdin_has_data", autospec=True, return_value=False):
                 result = get_goal()
 
         assert result == "Build a REST API"
@@ -117,8 +118,8 @@ class TestGetGoal:
         inputs = iter(["Build an API", "with auth", "and tests", ""])
 
         with (
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
-            patch("kodo.cli._intake._stdin_has_data", return_value=False),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake._stdin_has_data", autospec=True, return_value=False),
         ):
             result = get_goal()
 
@@ -137,7 +138,7 @@ class TestGetGoal:
                 return "Build something"
             raise EOFError
 
-        with patch("builtins.input", side_effect=mock_input):
+        with patch("builtins.input", autospec=True, side_effect=mock_input):
             result = get_goal()
 
         assert result == "Build something"
@@ -145,8 +146,8 @@ class TestGetGoal:
     def test_empty_goal_exits(self, capsys):
         """Empty goal should exit with code 1."""
         with (
-            patch("builtins.input", side_effect=lambda *a: ""),
-            patch("kodo.cli._intake._stdin_has_data", return_value=False),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: ""),
+            patch("kodo.cli._intake._stdin_has_data", autospec=True, return_value=False),
             pytest.raises(SystemExit, match="1"),
         ):
             get_goal()
@@ -157,8 +158,8 @@ class TestGetGoal:
         stdin_data = iter([True, False])  # first blank: buffered; second: not
 
         with (
-            patch("builtins.input", side_effect=lambda *a: next(inputs)),
-            patch("kodo.cli._intake._stdin_has_data", side_effect=lambda **kw: next(stdin_data)),
+            patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
+            patch("kodo.cli._intake._stdin_has_data", autospec=True, side_effect=lambda **kw: next(stdin_data)),
         ):
             result = get_goal()
 
@@ -525,10 +526,10 @@ class TestReadIntakeOutput:
         output_file = tmp_path / "goal-plan.json"
         output_file.write_text(json.dumps(plan_data))
 
-        session = MagicMock()
+        session = MagicMock(spec=Session)
         project_dir = tmp_path
 
-        with patch("kodo.cli._intake._run_parallelism_pass") as mock_pass:
+        with patch("kodo.cli._intake._run_parallelism_pass", autospec=True) as mock_pass:
             _read_intake_output(
                 output_file, staged=True, session=session, project_dir=project_dir,
             )
@@ -552,10 +553,10 @@ class TestReadIntakeOutput:
         output_file = tmp_path / "goal-plan.json"
         output_file.write_text(json.dumps(plan_data))
 
-        session = MagicMock()
+        session = MagicMock(spec=Session)
         project_dir = tmp_path
 
-        with patch("kodo.cli._intake._run_parallelism_pass") as mock_pass:
+        with patch("kodo.cli._intake._run_parallelism_pass", autospec=True) as mock_pass:
             _read_intake_output(
                 output_file, staged=True, session=session, project_dir=project_dir,
             )
@@ -595,7 +596,7 @@ class TestRunSingleTurnPlan:
         """When no backend is available, returns None."""
         run_dir = RunDir.create(tmp_path, "test")
 
-        with patch("kodo.cli._intake.preferred_backend", return_value=None):
+        with patch("kodo.cli._intake.preferred_backend", autospec=True, return_value=None):
             result = run_single_turn_plan(run_dir, system_prompt="test", initial_message="go")
 
         assert result is None
@@ -620,8 +621,8 @@ class TestRunSingleTurnPlan:
         )
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake.make_session", return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
         ):
             result = run_single_turn_plan(run_dir, system_prompt="test", initial_message="go")
 
@@ -648,8 +649,8 @@ class TestRunSingleTurnPlan:
         )
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake.make_session", return_value=session),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
         ):
             result = run_single_turn_plan(run_dir, system_prompt="test", initial_message="go")
 
@@ -668,7 +669,7 @@ class TestOfferIntake:
         """No available backend → returns (None, None)."""
         run_dir = RunDir.create(tmp_path, "test")
 
-        with patch("kodo.cli._intake.preferred_backend", return_value=None):
+        with patch("kodo.cli._intake.preferred_backend", autospec=True, return_value=None):
             result, session = _offer_intake(run_dir, "Build X")
 
         assert result is None
@@ -680,8 +681,8 @@ class TestOfferIntake:
         run_dir = RunDir.create(tmp_path, "test")
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake._select_one", return_value="Skip"),
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake._select_one", autospec=True, return_value="Skip"),
         ):
             result, session = _offer_intake(run_dir, "Build X")
 
@@ -693,9 +694,10 @@ class TestOfferIntake:
         run_dir = RunDir.create(tmp_path, "test")
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake._select_one", return_value="Quick refine — surfaces implicit constraints, no conversation"),
-            patch("kodo.cli._intake.run_intake_auto", return_value="Refined goal") as mock_auto,
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake._select_one", autospec=True, return_value="Quick refine — surfaces implicit constraints, no conversation"),
+            patch("builtins.input", autospec=True, return_value=""),  # Y default for permissions confirm
+            patch("kodo.cli._intake.run_intake_auto", autospec=True, return_value="Refined goal") as mock_auto,
         ):
             result, session = _offer_intake(run_dir, "Build X")
 
@@ -708,11 +710,11 @@ class TestOfferIntake:
         run_dir = RunDir.create(tmp_path, "test")
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake._select_one", return_value="Interview — interactive Q&A, optionally break into stages"),
-            patch("kodo.cli._intake.available_backend_names", return_value=["Claude"]),
-            patch("builtins.input", return_value=""),  # Y default for staged
-            patch("kodo.cli._intake.run_intake_chat", return_value=(None, None)) as mock_chat,
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake._select_one", autospec=True, return_value="Interview — interactive Q&A, optionally break into stages"),
+            patch("kodo.cli._intake.available_backend_names", autospec=True, return_value=["Claude"]),
+            patch("builtins.input", autospec=True, return_value=""),  # Y default for staged
+            patch("kodo.cli._intake.run_intake_chat", autospec=True, return_value=(None, None)) as mock_chat,
         ):
             _offer_intake(run_dir, "1. Setup\n2. Build\n3. Deploy")
 
@@ -730,11 +732,11 @@ class TestOfferIntake:
         ])
 
         with (
-            patch("kodo.cli._intake.preferred_backend", return_value="claude"),
-            patch("kodo.cli._intake._select_one", side_effect=lambda *a, **kw: next(select_returns)),
-            patch("kodo.cli._intake.available_backend_names", return_value=["Claude", "Cursor"]),
-            patch("builtins.input", return_value="n"),  # don't stage
-            patch("kodo.cli._intake.run_intake_chat", return_value=(None, None)) as mock_chat,
+            patch("kodo.cli._intake.preferred_backend", autospec=True, return_value="claude"),
+            patch("kodo.cli._intake._select_one", autospec=True, side_effect=lambda *a, **kw: next(select_returns)),
+            patch("kodo.cli._intake.available_backend_names", autospec=True, return_value=["Claude", "Cursor"]),
+            patch("builtins.input", autospec=True, side_effect=["", "n"]),  # confirm permissions, don't stage
+            patch("kodo.cli._intake.run_intake_chat", autospec=True, return_value=(None, None)) as mock_chat,
         ):
             _offer_intake(run_dir, "Build something simple")
 

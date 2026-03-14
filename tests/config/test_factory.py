@@ -19,12 +19,12 @@ from kodo.factory import (
 
 def test_clear_backend_cache_invalidates():
     """clear_backend_cache() causes available_backends() to re-detect."""
-    with patch("kodo.factory.shutil.which", return_value=None):
+    with patch("kodo.factory.shutil.which", autospec=True, return_value=None):
         clear_backend_cache()
         b1 = available_backends()
     assert all(not v for v in b1.values())
 
-    with patch("kodo.factory.shutil.which", return_value="/usr/bin/fake"):
+    with patch("kodo.factory.shutil.which", autospec=True, return_value="/usr/bin/fake"):
         clear_backend_cache()
         b2 = available_backends()
     assert all(v for v in b2.values())
@@ -36,7 +36,7 @@ def test_get_team_invalid():
 
 
 def test_build_orchestrator_api():
-    with patch("kodo.orchestrators.api.Summarizer"):
+    with patch("kodo.orchestrators.api.Summarizer", autospec=True):
         orch = build_orchestrator("api", model="opus")
     assert type(orch).__name__ == "ApiOrchestrator"
     assert orch.model == "claude-opus-4-6"
@@ -71,7 +71,7 @@ class TestUserJsonTeams:
         kodo_dir.mkdir(parents=True)
         (kodo_dir / "audit_test.json").write_text(json.dumps(team_json))
 
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch("pathlib.Path.home", autospec=True, return_value=tmp_path):
             result = get_team("audit_test")
             assert result is not None, "get_team() should resolve user JSON teams"
             presets = get_team_presets()
@@ -82,7 +82,7 @@ class TestUserJsonTeams:
         kodo_dir.mkdir(parents=True)
         (kodo_dir / "broken.json").write_text("{not valid json!!!")
 
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch("pathlib.Path.home", autospec=True, return_value=tmp_path):
             try:
                 result = get_team("broken")
                 # Silent fallback — the function didn't raise

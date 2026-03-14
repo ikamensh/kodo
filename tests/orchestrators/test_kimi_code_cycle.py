@@ -79,17 +79,17 @@ def _base_patches(done_signal, session_instance):
 
     with (
         patch(
-            "kodo.orchestrators.kimi_code.build_mcp_server", return_value=mock_mcp
+            "kodo.orchestrators.kimi_code.build_mcp_server", autospec=True, return_value=mock_mcp
         ),
         patch(
-            "kodo.orchestrators.kimi_code.McpServerContext", return_value=mock_ctx
+            "kodo.orchestrators.kimi_code.McpServerContext", autospec=True, return_value=mock_ctx
         ),
         patch(
-            "kodo.orchestrators.kimi_code.build_cycle_prompt", return_value="go"
+            "kodo.orchestrators.kimi_code.build_cycle_prompt", autospec=True, return_value="go"
         ),
-        patch("kodo.orchestrators.kimi_code.DoneSignal", return_value=done_signal),
-        patch("kodo.orchestrators.kimi_code.VerificationState"),
-        patch("kodo.orchestrators.kimi_code.log"),
+        patch("kodo.orchestrators.kimi_code.DoneSignal", autospec=True, return_value=done_signal),
+        patch("kodo.orchestrators.kimi_code.VerificationState", autospec=True),
+        patch("kodo.orchestrators.kimi_code.log", autospec=True),
         patch.object(
             _sdk.Session, "create", new=AsyncMock(return_value=session_instance)
         ),
@@ -145,7 +145,7 @@ class TestKimiCycleTracking:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.exchanges >= 3
@@ -163,7 +163,7 @@ class TestKimiCycleTracking:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         # After max nudges, summary should be set (from last response)
@@ -176,7 +176,7 @@ class TestKimiCycleTracking:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.finished is True
@@ -199,7 +199,7 @@ class TestKimiNudgeLoop:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.finished is False
@@ -230,7 +230,7 @@ class TestKimiNudgeLoop:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert result.finished is True
@@ -248,7 +248,7 @@ class TestKimiApprovalRequest:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(), max_exchanges=5,
+                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
             )
 
         assert approval.resolved is True

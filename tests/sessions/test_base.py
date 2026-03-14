@@ -140,7 +140,7 @@ class TestSubprocessSpawn:
         os.environ["ANTHROPIC_API_KEY"] = "test-key-12345"
 
         try:
-            with patch("subprocess.Popen") as mock_popen:
+            with patch("subprocess.Popen", autospec=True) as mock_popen:
                 mock_proc = MagicMock()
                 mock_proc.stdout = MagicMock()
                 mock_proc.stderr = MagicMock()
@@ -175,7 +175,7 @@ class TestSubprocessSpawn:
         """_spawn respects the cwd parameter."""
         session = ConcreteSubprocessSession(model="test")
 
-        with patch("subprocess.Popen") as mock_popen:
+        with patch("subprocess.Popen", autospec=True) as mock_popen:
             mock_proc = MagicMock()
             mock_proc.stdout = MagicMock()
             mock_proc.stderr = MagicMock()
@@ -206,7 +206,7 @@ class TestSubprocessWait:
         # Create a long-running process
         proc, stderr_chunks, thread = session._spawn(["sleep", "10"])
 
-        with patch("kodo.log.emit") as mock_emit, patch("kodo.log.tprint"):
+        with patch("kodo.log.emit", autospec=True) as mock_emit, patch("kodo.log.tprint", autospec=True):
             session._wait(proc, stderr_chunks, thread)
 
         assert session._did_timeout is True
@@ -229,7 +229,7 @@ class TestSubprocessWait:
         stderr_chunks = []
         thread = MagicMock()
 
-        with patch("kodo.log.emit"), patch("kodo.log.tprint"):
+        with patch("kodo.log.emit", autospec=True), patch("kodo.log.tprint", autospec=True):
             stderr = session._wait(proc, stderr_chunks, thread)
 
         # Should not raise, just handle the error
@@ -247,7 +247,7 @@ class TestSubprocessWait:
         stderr_chunks = []
         thread = MagicMock()
 
-        with patch("kodo.log.emit"), patch("kodo.log.tprint"):
+        with patch("kodo.log.emit", autospec=True), patch("kodo.log.tprint", autospec=True):
             session._wait(proc, stderr_chunks, thread)
 
         # Should have called kill after terminate failed
@@ -263,8 +263,8 @@ class TestSubprocessWait:
         thread = MagicMock()
 
         with (
-            patch("kodo.log.emit") as mock_emit,
-            patch("kodo.log.tprint") as mock_tprint,
+            patch("kodo.log.emit", autospec=True) as mock_emit,
+            patch("kodo.log.tprint", autospec=True) as mock_tprint,
         ):
             session._wait(proc, stderr_chunks, thread)
 

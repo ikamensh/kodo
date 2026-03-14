@@ -591,6 +591,18 @@ def _offer_intake(
     if choice.startswith("Skip"):
         return None, None
 
+    # Agents run with full permissions after refinement — let the user know
+    # before spending time on intake. The main "Proceed?" prompt is skipped
+    # once the user has gone through refinement (they already committed).
+    project_dir = run_dir.project_dir
+    print(f"\n  After refinement, agents run with full permissions in {project_dir}")
+    print("  Make sure you have a git commit or backup.")
+    confirm = input("  Continue? [Y/n] ").strip().lower()
+    if confirm in ("n", "no"):
+        print("Aborted.")
+        import sys
+        sys.exit(0)
+
     if choice.startswith("Quick"):
         refined = run_intake_auto(backend, run_dir, goal_text)
         return refined, None

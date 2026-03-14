@@ -20,8 +20,8 @@ def _make_done_handler(team, project_dir, goal="Build X"):
     """Build the MCP server in legacy mode and extract the `done` handler function."""
     signal = DoneSignal()
     with (
-        patch("kodo.summarizer._probe_ollama", return_value=None),
-        patch("kodo.summarizer._probe_gemini", return_value=None),
+        patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+        patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
         summarizer = Summarizer()
     mcp = build_mcp_server(
@@ -116,8 +116,8 @@ class TestNewDoneTools:
         """Build MCP server in new mode and extract tool handlers."""
         signal = DoneSignal()
         with (
-            patch("kodo.summarizer._probe_ollama", return_value=None),
-            patch("kodo.summarizer._probe_gemini", return_value=None),
+            patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
+            patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
         ):
             summarizer = Summarizer()
         mcp = build_mcp_server(
