@@ -11,6 +11,7 @@ import pytest
 from kodo.cli._subcommands import (
     _ask_agent_fields,
     _cmd_backends,
+    _cmd_issue,
     _cmd_runs,
     _cmd_teams,
     _cmd_teams_add,
@@ -43,7 +44,7 @@ class TestCmdRuns:
 
         fake_run = RunState(
             run_id="20260101_120000",
-            log_file=tmp_path / "run.jsonl",
+            log_file=tmp_path / "log.jsonl",
             goal="Build a REST API for testing",
             orchestrator="api",
             model="gemini-flash",
@@ -80,7 +81,7 @@ class TestCmdRuns:
 
         fake_run = RunState(
             run_id="20260101_130000",
-            log_file=tmp_path / "run.jsonl",
+            log_file=tmp_path / "log.jsonl",
             goal="Unfinished task",
             orchestrator="api",
             model="gemini-flash",
@@ -115,7 +116,7 @@ class TestCmdRuns:
         long_goal = "A" * 100
         fake_run = RunState(
             run_id="20260101_140000",
-            log_file=tmp_path / "run.jsonl",
+            log_file=tmp_path / "log.jsonl",
             goal=long_goal,
             orchestrator="api",
             model="gemini-flash",
@@ -203,6 +204,171 @@ class TestCmdLogs:
                 _cmd_logs()
             # _serve must not have been called before _fail raised SystemExit
             mock_serve.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# kodo issue
+# ---------------------------------------------------------------------------
+
+
+def _fake_run_state(tmp_path, run_id="20260101_120000", finished=False):
+    """Build a RunState for issue tests."""
+    from kodo.log import RunState
+
+    return RunState(
+        run_id=run_id,
+            log_file=tmp_path / run_id / "log.jsonl",
+        goal="Build a REST API",
+        orchestrator="api",
+        model="gemini-flash",
+        project_dir=str(tmp_path),
+        max_exchanges=30,
+        max_cycles=5,
+        team=["worker_fast"],
+        completed_cycles=2,
+        last_summary="",
+        finished=finished,
+        agent_session_ids={},
+        has_stages=False,
+        completed_stages=[],
+        stage_summaries=[],
+        current_stage_cycles=0,
+        pending_exchanges=[],
+        team_preset="full",
+    )
+
+
+class TestCmdIssue:
+    """Tests for _cmd_issue() — report bug with run context."""
+
+    def test_no_runs_exits(self, tmp_path):
+        """When no runs exist, exit with error."""
+        with (
+            patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            _cmd_issue()
+
+    def test_run_id_not_found_exits(self, tmp_path):
+        """When run ID does not exist, exit with error."""
+        with (
+            patch("sys.argv", ["kodo", "issue", "nonexistent", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log._runs_root", autospec=True, return_value=tmp_path),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            _cmd_issue()
+
+    def test_latest_run_opens_url_with_empty_desc(self, tmp_path, capsys):
+        """With no run ID, use latest run; empty description; URL printed and browser opened."""
+        state = _fake_run_state(tmp_path, finished=False)
+
+        with (
+            patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state]),
+            patch("kodo.cli._subcommands._open_folder", autospec=True),
+            patch("questionary.text", autospec=True) as mock_text,
+            patch("webbrowser.open", autospec=True) as mock_open,
+        ):
+            mock_text.return_value.ask.return_value = ""
+            _cmd_issue()
+
+        out = capsys.readouterr().out
+        assert "github.com/ikamensh/kodo/issues/new" in out
+        assert "Bug%20report" in out and "20260101_120000" in out
+        assert "Build%20a%20REST%20API" in out
+        assert "interrupted%20at%20cycle%202" in out
+        assert "attach" in out.lower() and "log.jsonl" in out
+        mock_open.assert_called_once()
+
+    def test_run_id_specific_opens_url(self, tmp_path, capsys):
+        """With run ID, parse that run and open URL."""
+        run_dir = tmp_path / "20260218_205503"
+        run_dir.mkdir()
+        log_file = run_dir / "log.jsonl"
+        log_file.write_text(
+            '{"event":"cli_args","goal_text":"Fix bug","project_dir":"/x","team":"full"}\n'
+            '{"event":"run_start","goal":"Fix bug","project_dir":"/x","orchestrator":"api","model":"gemini-flash",'
+            '"max_exchanges":30,"max_cycles":5,"team":["worker_fast"]}\n'
+        )
+        state = _fake_run_state(tmp_path, run_id="20260218_205503")
+        state.goal = "Fix bug"
+
+        with (
+            patch("sys.argv", ["kodo", "issue", "20260218_205503", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log._runs_root", autospec=True, return_value=tmp_path),
+            patch("kodo.cli._subcommands.log.parse_run", autospec=True, return_value=state),
+            patch("kodo.cli._subcommands._open_folder", autospec=True),
+            patch("questionary.text", autospec=True) as mock_text,
+            patch("webbrowser.open", autospec=True) as mock_open,
+        ):
+            mock_text.return_value.ask.return_value = "Worker crashed"
+            _cmd_issue()
+
+        out = capsys.readouterr().out
+        assert "github.com/ikamensh/kodo/issues/new" in out
+        assert "Worker%20crashed" in out
+        assert str(log_file) in out
+        mock_open.assert_called_once()
+
+    def test_no_open_prints_url_only(self, tmp_path, capsys):
+        """--no-open prints URL and instructions but does not open browser or folder."""
+        state = _fake_run_state(tmp_path)
+
+        with (
+            patch("sys.argv", ["kodo", "issue", "--no-open", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state]),
+            patch("questionary.text", autospec=True) as mock_text,
+            patch("webbrowser.open", autospec=True) as mock_open,
+            patch("kodo.cli._subcommands._open_folder", autospec=True) as mock_folder,
+        ):
+            mock_text.return_value.ask.return_value = ""
+            _cmd_issue()
+
+        out = capsys.readouterr().out
+        assert "github.com/ikamensh/kodo/issues/new" in out
+        assert "Log file:" in out
+        assert "To report" in out or "attach" in out.lower()
+        mock_open.assert_not_called()
+        mock_folder.assert_not_called()
+
+    def test_cancel_description_exits(self, tmp_path):
+        """Cancelling at description prompt should exit."""
+        state = _fake_run_state(tmp_path)
+
+        with (
+            patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state]),
+            patch("kodo.cli._subcommands._open_folder", autospec=True),
+            patch("questionary.text", autospec=True) as mock_text,
+            patch("webbrowser.open", autospec=True),
+        ):
+            mock_text.return_value.ask.return_value = None
+            with pytest.raises(SystemExit):
+                _cmd_issue()
+
+    def test_multiple_runs_offers_choice(self, tmp_path, capsys):
+        """When multiple runs exist, user can pick which to report."""
+        state_a = _fake_run_state(tmp_path, run_id="20260101_120000")
+        state_b = _fake_run_state(tmp_path, run_id="20260102_130000")
+        state_b.goal = "Different goal"
+
+        with (
+            patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state_a, state_b]),
+            patch("kodo.cli._subcommands._open_folder", autospec=True),
+            patch("questionary.select", autospec=True) as mock_select,
+            patch("questionary.text", autospec=True) as mock_text,
+            patch("webbrowser.open", autospec=True),
+        ):
+            mock_select.return_value.ask.return_value = "20260102_130000"
+            mock_text.return_value.ask.return_value = ""
+            _cmd_issue()
+
+        out = capsys.readouterr().out
+        assert "20260102_130000" in out
+        assert "Different%20goal" in out  # selected run's goal in URL body
+        mock_select.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

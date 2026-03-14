@@ -508,8 +508,8 @@ def _save_logs(
         if base == "kodo":
             kodo_runs = repo_dir / ".kodo" / "runs"
             if kodo_runs.is_dir():
-                # Find the latest run.jsonl across all run subdirectories
-                traces = sorted(kodo_runs.glob("*/run.jsonl"), key=lambda p: p.stat().st_mtime)
+                # Find the latest log.jsonl across all run subdirectories
+                traces = sorted(kodo_runs.glob("*/log.jsonl"), key=lambda p: p.stat().st_mtime)
                 if traces:
                     data = traces[-1].read_bytes()
                     (log_dir / "kodo_trace.jsonl.gz").write_bytes(

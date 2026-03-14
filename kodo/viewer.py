@@ -136,7 +136,9 @@ def _serve(port: int, log_path: Path | None) -> None:
             if "/" in run_id or "\\" in run_id or ".." in run_id:
                 self.send_error(400, "Invalid run_id")
                 return
-            log_file = _runs_root() / run_id / "run.jsonl"
+            log_file = _runs_root() / run_id / "log.jsonl"
+            if not log_file.exists():
+                log_file = _runs_root() / run_id / "run.jsonl"  # legacy
             if not log_file.exists():
                 self.send_error(404, f"Run not found: {run_id}")
                 return

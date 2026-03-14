@@ -73,7 +73,7 @@ def main() -> None:
         },
     ]
 
-    log_file = run_dir / "run.jsonl"
+    log_file = run_dir / "log.jsonl"
     with open(log_file, "w") as f:
         for evt in events:
             f.write(json.dumps(evt) + "\n")

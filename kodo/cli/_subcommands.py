@@ -1,15 +1,18 @@
-"""Subcommand handlers: runs, backends, teams, update."""
+"""Subcommand handlers: runs, backends, teams, update, issue."""
 
 import argparse
 import json
+import platform
 import subprocess
 import sys
+import urllib.parse
+import webbrowser
 from pathlib import Path
 from typing import Any
 
 import questionary
 
-from kodo import log
+from kodo import __version__, log
 from kodo.cli._launch import _cancel, _fail
 from kodo.cli._ui import _plural
 from kodo.models import (
@@ -31,6 +34,31 @@ def _truncate_word(text: str, width: int) -> str:
     if not cut:
         cut = text[:width]
     return cut + "..."
+
+
+def _pick_run(
+    runs: list["log.RunState"],
+    *,
+    prompt: str = "Select run:",
+    skip_prompts: bool = False,
+) -> "log.RunState | None":
+    """Let user pick from runs. Returns selected RunState or None if cancelled.
+    When skip_prompts or single run, returns runs[0] without prompting."""
+    if not runs:
+        return None
+    if len(runs) == 1 or skip_prompts:
+        return runs[0]
+    choices = [
+        questionary.Choice(
+            title=f"{r.run_id}  {'done' if r.finished else f'cycle {r.completed_cycles}/{r.max_cycles}'}  {_truncate_word(r.goal.replace("\n", " "), 50)}",
+            value=r.run_id,
+        )
+        for r in runs
+    ]
+    selected_id = questionary.select(prompt, choices=choices).ask()
+    if selected_id is None:
+        return None
+    return next(r for r in runs if r.run_id == selected_id)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +124,141 @@ def _cmd_logs() -> None:
             _fail(f"File not found: {log_path}")
 
     _serve(args.port, log_path)
+
+
+# ---------------------------------------------------------------------------
+# kodo issue
+# ---------------------------------------------------------------------------
+
+_ISSUE_REPO = "ikamensh/kodo"
+
+
+def _open_folder(path: Path) -> bool:
+    """Open the folder in the system file manager. Returns True if successful."""
+    path = path.resolve()
+    if not path.is_dir():
+        return False
+    try:
+        system = platform.system()
+        if system == "Darwin":
+            subprocess.run(["open", str(path)], check=True, capture_output=True)
+        elif system == "Windows":
+            subprocess.run(["explorer", str(path)], check=True, capture_output=True)
+        else:
+            subprocess.run(["xdg-open", str(path)], check=True, capture_output=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def _cmd_issue() -> None:
+    """Open GitHub new-issue page with run context pre-filled."""
+    parser = argparse.ArgumentParser(
+        prog="kodo issue",
+        description="Report a bug: open GitHub issues with run context pre-filled",
+    )
+    parser.add_argument(
+        "run_id",
+        nargs="?",
+        default=None,
+        help="Run ID (default: latest run for project)",
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default=".",
+        help="Project directory (default: current)",
+    )
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Print URL only, do not open browser",
+    )
+    args = parser.parse_args(sys.argv[2:])
+
+    project_dir = Path(args.project).resolve()
+    if not project_dir.exists() or not project_dir.is_dir():
+        _fail(f"Project path does not exist or is not a directory: {project_dir}")
+
+    state: log.RunState
+    if args.run_id:
+        run_dir = log._runs_root() / args.run_id
+        run_log = run_dir / "log.jsonl"
+        if not run_log.exists():
+            run_log = run_dir / "run.jsonl"  # legacy
+        if not run_log.exists():
+            _fail(f"Run not found: {args.run_id}")
+        state = log.parse_run(run_log)
+        if state is None:
+            _fail(f"Could not parse run: {run_log}")
+    else:
+        runs = log.list_runs(project_dir)
+        if not runs:
+            _fail("No runs found. Specify a run ID or run kodo first.")
+        state = _pick_run(runs, prompt="Select run to report:")
+        if state is None:
+            _cancel()
+
+    desc = questionary.text(
+        "Describe what went wrong (leave empty if crash/error is obvious):",
+        default="",
+    ).ask()
+    if desc is None:
+        _cancel()
+
+    status = "done" if state.finished else f"interrupted at cycle {state.completed_cycles}/{state.max_cycles}"
+    body_parts = [
+        f"**Run:** {state.run_id}",
+        f"**Goal:** {state.goal[:500]}{'...' if len(state.goal) > 500 else ''}",
+        f"**Project:** {state.project_dir}",
+        f"**Status:** {status}",
+        f"**kodo:** {__version__}",
+        "",
+    ]
+    if desc.strip():
+        body_parts.append(desc.strip())
+        body_parts.append("")
+    run_dir = log._runs_root() / state.run_id
+    log_path = run_dir / "log.jsonl"
+    if not log_path.exists():
+        log_path = run_dir / "run.jsonl"  # legacy
+    body_parts.append("---")
+    body_parts.append("")
+    body_parts.append(
+        "**[TODO] Please attach the log file:** drag and drop `log.jsonl` (or `run.jsonl` for older runs) from the folder that opened "
+        "(or from `~/.kodo/runs/" + state.run_id + "/`) into this issue. The log is essential for debugging."
+    )
+    body_parts.append("")
+    body_parts.append(
+        "Before submitting, verify the log does not contain sensitive secrets (API keys, tokens, etc.)."
+    )
+
+    title = f"Bug report: run {state.run_id}"
+    body = "\n".join(body_parts)
+    url = (
+        f"https://github.com/{_ISSUE_REPO}/issues/new"
+        f"?title={urllib.parse.quote(title)}"
+        f"&body={urllib.parse.quote(body)}"
+    )
+
+    if not args.no_open:
+        webbrowser.open(url)
+        _open_folder(run_dir)
+        print()
+        print("  GitHub issue form opened in your browser.")
+        print("  Run folder opened — attach log.jsonl to the issue (drag & drop or click to add).")
+        print("  Verify the log does not contain sensitive secrets (API keys, tokens) before submitting.")
+    else:
+        print()
+        print("  To report this bug:")
+        print("  1. Open the URL below in your browser")
+        print("  2. Attach the log file (drag & drop or click to add)")
+        print("  3. Verify the log does not contain sensitive secrets (API keys, tokens)")
+    print()
+    print(f"  Log file: {log_path}")
+    print()
+    print("  Issue URL:")
+    print(f"  {url}")
 
 
 # ---------------------------------------------------------------------------

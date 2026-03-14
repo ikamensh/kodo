@@ -536,7 +536,7 @@ class TestLaunchResume:
 
         defaults = dict(
             run_id="20260101_120000",
-            log_file=tmp_path / "runs" / "20260101_120000" / "run.jsonl",
+            log_file=tmp_path / "runs" / "20260101_120000" / "log.jsonl",
             goal="Build X",
             orchestrator="api",
             model="gemini-flash",

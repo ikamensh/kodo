@@ -199,6 +199,7 @@ Output:
 ```bash
 kodo runs                     # list all past runs
 kodo runs ./my-project        # list runs for a specific project
+kodo issue [RUN_ID]           # report a bug (opens GitHub with run context pre-filled)
 kodo backends                 # show available backends, models, API key status
 kodo teams                    # list available teams
 kodo teams auto               # auto-generate a team from available backends
@@ -305,6 +306,6 @@ The progress table labels subscription-covered costs as **Virtual** to make this
 
 ```bash
 # Open the interactive HTML viewer
-python -m kodo.viewer ~/.kodo/runs/20260218_205503/run.jsonl
+python -m kodo.viewer ~/.kodo/runs/20260218_205503/log.jsonl
 # Or serve on port 8080: python -m kodo.viewer --serve --port 8080 <logfile.jsonl>
 ```

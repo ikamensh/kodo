@@ -50,7 +50,7 @@ def main() -> int:
         run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         run_dir = runs_tmp / run_id
         run_dir.mkdir()
-        log_file = run_dir / "run.jsonl"
+        log_file = run_dir / "log.jsonl"
 
         events = [
             {

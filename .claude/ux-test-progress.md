@@ -231,7 +231,7 @@ All previously blocked test groups now pass after BUG-08/BUG-09 fixes:
 5. `kodo logs --help` — **PASS** — clean subcommand help
 
 6. Run directory inspection — **PASS**
-   - config.json, goal.md, goal-refined.md, run.jsonl, team.json — all present
+   - config.json, goal.md, goal-refined.md, log.jsonl, team.json — all present
 
 **UX Audit:**
 - Run listing is clean and useful

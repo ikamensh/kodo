@@ -114,7 +114,7 @@ class TestResumeInteractive:
 
         fake_state = RunState(
             run_id="20260101_120000",
-            log_file=tmp_path / "kodo_runs" / "20260101_120000" / "run.jsonl",
+            log_file=tmp_path / "kodo_runs" / "20260101_120000" / "log.jsonl",
             goal="Build X",
             orchestrator="api",
             model="gemini-flash",
@@ -144,6 +144,131 @@ class TestResumeInteractive:
             _main_inner()
 
         assert exc_info.value.code == 0  # Clean exit
+
+    def test_resume_multiple_runs_user_cancels_at_pick(self, tmp_path, capsys):
+        """When multiple incomplete runs exist, user can cancel at run pick."""
+        from kodo.log import RunState
+
+        state_a = RunState(
+            run_id="20260101_120000",
+            log_file=tmp_path / "runs" / "20260101_120000" / "log.jsonl",
+            goal="Run A",
+            orchestrator="api",
+            model="gemini-flash",
+            project_dir=str(tmp_path),
+            max_exchanges=30,
+            max_cycles=5,
+            team=[],
+            completed_cycles=1,
+            last_summary="",
+            finished=False,
+            agent_session_ids={},
+            has_stages=False,
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+            pending_exchanges=[],
+            team_preset="full",
+        )
+        state_b = RunState(
+            run_id="20260102_130000",
+            log_file=tmp_path / "runs" / "20260102_130000" / "log.jsonl",
+            goal="Run B",
+            orchestrator="api",
+            model="gemini-flash",
+            project_dir=str(tmp_path),
+            max_exchanges=30,
+            max_cycles=5,
+            team=[],
+            completed_cycles=2,
+            last_summary="",
+            finished=False,
+            agent_session_ids={},
+            has_stages=False,
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+            pending_exchanges=[],
+            team_preset="full",
+        )
+
+        with (
+            patch("sys.argv", ["kodo", "--resume", "--project", str(tmp_path)]),
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[state_a, state_b]),
+            patch("kodo.cli._main._pick_run", autospec=True, return_value=None),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _main_inner()
+
+        assert exc_info.value.code == 0
+        assert "Aborted" in capsys.readouterr().out
+
+    def test_resume_multiple_runs_user_picks_one(self, tmp_path):
+        """When multiple incomplete runs exist, user picks one and resume continues."""
+        from kodo.log import RunState
+
+        state_a = RunState(
+            run_id="20260101_120000",
+            log_file=tmp_path / "runs" / "20260101_120000" / "log.jsonl",
+            goal="Run A",
+            orchestrator="api",
+            model="gemini-flash",
+            project_dir=str(tmp_path),
+            max_exchanges=30,
+            max_cycles=5,
+            team=[],
+            completed_cycles=1,
+            last_summary="",
+            finished=False,
+            agent_session_ids={},
+            has_stages=False,
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+            pending_exchanges=[],
+            team_preset="full",
+        )
+        state_b = RunState(
+            run_id="20260102_130000",
+            log_file=tmp_path / "runs" / "20260102_130000" / "log.jsonl",
+            goal="Run B",
+            orchestrator="api",
+            model="gemini-flash",
+            project_dir=str(tmp_path),
+            max_exchanges=30,
+            max_cycles=5,
+            team=[],
+            completed_cycles=2,
+            last_summary="",
+            finished=False,
+            agent_session_ids={},
+            has_stages=False,
+            completed_stages=[],
+            stage_summaries=[],
+            current_stage_cycles=0,
+            pending_exchanges=[],
+            team_preset="full",
+        )
+        (tmp_path / "runs" / "20260102_130000").mkdir(parents=True)
+        (tmp_path / "runs" / "20260102_130000" / "log.jsonl").write_text('{"event":"run_start"}\n')
+
+        fake_result = MagicMock(finished=True, cycles=[], total_exchanges=5, total_cost_usd=0.01, summary="done", stage_results=[])
+
+        with (
+            patch("sys.argv", ["kodo", "--resume", "--project", str(tmp_path)]),
+            patch("kodo.cli._main.log.find_incomplete_runs", autospec=True, return_value=[state_a, state_b]),
+            patch("kodo.cli._main.log._runs_root", autospec=True, return_value=tmp_path / "runs"),
+            patch("kodo.cli._main._pick_run", autospec=True, side_effect=lambda runs, **kw: runs[1]),
+            patch("kodo.cli._main._print_banner", autospec=True),
+            patch("builtins.input", autospec=True, return_value="y"),
+            patch("kodo.cli._main.launch_resume", autospec=True, return_value=fake_result) as mock_resume,
+        ):
+            _main_inner()
+
+        mock_resume.assert_called_once()
+        call_run_dir = mock_resume.call_args[0][0]
+        assert call_run_dir.run_id == "20260102_130000"
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +583,7 @@ def _fake_run_state(tmp_path, **overrides):
 
     defaults = dict(
         run_id="20260101_120000",
-        log_file=tmp_path / "kodo_runs" / "20260101_120000" / "run.jsonl",
+        log_file=tmp_path / "kodo_runs" / "20260101_120000" / "log.jsonl",
         goal="Build X",
         orchestrator="api",
         model="gemini-flash",
@@ -858,7 +983,7 @@ class TestCorruptConfigResume:
             {"event": "cli_args", "team": "full"},
             {"event": "cycle_end", "summary": "partial"},
         ]
-        (run_root / "run.jsonl").write_text(
+        (run_root / "log.jsonl").write_text(
             "\n".join(json.dumps({"ts": "t", "t": 0, **e}) for e in events) + "\n"
         )
         (run_root / "goal.md").write_text("Fix bug")

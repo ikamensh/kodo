@@ -40,7 +40,15 @@ from kodo.cli._params import (  # noqa: E402
     _build_params_from_flags,
     _load_or_select_params,
 )
-from kodo.cli._subcommands import _cmd_backends, _cmd_logs, _cmd_runs, _cmd_teams, _cmd_update  # noqa: E402
+from kodo.cli._subcommands import (  # noqa: E402
+    _cmd_backends,
+    _cmd_issue,
+    _cmd_logs,
+    _cmd_runs,
+    _cmd_teams,
+    _cmd_update,
+    _pick_run,
+)
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
 from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_FLASH, GEMINI_ALIAS_PRO  # noqa: E402
@@ -91,6 +99,7 @@ def _main_inner() -> None:
         "backend": _cmd_backends, "backends": _cmd_backends,
         "team": _cmd_teams, "teams": _cmd_teams,
         "log": _cmd_logs, "logs": _cmd_logs,
+        "issue": _cmd_issue, "issues": _cmd_issue,
         "update": _cmd_update,
         "help": _cmd_help,
     }
@@ -100,7 +109,7 @@ def _main_inner() -> None:
 
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo issue    Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
@@ -317,9 +326,15 @@ def _main_inner() -> None:
             runs = log.find_incomplete_runs(project_dir)
             if not runs:
                 _fail("No incomplete runs found.")
-            state = runs[0]
+            state = _pick_run(runs, skip_prompts=skip_prompts)
+            if state is None:
+                print("Aborted.")
+                sys.exit(0)
         else:
-            run_log = log._runs_root() / args.resume / "run.jsonl"
+            run_dir = log._runs_root() / args.resume
+            run_log = run_dir / "log.jsonl"
+            if not run_log.exists():
+                run_log = run_dir / "run.jsonl"  # legacy
             if run_log.exists():
                 log_file = run_log
             else:

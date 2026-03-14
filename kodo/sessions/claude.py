@@ -405,7 +405,7 @@ class ClaudeSession:
                             elif isinstance(block, ToolUseBlock):
                                 tu_input = dict(block.input) if block.input else {}
                                 blocks.append({"type": "tool_use", "name": block.name, "input": tu_input})
-                                # Truncated copy for run.jsonl summary
+                                # Truncated copy for log.jsonl summary
                                 tu_summary = dict(tu_input)
                                 for key in ("content", "new_string", "old_string", "new_source"):
                                     if key in tu_summary and isinstance(tu_summary[key], str) and len(tu_summary[key]) > 200:

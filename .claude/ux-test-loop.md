@@ -92,7 +92,7 @@ the rest. Don't spend time on subjective UX preferences or debatable changes.
 
 1. `kodo --debug --goal "Create a hello world script" --yes --skip-intake --project <tmpdir>`
    — Does it complete? What does the output look like? Is progress visible?
-2. Check the run directory — are config.json, goal.md, run.jsonl all created?
+2. Check the run directory — are config.json, goal.md, log.jsonl all created?
 3. Check `kodo runs` after — does the run appear?
 4. **UX audit:** Is the debug output helpful for understanding how kodo works?
    Could a developer use `--debug` to test their team configs?

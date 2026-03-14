@@ -14,7 +14,7 @@ def test_init_creates_log_file(tmp_path: Path):
     log_file = log.init(run_dir)
     assert log_file.exists()
     assert log_file.parent == run_dir.root
-    assert log_file.name == "run.jsonl"
+    assert log_file.name == "log.jsonl"
 
 
 def test_emit_writes_json_lines(tmp_path: Path):
@@ -49,7 +49,7 @@ class TestInitAppendValidation:
             log.init_append(bad_log)
 
     def test_valid_log_resumes(self, tmp_path: Path):
-        log_file = tmp_path / "test_run" / "run.jsonl"
+        log_file = tmp_path / "test_run" / "log.jsonl"
         log_file.parent.mkdir(parents=True)
         events = [
             {

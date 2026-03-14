@@ -61,7 +61,7 @@ class RunDir:
 
     @property
     def log_file(self) -> Path:
-        return self.root / "run.jsonl"
+        return self.root / "log.jsonl"
 
     @property
     def goal_file(self) -> Path:
@@ -85,7 +85,7 @@ class RunDir:
 
 
 def _extract_run_id(log_file: Path) -> str:
-    """Extract run_id from a log file path (~/.kodo/runs/<run_id>/run.jsonl)."""
+    """Extract run_id from a log file path (~/.kodo/runs/<run_id>/log.jsonl)."""
     return log_file.parent.name
 
 
@@ -618,7 +618,9 @@ def list_runs(project_dir: Path | None = None) -> list[RunState]:
             return []
         for d in entries:
             if d.is_dir():
-                f = d / "run.jsonl"
+                f = d / "log.jsonl"
+                if not f.exists():
+                    f = d / "run.jsonl"  # legacy
                 if f.exists():
                     candidates.append(f)
 

@@ -48,7 +48,7 @@ def _create_run(run_id: str, project_dir: str, goal: str, *, finished: bool = Fa
 
     d = log._runs_root() / run_id
     d.mkdir(parents=True)
-    (d / "run.jsonl").write_text("\n".join(_emit(events)) + "\n")
+    (d / "log.jsonl").write_text("\n".join(_emit(events)) + "\n")
 
 
 # ---------------------------------------------------------------------------

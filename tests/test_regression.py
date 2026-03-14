@@ -32,7 +32,7 @@ class TestParseRunPermissionError:
         """parse_run should return None (not crash) on PermissionError."""
         d = log._runs_root() / "perm_test"
         d.mkdir(parents=True)
-        log_file = d / "run.jsonl"
+        log_file = d / "log.jsonl"
         log_file.write_text('{"event":"run_start"}\n')
 
         log_file.chmod(0o000)
@@ -43,7 +43,7 @@ class TestParseRunPermissionError:
             log_file.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
     def test_list_runs_skips_unreadable_log(self, tmp_path):
-        """An unreadable run.jsonl should not prevent listing other runs."""
+        """An unreadable log.jsonl should not prevent listing other runs."""
         proj = str(tmp_path)
 
         # Create a good run
@@ -64,14 +64,14 @@ class TestParseRunPermissionError:
             },
             {"ts": "t", "t": 0, "event": "cli_args", "team": "full"},
         ]
-        (good / "run.jsonl").write_text(
+        (good / "log.jsonl").write_text(
             "\n".join(json.dumps(e) for e in events) + "\n"
         )
 
         # Create a run with unreadable log
         bad = log._runs_root() / "bad_perm_run"
         bad.mkdir(parents=True)
-        bad_log = bad / "run.jsonl"
+        bad_log = bad / "log.jsonl"
         bad_log.write_text('{"event":"run_start"}\n')
         bad_log.chmod(0o000)
 
@@ -229,7 +229,7 @@ class TestResumeCompletedRun:
             {"ts": "t", "t": 0, "event": "cycle_end", "summary": "done"},
             {"ts": "t", "t": 0, "event": "run_end"},
         ]
-        (d / "run.jsonl").write_text(
+        (d / "log.jsonl").write_text(
             "\n".join(json.dumps(e) for e in events) + "\n"
         )
 

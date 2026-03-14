@@ -48,7 +48,7 @@ Team:
 Project dir: tests/fixtures/buggy_project
 Max: 30 exchanges/cycle, 5 cycles
 Stages: 4
-Log: ~/.kodo/runs/<run_id>/run.jsonl
+Log: ~/.kodo/runs/<run_id>/log.jsonl
 
 ==================================================
 Done: 1 cycle(s), 1 exchanges, $0.0000
@@ -57,7 +57,7 @@ Done: 1 cycle(s), 1 exchanges, $0.0000
 OK: kodo --improve completed with mocked AI
 ```
 
-**Log output (run.jsonl):** run_init → cli_args (goal, plan, stages) → run_start (orchestrator mock, 4 stages) → cycle_end → run_end.
+**Log output (log.jsonl):** run_init → cli_args (goal, plan, stages) → run_start (orchestrator mock, 4 stages) → cycle_end → run_end.
 
 **Issues encountered:** None. The script uses `--yes` to skip confirmation prompts. With mocks, the orchestrator returns immediately without running real stages.
 
@@ -66,7 +66,7 @@ OK: kodo --improve completed with mocked AI
 Parse kodo JSONL run logs and print a human-readable report: costs, tokens, timeline, per-agent breakdown, and final outcome.
 
 ```bash
-uv run python scripts/analyze_run.py ~/.kodo/runs/<run_id>/run.jsonl
+uv run python scripts/analyze_run.py ~/.kodo/runs/<run_id>/log.jsonl
 ```
 
 ## `harness.py`

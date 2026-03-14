@@ -1,4 +1,4 @@
-"""Generate a large run.jsonl and measure parse_run performance.
+"""Generate a large log.jsonl and measure parse_run performance.
 
 Creates 10,000 events and times kodo.log.parse_run. Useful for profiling
 and regression testing of log parsing performance.
@@ -125,7 +125,7 @@ def main() -> int:
     n_events = 10_000
     project_dir = Path(__file__).resolve().parent.parent / "tmp_perf_log"
     project_dir.mkdir(exist_ok=True)
-    log_file = project_dir / "run.jsonl"
+    log_file = project_dir / "log.jsonl"
 
     print(f"Generating {n_events} events...")
     events = generate_events(n_events)

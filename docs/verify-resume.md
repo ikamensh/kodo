@@ -14,7 +14,7 @@ uv run python scripts/create_mock_interrupted_run.py
 
 This creates:
 
-- `~/.kodo/runs/interrupted_run/run.jsonl` — JSONL log with `run_init`, `cli_args`, `run_start`, and one `cycle_end` (finished: false)
+- `~/.kodo/runs/interrupted_run/log.jsonl` — JSONL log with `run_init`, `cli_args`, `run_start`, and one `cycle_end` (finished: false)
 - `~/.kodo/runs/interrupted_run/goal.md` — Goal text
 - `/tmp/kodo_resume_test/` — Project directory (used as `project_dir` in the run)
 

@@ -19,7 +19,7 @@ def _write_events(log_file: Path, events: list[dict]) -> None:
 
 
 def test_parse_run_incomplete(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [
@@ -51,7 +51,7 @@ def test_parse_run_incomplete(tmp_path: Path):
 
 
 def test_parse_run_finished(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [
@@ -76,7 +76,7 @@ def test_parse_run_finished(tmp_path: Path):
 
 
 def test_parse_run_no_run_start(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [
@@ -87,7 +87,7 @@ def test_parse_run_no_run_start(tmp_path: Path):
 
 
 def test_parse_run_multiple_cycles(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [
@@ -114,7 +114,7 @@ def test_parse_run_multiple_cycles(tmp_path: Path):
 
 
 def test_parse_run_captures_session_ids(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [
@@ -147,7 +147,7 @@ def test_parse_run_captures_session_ids(tmp_path: Path):
 
 
 def test_parse_run_corrupt_lines_tolerated(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     content = (
         '{"ts":"t","t":0,"event":"run_start","goal":"g","orchestrator":"api",'
         '"model":"m","project_dir":"/p","max_exchanges":30,"max_cycles":5,"team":[]}\n'
@@ -169,7 +169,7 @@ def test_find_incomplete_runs_newest_first(tmp_path: Path):
     def _make_run(run_id: str, events: list[dict]) -> None:
         d = runs_dir / run_id
         d.mkdir(parents=True)
-        _write_events(d / "run.jsonl", events)
+        _write_events(d / "log.jsonl", events)
 
     project = tmp_path / "myproject"
     project.mkdir()
@@ -259,7 +259,7 @@ def test_find_incomplete_runs_newest_first(tmp_path: Path):
 def test_init_append_preserves_existing(tmp_path: Path):
     run_dir = log._runs_root() / "test_run"
     run_dir.mkdir(parents=True)
-    f = run_dir / "run.jsonl"
+    f = run_dir / "log.jsonl"
     # init_append now validates the log file via parse_run, which requires
     # both run_start (with a goal) and cli_args events.
     f.write_text(
@@ -278,7 +278,7 @@ def test_init_append_preserves_existing(tmp_path: Path):
 
 
 def test_parse_run_with_cli_args(tmp_path: Path):
-    f = tmp_path / "run.jsonl"
+    f = tmp_path / "log.jsonl"
     _write_events(
         f,
         [

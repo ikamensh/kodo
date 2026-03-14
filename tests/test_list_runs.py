@@ -30,7 +30,7 @@ def _make_run(run_id: str, project_dir: str, goal: str, events: list[dict]) -> N
     lines = [
         json.dumps({"ts": "2025-01-01T00:00:00Z", "t": 0, **e}) for e in all_events
     ]
-    (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+    (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -125,11 +125,28 @@ class TestListRuns:
         # Write garbage into another run
         bad = log._runs_root() / "bad_run"
         bad.mkdir()
-        (bad / "run.jsonl").write_text("not json at all\n")
+        (bad / "log.jsonl").write_text("not json at all\n")
 
         runs = log.list_runs()
         assert len(runs) == 1
         assert runs[0].run_id == "good_run"
+
+    def test_legacy_run_jsonl_found(self, tmp_path: Path):
+        """Runs with run.jsonl (legacy name) are still discovered."""
+        proj = str(tmp_path)
+        d = log._runs_root() / "legacy_run"
+        d.mkdir(parents=True)
+        base = [
+            {**_RUN_START, "goal": "legacy goal", "project_dir": proj},
+            _CLI_ARGS,
+            {"event": "cycle_end", "summary": "ok"},
+        ]
+        lines = [json.dumps({"ts": "2025-01-01T00:00:00Z", "t": i, **e}) for i, e in enumerate(base)]
+        (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+        runs = log.list_runs()
+        assert any(r.run_id == "legacy_run" for r in runs)
+        legacy = next(r for r in runs if r.run_id == "legacy_run")
+        assert legacy.goal == "legacy goal"
 
 
 # ---------------------------------------------------------------------------
@@ -227,9 +244,9 @@ class TestStageParsing:
             },
         ]
         lines = [json.dumps({"ts": "t", "t": 0, **e}) for e in events]
-        (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+        (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
-        state = log.parse_run(d / "run.jsonl")
+        state = log.parse_run(d / "log.jsonl")
         assert state is not None
         assert state.has_stages is True
         assert state.completed_stages == [1, 2]
@@ -254,9 +271,9 @@ class TestStageParsing:
             },
         ]
         lines = [json.dumps({"ts": "t", "t": 0, **e}) for e in events]
-        (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+        (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
-        state = log.parse_run(d / "run.jsonl")
+        state = log.parse_run(d / "log.jsonl")
         assert state is not None
         assert state.completed_stages == []
         assert state.stage_summaries == []
@@ -279,9 +296,9 @@ class TestStageParsing:
             {"event": "cycle_end", "summary": "s2 cycle 2"},
         ]
         lines = [json.dumps({"ts": "t", "t": 0, **e}) for e in events]
-        (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+        (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
-        state = log.parse_run(d / "run.jsonl")
+        state = log.parse_run(d / "log.jsonl")
         assert state is not None
         # current_stage_cycles = cycles within the unfinished stage 2
         assert state.current_stage_cycles == 2
@@ -299,9 +316,9 @@ class TestStageParsing:
             {"event": "run_end"},
         ]
         lines = [json.dumps({"ts": "t", "t": 0, **e}) for e in events]
-        (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+        (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
-        state = log.parse_run(d / "run.jsonl")
+        state = log.parse_run(d / "log.jsonl")
         assert state is not None
         assert state.has_stages is False
         assert state.completed_stages == []

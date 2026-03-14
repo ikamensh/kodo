@@ -46,7 +46,7 @@ def _create_run(run_id: str, project_dir: str, goal: str, *, finished: bool = Fa
     lines = [json.dumps({"ts": "2025-01-01T00:00:00Z", "t": 0, **e}) for e in events]
     d = log._runs_root() / run_id
     d.mkdir(parents=True)
-    (d / "run.jsonl").write_text("\n".join(lines) + "\n")
+    (d / "log.jsonl").write_text("\n".join(lines) + "\n")
 
 
 def _make_fake_session(*, response_text: str = "Task completed successfully."):
@@ -226,7 +226,7 @@ class TestMockedResumeHappyPath:
         ]
         run_root = log._runs_root() / run_id
         run_root.mkdir(parents=True)
-        (run_root / "run.jsonl").write_text("\n".join(lines) + "\n")
+        (run_root / "log.jsonl").write_text("\n".join(lines) + "\n")
         (run_root / "goal.md").write_text(goal)
         (run_root / "config.json").write_text(
             json.dumps(
@@ -240,7 +240,7 @@ class TestMockedResumeHappyPath:
                 indent=2,
             )
         )
-        return run_root / "run.jsonl"
+        return run_root / "log.jsonl"
 
     def test_resume_completes(self, tmp_path: Path):
         """--resume RUN_ID runs launch_resume and completes."""

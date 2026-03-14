@@ -13,7 +13,9 @@ Primary user workflows and how to verify them with mocks (no API keys or real ba
 | **Interactive flow** | `scripts/smoke_test_interactive.py` | Goal input, team/orchestrator/model selection, refine skip, confirmation, launch |
 | **Improve full run** | `scripts/run_improve_mocked.py` | `kodo --improve` on buggy_project, plan built, cycle completes |
 
-**Log viewer (browser):** `python -m kodo.viewer <run.jsonl>` or `--serve --port 8080`. `scripts/verify_viewer_browser.py` uses Playwright (optional dep) to verify embedded data, stats bar, timeline, expand button.
+**Log viewer (browser):** `python -m kodo.viewer <log.jsonl>` or `--serve --port 8080`. `scripts/verify_viewer_browser.py` uses Playwright (optional dep) to verify embedded data, stats bar, timeline, expand button.
+
+**Report bug:** `kodo issue [RUN_ID]` — resolves run like `--resume` (latest or by id), prompts for description (leave empty if crash obvious), opens GitHub new-issue URL with run context pre-filled. Tests: `tests/cli/test_subcommands.py::TestCmdIssue`.
 
 ## Boundary condition tests (final status)
 

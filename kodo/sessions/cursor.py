@@ -148,7 +148,7 @@ class CursorSession(SubprocessSession):
             if hint:
                 result_text = hint
 
-        # Save full conversation to gzip file; keep only summary in run.jsonl
+        # Save full conversation to gzip file; keep only summary in log.jsonl
         conv_file = None
         if raw_messages:
             conv_file = log.save_conversation(
