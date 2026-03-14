@@ -235,7 +235,6 @@ class OrchestratorBase:
                 **({"error": f"{type(_run_error).__name__}: {_run_error}"}
                    if _run_error is not None else {}),
             )
-            log.print_stats_table(final=True)
 
             # Best-effort trace upload (gated behind KODO_TRACE_UPLOAD env var)
             log_file = log.get_log_file()
@@ -259,10 +258,6 @@ class OrchestratorBase:
                     )
                 except Exception:
                     pass  # never crash on trace upload failure
-
-            # Print a command to open the log viewer (don't auto-open)
-            if log_file and log_file.exists():
-                print(f"\n  View run: uv run python -m kodo.viewer {log_file}\n")
 
         return result
 

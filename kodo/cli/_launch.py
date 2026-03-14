@@ -377,7 +377,9 @@ def launch_run(
         print(f"  Log: {log_path}")
         print()
 
-    auto_commit = _resolve_auto_commit(params, project_dir, quiet=json_mode)
+    auto_commit = (
+        False if debug else _resolve_auto_commit(params, project_dir, quiet=json_mode)
+    )
     effort = params.get("effort", "standard")
 
     # Create advisor for adaptive planning when plan has stages
@@ -417,6 +419,9 @@ def launch_run(
     if not json_mode:
         log.print_stats_table(final=True)
         _print_run_summary(result)
+        log_file = log.get_log_file()
+        if log_file and log_file.exists():
+            print(f"\n  View run: uv run python -m kodo.viewer {log_file}\n")
 
     # Debug mode: print token flow summary
     if debug and debug_sessions is not None:
@@ -646,5 +651,8 @@ def launch_resume(
         log.print_stats_table(final=True)
         total_cycles = state.completed_cycles + len(result.cycles)
         _print_run_summary(result, total_cycles=total_cycles)
+        log_file = log.get_log_file()
+        if log_file and log_file.exists():
+            print(f"\n  View run: uv run python -m kodo.viewer {log_file}\n")
 
     return result

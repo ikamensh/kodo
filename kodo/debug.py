@@ -149,7 +149,7 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
     The orchestrator's MockSession tracks tokens seen/generated, just like
     agent MockSessions do.
     """
-    from pydantic_ai.messages import ModelResponse, ToolCallPart
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
     from pydantic_ai.models.function import AgentInfo, FunctionModel
 
     session = MockSession(letter)
@@ -163,21 +163,29 @@ def build_mock_model(letter: str, agent_tool_names: list[str]):
         session.query(context_text, Path("."), max_turns=1)
         token = f"{letter}{session._counter}"
 
-        # Count available request budget from the pydantic-ai usage limit.
-        # We can't see it directly, but we can count our prior tool calls
-        # in the message history and leave the last request for done().
-        prior_calls = sum(
+        # Count only agent delegation calls (ask_X), not done tools.
+        # Done tools (goal_done, end_cycle, raise_issue) must not be counted,
+        # otherwise after goal_done we'd return goal_done again in a loop.
+        prior_agent_calls = sum(
             1
             for msg in messages
             if isinstance(msg, ModelResponse)
             for part in msg.parts
-            if isinstance(part, ToolCallPart) and part.tool_name != "done"
+            if isinstance(part, ToolCallPart) and part.tool_name in agent_tool_names
+        )
+        already_called_goal_done = any(
+            isinstance(part, ToolCallPart) and part.tool_name == "goal_done"
+            for msg in messages
+            if isinstance(msg, ModelResponse)
+            for part in msg.parts
         )
 
         # Reserve the last request for calling goal_done() (new done mode)
         request_budget = len(agent_tool_names) + 2  # sensible default
-        if prior_calls >= request_budget - 1:
-            summary = f"Mock cycle complete after {prior_calls} agent calls. Token: {token}"
+        if already_called_goal_done:
+            return ModelResponse(parts=[TextPart(content="Goal accepted.")])
+        if prior_agent_calls >= request_budget - 1:
+            summary = f"Mock cycle complete after {prior_agent_calls} agent calls. Token: {token}"
             args_json = json.dumps({"summary": summary})
             return ModelResponse(
                 parts=[ToolCallPart(tool_name="goal_done", args=args_json)],
