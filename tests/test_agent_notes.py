@@ -92,7 +92,7 @@ def test_notes_json_team():
         }
     }
     with (
-        patch("kodo.factory.available_backends", autospec=True, return_value={"claude": True}),
+        patch("kodo.team_config.available_backends", autospec=True, return_value={"claude": True}),
     ):
         team = build_team_from_json(config)
 

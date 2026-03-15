@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from kodo.models import (
     MODEL_PRICING,
     PYDANTIC_MODEL_MAP,
@@ -81,15 +83,17 @@ class TestMakeFreshModel:
         result = make_fresh_model("claude-opus-4-6")
         assert result == "claude-opus-4-6"
 
+    @pytest.mark.live
     def test_google_gla_returns_google_model(self):
-        """google-gla: prefix creates a GoogleModel instance."""
+        """google-gla: prefix creates a GoogleModel instance (requires GOOGLE_API_KEY)."""
         result = make_fresh_model("google-gla:gemini-3-flash-preview")
         # Should return a GoogleModel, not a string
         assert not isinstance(result, str)
         assert type(result).__name__ == "GoogleModel"
 
+    @pytest.mark.live
     def test_google_vertex_returns_google_model(self):
-        """google-vertex: prefix creates a GoogleModel with vertexai=True."""
+        """google-vertex: prefix creates a GoogleModel with vertexai=True (requires GCP credentials)."""
         result = make_fresh_model("google-vertex:gemini-3-flash-preview")
         assert not isinstance(result, str)
         assert type(result).__name__ == "GoogleModel"
