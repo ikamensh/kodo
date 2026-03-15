@@ -262,9 +262,13 @@ class TestCmdIssue:
     def test_latest_run_opens_url_with_empty_desc(self, tmp_path, capsys):
         """With no run ID, use latest run; empty description; URL printed and browser opened."""
         state = _fake_run_state(tmp_path, finished=False)
+        run_dir = tmp_path / "20260101_120000"
+        run_dir.mkdir()
+        (run_dir / "log.jsonl").write_text('{"event":"run_start","goal":"x"}\n')
 
         with (
             patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log._runs_root", autospec=True, return_value=tmp_path),
             patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state]),
             patch("kodo.cli._subcommands._open_folder", autospec=True),
             patch("questionary.text", autospec=True) as mock_text,
@@ -278,7 +282,7 @@ class TestCmdIssue:
         assert "Bug%20report" in out and "20260101_120000" in out
         assert "Build%20a%20REST%20API" in out
         assert "interrupted%20at%20cycle%202" in out
-        assert "attach" in out.lower() and "log.jsonl" in out
+        assert "attach" in out.lower() and "run.tar.gz" in out
         mock_open.assert_called_once()
 
     def test_run_id_specific_opens_url(self, tmp_path, capsys):
@@ -308,15 +312,19 @@ class TestCmdIssue:
         out = capsys.readouterr().out
         assert "github.com/ikamensh/kodo/issues/new" in out
         assert "Worker%20crashed" in out
-        assert str(log_file) in out
+        assert "run.tar.gz" in out
         mock_open.assert_called_once()
 
     def test_no_open_prints_url_only(self, tmp_path, capsys):
         """--no-open prints URL and instructions but does not open browser or folder."""
         state = _fake_run_state(tmp_path)
+        run_dir = tmp_path / "20260101_120000"
+        run_dir.mkdir()
+        (run_dir / "log.jsonl").write_text('{"event":"run_start","goal":"x"}\n')
 
         with (
             patch("sys.argv", ["kodo", "issue", "--no-open", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log._runs_root", autospec=True, return_value=tmp_path),
             patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state]),
             patch("questionary.text", autospec=True) as mock_text,
             patch("webbrowser.open", autospec=True) as mock_open,
@@ -327,7 +335,7 @@ class TestCmdIssue:
 
         out = capsys.readouterr().out
         assert "github.com/ikamensh/kodo/issues/new" in out
-        assert "Log file:" in out
+        assert "Archive:" in out
         assert "To report" in out or "attach" in out.lower()
         mock_open.assert_not_called()
         mock_folder.assert_not_called()
@@ -352,9 +360,13 @@ class TestCmdIssue:
         state_a = _fake_run_state(tmp_path, run_id="20260101_120000")
         state_b = _fake_run_state(tmp_path, run_id="20260102_130000")
         state_b.goal = "Different goal"
+        for rid in ("20260101_120000", "20260102_130000"):
+            (tmp_path / rid).mkdir()
+            (tmp_path / rid / "log.jsonl").write_text('{"event":"run_start","goal":"x"}\n')
 
         with (
             patch("sys.argv", ["kodo", "issue", "--project", str(tmp_path)]),
+            patch("kodo.cli._subcommands.log._runs_root", autospec=True, return_value=tmp_path),
             patch("kodo.cli._subcommands.log.list_runs", autospec=True, return_value=[state_a, state_b]),
             patch("kodo.cli._subcommands._open_folder", autospec=True),
             patch("questionary.select", autospec=True) as mock_select,

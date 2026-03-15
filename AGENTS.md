@@ -15,7 +15,7 @@ Primary user workflows and how to verify them with mocks (no API keys or real ba
 
 **Log viewer (browser):** `python -m kodo.viewer <log.jsonl>` or `--serve --port 8080`. `scripts/verify_viewer_browser.py` uses Playwright (optional dep) to verify embedded data, stats bar, timeline, expand button.
 
-**Report bug:** `kodo issue [RUN_ID]` — resolves run like `--resume` (latest or by id), prompts for description (leave empty if crash obvious), opens GitHub new-issue URL with run context pre-filled. Tests: `tests/cli/test_subcommands.py::TestCmdIssue`.
+**Report bug:** `kodo issue [RUN_ID]` — resolves run like `--resume` (latest or by id), prompts for description (leave empty if crash obvious), packs run into `run.tar.gz` (log, config, goal, conversations), opens GitHub new-issue URL with run context pre-filled. User attaches the archive (GitHub rejects .jsonl). Tests: `tests/cli/test_subcommands.py::TestCmdIssue`.
 
 ## Boundary condition tests (final status)
 

@@ -210,7 +210,6 @@ def _cmd_issue() -> None:
     body_parts = [
         f"**Run:** {state.run_id}",
         f"**Goal:** {state.goal[:500]}{'...' if len(state.goal) > 500 else ''}",
-        f"**Project:** {state.project_dir}",
         f"**Status:** {status}",
         f"**kodo:** {__version__}",
         "",
@@ -219,18 +218,18 @@ def _cmd_issue() -> None:
         body_parts.append(desc.strip())
         body_parts.append("")
     run_dir = log._runs_root() / state.run_id
-    log_path = run_dir / "log.jsonl"
-    if not log_path.exists():
-        log_path = run_dir / "run.jsonl"  # legacy
+    from kodo.trace_upload import pack_run_archive
+
+    archive_path = pack_run_archive(run_dir)
     body_parts.append("---")
     body_parts.append("")
     body_parts.append(
-        "**[TODO] Please attach the log file:** drag and drop `log.jsonl` (or `run.jsonl` for older runs) from the folder that opened "
-        "(or from `~/.kodo/runs/" + state.run_id + "/`) into this issue. The log is essential for debugging."
+        "**[TODO] Please attach the run archive:** drag and drop `run.tar.gz` from the folder that opened "
+        f"(or from `~/.kodo/runs/{state.run_id}/`) into this issue. The archive contains log, config, goal, and conversations — essential for debugging."
     )
     body_parts.append("")
     body_parts.append(
-        "Before submitting, verify the log does not contain sensitive secrets (API keys, tokens, etc.)."
+        "Before submitting, verify the archive does not contain sensitive secrets (API keys, tokens, etc.)."
     )
 
     title = f"Bug report: run {state.run_id}"
@@ -246,16 +245,16 @@ def _cmd_issue() -> None:
         _open_folder(run_dir)
         print()
         print("  GitHub issue form opened in your browser.")
-        print("  Run folder opened — attach log.jsonl to the issue (drag & drop or click to add).")
-        print("  Verify the log does not contain sensitive secrets (API keys, tokens) before submitting.")
+        print("  Run folder opened — attach run.tar.gz to the issue (drag & drop or click to add).")
+        print("  Verify the archive does not contain sensitive secrets (API keys, tokens) before submitting.")
     else:
         print()
         print("  To report this bug:")
         print("  1. Open the URL below in your browser")
-        print("  2. Attach the log file (drag & drop or click to add)")
-        print("  3. Verify the log does not contain sensitive secrets (API keys, tokens)")
+        print("  2. Attach run.tar.gz from the run folder (drag & drop or click to add)")
+        print("  3. Verify the archive does not contain sensitive secrets (API keys, tokens)")
     print()
-    print(f"  Log file: {log_path}")
+    print(f"  Archive: {archive_path}")
     print()
     print("  Issue URL:")
     print(f"  {url}")
