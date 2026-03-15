@@ -336,6 +336,7 @@ class TestCmdIssue:
         out = capsys.readouterr().out
         assert "github.com/ikamensh/kodo/issues/new" in out
         assert "Archive:" in out
+        assert "Scrubbed:" in out
         assert "To report" in out or "attach" in out.lower()
         mock_open.assert_not_called()
         mock_folder.assert_not_called()

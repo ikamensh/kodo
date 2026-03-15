@@ -220,7 +220,8 @@ def _cmd_issue() -> None:
     run_dir = log._runs_root() / state.run_id
     from kodo.trace_upload import pack_run_archive
 
-    archive_path = pack_run_archive(run_dir)
+    archive = pack_run_archive(run_dir)
+    archive_path = archive.path
     body_parts.append("---")
     body_parts.append("")
     body_parts.append(
@@ -229,7 +230,7 @@ def _cmd_issue() -> None:
     )
     body_parts.append("")
     body_parts.append(
-        "Before submitting, verify the archive does not contain sensitive secrets (API keys, tokens, etc.)."
+        "The archive is scrubbed for common secrets and PII, but still verify it manually before submitting."
     )
 
     title = f"Bug report: run {state.run_id}"
@@ -246,15 +247,16 @@ def _cmd_issue() -> None:
         print()
         print("  GitHub issue form opened in your browser.")
         print("  Run folder opened — attach run.tar.gz to the issue (drag & drop or click to add).")
-        print("  Verify the archive does not contain sensitive secrets (API keys, tokens) before submitting.")
+        print("  Archive scrubbed for common secrets/PII; verify manually before submitting.")
     else:
         print()
         print("  To report this bug:")
         print("  1. Open the URL below in your browser")
         print("  2. Attach run.tar.gz from the run folder (drag & drop or click to add)")
-        print("  3. Verify the archive does not contain sensitive secrets (API keys, tokens)")
+        print("  3. Archive scrubbed for common secrets/PII; verify manually before submitting")
     print()
     print(f"  Archive: {archive_path}")
+    print(f"  Scrubbed: {archive.stats.redactions} sensitive values across {archive.stats.files_changed} file(s)")
     print()
     print("  Issue URL:")
     print(f"  {url}")
