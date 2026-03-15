@@ -25,7 +25,7 @@ See [Gemini CLI docs](https://github.com/google-gemini/gemini-cli) for details.
 ### 3. Install kodo
 
 ```bash
-uv tool install git+https://github.com/ikamen/kodo
+uv tool install git+https://github.com/ikamensh/kodo
 ```
 
 ### 4. Run
