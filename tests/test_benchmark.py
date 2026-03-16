@@ -1025,20 +1025,49 @@ class TestLoadUploaded:
 
 
 class TestOnlineValidation:
-    def test_flags_any_zero_patch_upload(self):
+    def test_flags_empty_agent_output(self):
+        reason = suspicious_upload_reason(
+            status="ok",
+            elapsed_s=42.0,
+            patch_len=100,
+            agent_output={},
+        )
+
+        assert reason == "empty_agent_output"
+
+    def test_flags_zero_patch_with_nonempty_output(self):
         reason = suspicious_upload_reason(
             status="ok",
             elapsed_s=1.0,
             patch_len=0,
-            agent_output={
-                "msg": {
-                    "type": "error",
-                    "message": "You've hit your usage limit. Upgrade to Pro.",
-                }
-            },
+            agent_output={"status": "ok", "finished": True},
         )
 
         assert reason == "no_patch"
+
+    def test_flags_kodo_worker_broken_from_agent_output(self):
+        reason = suspicious_upload_reason(
+            arm="kodo:solo",
+            status="error",
+            elapsed_s=627.6,
+            patch_len=4624,
+            error="worker trace omitted",
+            agent_output={"status": "error", "error": "unknown error"},
+        )
+
+        assert reason == "kodo_worker_broken"
+
+    def test_flags_kodo_worker_broken_from_error_log(self):
+        reason = suspicious_upload_reason(
+            arm="kodo:solo",
+            status="error",
+            elapsed_s=1566.5,
+            patch_len=1551,
+            error="[worker] error: unknown error",
+            agent_output="worker transcript",
+        )
+
+        assert reason == "kodo_worker_broken"
 
 
 class TestFlushPendingUploads:
@@ -1969,6 +1998,7 @@ class TestCleanupDummyResults:
                 "elapsed_s": 1.0,
                 "patch_len": 0,
                 "run_id": "run-a",
+                "agent_output": {},
             },
             {
                 "instance_id": "id2",
@@ -1977,6 +2007,7 @@ class TestCleanupDummyResults:
                 "elapsed_s": 120.0,
                 "patch_len": 42,
                 "run_id": "run-a",
+                "agent_output": {"status": "ok"},
             },
         ]
 
@@ -1991,7 +2022,39 @@ class TestCleanupDummyResults:
                 "elapsed_s": 1.0,
                 "patch_len": 0,
                 "run_id": "run-a",
-                "reason": "no_patch",
+                "agent_output": {},
+                "reason": "empty_agent_output",
+            }
+        ]
+
+    def test_candidate_rows_detects_kodo_worker_broken(self):
+        rows = [
+            {
+                "instance_id": "id1",
+                "arm": "kodo:solo",
+                "status": "error",
+                "elapsed_s": 627.6,
+                "patch_len": 4624,
+                "run_id": "run-a",
+                "error": "[worker] error: unknown error",
+                "agent_output": {"status": "error", "error": "bound to a different event loop"},
+            },
+        ]
+
+        with patch("benchmark.online.cleanup_dummy_results.db.iter_task_results", autospec=True, return_value=rows):
+            result = candidate_rows("pro", run_id="run-a")
+
+        assert result == [
+            {
+                "instance_id": "id1",
+                "arm": "kodo:solo",
+                "status": "error",
+                "elapsed_s": 627.6,
+                "patch_len": 4624,
+                "run_id": "run-a",
+                "error": "[worker] error: unknown error",
+                "agent_output": {"status": "error", "error": "bound to a different event loop"},
+                "reason": "kodo_worker_broken",
             }
         ]
 
@@ -2032,7 +2095,7 @@ class TestCleanupDummyResults:
 
         out = capsys.readouterr().out
         assert ret == 0
-        assert "candidates=1" in out
+        assert "suspicious uploads: 1 rows" in out
         assert "no_patch: 1" in out
 
     def test_main_uses_batch_delete_for_zero_patch_rows(self):

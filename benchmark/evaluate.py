@@ -56,6 +56,29 @@ def _kill_subprocess_group(proc: subprocess.Popen[Any]) -> None:
         pass
 
 
+def _timestamp_prefix() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _stream_with_timestamps(proc: subprocess.Popen[Any], timeout: int) -> int:
+    """Read stdout line by line (stderr merged via STDOUT), prefix with timestamp."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    if proc.stdout:
+        for line in proc.stdout:
+            if time.monotonic() > deadline:
+                raise subprocess.TimeoutExpired(proc.args, timeout)
+            text = line.rstrip("\n\r")
+            print(f"[{_timestamp_prefix()}] {text}", flush=True)
+
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(proc.args, timeout)
+    return proc.wait(timeout=remaining)
+
+
 def _run_eval_subprocess(
     cmd: list[str],
     *,
@@ -64,13 +87,19 @@ def _run_eval_subprocess(
     env: dict[str, str] | None = None,
 ) -> None:
     """Run an evaluator command and kill its whole process group on timeout."""
-    popen_kwargs: dict[str, Any] = {"cwd": cwd, "env": env}
+    popen_kwargs: dict[str, Any] = {
+        "cwd": cwd,
+        "env": env,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+    }
     if os.name != "nt":
         popen_kwargs["start_new_session"] = True
 
     proc = subprocess.Popen(cmd, **popen_kwargs)
     try:
-        returncode = proc.wait(timeout=timeout)
+        returncode = _stream_with_timestamps(proc, timeout)
     except subprocess.TimeoutExpired:
         _kill_subprocess_group(proc)
         raise

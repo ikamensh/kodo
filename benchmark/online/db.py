@@ -145,6 +145,24 @@ def delete_empty_result_docs(dataset: str) -> int:
     return deleted
 
 
+def clear_eval_status_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
+    """Remove eval_status and resolved fields so instances can be re-evaluated."""
+    from google.cloud import firestore
+
+    coll = _db().collection("datasets").document(dataset).collection("results")
+    for i in range(0, len(rows), 500):
+        batch = _db().batch()
+        for instance_id, arm in rows[i : i + 500]:
+            doc_ref = coll.document(instance_id)
+            batch.update(doc_ref, {
+                f"arms.{arm}.eval_status": firestore.DELETE_FIELD,
+                f"arms.{arm}.resolved": firestore.DELETE_FIELD,
+            })
+        batch.commit()
+    if rows:
+        _mark_dirty(dataset)
+
+
 def save_patch(dataset: str, instance_id: str, arm: str, patch: str) -> None:
     """Upload patch text to GCS."""
     if not patch:

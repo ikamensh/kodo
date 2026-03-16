@@ -114,6 +114,7 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
 
         patch = patches.get((iid, arm), "")
         reason = suspicious_upload_reason(
+            arm=arm,
             status=r.get("status", ""),
             elapsed_s=r.get("elapsed_s", 0),
             patch=patch,

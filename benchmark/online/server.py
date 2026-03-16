@@ -219,6 +219,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "provenance": body.get("provenance", {}),
         }
         reason = suspicious_upload_reason(
+            arm=arm,
             status=result_data["status"],
             elapsed_s=result_data["elapsed_s"],
             patch=body.get("patch", ""),

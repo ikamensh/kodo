@@ -44,6 +44,7 @@ def upload_task_result(
     if not ds:
         return
     reason = suspicious_upload_reason(
+        arm=arm,
         status=status,
         elapsed_s=elapsed_s,
         patch=patch,
