@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import signal
 import subprocess
+import sys
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -458,7 +459,7 @@ class TestClassifySessionError:
     def test_signal_kill(self):
         """Detects SIGKILL termination."""
         result = classify_session_error(
-            returncode=-signal.SIGKILL,
+            returncode=-9,
             stderr="",
             backend="worker",
         )
@@ -521,8 +522,7 @@ class TestStderrDrainEdgeCases:
         # Create a command that outputs a very long line to stderr
         # The truncation happens at 65536 bytes per line
         # Since we write without a newline, it stays in the buffer until process ends
-        long_line = "x" * 100000  # 100KB line
-        cmd = ["python3", "-c", f"import sys; sys.stderr.write('{long_line}\\n')"]
+        cmd = [sys.executable, "-c", "import sys; sys.stderr.write('x' * 100000 + '\\n')"]
 
         proc, stderr_chunks, thread = session._spawn(cmd)
         stderr = session._wait(proc, stderr_chunks, thread)
@@ -540,7 +540,11 @@ class TestStderrDrainEdgeCases:
         session = ConcreteSubprocessSession(model="test")
 
         # Create a command that outputs many lines
-        cmd = ["python3", "-c", "import sys; [sys.stderr.write(f'line {i}\\n') for i in range(15000)]"]
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; [sys.stderr.write(f'line {i}\\n') for i in range(15000)]",
+        ]
 
         proc, stderr_chunks, thread = session._spawn(cmd)
         stderr = session._wait(proc, stderr_chunks, thread)
@@ -566,4 +570,3 @@ class TestSessionProtocolMethods:
         assert hasattr(session, "terminate")
         assert hasattr(session, "close")
         assert hasattr(session, "clone")
-

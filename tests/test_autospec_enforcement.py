@@ -260,7 +260,7 @@ def _scan_test_files():
         except ValueError:
             continue
         try:
-            source = test_file.read_text()
+            source = test_file.read_text(encoding="utf-8")
             tree = ast.parse(source)
         except SyntaxError:
             continue

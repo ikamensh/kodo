@@ -367,6 +367,22 @@ _BINARY_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+_FALLBACK_SIGNAL_NAMES = {
+    2: "SIGINT",
+    9: "SIGKILL",
+    15: "SIGTERM",
+}
+
+
+def _signal_name(signum: int) -> str:
+    """Return a stable signal name across platforms."""
+    import signal
+
+    try:
+        return signal.Signals(signum).name
+    except (ValueError, AttributeError):
+        return _FALLBACK_SIGNAL_NAMES.get(signum, str(signum))
+
 
 def classify_session_error(
     returncode: int,
@@ -410,12 +426,7 @@ def classify_session_error(
         )
 
     if returncode < 0:
-        import signal
-
-        try:
-            sig = signal.Signals(-returncode).name
-        except (ValueError, AttributeError):
-            sig = str(-returncode)
+        sig = _signal_name(-returncode)
         return f"{backend + ': ' if backend else ''}Process killed by signal {sig}."
 
     return None

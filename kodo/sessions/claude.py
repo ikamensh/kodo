@@ -279,7 +279,10 @@ class ClaudeSession:
             self._thread.join(timeout=3)
             if self._thread.is_alive():
                 try:
-                    os.kill(subprocess_pid, signal.SIGKILL)
+                    os.kill(
+                        subprocess_pid,
+                        getattr(signal, "SIGKILL", signal.SIGTERM),
+                    )
                 except OSError:
                     pass
                 self._thread.join(timeout=2)

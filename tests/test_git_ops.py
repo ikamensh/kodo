@@ -79,12 +79,17 @@ def test_create_worktree_happy_path(git_project: Path):
 
     # Verify worktree is registered
     wt_list = subprocess.run(
-        ["git", "worktree", "list"],
+        ["git", "worktree", "list", "--porcelain"],
         cwd=git_project,
         capture_output=True,
         text=True,
     )
-    assert str(worktree_dir) in wt_list.stdout
+    listed_paths = [
+        Path(line.split(" ", 1)[1])
+        for line in wt_list.stdout.splitlines()
+        if line.startswith("worktree ")
+    ]
+    assert any(path.exists() and path.samefile(worktree_dir) for path in listed_paths)
 
     # Cleanup
     remove_worktree(git_project, worktree_dir, branch_name)
