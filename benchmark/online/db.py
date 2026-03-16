@@ -73,12 +73,100 @@ def save_task_result(
     _mark_dirty(dataset)
 
 
+def iter_task_results(dataset: str) -> list[dict]:
+    """Return flattened task-result rows for a dataset."""
+    coll = _db().collection("datasets").document(dataset).collection("results")
+    rows: list[dict] = []
+    for doc in coll.stream():
+        data = doc.to_dict() or {}
+        for arm, arm_data in (data.get("arms") or {}).items():
+            rows.append({
+                "dataset": dataset,
+                "instance_id": doc.id,
+                "arm": arm,
+                **arm_data,
+            })
+    return rows
+
+
+def delete_task_result(
+    dataset: str,
+    instance_id: str,
+    arm: str,
+    *,
+    delete_patch_blob: bool = True,
+) -> None:
+    """Delete a single task result and, optionally, its stored patch."""
+    from google.cloud import firestore
+
+    doc_ref = (
+        _db()
+        .collection("datasets")
+        .document(dataset)
+        .collection("results")
+        .document(instance_id)
+    )
+    doc_ref.update({f"arms.{arm}": firestore.DELETE_FIELD})
+    snapshot = doc_ref.get()
+    data = snapshot.to_dict() or {} if snapshot.exists else {}
+    if not (data.get("arms") or {}):
+        doc_ref.delete()
+    if delete_patch_blob:
+        delete_patch(dataset, instance_id, arm)
+    _mark_dirty(dataset)
+
+
+def delete_task_results_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
+    """Delete many task-result arms in Firestore batches."""
+    from google.cloud import firestore
+
+    coll = _db().collection("datasets").document(dataset).collection("results")
+    for i in range(0, len(rows), 500):
+        batch = _db().batch()
+        for instance_id, arm in rows[i : i + 500]:
+            doc_ref = coll.document(instance_id)
+            batch.update(doc_ref, {f"arms.{arm}": firestore.DELETE_FIELD})
+        batch.commit()
+    _mark_dirty(dataset)
+
+
+def delete_empty_result_docs(dataset: str) -> int:
+    """Delete result docs that no longer contain any arms."""
+    coll = _db().collection("datasets").document(dataset).collection("results")
+    deleted = 0
+    for doc in coll.stream():
+        data = doc.to_dict() or {}
+        if data.get("arms"):
+            continue
+        doc.reference.delete()
+        deleted += 1
+    if deleted:
+        _mark_dirty(dataset)
+    return deleted
+
+
 def save_patch(dataset: str, instance_id: str, arm: str, patch: str) -> None:
     """Upload patch text to GCS."""
     if not patch:
         return
     blob = _bucket().blob(f"patches/{dataset}/{instance_id}/{arm}.diff")
     blob.upload_from_string(patch, content_type="text/plain")
+
+
+def delete_patch(dataset: str, instance_id: str, arm: str) -> None:
+    """Delete a stored patch if it exists."""
+    try:
+        blob = _bucket().blob(f"patches/{dataset}/{instance_id}/{arm}.diff")
+    except ImportError:
+        log.warning(
+            "Skipping patch deletion for %s/%s in %s: google-cloud-storage is not installed",
+            instance_id,
+            arm,
+            dataset,
+        )
+        return
+    if blob.exists():
+        blob.delete()
 
 
 def save_run(run_id: str, meta: dict) -> None:
@@ -108,8 +196,10 @@ def save_eval_results(
         updates.append((iid, {"resolved": True, "eval_status": True}))
     for iid in failed:
         updates.append((iid, {"resolved": False, "eval_status": True}))
-    for iid in error:
-        updates.append((iid, {"resolved": False, "eval_status": True}))
+    # Don't mark eval errors as evaluated — leave them unevaluated so they
+    # can be retried on the next --evaluate-pending run.
+    if error:
+        log.info("Skipping %d eval errors for %s (will be retried)", len(error), arm)
 
     for i in range(0, len(updates), 500):
         batch = _db().batch()

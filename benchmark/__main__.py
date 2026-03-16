@@ -152,6 +152,22 @@ def main() -> int:
         "swebench evaluation locally. Uploads results back when done. "
         "(Requires KODO_BENCH_URL/TOKEN and Docker.)",
     )
+    parser.add_argument(
+        "--mirror-online",
+        action="store_true",
+        help="Mirror public online benchmark data into local JSON files for plotting",
+    )
+    parser.add_argument(
+        "--mirror-out",
+        type=Path,
+        default=WORKSPACE / "mirror",
+        help="Output directory for --mirror-online (default: ~/.kodo/benchmark/mirror)",
+    )
+    parser.add_argument(
+        "--mirror-patches",
+        action="store_true",
+        help="With --mirror-online, also download patches.json",
+    )
 
     # Mode
     parser.add_argument(
@@ -200,7 +216,17 @@ def main() -> int:
     if args.evaluate_pending:
         from benchmark.evaluate_pending import evaluate_pending
 
-        return evaluate_pending(workspace, dataset_arg=args.dataset)
+        return evaluate_pending(workspace, dataset_arg=args.dataset, arms=args.arm)
+
+    if args.mirror_online:
+        from benchmark.online.mirror import mirror_dataset
+
+        mirror_dataset(
+            args.dataset,
+            out_dir=args.mirror_out,
+            include_patches=args.mirror_patches,
+        )
+        return 0
 
     if args.report_only:
         from benchmark.report import generate_report

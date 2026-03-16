@@ -97,6 +97,7 @@ def flush_pending_uploads(workspace: Path) -> int:
                     error=r.get("error", ""),
                     run_id=run_dir.name,
                     dataset=dataset,
+                    agent_output=r.get("agent_output"),
                 )
                 mark_uploaded(workspace, iid, arm, run_dir.name)
                 success += 1

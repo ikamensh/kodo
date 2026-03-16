@@ -58,6 +58,32 @@ Results upload automatically per-task to the online store. No batch step needed 
 
 **Viewer**: https://kodo-bench-430011644943.europe-west1.run.app
 
+### Mirroring For Analysis
+
+To copy the public benchmark snapshot into local JSON files:
+
+```bash
+uv run python -m benchmark --mirror-online --dataset verified
+uv run python -m benchmark --mirror-online --dataset pro --mirror-patches
+```
+
+This writes files under `~/.kodo/benchmark/mirror/<dataset>/`:
+
+| File | Content |
+|------|---------|
+| `index.json` | Raw public dataset snapshot |
+| `rows.json` | One row per `instance_id` + `arm` for plotting |
+| `patches.json` | Optional patch mirror |
+
+For Python analysis:
+
+```python
+from benchmark.online.mirror import load_rows
+
+rows = load_rows("~/.kodo/benchmark/mirror/verified")
+resolved = [row for row in rows if row.get("resolved") is True]
+```
+
 ### Setup (for uploading)
 
 Set two environment variables:

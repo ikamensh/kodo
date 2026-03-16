@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -796,9 +797,11 @@ class TestRunBenchmark:
 # ── evaluate ───────────────────────────────────────────────────────────────
 
 from benchmark.evaluate import (
+    _count_pro_progress,
     _docker_safe as eval_docker_safe,
     _parse_pro_results,
     _parse_standard_results,
+    _run_eval_subprocess,
     _collect_eval_results,
     evaluate_predictions,
 )
@@ -807,6 +810,49 @@ from benchmark.evaluate import (
 class TestEvalDockerSafe:
     def test_basic(self):
         assert eval_docker_safe("kodo:solo") == "kodo_solo"
+
+
+class TestRunEvalSubprocess:
+    def test_timeout_kills_process_group(self):
+        """Timeout should reap the evaluator group so later arms can continue."""
+        proc = MagicMock()
+        proc.pid = 321
+        proc.poll.return_value = None
+        proc.wait.side_effect = [
+            subprocess.TimeoutExpired(["python"], 10),
+            None,
+        ]
+
+        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc), \
+             patch("benchmark.evaluate.os.killpg", autospec=True) as mock_killpg:
+            with pytest.raises(subprocess.TimeoutExpired):
+                _run_eval_subprocess(["python"], timeout=10)
+
+        mock_killpg.assert_called_once_with(321, signal.SIGKILL)
+
+    def test_nonzero_exit_raises(self):
+        """Non-zero exit should still surface as a CalledProcessError."""
+        proc = MagicMock()
+        proc.wait.return_value = 7
+
+        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc):
+            with pytest.raises(subprocess.CalledProcessError):
+                _run_eval_subprocess(["python"], timeout=10)
+
+
+class TestCountProProgress:
+    def test_counts_finished_instance_outputs(self, tmp_path):
+        """An instance is complete once the evaluator writes its *_output.json file."""
+        inst_done = tmp_path / "instance_done"
+        inst_done.mkdir()
+        (inst_done / "kodo_output.json").write_text("{}")
+        inst_running = tmp_path / "instance_running"
+        inst_running.mkdir()
+
+        completed, in_progress = _count_pro_progress(tmp_path)
+
+        assert completed == 1
+        assert in_progress == ["instance_running"]
 
 
 class TestParseProResults:
@@ -943,6 +989,7 @@ from benchmark.online.upload_tracker import (
     load_uploaded,
     mark_uploaded,
 )
+from benchmark.online.validation import suspicious_upload_reason
 
 
 class TestMarkUploaded:
@@ -975,6 +1022,23 @@ class TestLoadUploaded:
             '{"instance_id":"id2","arm":"kodo","run_id":"r2"}\n'
         )
         assert load_uploaded(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
+
+
+class TestOnlineValidation:
+    def test_flags_any_zero_patch_upload(self):
+        reason = suspicious_upload_reason(
+            status="ok",
+            elapsed_s=1.0,
+            patch_len=0,
+            agent_output={
+                "msg": {
+                    "type": "error",
+                    "message": "You've hit your usage limit. Upgrade to Pro.",
+                }
+            },
+        )
+
+        assert reason == "no_patch"
 
 
 class TestFlushPendingUploads:
@@ -1055,6 +1119,29 @@ class TestFlushPendingUploads:
         assert ret == 1  # failure
         # Should NOT be marked as uploaded
         assert load_uploaded(tmp_path) == set()
+
+    def test_skips_suspicious_rows_without_hitting_server(self, tmp_path):
+        self._setup_run(
+            tmp_path, "r1",
+            [{
+                "instance_id": "id1",
+                "arm": "codex",
+                "status": "ok",
+                "elapsed_s": 1.0,
+                "patch_len": 0,
+                "agent_output": {
+                    "msg": {"type": "error", "message": "You've hit your usage limit."}
+                },
+            }],
+        )
+
+        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
+             patch("benchmark.online.client._post", autospec=True) as mock_post:
+            ret = flush_pending_uploads(tmp_path)
+
+        assert ret == 0
+        mock_post.assert_not_called()
+        assert ("id1", "codex") in load_uploaded(tmp_path)
 
 
 # ── upload (publish) ──────────────────────────────────────────────────────
@@ -1377,6 +1464,7 @@ class TestPrioritizeAssignments:
 
 import benchmark.online.config as online_config
 from benchmark.online.client import _request, fetch_assignments, is_configured
+import benchmark.online.db as online_db
 
 
 class TestOnlineClientConfig:
@@ -1465,6 +1553,15 @@ class TestFetchAssignments:
                    return_value={"assignments": []}):
             result = fetch_assignments(["claude"], datasets={"pro": ["id1"]})
         assert result == []
+
+
+class TestOnlineDb:
+    def test_delete_patch_skips_when_storage_dep_missing(self):
+        with patch("benchmark.online.db._bucket", autospec=True, side_effect=ImportError), \
+             patch("benchmark.online.db.log", autospec=True) as mock_log:
+            online_db.delete_patch("pro", "id1", "codex")
+
+        mock_log.warning.assert_called_once()
 
 
 # ── runner with assignments ────────────────────────────────────────────────
@@ -1686,6 +1783,15 @@ class TestMainDistribute:
 # ── fetch_unevaluated ─────────────────────────────────────────────────────
 
 from benchmark.online.client import fetch_unevaluated
+from benchmark.online.cleanup_dummy_results import candidate_rows
+from benchmark.online.mirror import (
+    fetch_patch,
+    flatten_index_rows,
+    load_rows,
+    main as mirror_main,
+    mirror_dataset,
+    public_base_url,
+)
 
 
 class TestFetchUnevaluated:
@@ -1721,6 +1827,250 @@ class TestFetchUnevaluated:
                    return_value={"predictions": []}) as mock_get:
             fetch_unevaluated("ScaleAI/SWE-bench_Pro")
         assert mock_get.call_args[0][0] == "/api/unevaluated/pro"
+
+
+class TestOnlineMirror:
+    def test_public_base_url_prefers_explicit_then_env_then_default(self):
+        with patch.dict("os.environ", {"KODO_BENCH_URL": "https://env.example"}, clear=True):
+            assert public_base_url("https://arg.example") == "https://arg.example"
+            assert public_base_url() == "https://env.example"
+
+        with patch.dict("os.environ", {}, clear=True):
+            assert public_base_url().startswith("https://kodo-bench-")
+
+    def test_flatten_index_rows_keeps_one_row_per_instance_arm(self):
+        index = {
+            "meta": {"dataset": "verified"},
+            "results": {
+                "id2": {"cursor": {"status": "partial"}},
+                "id1": {
+                    "claude": {
+                        "status": "ok",
+                        "resolved": True,
+                        "elapsed_s": 12.5,
+                        "provenance": {"user": "alice", "host": "mbp"},
+                    }
+                },
+            },
+        }
+
+        rows = flatten_index_rows(index)
+
+        assert rows == [
+            {
+                "dataset": "verified",
+                "instance_id": "id1",
+                "arm": "claude",
+                "status": "ok",
+                "resolved": True,
+                "eval_status": None,
+                "elapsed_s": 12.5,
+                "patch_len": None,
+                "error": None,
+                "run_id": None,
+                "provenance_user": "alice",
+                "provenance_host": "mbp",
+            },
+            {
+                "dataset": "verified",
+                "instance_id": "id2",
+                "arm": "cursor",
+                "status": "partial",
+                "resolved": None,
+                "eval_status": None,
+                "elapsed_s": None,
+                "patch_len": None,
+                "error": None,
+                "run_id": None,
+            },
+        ]
+
+    def test_mirror_dataset_writes_index_rows_and_optional_patches(self, tmp_path):
+        index = {
+            "meta": {"dataset": "verified"},
+            "results": {"id1": {"claude": {"status": "ok"}}},
+        }
+
+        with patch("benchmark.online.mirror.fetch_dataset_index", autospec=True, return_value=index), \
+             patch("benchmark.online.mirror.fetch_dataset_patches", autospec=True,
+                   return_value={"id1/claude": "diff --git"}):
+            out = mirror_dataset("verified", out_dir=tmp_path, include_patches=True)
+
+        assert out == tmp_path / "verified"
+        assert json.loads((out / "index.json").read_text()) == index
+        assert json.loads((out / "rows.json").read_text()) == [
+            {
+                "dataset": "verified",
+                "instance_id": "id1",
+                "arm": "claude",
+                "status": "ok",
+                "resolved": None,
+                "eval_status": None,
+                "elapsed_s": None,
+                "patch_len": None,
+                "error": None,
+                "run_id": None,
+            }
+        ]
+        assert json.loads((out / "patches.json").read_text()) == {"id1/claude": "diff --git"}
+
+    def test_load_rows_accepts_directory_or_file(self, tmp_path):
+        dataset_dir = tmp_path / "verified"
+        dataset_dir.mkdir()
+        rows = [{"instance_id": "id1", "arm": "claude"}]
+        (dataset_dir / "rows.json").write_text(json.dumps(rows))
+
+        assert load_rows(dataset_dir) == rows
+        assert load_rows(dataset_dir / "rows.json") == rows
+
+    def test_load_rows_expands_user_home(self, tmp_path):
+        home = tmp_path / "home"
+        dataset_dir = home / ".kodo" / "benchmark" / "mirror" / "verified"
+        dataset_dir.mkdir(parents=True)
+        rows = [{"instance_id": "id1", "arm": "claude"}]
+        (dataset_dir / "rows.json").write_text(json.dumps(rows))
+
+        with patch.dict("os.environ", {"HOME": str(home)}, clear=False):
+            assert load_rows("~/.kodo/benchmark/mirror/verified") == rows
+
+    def test_fetch_patch_quotes_instance_id_and_arm(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b"patch body"
+
+        with patch("urllib.request.urlopen", autospec=True, return_value=response) as mock_urlopen:
+            patch_text = fetch_patch("verified", "repo__name-1", "kodo:solo+opus")
+
+        assert patch_text == "patch body"
+        assert mock_urlopen.call_args.args[0].endswith(
+            "/api/patch/verified/repo__name-1/kodo%3Asolo%2Bopus"
+        )
+
+    def test_mirror_main_uses_requested_output_dir(self, tmp_path):
+        with patch("benchmark.online.mirror.mirror_dataset", autospec=True) as mock_mirror:
+            ret = mirror_main(["--dataset", "verified", "--out", str(tmp_path), "--patches"])
+
+        assert ret == 0
+        mock_mirror.assert_called_once_with(
+            "verified",
+            out_dir=tmp_path,
+            include_patches=True,
+            base_url=None,
+        )
+
+
+class TestCleanupDummyResults:
+    def test_candidate_rows_reuses_upload_validation(self):
+        rows = [
+            {
+                "instance_id": "id1",
+                "arm": "codex",
+                "status": "ok",
+                "elapsed_s": 1.0,
+                "patch_len": 0,
+                "run_id": "run-a",
+            },
+            {
+                "instance_id": "id2",
+                "arm": "claude",
+                "status": "ok",
+                "elapsed_s": 120.0,
+                "patch_len": 42,
+                "run_id": "run-a",
+            },
+        ]
+
+        with patch("benchmark.online.cleanup_dummy_results.db.iter_task_results", autospec=True, return_value=rows):
+            result = candidate_rows("pro", run_id="run-a")
+
+        assert result == [
+            {
+                "instance_id": "id1",
+                "arm": "codex",
+                "status": "ok",
+                "elapsed_s": 1.0,
+                "patch_len": 0,
+                "run_id": "run-a",
+                "reason": "no_patch",
+            }
+        ]
+
+    def test_main_filters_by_reason_and_elapsed(self, capsys):
+        rows = [
+            {
+                "instance_id": "id1",
+                "arm": "codex",
+                "status": "error",
+                "elapsed_s": 1.0,
+                "patch_len": 0,
+                "run_id": "run-a",
+                "reason": "no_patch",
+            },
+            {
+                "instance_id": "id2",
+                "arm": "gemini",
+                "status": "error",
+                "elapsed_s": 25.0,
+                "patch_len": 0,
+                "run_id": "run-a",
+                "reason": "no_patch",
+            },
+        ]
+
+        with patch(
+            "benchmark.online.cleanup_dummy_results.candidate_rows",
+            autospec=True,
+            return_value=rows,
+        ):
+            from benchmark.online.cleanup_dummy_results import main as cleanup_main
+
+            ret = cleanup_main([
+                "--dataset", "pro",
+                "--reason", "no_patch",
+                "--max-elapsed", "10",
+            ])
+
+        out = capsys.readouterr().out
+        assert ret == 0
+        assert "candidates=1" in out
+        assert "no_patch: 1" in out
+
+    def test_main_uses_batch_delete_for_zero_patch_rows(self):
+        rows = [
+            {
+                "instance_id": "id1",
+                "arm": "codex",
+                "status": "error",
+                "elapsed_s": 1.0,
+                "patch_len": 0,
+                "run_id": "run-a",
+                "reason": "no_patch",
+            }
+        ]
+
+        with patch(
+            "benchmark.online.cleanup_dummy_results.candidate_rows",
+            autospec=True,
+            return_value=rows,
+        ), patch(
+            "benchmark.online.cleanup_dummy_results.db.delete_task_results_batch",
+            autospec=True,
+        ) as mock_batch, patch(
+            "benchmark.online.cleanup_dummy_results.db.delete_empty_result_docs",
+            autospec=True,
+            return_value=1,
+        ) as mock_empty:
+            from benchmark.online.cleanup_dummy_results import main as cleanup_main
+
+            ret = cleanup_main([
+                "--dataset", "pro",
+                "--reason", "no_patch",
+                "--apply",
+            ])
+
+        assert ret == 0
+        mock_batch.assert_called_once_with("pro", [("id1", "codex")])
+        mock_empty.assert_called_once_with("pro")
 
 
 # ── evaluate_pending ──────────────────────────────────────────────────────
@@ -1872,3 +2222,9 @@ class TestProgressView:
         static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
         html = (static / "index.html").read_text()
         assert "progress.html" in html
+
+    def test_main_viewer_pending_excludes_error_rows(self):
+        """Pending-eval UI should only count ok/partial runs, not error rows."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        html = (static / "index.html").read_text()
+        assert "r.status === 'ok' || r.status === 'partial'" in html

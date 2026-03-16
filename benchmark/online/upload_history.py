@@ -11,9 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 import urllib.request
 from pathlib import Path
+
+from benchmark.online.validation import suspicious_upload_reason
 
 WORKSPACE = Path.home() / ".kodo" / "benchmark"
 
@@ -112,6 +113,20 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
             continue
 
         patch = patches.get((iid, arm), "")
+        reason = suspicious_upload_reason(
+            status=r.get("status", ""),
+            elapsed_s=r.get("elapsed_s", 0),
+            patch=patch,
+            patch_len=r.get("patch_len"),
+            error=r.get("error", ""),
+            agent_output=r.get("agent_output"),
+        )
+        if reason:
+            print(f"  skip suspicious {iid} {arm}: {reason}")
+            counts["skipped"] += 1
+            mark_uploaded(WORKSPACE, iid, arm, name)
+            continue
+
         ok = _post(url, token, "/api/task-result", {
             "dataset": ds,
             "run_id": name,
@@ -122,6 +137,7 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
             "patch_len": r.get("patch_len", 0),
             "error": r.get("error", ""),
             "patch": patch,
+            "agent_output": r.get("agent_output"),
             "provenance": {"source": "historical_upload", "run_id": name},
         })
         if ok:

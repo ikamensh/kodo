@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.234"
+version = "0.4.235"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -32,6 +32,9 @@ kimi = [
 benchmark = [
     "datasets>=2.0",
     "swebench>=1.0",
+    "google-auth>=2.0",
+    "google-cloud-firestore>=2.0",
+    "google-cloud-storage>=2.0",
 ]
 
 [tool.pytest.ini_options]

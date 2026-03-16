@@ -18,8 +18,12 @@ from benchmark._util import docker_safe, log
 from benchmark.tasks import DATASET_MAP
 
 
-def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro") -> int:
+def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[str] | None = None) -> int:
     """Fetch unevaluated predictions from server, evaluate locally, upload results.
+
+    Args:
+        arms: If provided, only evaluate these arms (e.g. ["kodo:solo"]).
+              If None, evaluate all unevaluated predictions.
 
     Evaluates and uploads one arm at a time so results appear immediately.
     Returns 0 on success, 1 on error.
@@ -58,6 +62,17 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro") -> int:
     by_arm: dict[str, list[dict]] = {}
     for pred in predictions:
         by_arm.setdefault(pred["arm"], []).append(pred)
+
+    # Filter to requested arms if specified
+    if arms:
+        arm_set = set(arms)
+        skipped = set(by_arm) - arm_set
+        if skipped:
+            log.info("Skipping arms not in --arm filter: %s", ", ".join(sorted(skipped)))
+        by_arm = {a: preds for a, preds in by_arm.items() if a in arm_set}
+        if not by_arm:
+            log.info("No unevaluated predictions match --arm filter %s", arms)
+            return 0
 
     log.info(
         "Found %d unevaluated predictions across %d arm(s): %s",
@@ -182,11 +197,17 @@ def main() -> int:
         default=Path.home() / ".kodo" / "benchmark",
         help="Workspace directory (default: ~/.kodo/benchmark)",
     )
+    parser.add_argument(
+        "--arm",
+        action="append",
+        default=None,
+        help="Only evaluate this arm. Repeatable. Default: all unevaluated arms.",
+    )
     args = parser.parse_args()
 
     setup_logging()
     args.workspace.mkdir(parents=True, exist_ok=True)
-    return evaluate_pending(args.workspace, dataset_arg=args.dataset)
+    return evaluate_pending(args.workspace, dataset_arg=args.dataset, arms=args.arm)
 
 
 if __name__ == "__main__":

@@ -233,7 +233,7 @@ function displayName(arm) {
 // ── Data helpers ──
 
 function armStats(data, arm) {
-  const s = { resolved: 0, failed: 0, error: 0, run: 0, evaluated: 0, resolveTimes: [], allTimes: [] };
+  const s = { resolved: 0, failed: 0, error: 0, run: 0, evaluated: 0, pending: 0, resolveTimes: [], allTimes: [] };
   for (const t of data.tasks) {
     const r = data.results[t.instance_id]?.[arm];
     if (!r) continue;
@@ -245,6 +245,8 @@ function armStats(data, arm) {
         s.resolved++;
         if (r.elapsed_s > 0) s.resolveTimes.push(r.elapsed_s);
       } else s.failed++;
+    } else if (r.status === 'ok' || r.status === 'partial') {
+      s.pending++;
     }
     if (r.status === 'error') s.error++;
   }
@@ -365,9 +367,7 @@ function render() {
   }
 
   const arms = visibleArms(data);
-  const totalRun = arms.reduce((sum, a) => sum + armStats(data, a).run, 0);
-  const totalEvald = arms.reduce((sum, a) => sum + armStats(data, a).evaluated, 0);
-  const pending = totalRun - totalEvald;
+  const pending = arms.reduce((sum, a) => sum + armStats(data, a).pending, 0);
   document.getElementById('header-stats').textContent =
     `${data.tasks.length} tasks \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
     (pending > 0 ? ` \u00b7 ${pending} pending eval` : '');
@@ -400,7 +400,7 @@ function renderLeaderboard(data, arms) {
         <div class="lb-bar-fill" style="width:${rate}%;background:${armColor(arm)}"></div>
       </div>
       <div class="lb-rate">${rate.toFixed(1)}%</div>
-      <div class="lb-sub">${s.resolved}/${s.evaluated}${s.run > s.evaluated ? ` <span style="color:var(--orange)">(+${s.run - s.evaluated} pending)</span>` : ''}${median(s.allTimes) ? ` · ${formatTime(median(s.allTimes))} median` : ''}</div>
+      <div class="lb-sub">${s.resolved}/${s.evaluated}${s.pending > 0 ? ` <span style="color:var(--orange)">(+${s.pending} pending)</span>` : ''}${median(s.allTimes) ? ` · ${formatTime(median(s.allTimes))} median` : ''}</div>
     </div>`;
   });
 
@@ -526,6 +526,7 @@ function cellClass(data, iid, selArms) {
     const any = Object.values(res);
     if (!any.length) return 'c-notrun';
     if (any.some(r => r.resolved)) return 'c-resolved';
+    if (any.some(r => r.status === 'error')) return 'c-error';
     if (any.some(r => r.eval_status)) return 'c-failed';
     return 'c-noeval';
   }
@@ -542,7 +543,10 @@ function cellClass(data, iid, selArms) {
   const ra = data.results[iid]?.[a];
   const rb = data.results[iid]?.[b];
   if (!ra && !rb) return 'c-notrun';
-  if (!ra?.eval_status && !rb?.eval_status) return 'c-noeval';
+  if (!ra?.eval_status && !rb?.eval_status) {
+    if (ra?.status === 'error' || rb?.status === 'error') return 'c-error';
+    return 'c-noeval';
+  }
   const aw = !!ra?.resolved, bw = !!rb?.resolved;
   if (aw && bw) return 'c-both';
   if (aw) return 'c-only-a';
@@ -571,7 +575,7 @@ function attachTaskMapHandlers(data, arms) {
       let tip = `<strong>${esc(iid)}</strong>`;
       for (const arm of activeMapArms) {
         const r = data.results[iid]?.[arm];
-        const status = !r ? 'not run' : r.resolved ? 'resolved' : r.eval_status ? 'failed' : r.status || 'run';
+        const status = !r ? 'not run' : r.resolved ? 'resolved' : r.status === 'error' ? 'error' : r.eval_status ? 'failed' : r.status || 'run';
         tip += `<br>${esc(displayName(arm))}: ${status}`;
         if (r?.elapsed_s) tip += ` (${formatTime(r.elapsed_s)})`;
       }
@@ -703,7 +707,7 @@ function renderDetails(data, arms) {
         if (r.resolved) { cls = 'resolved'; label = 'Resolved'; }
         else if (r.status === 'error') { cls = 'error'; label = 'Error'; }
         else if (r.eval_status) { cls = 'failed'; label = 'Failed'; }
-        else { cls = 'ok'; label = 'Run'; }
+        else { cls = 'ok'; label = 'Pending'; }
       }
       html += `<td><span class="status-badge ${cls}">${label}</span></td>`;
     }
@@ -748,7 +752,7 @@ function applyFilters(data) {
         if (status === 'resolved') return r?.resolved;
         if (status === 'failed') return r?.eval_status && !r?.resolved;
         if (status === 'error') return r?.status === 'error';
-        if (status === 'pending') return r && !r.eval_status;
+        if (status === 'pending') return r && !r.eval_status && (r.status === 'ok' || r.status === 'partial');
         return false;
       });
       if (!match) show = false;

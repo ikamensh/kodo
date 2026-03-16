@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -23,6 +25,75 @@ _PRO_EVAL_DIR = Path(os.environ.get(
     "SWEBENCH_PRO_EVAL_DIR",
     str(Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"),
 ))
+
+
+def _kill_subprocess_group(proc: subprocess.Popen[Any]) -> None:
+    """Best-effort termination that also reaps children on POSIX."""
+    if proc.poll() is not None:
+        return
+
+    if os.name != "nt":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        except OSError:
+            pass
+        else:
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+            return
+
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        return
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _run_eval_subprocess(
+    cmd: list[str],
+    *,
+    timeout: int,
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
+) -> None:
+    """Run an evaluator command and kill its whole process group on timeout."""
+    popen_kwargs: dict[str, Any] = {"cwd": cwd, "env": env}
+    if os.name != "nt":
+        popen_kwargs["start_new_session"] = True
+
+    proc = subprocess.Popen(cmd, **popen_kwargs)
+    try:
+        returncode = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_subprocess_group(proc)
+        raise
+    except BaseException:
+        _kill_subprocess_group(proc)
+        raise
+
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, cmd)
+
+
+def _count_pro_progress(eval_dir: Path) -> tuple[int, list[str]]:
+    """Return completed instance count and the remaining instance ids."""
+    completed = 0
+    in_progress: list[str] = []
+    for instance_dir in sorted(eval_dir.glob("instance_*")):
+        if not instance_dir.is_dir():
+            continue
+        if any(instance_dir.glob("*_output.json")):
+            completed += 1
+        else:
+            in_progress.append(instance_dir.name)
+    return completed, in_progress
 
 
 def evaluate_predictions(workspace: Path, run_id: str) -> None:
@@ -112,12 +183,17 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
 
     eval_dir = run_dir / "eval" / arm
     eval_dir.mkdir(parents=True, exist_ok=True)
+    total_instances = len(patches)
     patch_file = eval_dir / "patches.json"
     patch_file.write_text(json.dumps(patches, indent=2))
 
     # Generate raw sample JSONL from HuggingFace dataset (filtered to our instances)
     sample_file = eval_dir / "raw_samples.jsonl"
     _write_pro_samples(sample_file, [p["instance_id"] for p in patches])
+
+    log.info(
+        "Evaluation typically takes 10-30 min per instance. First run may pull Docker images (5-15 min)."
+    )
 
     cmd = [
         sys.executable,
@@ -131,12 +207,37 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
         "--use_local_docker",
     ]
 
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    stop_reporting = threading.Event()
+
+    def _progress_reporter() -> None:
+        while not stop_reporting.wait(timeout=60):
+            try:
+                completed, in_progress = _count_pro_progress(eval_dir)
+            except OSError:
+                continue
+            if completed == 0 and not in_progress:
+                continue
+
+            msg = f"Still evaluating: {completed}/{total_instances} complete"
+            if in_progress and len(in_progress) <= 3:
+                msg += f" (in progress: {', '.join(in_progress[:3])})"
+            elif in_progress:
+                msg += f" ({len(in_progress)} in progress)"
+            log.info(msg)
+
+    progress_thread = threading.Thread(target=_progress_reporter, daemon=True)
+    progress_thread.start()
     try:
-        subprocess.run(cmd, check=True, timeout=7200, cwd=str(_PRO_EVAL_DIR))
+        _run_eval_subprocess(cmd, timeout=7200, cwd=str(_PRO_EVAL_DIR), env=env)
     except subprocess.TimeoutExpired:
         log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
         log.warning("Evaluation failed for %s: %s", arm, exc)
+    finally:
+        stop_reporting.set()
+        progress_thread.join(timeout=65)
 
 
 def _write_pro_samples(sample_file: Path, instance_ids: list[str]) -> None:
@@ -164,8 +265,6 @@ def _evaluate_standard(
     on_instance: Callable[[str, bool], None] | None = None,
 ) -> None:
     """Evaluate using swebench, with optional per-instance callback via file watcher."""
-    import threading
-
     eval_dir = run_dir / "eval" / arm
     eval_dir.mkdir(parents=True, exist_ok=True)
 
@@ -173,6 +272,12 @@ def _evaluate_standard(
         dataset = "princeton-nlp/SWE-bench_Lite"
 
     safe_key = _docker_safe(f"{run_id}_{arm}")
+
+    # Count instances for progress reporting
+    total_instances = sum(1 for line in pred_file.read_text().splitlines() if line.strip())
+    log.info(
+        "Evaluation typically takes 10-30 min per instance. First run may pull Docker images (5-15 min)."
+    )
 
     cmd = [
         sys.executable,
@@ -183,6 +288,8 @@ def _evaluate_standard(
         "--run_id", safe_key,
         "--max_workers", "4",
     ]
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
 
     # Watch for report.json files as swebench writes them
     stop_watching = threading.Event()
@@ -213,13 +320,44 @@ def _evaluate_standard(
                                 log.debug("Watcher error for %s: %s", iid, exc)
             stop_watching.wait(timeout=5)
 
+    def _progress_reporter():
+        """Log progress every 60s so user knows evaluation is still running."""
+        while not stop_watching.wait(timeout=60):
+            if not watch_dir.exists():
+                continue
+            try:
+                completed = 0
+                in_progress: list[str] = []
+                for model_dir in watch_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+                    for instance_dir in model_dir.iterdir():
+                        if not instance_dir.is_dir():
+                            continue
+                        if (instance_dir / "report.json").exists():
+                            completed += 1
+                        else:
+                            in_progress.append(instance_dir.name)
+                if completed > 0 or in_progress:
+                    msg = f"Still evaluating: {completed}/{total_instances} complete"
+                    if in_progress and len(in_progress) <= 3:
+                        msg += f" (in progress: {', '.join(in_progress[:3])})"
+                    elif in_progress:
+                        msg += f" ({len(in_progress)} in progress)"
+                    log.info(msg)
+            except OSError:
+                pass
+
     watcher_thread = None
     if on_instance:
         watcher_thread = threading.Thread(target=_watcher, daemon=True)
         watcher_thread.start()
 
+    progress_thread = threading.Thread(target=_progress_reporter, daemon=True)
+    progress_thread.start()
+
     try:
-        subprocess.run(cmd, check=True, timeout=7200)
+        _run_eval_subprocess(cmd, timeout=7200, env=env)
     except subprocess.TimeoutExpired:
         log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
@@ -228,6 +366,7 @@ def _evaluate_standard(
         log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
     finally:
         stop_watching.set()
+        progress_thread.join(timeout=65)
         if watcher_thread:
             watcher_thread.join(timeout=10)
 

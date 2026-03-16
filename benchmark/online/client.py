@@ -15,6 +15,7 @@ import logging
 import urllib.request
 
 from .config import collect_provenance, dataset_key, get_client_credentials
+from .validation import suspicious_upload_reason
 
 log = logging.getLogger("benchmark.online")
 
@@ -36,10 +37,21 @@ def upload_task_result(
     error: str,
     run_id: str,
     dataset: str,
+    agent_output: dict | list | str | None = None,
 ) -> None:
     """Upload a single task result + patch to the online store."""
     ds = dataset_key(dataset)
     if not ds:
+        return
+    reason = suspicious_upload_reason(
+        status=status,
+        elapsed_s=elapsed_s,
+        patch=patch,
+        error=error,
+        agent_output=agent_output,
+    )
+    if reason:
+        log.info("Skipping suspicious benchmark upload for %s/%s: %s", instance_id, arm, reason)
         return
     _post("/api/task-result", {
         "dataset": ds,
@@ -51,6 +63,7 @@ def upload_task_result(
         "patch_len": len(patch),
         "error": error,
         "patch": patch,
+        "agent_output": agent_output,
         "provenance": _get_provenance(),
     })
 
@@ -143,6 +156,7 @@ def maybe_upload_task_result(
     error: str,
     run_id: str,
     dataset: str,
+    agent_output: dict | list | str | None = None,
 ) -> bool:
     """Best-effort upload. No-op if unconfigured, swallows all errors.
 
@@ -160,6 +174,7 @@ def maybe_upload_task_result(
             error=error,
             run_id=run_id,
             dataset=dataset,
+            agent_output=agent_output,
         )
         return True
     except Exception as exc:

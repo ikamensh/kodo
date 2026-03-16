@@ -36,6 +36,7 @@ log = logging.getLogger("benchmark.online")
 
 from . import db
 from .config import ADMIN_TOKEN
+from .validation import suspicious_upload_reason
 
 PORT = int(os.environ.get("PORT", 8080))
 BASE_PATH = os.environ.get("BASE_PATH", "")  # e.g. "/bench" when behind Firebase Hosting
@@ -217,6 +218,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "run_id": body.get("run_id", ""),
             "provenance": body.get("provenance", {}),
         }
+        reason = suspicious_upload_reason(
+            status=result_data["status"],
+            elapsed_s=result_data["elapsed_s"],
+            patch=body.get("patch", ""),
+            patch_len=result_data["patch_len"],
+            error=result_data["error"],
+            agent_output=body.get("agent_output"),
+        )
+        if reason:
+            self._json_ok({"ok": True, "skipped": True, "reason": reason})
+            return
 
         try:
             db.save_task_result(dataset, iid, arm, result_data)

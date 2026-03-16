@@ -696,6 +696,7 @@ def _upload_task_online(
             error=result.error,
             run_id=run_id,
             dataset=dataset,
+            agent_output=result.agent_output,
         )
         if ok:
             from benchmark.online.upload_tracker import mark_uploaded
