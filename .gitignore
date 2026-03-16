@@ -12,6 +12,7 @@ tmp_*/
 *.bak2
 .coverage
 coverage.json
+/*.json
 logs/
 trials/
 .idea/

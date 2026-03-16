@@ -30,7 +30,7 @@ class MockPatternVisitor(ast.NodeVisitor):
 
     # Suffixes that indicate value replacement (module-level constants, dicts, etc.)
     _VALUE_SUFFIXES = (
-        "_MAP", "_URL", "_TOKEN", "TEAMS", "_original_stdout",
+        "_MAP", "_URL", "_TOKEN", "_CREDENTIALS", "TEAMS", "_original_stdout",
         "available_backends", "_allocator",
     )
 

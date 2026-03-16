@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.236"
+version = "0.4.237"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.40",
     "pillow>=12.1.0",
     "pypdf>=6.7.4",
+    "charset-normalizer>=3.4.6",
 ]
 
 [project.optional-dependencies]

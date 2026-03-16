@@ -6,6 +6,9 @@ and the standard swebench harness for Lite/Verified.
 
 from __future__ import annotations
 
+import contextlib
+import datetime as dt
+from dataclasses import dataclass, field
 import json
 import os
 import signal
@@ -13,12 +16,39 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
 from benchmark._util import docker_safe as _docker_safe, log
 
 _EMPTY_RESULTS: dict = {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
+
+# Default parallelism for swebench evaluation; override via SWEBENCH_EVAL_WORKERS.
+_DEFAULT_EVAL_WORKERS = "4"
+_DEFAULT_STALL_SECONDS = "900"
+_DEFAULT_STALL_REPEAT_SECONDS = "900"
+_DEFAULT_STALL_CHECK_SECONDS = "60"
+
+
+def _eval_workers() -> str:
+    return os.environ.get("SWEBENCH_EVAL_WORKERS", _DEFAULT_EVAL_WORKERS)
+
+
+def _stall_seconds() -> int:
+    return int(os.environ.get("SWEBENCH_EVAL_STALL_SECONDS", _DEFAULT_STALL_SECONDS))
+
+
+def _stall_repeat_seconds() -> int:
+    return int(
+        os.environ.get("SWEBENCH_EVAL_STALL_REPEAT_SECONDS", _DEFAULT_STALL_REPEAT_SECONDS)
+    )
+
+
+def _stall_check_seconds() -> int:
+    return int(
+        os.environ.get("SWEBENCH_EVAL_STALL_CHECK_SECONDS", _DEFAULT_STALL_CHECK_SECONDS)
+    )
 
 # Location of the cloned scaleapi/SWE-bench_Pro-os repo
 _PRO_EVAL_DIR = Path(os.environ.get(
@@ -61,16 +91,74 @@ def _timestamp_prefix() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _stream_with_timestamps(proc: subprocess.Popen[Any], timeout: int) -> int:
-    """Read stdout line by line (stderr merged via STDOUT), prefix with timestamp."""
-    import time
+@dataclass
+class _EvalHeartbeat:
+    """Shared state for evaluator progress and stall diagnostics."""
 
+    started_at: float = field(default_factory=time.monotonic)
+    last_output_at: float = field(default_factory=time.monotonic)
+    last_progress_at: float = field(default_factory=time.monotonic)
+    last_filesystem_at: float = field(default_factory=time.monotonic)
+    latest_tree_mtime: float = 0.0
+    last_completed: int = 0
+    in_progress: tuple[str, ...] = ()
+    last_diagnostic_at: float = 0.0
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def note_output(self) -> None:
+        with self.lock:
+            self.last_output_at = time.monotonic()
+
+    def note_progress(
+        self,
+        *,
+        completed: int,
+        in_progress: list[str],
+        tree_mtime: float | None = None,
+    ) -> None:
+        now = time.monotonic()
+        with self.lock:
+            if completed != self.last_completed or tuple(in_progress) != self.in_progress:
+                self.last_progress_at = now
+                self.last_completed = completed
+                self.in_progress = tuple(in_progress)
+            if tree_mtime is not None and tree_mtime > self.latest_tree_mtime:
+                self.latest_tree_mtime = tree_mtime
+                self.last_filesystem_at = now
+
+    def snapshot(self) -> dict[str, Any]:
+        with self.lock:
+            return {
+                "started_at": self.started_at,
+                "last_output_at": self.last_output_at,
+                "last_progress_at": self.last_progress_at,
+                "last_filesystem_at": self.last_filesystem_at,
+                "latest_tree_mtime": self.latest_tree_mtime,
+                "last_completed": self.last_completed,
+                "in_progress": list(self.in_progress),
+                "last_diagnostic_at": self.last_diagnostic_at,
+            }
+
+    def note_diagnostic(self) -> None:
+        with self.lock:
+            self.last_diagnostic_at = time.monotonic()
+
+
+def _stream_with_timestamps(
+    proc: subprocess.Popen[Any],
+    timeout: int,
+    *,
+    heartbeat: _EvalHeartbeat | None = None,
+) -> int:
+    """Read stdout line by line (stderr merged via STDOUT), prefix with timestamp."""
     deadline = time.monotonic() + timeout
     if proc.stdout:
         for line in proc.stdout:
             if time.monotonic() > deadline:
                 raise subprocess.TimeoutExpired(proc.args, timeout)
             text = line.rstrip("\n\r")
+            if heartbeat:
+                heartbeat.note_output()
             print(f"[{_timestamp_prefix()}] {text}", flush=True)
 
     remaining = deadline - time.monotonic()
@@ -85,6 +173,9 @@ def _run_eval_subprocess(
     timeout: int,
     cwd: str | None = None,
     env: dict[str, str] | None = None,
+    heartbeat: _EvalHeartbeat | None = None,
+    context: str = "evaluation",
+    diagnostic_dir: Path | None = None,
 ) -> None:
     """Run an evaluator command and kill its whole process group on timeout."""
     popen_kwargs: dict[str, Any] = {
@@ -98,17 +189,309 @@ def _run_eval_subprocess(
         popen_kwargs["start_new_session"] = True
 
     proc = subprocess.Popen(cmd, **popen_kwargs)
+    stop_monitoring = threading.Event()
+    stall_thread = None
+    if heartbeat:
+        stall_fn = _make_stall_monitor(
+            stop_monitoring,
+            proc,
+            heartbeat,
+            context=context,
+            diagnostic_dir=diagnostic_dir,
+        )
+        stall_thread = threading.Thread(target=stall_fn, daemon=True)
+        stall_thread.start()
     try:
-        returncode = _stream_with_timestamps(proc, timeout)
+        returncode = _stream_with_timestamps(proc, timeout, heartbeat=heartbeat)
     except subprocess.TimeoutExpired:
+        if heartbeat:
+            _emit_eval_diagnostics(
+                proc,
+                heartbeat,
+                context=f"{context} timeout",
+                diagnostic_dir=diagnostic_dir,
+            )
+        _kill_subprocess_group(proc)
+        raise
+    except subprocess.CalledProcessError:
+        if heartbeat:
+            _emit_eval_diagnostics(
+                proc,
+                heartbeat,
+                context=f"{context} failed",
+                diagnostic_dir=diagnostic_dir,
+            )
         _kill_subprocess_group(proc)
         raise
     except BaseException:
         _kill_subprocess_group(proc)
         raise
+    finally:
+        stop_monitoring.set()
+        if stall_thread:
+            stall_thread.join(timeout=_stall_check_seconds() + 5)
 
     if returncode != 0:
+        if heartbeat:
+            _emit_eval_diagnostics(
+                proc,
+                heartbeat,
+                context=f"{context} nonzero-exit",
+                diagnostic_dir=diagnostic_dir,
+            )
         raise subprocess.CalledProcessError(returncode, cmd)
+
+
+def _latest_tree_mtime(root: Path) -> float | None:
+    """Return the newest mtime in a directory tree, if any."""
+    try:
+        mtimes = [root.stat().st_mtime]
+    except OSError:
+        return None
+    try:
+        for path in root.rglob("*"):
+            with contextlib.suppress(OSError):
+                mtimes.append(path.stat().st_mtime)
+    except OSError:
+        pass
+    return max(mtimes) if mtimes else None
+
+
+def _capture_command(cmd: list[str], *, timeout: int = 10) -> dict[str, Any]:
+    """Best-effort command capture for diagnostics."""
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except Exception as exc:
+        return {"command": cmd, "error": f"{type(exc).__name__}: {exc}"}
+    return {
+        "command": cmd,
+        "returncode": result.returncode,
+        "stdout": result.stdout.splitlines()[:40],
+        "stderr": result.stderr.splitlines()[:20],
+    }
+
+
+def _recent_files(paths: list[Path], *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return recent files under the provided paths for diagnostics."""
+    entries: list[dict[str, Any]] = []
+    for root in paths:
+        if not root.exists():
+            continue
+        for path in [root, *root.rglob("*")]:
+            with contextlib.suppress(OSError):
+                stat = path.stat()
+                entries.append({
+                    "path": str(path),
+                    "mtime": dt.datetime.fromtimestamp(
+                        stat.st_mtime, tz=dt.timezone.utc,
+                    ).isoformat(),
+                    "size": stat.st_size,
+                    "is_dir": path.is_dir(),
+                })
+    entries.sort(key=lambda item: item["mtime"], reverse=True)
+    return entries[:limit]
+
+
+def _emit_eval_diagnostics(
+    proc: subprocess.Popen[Any],
+    heartbeat: _EvalHeartbeat,
+    *,
+    context: str,
+    diagnostic_dir: Path | None,
+) -> Path | None:
+    """Persist and log a best-effort diagnostic snapshot for stalled evals."""
+    now = time.monotonic()
+    state = heartbeat.snapshot()
+    snapshot = {
+        "context": context,
+        "pid": proc.pid,
+        "returncode": proc.poll(),
+        "captured_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "elapsed_seconds": round(now - state["started_at"], 1),
+        "last_output_age_seconds": round(now - state["last_output_at"], 1),
+        "last_progress_age_seconds": round(now - state["last_progress_at"], 1),
+        "last_filesystem_age_seconds": round(now - state["last_filesystem_at"], 1),
+        "completed": state["last_completed"],
+        "in_progress": state["in_progress"],
+        "process": _capture_command(
+            ["ps", "-o", "pid,ppid,etime,stat,pcpu,pmem,command", "-p", str(proc.pid)],
+        ),
+        "children": _capture_command(["pgrep", "-P", str(proc.pid)]),
+    }
+    if diagnostic_dir:
+        snapshot["recent_files"] = _recent_files([diagnostic_dir])
+    snapshot["docker_ps"] = _capture_command(
+        ["docker", "ps", "--format", "{{.ID}}\t{{.Status}}\t{{.Image}}\t{{.Names}}"],
+        timeout=15,
+    )
+
+    diagnostic_path = None
+    if diagnostic_dir:
+        try:
+            diagnostic_dir.mkdir(parents=True, exist_ok=True)
+            diagnostic_path = diagnostic_dir / "stall-diagnostics.json"
+            diagnostic_path.write_text(json.dumps(snapshot, indent=2, sort_keys=True))
+        except OSError as exc:
+            log.debug("Could not persist diagnostics for %s: %s", context, exc)
+            diagnostic_path = None
+
+    log.warning(
+        "%s appears stalled: %d complete, %d in progress, last output %.1fs ago%s",
+        context,
+        state["last_completed"],
+        len(state["in_progress"]),
+        now - state["last_output_at"],
+        f" (diagnostics: {diagnostic_path})" if diagnostic_path else "",
+    )
+    heartbeat.note_diagnostic()
+    return diagnostic_path
+
+
+def _make_stall_monitor(
+    stop_event: threading.Event,
+    proc: subprocess.Popen[Any],
+    heartbeat: _EvalHeartbeat,
+    *,
+    context: str,
+    diagnostic_dir: Path | None,
+) -> Callable[[], None]:
+    """Create a watchdog that logs diagnostics when an eval stops making progress."""
+    stall_after = _stall_seconds()
+    repeat_after = _stall_repeat_seconds()
+    check_every = _stall_check_seconds()
+
+    def _monitor() -> None:
+        while not stop_event.wait(timeout=check_every):
+            if proc.poll() is not None:
+                return
+            state = heartbeat.snapshot()
+            last_activity = max(
+                state["last_output_at"],
+                state["last_progress_at"],
+                state["last_filesystem_at"],
+            )
+            now = time.monotonic()
+            if now - last_activity < stall_after:
+                continue
+            if now - state["last_diagnostic_at"] < repeat_after:
+                continue
+            _emit_eval_diagnostics(
+                proc,
+                heartbeat,
+                context=context,
+                diagnostic_dir=diagnostic_dir,
+            )
+
+    return _monitor
+
+
+def _format_progress(completed: int, total: int, in_progress: list[str]) -> str:
+    """Format a progress message for evaluation status logging."""
+    msg = f"Still evaluating: {completed}/{total} complete"
+    if in_progress and len(in_progress) <= 3:
+        msg += f" (in progress: {', '.join(in_progress[:3])})"
+    elif in_progress:
+        msg += f" ({len(in_progress)} in progress)"
+    return msg
+
+
+def _make_progress_reporter(
+    stop_event: threading.Event,
+    watch_dir: Path,
+    total: int,
+    *,
+    count_fn: Callable[[Path], tuple[int, list[str]]] | None = None,
+    heartbeat: _EvalHeartbeat | None = None,
+) -> Callable[[], None]:
+    """Create a progress reporter function for use in a daemon thread.
+
+    Args:
+        count_fn: Custom counting function(watch_dir) -> (completed, in_progress_labels).
+            If None, uses standard swebench directory layout (model_dir/instance_dir/report.json).
+    """
+    def _default_count(wd: Path) -> tuple[int, list[str]]:
+        completed = 0
+        in_progress: list[str] = []
+        for model_dir in wd.iterdir():
+            if not model_dir.is_dir():
+                continue
+            for instance_dir in model_dir.iterdir():
+                if not instance_dir.is_dir():
+                    continue
+                if (instance_dir / "report.json").exists():
+                    completed += 1
+                elif len(in_progress) < 4:  # only collect a few for display
+                    in_progress.append(f"{model_dir.name}/{instance_dir.name}")
+        return completed, in_progress
+
+    counter = count_fn or _default_count
+
+    def _reporter() -> None:
+        while not stop_event.wait(timeout=60):
+            if not watch_dir.exists():
+                continue
+            try:
+                completed, in_progress = counter(watch_dir)
+                if heartbeat:
+                    heartbeat.note_progress(
+                        completed=completed,
+                        in_progress=in_progress,
+                        tree_mtime=_latest_tree_mtime(watch_dir),
+                    )
+                if completed > 0 or in_progress:
+                    log.info(_format_progress(completed, total, in_progress))
+            except OSError:
+                pass
+
+    return _reporter
+
+
+def _make_report_watcher(
+    stop_event: threading.Event,
+    watch_dir: Path,
+    callback: Callable[[str, str, bool], None],
+    safe_to_arm: dict[str, str] | None = None,
+) -> Callable[[], None]:
+    """Create a watcher that polls for report.json files and invokes callback.
+
+    Args:
+        callback: Called as callback(instance_id, arm, resolved) for each new report.
+        safe_to_arm: If provided, maps model_dir.name to original arm name.
+            If None, arm is always model_dir.name.
+    """
+    def _watcher() -> None:
+        seen: set[tuple[str, str]] = set()
+        while not stop_event.is_set():
+            if watch_dir.exists():
+                for model_dir in watch_dir.iterdir():
+                    if not model_dir.is_dir():
+                        continue
+                    arm = (safe_to_arm.get(model_dir.name, model_dir.name)
+                           if safe_to_arm else model_dir.name)
+                    for instance_dir in model_dir.iterdir():
+                        if not instance_dir.is_dir():
+                            continue
+                        iid = instance_dir.name
+                        if (arm, iid) in seen:
+                            continue
+                        report = instance_dir / "report.json"
+                        if report.exists():
+                            seen.add((arm, iid))
+                            try:
+                                data = json.loads(report.read_text())
+                                instance_data = data.get(iid, data)
+                                resolved = instance_data.get("resolved", False)
+                                callback(iid, arm, resolved)
+                            except Exception as exc:
+                                log.debug("Watcher error for %s/%s: %s", arm, iid, exc)
+            stop_event.wait(timeout=5)
+    return _watcher
 
 
 def _count_pro_progress(eval_dir: Path) -> tuple[int, list[str]]:
@@ -187,6 +570,129 @@ def evaluate_arm(
     return _collect_arm_result(run_dir, safe_arm, run_id, is_pro)
 
 
+def evaluate_arms_combined(
+    run_dir: Path,
+    arm_names: list[str],
+    run_id: str,
+    dataset: str,
+    on_instance: Callable[[str, str, bool], None] | None = None,
+) -> dict[str, dict]:
+    """Evaluate multiple arms in a single swebench invocation.
+
+    Merges all arms' predictions into one file so swebench can optimally
+    reuse Docker images — build an instance image once, test all arms' patches
+    against it before moving on.
+
+    Args:
+        arm_names: Arms to evaluate. Prediction files must already exist.
+        on_instance: Optional callback(instance_id, arm, resolved) called as each
+            instance completes.
+
+    Returns {arm: {"resolved": [...], "failed": [...], ...}} per arm.
+    """
+    is_pro = "SWE-bench_Pro" in dataset
+    if is_pro or len(arm_names) < 2:
+        # Pro eval uses a different format; single arm gains nothing from merging.
+        results = {}
+        for arm in arm_names:
+            cb = (lambda iid, ok, a=arm: on_instance(iid, a, ok)) if on_instance else None
+            results[arm] = evaluate_arm(run_dir, arm, run_id, dataset, on_instance=cb)
+        return results
+
+    # Merge all arms' predictions into one file
+    combined_file = run_dir / "predictions-_combined_.jsonl"
+    total_entries = 0
+    with open(combined_file, "w") as out:
+        for arm in arm_names:
+            safe_arm = _docker_safe(arm)
+            pred_file = run_dir / f"predictions-{safe_arm}.jsonl"
+            if not pred_file.exists():
+                log.warning("No predictions file for arm '%s', skipping", arm)
+                continue
+            with open(pred_file) as inp:
+                for line in inp:
+                    if line.strip():
+                        out.write(line if line.endswith("\n") else line + "\n")
+                        total_entries += 1
+
+    if total_entries == 0:
+        return {arm: _EMPTY_RESULTS.copy() for arm in arm_names}
+
+    log.info("Combined %d predictions from %d arms into single evaluation",
+             total_entries, len(arm_names))
+
+    safe_key = _docker_safe(run_id)
+
+    if not dataset:
+        dataset = "princeton-nlp/SWE-bench_Lite"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "swebench.harness.run_evaluation",
+        "--predictions_path", str(combined_file),
+        "--dataset_name", dataset,
+        "--run_id", safe_key,
+        "--max_workers", _eval_workers(),
+    ]
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+
+    stop_watching = threading.Event()
+    watch_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
+
+    # Build reverse map: safe_arm -> original arm name
+    safe_to_arm = {_docker_safe(arm): arm for arm in arm_names}
+
+    watcher_thread = None
+    if on_instance:
+        watcher_fn = _make_report_watcher(
+            stop_watching, watch_dir, on_instance, safe_to_arm=safe_to_arm,
+        )
+        watcher_thread = threading.Thread(target=watcher_fn, daemon=True)
+        watcher_thread.start()
+
+    progress_fn = _make_progress_reporter(stop_watching, watch_dir, total_entries)
+    progress_thread = threading.Thread(target=progress_fn, daemon=True)
+    progress_thread.start()
+
+    try:
+        _run_eval_subprocess(cmd, timeout=7200 * len(arm_names), env=env)
+    except subprocess.TimeoutExpired:
+        log.warning("Combined evaluation timed out")
+    except subprocess.CalledProcessError as exc:
+        log.warning("Combined evaluation failed: %s", exc)
+    except FileNotFoundError:
+        log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
+    finally:
+        stop_watching.set()
+        progress_thread.join(timeout=65)
+        if watcher_thread:
+            watcher_thread.join(timeout=10)
+
+    # Copy swebench logs into per-arm eval dirs
+    if watch_dir.exists():
+        for model_dir in watch_dir.iterdir():
+            if not model_dir.is_dir():
+                continue
+            safe_arm = model_dir.name
+            dest = run_dir / "eval" / safe_arm / "swebench_logs" / safe_arm
+            dest.mkdir(parents=True, exist_ok=True)
+            for item in model_dir.iterdir():
+                if item.is_dir():
+                    shutil.copytree(item, dest / item.name, dirs_exist_ok=True)
+        log.info("Copied swebench logs to %s/eval/*/", run_dir)
+
+    # Collect results per arm
+    results: dict[str, dict] = {}
+    for arm in arm_names:
+        safe_arm = _docker_safe(arm)
+        results[arm] = _collect_arm_result(run_dir, safe_arm, run_id, is_pro=False)
+
+    combined_file.unlink(missing_ok=True)
+    return results
+
+
 # ── SWE-bench Pro (Scale AI tooling) ────────────────────────────────────
 
 
@@ -232,34 +738,32 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
         "--output_dir", str(eval_dir),
         "--scripts_dir", str(_PRO_EVAL_DIR / "run_scripts"),
         "--dockerhub_username", os.environ.get("DOCKERHUB_USERNAME", "jefzda"),
-        "--num_workers", os.environ.get("SWEBENCH_EVAL_WORKERS", "4"),
+        "--num_workers", _eval_workers(),
         "--use_local_docker",
     ]
 
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
     stop_reporting = threading.Event()
+    heartbeat = _EvalHeartbeat()
 
-    def _progress_reporter() -> None:
-        while not stop_reporting.wait(timeout=60):
-            try:
-                completed, in_progress = _count_pro_progress(eval_dir)
-            except OSError:
-                continue
-            if completed == 0 and not in_progress:
-                continue
-
-            msg = f"Still evaluating: {completed}/{total_instances} complete"
-            if in_progress and len(in_progress) <= 3:
-                msg += f" (in progress: {', '.join(in_progress[:3])})"
-            elif in_progress:
-                msg += f" ({len(in_progress)} in progress)"
-            log.info(msg)
-
-    progress_thread = threading.Thread(target=_progress_reporter, daemon=True)
+    progress_fn = _make_progress_reporter(
+        stop_reporting, eval_dir, total_instances,
+        count_fn=lambda _wd: _count_pro_progress(eval_dir),
+        heartbeat=heartbeat,
+    )
+    progress_thread = threading.Thread(target=progress_fn, daemon=True)
     progress_thread.start()
     try:
-        _run_eval_subprocess(cmd, timeout=7200, cwd=str(_PRO_EVAL_DIR), env=env)
+        _run_eval_subprocess(
+            cmd,
+            timeout=7200,
+            cwd=str(_PRO_EVAL_DIR),
+            env=env,
+            heartbeat=heartbeat,
+            context=f"pro eval for {arm}",
+            diagnostic_dir=eval_dir,
+        )
     except subprocess.TimeoutExpired:
         log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
@@ -303,7 +807,8 @@ def _evaluate_standard(
     safe_key = _docker_safe(f"{run_id}_{arm}")
 
     # Count instances for progress reporting
-    total_instances = sum(1 for line in pred_file.read_text().splitlines() if line.strip())
+    with open(pred_file) as f:
+        total_instances = sum(1 for line in f if line.strip())
     log.info(
         "Evaluation typically takes 10-30 min per instance. First run may pull Docker images (5-15 min)."
     )
@@ -315,78 +820,40 @@ def _evaluate_standard(
         "--predictions_path", str(pred_file),
         "--dataset_name", dataset,
         "--run_id", safe_key,
-        "--max_workers", "4",
+        "--max_workers", _eval_workers(),
     ]
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
+    heartbeat = _EvalHeartbeat()
 
     # Watch for report.json files as swebench writes them
     stop_watching = threading.Event()
     watch_dir = Path.cwd() / "logs" / "run_evaluation" / safe_key
 
-    def _watcher():
-        seen: set[str] = set()
-        while not stop_watching.is_set():
-            if watch_dir.exists():
-                for model_dir in watch_dir.iterdir():
-                    if not model_dir.is_dir():
-                        continue
-                    for instance_dir in model_dir.iterdir():
-                        if not instance_dir.is_dir():
-                            continue
-                        iid = instance_dir.name
-                        if iid in seen:
-                            continue
-                        report = instance_dir / "report.json"
-                        if report.exists():
-                            seen.add(iid)
-                            try:
-                                data = json.loads(report.read_text())
-                                instance_data = data.get(iid, data)
-                                resolved = instance_data.get("resolved", False)
-                                on_instance(iid, resolved)
-                            except Exception as exc:
-                                log.debug("Watcher error for %s: %s", iid, exc)
-            stop_watching.wait(timeout=5)
-
-    def _progress_reporter():
-        """Log progress every 60s so user knows evaluation is still running."""
-        while not stop_watching.wait(timeout=60):
-            if not watch_dir.exists():
-                continue
-            try:
-                completed = 0
-                in_progress: list[str] = []
-                for model_dir in watch_dir.iterdir():
-                    if not model_dir.is_dir():
-                        continue
-                    for instance_dir in model_dir.iterdir():
-                        if not instance_dir.is_dir():
-                            continue
-                        if (instance_dir / "report.json").exists():
-                            completed += 1
-                        else:
-                            in_progress.append(instance_dir.name)
-                if completed > 0 or in_progress:
-                    msg = f"Still evaluating: {completed}/{total_instances} complete"
-                    if in_progress and len(in_progress) <= 3:
-                        msg += f" (in progress: {', '.join(in_progress[:3])})"
-                    elif in_progress:
-                        msg += f" ({len(in_progress)} in progress)"
-                    log.info(msg)
-            except OSError:
-                pass
-
     watcher_thread = None
     if on_instance:
-        watcher_thread = threading.Thread(target=_watcher, daemon=True)
+        watcher_fn = _make_report_watcher(
+            stop_watching, watch_dir,
+            lambda iid, _arm, resolved: on_instance(iid, resolved),
+        )
+        watcher_thread = threading.Thread(target=watcher_fn, daemon=True)
         watcher_thread.start()
 
-    progress_thread = threading.Thread(target=_progress_reporter, daemon=True)
+    progress_fn = _make_progress_reporter(
+        stop_watching, watch_dir, total_instances, heartbeat=heartbeat,
+    )
+    progress_thread = threading.Thread(target=progress_fn, daemon=True)
     progress_thread.start()
 
     try:
-        _run_eval_subprocess(cmd, timeout=7200, env=env)
+        _run_eval_subprocess(
+            cmd,
+            timeout=7200,
+            env=env,
+            heartbeat=heartbeat,
+            context=f"standard eval for {arm}",
+            diagnostic_dir=eval_dir,
+        )
     except subprocess.TimeoutExpired:
         log.warning("Evaluation timed out for %s", arm)
     except subprocess.CalledProcessError as exc:
@@ -400,12 +867,11 @@ def _evaluate_standard(
             watcher_thread.join(timeout=10)
 
     # Copy swebench logs into the run's eval dir so results persist
-    swebench_log_dir = watch_dir
-    if swebench_log_dir.exists():
+    if watch_dir.exists():
         dest = eval_dir / "swebench_logs"
         if dest.exists():
             shutil.rmtree(dest)
-        shutil.copytree(swebench_log_dir, dest)
+        shutil.copytree(watch_dir, dest)
         log.info("Copied swebench logs to %s", dest)
 
 
@@ -421,8 +887,8 @@ def _collect_arm_result(
         return _parse_pro_results(eval_dir) if eval_dir.exists() else _EMPTY_RESULTS.copy()
 
     # Check copied logs first (persistent within run dir)
-    copied_logs = eval_dir / "swebench_logs" if eval_dir.exists() else None
-    if copied_logs and copied_logs.exists():
+    copied_logs = eval_dir / "swebench_logs"
+    if copied_logs.exists():
         for model_dir in copied_logs.iterdir():
             if model_dir.is_dir():
                 return _parse_standard_results(model_dir)
@@ -499,8 +965,9 @@ def _build_arm_name_map(run_dir: Path) -> dict[str, str]:
     arm_map: dict[str, str] = {}
     for pred_file in run_dir.glob("predictions-*.jsonl"):
         safe_name = pred_file.stem.replace("predictions-", "")
-        # Read the first line to get the original arm name
-        first_line = pred_file.read_text().split("\n", 1)[0].strip()
+        # Read only the first line to get the original arm name
+        with open(pred_file) as f:
+            first_line = f.readline().strip()
         if first_line:
             try:
                 entry = json.loads(first_line)

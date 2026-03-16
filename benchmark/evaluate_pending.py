@@ -2,10 +2,9 @@
 
 Flow:
     1. GET /api/unevaluated/{dataset} → list of (instance_id, arm, patch)
-    2. For each arm:
-       a. Write predictions-{arm}.jsonl
-       b. Run Docker-based swebench evaluation
-       c. Upload eval results immediately
+    2. Write predictions files per arm
+    3. Run combined swebench evaluation (all arms in one invocation for Docker reuse)
+    4. Upload eval results as instances complete
 """
 
 from __future__ import annotations
@@ -25,10 +24,11 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
         arms: If provided, only evaluate these arms (e.g. ["kodo:solo"]).
               If None, evaluate all unevaluated predictions.
 
-    Evaluates and uploads one arm at a time so results appear immediately.
+    Uses combined evaluation to merge all arms into a single swebench
+    invocation, maximizing Docker image reuse across arms.
     Returns 0 on success, 1 on error.
     """
-    from benchmark.evaluate import evaluate_arm
+    from benchmark.evaluate import evaluate_arms_combined
     from benchmark.online.client import (
         fetch_unevaluated,
         is_configured,
@@ -74,9 +74,10 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
             log.info("No unevaluated predictions match --arm filter %s", arms)
             return 0
 
+    total_predictions = sum(len(v) for v in by_arm.values())
     log.info(
         "Found %d unevaluated predictions across %d arm(s): %s",
-        len(predictions),
+        total_predictions,
         len(by_arm),
         ", ".join(sorted(by_arm)),
     )
@@ -90,22 +91,14 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
     meta = {
         "dataset": full_dataset,
         "arms": list(by_arm),
-        "task_count": len(predictions),
+        "task_count": total_predictions,
         "source": "evaluate-pending",
     }
     (run_dir / "meta.json").write_text(json.dumps(meta, indent=2))
 
-    total_resolved = 0
-    total_evaluated = 0
-    upload_errors = 0
-
-    # Process largest arm first — Docker images get cached and reused by later arms.
-    # (swebench deduplicates by instance_id internally, so we can't combine arms
-    # into one invocation when instances overlap across arms.)
-    for arm, preds in sorted(by_arm.items(), key=lambda kv: -len(kv[1])):
+    # Write per-arm prediction files
+    for arm, preds in by_arm.items():
         safe_arm = docker_safe(arm)
-
-        # Write predictions file for this arm
         pred_file = run_dir / f"predictions-{safe_arm}.jsonl"
         with open(pred_file, "w") as f:
             for p in preds:
@@ -118,43 +111,44 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
                 f.write(json.dumps(entry) + "\n")
         log.info("Wrote %d predictions to %s", len(preds), pred_file.name)
 
-        # Upload each instance result as it completes
-        _arm = arm  # capture by value for closure safety
-        def _on_instance(instance_id: str, resolved: bool) -> None:
-            nonlocal total_resolved, total_evaluated
-            total_evaluated += 1
-            if resolved:
-                total_resolved += 1
-            try:
-                upload_eval_results(
-                    full_dataset,
-                    _arm,
-                    resolved=[instance_id] if resolved else [],
-                    failed=[] if resolved else [instance_id],
-                    error=[],
-                )
-                status = "resolved" if resolved else "failed"
-                log.info("Uploaded %s/%s: %s (%d/%d total)",
-                         _arm, instance_id, status, total_resolved, total_evaluated)
-            except Exception as exc:
-                nonlocal upload_errors
-                upload_errors += 1
-                log.debug("Upload failed for %s/%s: %s", _arm, instance_id, exc)
+    total_resolved = 0
+    total_evaluated = 0
+    upload_errors = 0
 
-        # Evaluate this arm with per-instance streaming
-        results = evaluate_arm(run_dir, arm, run_id, full_dataset, on_instance=_on_instance)
+    def _on_instance(instance_id: str, arm: str, resolved: bool) -> None:
+        nonlocal total_resolved, total_evaluated, upload_errors
+        total_evaluated += 1
+        if resolved:
+            total_resolved += 1
+        try:
+            upload_eval_results(
+                full_dataset,
+                arm,
+                resolved=[instance_id] if resolved else [],
+                failed=[] if resolved else [instance_id],
+                error=[],
+            )
+            status = "resolved" if resolved else "failed"
+            log.info("Uploaded %s/%s: %s (%d/%d total)",
+                     arm, instance_id, status, total_resolved, total_evaluated)
+        except Exception as exc:
+            upload_errors += 1
+            log.debug("Upload failed for %s/%s: %s", arm, instance_id, exc)
 
+    # Run combined evaluation (all arms in one swebench invocation)
+    arm_results = evaluate_arms_combined(
+        run_dir, list(by_arm), run_id, full_dataset, on_instance=_on_instance,
+    )
+
+    for arm, results in arm_results.items():
         resolved = results.get("resolved", [])
         failed = results.get("failed", [])
         error = results.get("error", [])
-
         log.info(
-            "Arm '%s' done: %d resolved, %d failed, %d error",
+            "Arm '%s': %d resolved, %d failed, %d error",
             arm, len(resolved), len(failed), len(error),
         )
-
         # Bulk upload results that weren't streamed via on_instance
-        # (e.g. Pro eval which doesn't support per-instance callbacks)
         if resolved or failed or error:
             try:
                 upload_eval_results(

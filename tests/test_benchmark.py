@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import signal
 import subprocess
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -797,8 +800,11 @@ class TestRunBenchmark:
 # ── evaluate ───────────────────────────────────────────────────────────────
 
 from benchmark.evaluate import (
+    _EvalHeartbeat,
     _count_pro_progress,
     _docker_safe as eval_docker_safe,
+    _emit_eval_diagnostics,
+    _make_stall_monitor,
     _parse_pro_results,
     _parse_standard_results,
     _run_eval_subprocess,
@@ -826,7 +832,7 @@ class TestRunEvalSubprocess:
         with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc), \
              patch("benchmark.evaluate.os.killpg", autospec=True) as mock_killpg:
             with pytest.raises(subprocess.TimeoutExpired):
-                _run_eval_subprocess(["python"], timeout=10)
+                _run_eval_subprocess(["python"], timeout=10, heartbeat=_EvalHeartbeat())
 
         mock_killpg.assert_called_once_with(321, signal.SIGKILL)
 
@@ -838,6 +844,30 @@ class TestRunEvalSubprocess:
         with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc):
             with pytest.raises(subprocess.CalledProcessError):
                 _run_eval_subprocess(["python"], timeout=10)
+
+    def test_timeout_writes_diagnostics(self, tmp_path):
+        """Timeouts emit a stall snapshot so hangs leave evidence behind."""
+        proc = MagicMock()
+        proc.pid = 321
+        proc.poll.return_value = None
+        proc.wait.side_effect = [subprocess.TimeoutExpired(["python"], 10), None]
+        proc.stdout = iter(())
+
+        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc), \
+             patch("benchmark.evaluate.os.killpg", autospec=True), \
+             patch("benchmark.evaluate._capture_command", autospec=True, return_value={"stdout": []}):
+            with pytest.raises(subprocess.TimeoutExpired):
+                _run_eval_subprocess(
+                    ["python"],
+                    timeout=10,
+                    heartbeat=_EvalHeartbeat(),
+                    context="test eval",
+                    diagnostic_dir=tmp_path,
+                )
+
+        snapshot = json.loads((tmp_path / "stall-diagnostics.json").read_text())
+        assert snapshot["context"] == "test eval timeout"
+        assert snapshot["pid"] == 321
 
 
 class TestCountProProgress:
@@ -853,6 +883,61 @@ class TestCountProProgress:
 
         assert completed == 1
         assert in_progress == ["instance_running"]
+
+
+class TestEvalDiagnostics:
+    def test_emit_eval_diagnostics_writes_snapshot(self, tmp_path, caplog):
+        """Diagnostic snapshots include the stalled state and persist to disk."""
+        heartbeat = _EvalHeartbeat()
+        heartbeat.note_progress(completed=2, in_progress=["instance_a", "instance_b"])
+        proc = MagicMock()
+        proc.pid = 777
+        proc.poll.return_value = None
+        (tmp_path / "trace.log").write_text("hello")
+
+        with patch("benchmark.evaluate._capture_command", autospec=True, return_value={"stdout": []}):
+            with caplog.at_level(logging.WARNING):
+                path = _emit_eval_diagnostics(
+                    proc,
+                    heartbeat,
+                    context="pro eval for cursor",
+                    diagnostic_dir=tmp_path,
+                )
+
+        assert path == tmp_path / "stall-diagnostics.json"
+        snapshot = json.loads(path.read_text())
+        assert snapshot["context"] == "pro eval for cursor"
+        assert snapshot["completed"] == 2
+        assert snapshot["in_progress"] == ["instance_a", "instance_b"]
+        assert any("appears stalled" in message for message in caplog.messages)
+
+    def test_stall_monitor_emits_diagnostics_after_idle_threshold(self, tmp_path):
+        """A quiet evaluator should trigger diagnostics once it is idle long enough."""
+        proc = MagicMock()
+        proc.poll.side_effect = [None, 0]
+        heartbeat = _EvalHeartbeat()
+        stale = time.monotonic() - 10_000
+        heartbeat.started_at = stale
+        heartbeat.last_output_at = stale
+        heartbeat.last_progress_at = stale
+        heartbeat.last_filesystem_at = stale
+
+        stop_event = threading.Event()
+        with patch("benchmark.evaluate._stall_seconds", autospec=True, return_value=1), \
+             patch("benchmark.evaluate._stall_repeat_seconds", autospec=True, return_value=3600), \
+             patch("benchmark.evaluate._stall_check_seconds", autospec=True, return_value=0), \
+             patch("benchmark.evaluate._emit_eval_diagnostics", autospec=True) as mock_emit, \
+             patch.object(stop_event, "wait", side_effect=[False, True]):
+            monitor = _make_stall_monitor(
+                stop_event,
+                proc,
+                heartbeat,
+                context="pro eval for cursor",
+                diagnostic_dir=tmp_path,
+            )
+            monitor()
+
+        mock_emit.assert_called_once()
 
 
 class TestParseProResults:
@@ -2169,7 +2254,7 @@ class TestEvaluatePending:
         assert result == 1
 
     def test_writes_predictions_and_runs_eval(self, tmp_path):
-        """Full flow: fetch → write → eval per arm → upload per arm."""
+        """Full flow: fetch → write → combined eval → upload per arm."""
         predictions = [
             {"instance_id": "django__django-12345", "arm": "claude", "patch": "diff1"},
             {"instance_id": "django__django-67890", "arm": "claude", "patch": "diff2"},
@@ -2191,15 +2276,18 @@ class TestEvaluatePending:
             },
         }
 
-        def fake_eval_arm(run_dir, arm, run_id, dataset, on_instance=None, **kwargs):
-            """Simulate eval: call on_instance for each task, then return summary."""
-            result = eval_results.get(arm, {})
-            if on_instance:
-                for iid in result.get("resolved", []):
-                    on_instance(iid, True)
-                for iid in result.get("failed", []):
-                    on_instance(iid, False)
-            return result
+        def fake_eval_combined(run_dir, arm_names, run_id, dataset, on_instance=None):
+            """Simulate combined eval: call on_instance for each (instance, arm)."""
+            results = {}
+            for arm in arm_names:
+                result = eval_results.get(arm, {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0})
+                if on_instance:
+                    for iid in result.get("resolved", []):
+                        on_instance(iid, arm, True)
+                    for iid in result.get("failed", []):
+                        on_instance(iid, arm, False)
+                results[arm] = result
+            return results
 
         upload_calls = []
 
@@ -2210,7 +2298,7 @@ class TestEvaluatePending:
         with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
              patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
              patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=predictions), \
-             patch("benchmark.evaluate.evaluate_arm", autospec=True, side_effect=fake_eval_arm) as mock_eval, \
+             patch("benchmark.evaluate.evaluate_arms_combined", autospec=True, side_effect=fake_eval_combined) as mock_eval, \
              patch("benchmark.online.client.upload_eval_results", autospec=True, side_effect=fake_upload):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
 
@@ -2233,8 +2321,8 @@ class TestEvaluatePending:
         kodo_preds = (run_dir / "predictions-kodo_solo.jsonl").read_text().splitlines()
         assert len(kodo_preds) == 1
 
-        # Check eval was called per arm
-        assert mock_eval.call_count == 2
+        # Combined eval called once with all arms
+        assert mock_eval.call_count == 1
 
         # Check uploads: 3 per-instance streaming + 2 bulk (one per arm)
         assert len(upload_calls) == 5
@@ -2252,13 +2340,14 @@ class TestEvaluatePending:
         """Returns 0 when eval produces no results (empty arm)."""
         predictions = [{"instance_id": "id1", "arm": "claude", "patch": "diff"}]
 
-        def fake_eval(run_dir, arm, run_id, dataset, **kwargs):
-            return {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
+        def fake_eval_combined(run_dir, arm_names, run_id, dataset, on_instance=None):
+            return {arm: {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
+                    for arm in arm_names}
 
         with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
              patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
              patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=predictions), \
-             patch("benchmark.evaluate.evaluate_arm", autospec=True, side_effect=fake_eval):
+             patch("benchmark.evaluate.evaluate_arms_combined", autospec=True, side_effect=fake_eval_combined):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
 
         assert result == 0
