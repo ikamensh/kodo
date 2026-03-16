@@ -202,7 +202,21 @@ def main() -> int:
 
         return evaluate_pending(workspace, dataset_arg=args.dataset)
 
-    # Distribute mode: check before heavy imports (evaluate, report, tasks)
+    if args.report_only:
+        from benchmark.report import generate_report
+
+        return generate_report(workspace, run_id)
+
+    if args.evaluate_only:
+        from benchmark.evaluate import evaluate_predictions
+        from benchmark.report import generate_report
+
+        evaluate_predictions(workspace, run_id)
+        return generate_report(workspace, run_id)
+
+    # Distribute mode: check before heavy task-loading imports.
+    # Report/evaluate-only runs operate on local artifacts and should not poll
+    # the server or load the task pool first.
     local_mode = args.local or args.subset or args.instance_ids
     if not local_mode:
         from benchmark.online.client import is_configured, whoami
@@ -215,13 +229,6 @@ def main() -> int:
 
     from benchmark.evaluate import evaluate_predictions
     from benchmark.report import generate_report
-
-    if args.report_only:
-        return generate_report(workspace, run_id)
-
-    if args.evaluate_only:
-        evaluate_predictions(workspace, run_id)
-        return generate_report(workspace, run_id)
 
     # Run agents
     import json
@@ -277,7 +284,7 @@ def main() -> int:
 def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> int:
     """Poll central server for task assignments and run them in batches."""
     from benchmark.online.client import fetch_assignments
-    from benchmark.runner import run_benchmark
+    from benchmark.runner import BenchmarkInterrupted, run_benchmark
     from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
 
     # Backends: explicit --backends > explicit --arm > auto-detect

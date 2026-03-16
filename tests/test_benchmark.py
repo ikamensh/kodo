@@ -1129,11 +1129,43 @@ class TestMainCLI:
             ret = main()
         assert ret == 0
 
+    def test_report_only_skips_distributed_mode_when_configured(self, tmp_path):
+        """Regression: report-only should not contact the online assignment server."""
+        with patch("sys.argv", ["benchmark", "--report-only", "--run-id", "r1",
+                                "--workspace", str(tmp_path)]), \
+             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
+             patch("benchmark.online.client.whoami", autospec=True) as mock_whoami, \
+             patch("benchmark.__main__._run_distributed", autospec=True) as mock_distributed, \
+             patch("benchmark.report.generate_report", autospec=True, return_value=0) as mock_report:
+            ret = main()
+
+        assert ret == 0
+        mock_report.assert_called_once_with(tmp_path, "r1")
+        mock_whoami.assert_not_called()
+        mock_distributed.assert_not_called()
+
+    def test_evaluate_only_skips_distributed_mode_when_configured(self, tmp_path):
+        """Regression: evaluate-only should stay on local artifacts too."""
+        with patch("sys.argv", ["benchmark", "--evaluate-only", "--run-id", "r1",
+                                "--workspace", str(tmp_path)]), \
+             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
+             patch("benchmark.online.client.whoami", autospec=True) as mock_whoami, \
+             patch("benchmark.__main__._run_distributed", autospec=True) as mock_distributed, \
+             patch("benchmark.evaluate.evaluate_predictions", autospec=True) as mock_evaluate, \
+             patch("benchmark.report.generate_report", autospec=True, return_value=0) as mock_report:
+            ret = main()
+
+        assert ret == 0
+        mock_evaluate.assert_called_once_with(tmp_path, "r1")
+        mock_report.assert_called_once_with(tmp_path, "r1")
+        mock_whoami.assert_not_called()
+        mock_distributed.assert_not_called()
+
     def test_upload_pending_no_auth(self, tmp_path):
         with patch("sys.argv", ["benchmark", "--upload-pending",
                                 "--workspace", str(tmp_path)]), \
-             patch("benchmark.online.client.BENCH_URL", ""), \
-             patch("benchmark.online.client.BENCH_TOKEN", ""):
+             patch("benchmark.online.config._CLIENT_CREDENTIALS", None), \
+             patch.dict("os.environ", {}, clear=True):
             ret = main()
         assert ret == 1
 
@@ -1343,7 +1375,60 @@ class TestPrioritizeAssignments:
 
 # ── client fetch_assignments ───────────────────────────────────────────────
 
-from benchmark.online.client import fetch_assignments
+import benchmark.online.config as online_config
+from benchmark.online.client import _request, fetch_assignments, is_configured
+
+
+class TestOnlineClientConfig:
+    def test_unconfigured_probe_does_not_freeze_empty_state(self):
+        """Late-loaded env should still be observed after an early empty probe."""
+        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
+            with patch.dict("os.environ", {}, clear=True):
+                assert is_configured() is False
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "KODO_BENCH_URL": "https://bench.example",
+                    "KODO_BENCH_TOKEN": "token-1",
+                },
+                clear=True,
+            ):
+                assert is_configured() is True
+
+    def test_first_complete_credentials_are_cached(self):
+        """After configuration is first observed, later env changes are ignored."""
+        response = MagicMock()
+        response.read.return_value = b"{}"
+
+        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
+            with patch.dict(
+                "os.environ",
+                {
+                    "KODO_BENCH_URL": "https://bench-one.example",
+                    "KODO_BENCH_TOKEN": "token-1",
+                },
+                clear=True,
+            ):
+                assert is_configured() is True
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "KODO_BENCH_URL": "https://bench-two.example",
+                    "KODO_BENCH_TOKEN": "token-2",
+                },
+                clear=True,
+            ), patch("urllib.request.urlopen", autospec=True, return_value=response) as mock_urlopen:
+                _request("GET", "/api/whoami")
+                assert online_config._CLIENT_CREDENTIALS == (
+                    "https://bench-one.example",
+                    "token-1",
+                )
+
+        request = mock_urlopen.call_args.args[0]
+        assert request.full_url == "https://bench-one.example/api/whoami"
+        assert request.get_header("Authorization") == "Bearer token-1"
 
 
 class TestFetchAssignments:

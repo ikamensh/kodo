@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 import time
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 import httpx
@@ -44,6 +47,10 @@ from kodo.summarizer import Summarizer
 # Backwards-compatible aliases for any external importers
 _MODEL_PRICING = MODEL_PRICING
 _PYDANTIC_MODEL_MAP = PYDANTIC_MODEL_MAP
+
+
+class _CycleWallTimeout(Exception):
+    """Raised when run_sync exceeds the wall-clock timeout."""
 
 
 def _messages_to_text(messages: list) -> str:
@@ -194,14 +201,41 @@ class ApiOrchestrator(OrchestratorBase):
         # during each run_sync call, so tokens consumed during failed
         # attempts are preserved when the next attempt succeeds.
         cumulative_usage = RunUsage()
+        wall_timeout_s = 600  # 10 min — guards against hung API requests
+        consecutive_timeouts = 0
         for attempt in range(max_retries):
             try:
-                run_result = agent.run_sync(
-                    prompt,
-                    usage_limits=UsageLimits(request_limit=max_exchanges),
-                    usage=cumulative_usage,
+                run_result = self._run_sync_with_timeout(
+                    agent, prompt, max_exchanges, cumulative_usage,
+                    timeout_s=wall_timeout_s,
                 )
+                consecutive_timeouts = 0
                 break
+            except _CycleWallTimeout:
+                consecutive_timeouts += 1
+                log.tprint(
+                    f"⏱️  [orchestrator] wall-clock timeout ({wall_timeout_s}s) "
+                    f"(attempt {consecutive_timeouts}/{max_retries})",
+                )
+                log.emit(
+                    "orchestrator_wall_timeout",
+                    timeout_s=wall_timeout_s,
+                    attempt=consecutive_timeouts,
+                )
+                if consecutive_timeouts >= max_retries:
+                    result.finished = False
+                    result.success = False
+                    accumulated = self._summarizer.get_accumulated_summary()
+                    result.summary = (
+                        f"[Cycle aborted: orchestrator API hung {max_retries} times. "
+                        f"Work so far:]\n{accumulated}"
+                        if accumulated
+                        else f"[Cycle aborted: orchestrator API hung {max_retries} times.]"
+                    )
+                    log.emit("cycle_end", reason="wall_timeout_exhausted",
+                             summary=result.summary)
+                    return result
+                continue
             except FatalAgentError as exc:
                 log.tprint(f"🛑 [orchestrator] fatal worker error: {exc}")
                 log.emit("cycle_fatal_agent_error", error=str(exc))
@@ -335,6 +369,42 @@ class ApiOrchestrator(OrchestratorBase):
             )
 
         return result
+
+    @staticmethod
+    def _run_sync_with_timeout(
+        agent: Agent,
+        prompt: str,
+        max_exchanges: int,
+        cumulative_usage: RunUsage,
+        *,
+        timeout_s: float,
+    ):
+        """Run agent.run_sync in a daemon thread with a wall-clock timeout.
+
+        Raises _CycleWallTimeout if the call doesn't return in time.
+        Any exception from run_sync is re-raised in the calling thread.
+        """
+        future: Future = Future()
+
+        def _worker():
+            try:
+                res = agent.run_sync(
+                    prompt,
+                    usage_limits=UsageLimits(request_limit=max_exchanges),
+                    usage=cumulative_usage,
+                )
+                future.set_result(res)
+            except BaseException as exc:
+                future.set_exception(exc)
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        try:
+            return future.result(timeout=timeout_s)
+        except FuturesTimeoutError:
+            raise _CycleWallTimeout(
+                f"run_sync did not complete within {timeout_s}s"
+            )
 
     def _summarize(self, messages: list) -> str:
         """Compress conversation into a summary using a simple agent."""

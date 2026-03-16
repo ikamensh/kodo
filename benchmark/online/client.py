@@ -14,7 +14,7 @@ import json
 import logging
 import urllib.request
 
-from .config import BENCH_TOKEN, BENCH_URL, collect_provenance, dataset_key
+from .config import collect_provenance, dataset_key, get_client_credentials
 
 log = logging.getLogger("benchmark.online")
 
@@ -22,7 +22,8 @@ _provenance: dict | None = None  # cached per process
 
 
 def is_configured() -> bool:
-    return bool(BENCH_URL and BENCH_TOKEN)
+    url, token = get_client_credentials()
+    return bool(url and token)
 
 
 def upload_task_result(
@@ -112,10 +113,13 @@ def _get_provenance() -> dict:
 
 def _request(method: str, path: str, data: dict | None = None, timeout: int = 30) -> bytes:
     """Send an authenticated request to the benchmark server. Returns response body."""
-    url = f"{BENCH_URL.rstrip('/')}{path}"
+    base_url, token = get_client_credentials()
+    if not base_url or not token:
+        raise RuntimeError("Benchmark online client is not configured")
+    url = f"{base_url.rstrip('/')}{path}"
     body = json.dumps(data).encode() if data is not None else None
     req = urllib.request.Request(url, data=body, method=method)
-    req.add_header("Authorization", f"Bearer {BENCH_TOKEN}")
+    req.add_header("Authorization", f"Bearer {token}")
     if body is not None:
         req.add_header("Content-Type", "application/json")
     return urllib.request.urlopen(req, timeout=timeout).read()

@@ -33,9 +33,30 @@ GCS_BUCKET = os.environ.get("KODO_BENCH_BUCKET", "kodo-bench")
 # After that, tokens live in Firestore and this can be unset.
 ADMIN_TOKEN = os.environ.get("KODO_BENCH_ADMIN_TOKEN", "")
 
-# Client-side config
-BENCH_URL = os.environ.get("KODO_BENCH_URL", "")
-BENCH_TOKEN = os.environ.get("KODO_BENCH_TOKEN", "")
+# Client-side config is resolved lazily so dotenv/load-order doesn't freeze an
+# unconfigured state before the CLI has a chance to populate the environment.
+_CLIENT_CREDENTIALS: tuple[str, str] | None = None
+
+
+def get_client_credentials() -> tuple[str, str]:
+    """Return benchmark client credentials, caching the first complete pair.
+
+    We intentionally do not cache empty values: an early import may happen
+    before dotenv or tests populate the environment, and that should not poison
+    the process permanently. Once both values are present, they stay frozen for
+    the rest of the run.
+    """
+    global _CLIENT_CREDENTIALS
+    if _CLIENT_CREDENTIALS is not None:
+        return _CLIENT_CREDENTIALS
+
+    credentials = (
+        os.environ.get("KODO_BENCH_URL", ""),
+        os.environ.get("KODO_BENCH_TOKEN", ""),
+    )
+    if all(credentials):
+        _CLIENT_CREDENTIALS = credentials
+    return credentials
 
 
 def dataset_key(dataset: str) -> str:
