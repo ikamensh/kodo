@@ -35,12 +35,13 @@ from pathlib import Path
 log = logging.getLogger("benchmark.online")
 
 from . import db
-from .config import ADMIN_TOKEN
+from .config import ADMIN_TOKEN, ALLOWED_DATASETS, HEAD_TO_HEAD_OPPONENT, VIEW_MODE
 from .validation import suspicious_upload_reason
 
 PORT = int(os.environ.get("PORT", 8080))
 BASE_PATH = os.environ.get("BASE_PATH", "")  # e.g. "/bench" when behind Firebase Hosting
 STATIC_DIR = Path(__file__).parent / "static"
+HEAD_TO_HEAD_MODE = VIEW_MODE == "head_to_head"
 
 # In-memory cache: key -> (timestamp, bytes)
 _cache: dict[str, tuple[float, bytes]] = {}
@@ -418,8 +419,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(404)
             return
         dataset, kind = m.group(1), m.group(2)
+        if not self._dataset_allowed(dataset):
+            self.send_error(404)
+            return
 
-        cache_key = f"{kind}:{dataset}"
+        cache_key = self._cache_key(dataset, kind)
         now = time.time()
         cached = _cache.get(cache_key)
         if cached and now - cached[0] < CACHE_TTL:
@@ -428,9 +432,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         try:
             if kind == "index":
-                # Materialized index.json in GCS — cheap read, lazy rebuild on dirty/stale
-                body = db.get_index_json(dataset)
+                body = self._load_index_body(dataset)
             else:
+                if HEAD_TO_HEAD_MODE:
+                    self.send_error(404)
+                    return
                 data = db.get_all_patches(dataset)
                 body = json.dumps(data).encode()
         except Exception as e:
@@ -448,8 +454,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(404)
             return
         dataset, iid, arm = m.group(1), m.group(2), m.group(3)
+        if not self._dataset_allowed(dataset):
+            self.send_error(404)
+            return
 
         try:
+            if HEAD_TO_HEAD_MODE and not self._is_visible_in_head_to_head(dataset, iid, arm):
+                self.send_error(404, "Patch not found")
+                return
             patch = db.get_patch(dataset, iid, arm)
         except Exception as e:
             self.send_error(502, str(e))
@@ -463,6 +475,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _serve_static(self, p: str = ""):
         path = (p or self._strip_base()).rstrip("/")
+        if HEAD_TO_HEAD_MODE and path in ("/progress.html", "/scheduling.html", "/register.html"):
+            self.send_error(404)
+            return
         if path in ("", "/index.html"):
             fpath = STATIC_DIR / "index.html"
         else:
@@ -492,6 +507,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (json.JSONDecodeError, ValueError) as e:
             self.send_error(400, f"Invalid JSON: {e}")
             return None
+
+    def _cache_key(self, dataset: str, kind: str) -> str:
+        """Keep cache entries distinct across viewer modes."""
+        if HEAD_TO_HEAD_MODE:
+            return f"{kind}:{dataset}:h2h:{HEAD_TO_HEAD_OPPONENT}"
+        return f"{kind}:{dataset}"
+
+    def _dataset_allowed(self, dataset: str) -> bool:
+        """Restrict public dataset exposure when a subset is configured."""
+        return not ALLOWED_DATASETS or dataset in ALLOWED_DATASETS
+
+    def _load_index_body(self, dataset: str) -> bytes:
+        """Load the dataset index for the active viewer mode."""
+        if HEAD_TO_HEAD_MODE:
+            return db.get_head_to_head_index_json(dataset, HEAD_TO_HEAD_OPPONENT)
+        # Materialized index.json in GCS — cheap read, lazy rebuild on dirty/stale
+        return db.get_index_json(dataset)
+
+    def _is_visible_in_head_to_head(self, dataset: str, instance_id: str, arm: str) -> bool:
+        """Gate patch access to the overlap-only dataset in head-to-head mode."""
+        cached = _cache.get(self._cache_key(dataset, "index"))
+        if cached is None:
+            data = json.loads(self._load_index_body(dataset))
+        else:
+            data = json.loads(cached[1])
+        return arm in (data.get("results", {}).get(instance_id) or {})
 
     def _json_ok(self, data: dict):
         self._raw_response(200, json.dumps(data).encode(), "application/json")

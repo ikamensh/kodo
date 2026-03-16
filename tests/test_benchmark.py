@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import signal
@@ -1582,6 +1583,17 @@ import benchmark.online.db as online_db
 
 
 class TestOnlineClientConfig:
+    def test_allowed_datasets_env_is_parsed(self):
+        """Public dataset allowlist should respect the configured CSV env var."""
+        with patch.dict(
+            "os.environ",
+            {"KODO_BENCH_ALLOWED_DATASETS": "verified, pro"},
+            clear=False,
+        ):
+            reloaded = importlib.reload(online_config)
+            assert reloaded.ALLOWED_DATASETS == frozenset({"verified", "pro"})
+        importlib.reload(online_config)
+
     def test_unconfigured_probe_does_not_freeze_empty_state(self):
         """Late-loaded env should still be observed after an early empty probe."""
         with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
@@ -1676,6 +1688,69 @@ class TestOnlineDb:
             online_db.delete_patch("pro", "id1", "codex")
 
         mock_log.warning.assert_called_once()
+
+    def test_head_to_head_index_keeps_only_overlap_and_two_arms(self):
+        """Head-to-head data should expose only tasks both Kodo and Cursor evaluated."""
+        index = {
+            "tasks": [
+                {"instance_id": "repo__1"},
+                {"instance_id": "repo__2"},
+                {"instance_id": "repo__3"},
+            ],
+            "arms": ["kodo", "cursor", "claude"],
+            "results": {
+                "repo__1": {
+                    "kodo": {"eval_status": True, "resolved": True},
+                    "cursor": {"eval_status": True, "resolved": False},
+                    "claude": {"eval_status": True, "resolved": True},
+                },
+                "repo__2": {
+                    "kodo": {"eval_status": True, "resolved": False},
+                    "cursor": {"status": "ok"},
+                },
+                "repo__3": {
+                    "cursor": {"eval_status": True, "resolved": True},
+                    "claude": {"eval_status": True, "resolved": False},
+                },
+            },
+            "meta": {"dataset": "verified", "last_updated": "2026-03-16T00:00:00+00:00"},
+        }
+
+        filtered = online_db.head_to_head_index(index)
+
+        assert filtered["arms"] == ["kodo", "cursor"]
+        assert [task["instance_id"] for task in filtered["tasks"]] == ["repo__1"]
+        assert set(filtered["results"]["repo__1"]) == {"kodo", "cursor"}
+        assert filtered["meta"]["view_mode"] == "head_to_head"
+        assert filtered["meta"]["comparison"] == {
+            "primary_arm": "kodo",
+            "secondary_arm": "cursor",
+        }
+
+    def test_head_to_head_index_picks_kodo_arm_with_overlap(self):
+        """When plain kodo has no overlap, choose the Kodo arm that does."""
+        index = {
+            "tasks": [
+                {"instance_id": "repo__1"},
+                {"instance_id": "repo__2"},
+            ],
+            "arms": ["kodo", "kodo:solo", "cursor"],
+            "results": {
+                "repo__1": {
+                    "kodo:solo": {"eval_status": True, "resolved": False},
+                    "cursor": {"eval_status": True, "resolved": True},
+                },
+                "repo__2": {
+                    "kodo": {"eval_status": True, "resolved": True},
+                },
+            },
+            "meta": {"dataset": "verified"},
+        }
+
+        filtered = online_db.head_to_head_index(index)
+
+        assert filtered["arms"] == ["kodo:solo", "cursor"]
+        assert [task["instance_id"] for task in filtered["tasks"]] == ["repo__1"]
 
 
 # ── runner with assignments ────────────────────────────────────────────────
@@ -2380,3 +2455,11 @@ class TestProgressView:
         static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
         html = (static / "index.html").read_text()
         assert "r.status === 'ok' || r.status === 'partial'" in html
+
+    def test_main_viewer_supports_head_to_head_mode(self):
+        """Head-to-head viewer chrome is driven from overlap-only dataset metadata."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        html = (static / "index.html").read_text()
+        assert 'id="view-banner"' in html
+        assert "viewMode(data) === 'head_to_head'" in html
+        assert "syncDatasetTabs()" in html

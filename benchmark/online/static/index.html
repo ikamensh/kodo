@@ -49,6 +49,11 @@ nav { display: flex; align-items: center; border-bottom: 1px solid var(--border)
 .ds-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .v-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
+.view-banner { display: none; max-width: 1200px; margin: 20px auto 0; padding: 14px 18px; background: var(--accent-bg); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--text2); }
+.view-banner.visible { display: block; }
+.view-banner strong { color: var(--text); }
+.view-badge { display: inline-flex; align-items: center; margin-right: 10px; padding: 3px 9px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--border); color: var(--accent); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
 main { padding: 32px 24px; max-width: 1200px; margin: 0 auto; }
 .loading { text-align: center; padding: 64px; color: var(--text2); font-size: 14px; }
 
@@ -163,7 +168,7 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
 <body>
 
 <header>
-  <h1>kodo bench</h1>
+  <h1 id="page-title">kodo bench</h1>
   <span class="stats" id="header-stats"></span>
   <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
 </header>
@@ -184,6 +189,7 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
   <a id="join-link" href="/register.html" style="margin-left:8px;font-size:12px;padding:4px 12px;border:1px solid var(--accent);border-radius:12px;color:var(--accent);text-decoration:none;white-space:nowrap;font-weight:500;" onmouseover="this.style.background='var(--accent)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--accent)'">Contribute</a>
 </nav>
 
+<div id="view-banner" class="view-banner"></div>
 <main id="main"><div class="loading">Loading...</div></main>
 <div id="tooltip"></div>
 
@@ -206,6 +212,7 @@ let currentView = 'leaderboard';
 let showAllKodo = false;
 let activeMapArms = [];
 let allData = {};
+let availableDatasets = ['verified', 'pro'];
 let sortCol = '', sortAsc = true;
 
 // ── Palette ──
@@ -228,6 +235,18 @@ function displayName(arm) {
   }
   const m = { claude: 'Claude Code', cursor: 'Cursor', codex: 'Codex', gemini: 'Gemini CLI' };
   return m[arm] || arm;
+}
+
+function viewMode(data) {
+  return data?.meta?.view_mode || 'default';
+}
+
+function viewComparison(data) {
+  return data?.meta?.comparison || {};
+}
+
+function isHeadToHeadView(data) {
+  return viewMode(data) === 'head_to_head';
 }
 
 // ── Data helpers ──
@@ -337,6 +356,7 @@ async function init() {
     allData = { verified: emptyIndex(), pro: emptyIndex() };
   }
 
+  syncDatasetTabs();
   activeMapArms = defaultMapArms(allData[currentDataset]);
   render();
 }
@@ -356,10 +376,25 @@ function defaultMapArms(data) {
   return arms.length ? arms : (data.arms || []).slice(0, 2);
 }
 
+function syncDatasetTabs() {
+  const order = ['verified', 'pro'];
+  availableDatasets = order.filter(ds => (allData[ds]?.tasks?.length || 0) > 0);
+  if (!availableDatasets.length) availableDatasets = order;
+  if (!availableDatasets.includes(currentDataset)) currentDataset = availableDatasets[0];
+
+  const tabs = document.querySelectorAll('.ds-tab');
+  tabs.forEach(tab => {
+    const visible = availableDatasets.includes(tab.dataset.ds);
+    tab.style.display = visible ? '' : 'none';
+    tab.classList.toggle('active', tab.dataset.ds === currentDataset);
+  });
+}
+
 // ── Render dispatch ──
 
 function render() {
   const data = allData[currentDataset];
+  applyViewChrome(data);
   if (!data?.tasks?.length) {
     document.getElementById('main').innerHTML = '<div class="loading">No data for this dataset yet.</div>';
     document.getElementById('header-stats').textContent = '';
@@ -368,8 +403,9 @@ function render() {
 
   const arms = visibleArms(data);
   const pending = arms.reduce((sum, a) => sum + armStats(data, a).pending, 0);
+  const taskLabel = isHeadToHeadView(data) ? `${data.tasks.length} overlapping tasks` : `${data.tasks.length} tasks`;
   document.getElementById('header-stats').textContent =
-    `${data.tasks.length} tasks \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
+    `${taskLabel} \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
     (pending > 0 ? ` \u00b7 ${pending} pending eval` : '');
 
   const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails };
@@ -379,6 +415,31 @@ function render() {
   if (currentView === 'leaderboard') attachLeaderboardHandlers();
   if (currentView === 'taskmap') attachTaskMapHandlers(data, arms);
   if (currentView === 'details') attachDetailHandlers(data, arms);
+}
+
+function applyViewChrome(data) {
+  const title = document.getElementById('page-title');
+  const banner = document.getElementById('view-banner');
+  const links = ['progress-link', 'scheduling-link', 'join-link'].map(id => document.getElementById(id));
+
+  if (isHeadToHeadView(data)) {
+    const comparison = viewComparison(data);
+    const primary = displayName(comparison.primary_arm || 'kodo');
+    const secondary = displayName(comparison.secondary_arm || 'cursor');
+    document.title = `${primary} vs ${secondary}`;
+    title.textContent = `${primary} vs ${secondary}`;
+    banner.innerHTML =
+      `<span class="view-badge">Head-to-head view</span><strong>${esc(primary)} vs ${esc(secondary)}</strong> shows only tasks where both agents have completed evaluation.`;
+    banner.classList.add('visible');
+    links.forEach(link => { if (link) link.style.display = 'none'; });
+    return;
+  }
+
+  document.title = 'kodo bench';
+  title.textContent = 'kodo bench';
+  banner.textContent = '';
+  banner.classList.remove('visible');
+  links.forEach(link => { if (link) link.style.display = ''; });
 }
 
 // ── Leaderboard ──

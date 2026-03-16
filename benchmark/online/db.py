@@ -277,6 +277,129 @@ def get_index_json(dataset: str) -> bytes:
     return blob.download_as_bytes()
 
 
+def head_to_head_index(index: dict, opponent_arm: str = "cursor") -> dict:
+    """Return a Kodo-vs-opponent slice containing only overlapping evals.
+
+    We keep only tasks where both the chosen Kodo arm and the opponent were
+    evaluated, and we trim each task down to just those two arms.
+
+    >>> index = {
+    ...     "tasks": [{"instance_id": "id1"}, {"instance_id": "id2"}],
+    ...     "arms": ["kodo", "cursor", "claude"],
+    ...     "results": {
+    ...         "id1": {
+    ...             "kodo": {"eval_status": True, "resolved": True},
+    ...             "cursor": {"eval_status": True, "resolved": False},
+    ...             "claude": {"eval_status": True, "resolved": True},
+    ...         },
+    ...         "id2": {
+    ...             "kodo": {"eval_status": True, "resolved": False},
+    ...             "cursor": {"status": "ok"},
+    ...         },
+    ...     },
+    ...     "meta": {"dataset": "verified", "last_updated": "2026-03-16T00:00:00+00:00"},
+    ... }
+    >>> filtered = head_to_head_index(index)
+    >>> filtered["arms"]
+    ['kodo', 'cursor']
+    >>> [task["instance_id"] for task in filtered["tasks"]]
+    ['id1']
+    >>> sorted(filtered["results"]["id1"])
+    ['cursor', 'kodo']
+    """
+    meta = index.get("meta", {})
+    dataset = meta.get("dataset", "")
+    tasks = index.get("tasks", [])
+    results = index.get("results", {})
+    kodo_arm = _pick_kodo_head_to_head_arm(index, opponent_arm)
+
+    filtered_tasks: list[dict] = []
+    filtered_results: dict[str, dict[str, dict]] = {}
+    arms: list[str] = []
+
+    if kodo_arm is not None:
+        arms = [kodo_arm, opponent_arm]
+        for task in tasks:
+            instance_id = task.get("instance_id", "")
+            if not instance_id:
+                continue
+            arm_results = results.get(instance_id, {})
+            if not _is_overlapping_eval(arm_results, kodo_arm, opponent_arm):
+                continue
+            filtered_tasks.append(task)
+            filtered_results[instance_id] = {
+                kodo_arm: arm_results[kodo_arm],
+                opponent_arm: arm_results[opponent_arm],
+            }
+
+    return {
+        "tasks": filtered_tasks,
+        "arms": arms,
+        "results": filtered_results,
+        "meta": {
+            "dataset": dataset,
+            "total_tasks": len(filtered_tasks),
+            "total_evaluated": len(filtered_tasks),
+            "last_updated": meta.get("last_updated", datetime.now(timezone.utc).isoformat()),
+            "view_mode": "head_to_head",
+            "comparison": {
+                "primary_arm": kodo_arm,
+                "secondary_arm": opponent_arm,
+            },
+        },
+    }
+
+
+def get_head_to_head_index_json(dataset: str, opponent_arm: str = "cursor") -> bytes:
+    """Return overlap-only index.json bytes for the head-to-head viewer."""
+    index = json.loads(get_index_json(dataset))
+    return json.dumps(head_to_head_index(index, opponent_arm)).encode()
+
+
+def _pick_kodo_head_to_head_arm(index: dict, opponent_arm: str) -> str | None:
+    """Pick the Kodo arm that gives the most useful Cursor overlap."""
+    arms = index.get("arms", [])
+    if opponent_arm not in arms:
+        return None
+
+    tasks = index.get("tasks", [])
+    results = index.get("results", {})
+    candidates = [arm for arm in arms if arm.startswith("kodo")]
+    ranked: list[tuple[int, int, int, float, str]] = []
+
+    for arm in candidates:
+        overlap = 0
+        evaluated = 0
+        resolved = 0
+        for task in tasks:
+            instance_id = task.get("instance_id", "")
+            if not instance_id:
+                continue
+            arm_results = results.get(instance_id, {})
+            own = arm_results.get(arm, {})
+            if own.get("eval_status"):
+                evaluated += 1
+                resolved += int(bool(own.get("resolved")))
+            if _is_overlapping_eval(arm_results, arm, opponent_arm):
+                overlap += 1
+        if overlap == 0:
+            continue
+        rate = resolved / evaluated if evaluated else 0.0
+        ranked.append((overlap, int(arm == "kodo"), evaluated, rate, arm))
+
+    if not ranked:
+        return None
+    return max(ranked)[-1]
+
+
+def _is_overlapping_eval(arm_results: dict, arm_a: str, arm_b: str) -> bool:
+    """Return True when both arms were evaluated for the same task."""
+    return bool(
+        arm_results.get(arm_a, {}).get("eval_status")
+        and arm_results.get(arm_b, {}).get("eval_status")
+    )
+
+
 def _materialize_index(dataset: str, blob=None) -> None:
     """Rebuild index.json from Firestore and write to GCS."""
     from google.cloud import firestore as fs
