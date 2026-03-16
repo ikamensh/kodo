@@ -14,21 +14,14 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from kodo import log
+from kodo.models import list_ollama_models
 from kodo.prompts.other import SUMMARIZER_TEMPLATE
 
 
 def _probe_ollama() -> str | None:
     """Return the first available ollama model name, or None."""
-    try:
-        req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            data = json.loads(resp.read())
-        models = data.get("models", [])
-        if models:
-            return models[0].get("name") or models[0].get("model")
-    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, OSError, TimeoutError):
-        pass
-    return None
+    models = list_ollama_models()
+    return models[0] if models else None
 
 
 def _probe_gemini() -> str | None:

@@ -145,7 +145,7 @@ export GEMINI_API_KEY=...
 
 ## Orchestrator API keys
 
-The orchestrator (the "brain" that directs agents) can run on Gemini or Claude API. This is separate from the agent backends above.
+The orchestrator (the "brain" that directs agents) can run on Gemini API, Claude API, or local Ollama. This is separate from the agent backends above.
 
 ```bash
 # Gemini orchestrator (recommended — fast and cheap)
@@ -156,3 +156,20 @@ export ANTHROPIC_API_KEY=...
 ```
 
 Set these in a `.env` file in your project directory or export them in your shell.
+
+### Local Ollama orchestrator
+
+If you already use [Ollama](https://ollama.com/), you can run the orchestrator locally:
+
+```bash
+ollama pull qwen2.5-coder:14b
+kodo --goal "..." --orchestrator-model ollama:qwen2.5-coder:14b
+```
+
+Notes:
+
+- Interactive setup lists the detected local Ollama models so you can pick one directly.
+- `ollama-local` remains available as a shortcut for "first detected local model".
+- Passing an Ollama model implies the `api` orchestrator automatically, so `--orchestrator api` is optional.
+- kodo assumes the default Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1`.
+- This only replaces the orchestrator API cost. You still need at least one worker backend from the sections above.

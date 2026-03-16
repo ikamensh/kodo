@@ -18,11 +18,11 @@ from kodo.models import (
     CLAUDE_SONNET,
     CODEX_DEFAULT,
     CURSOR_COMPOSER,
-    GEMINI_ALIAS_FLASH,
-    GEMINI_ALIAS_PRO,
+    api_orchestrator_model_options,
     GEMINI_API_FLASH,
     GEMINI_CLI_FLASH,
     GEMINI_CLI_PRO,
+    implied_orchestrator_from_model,
 )
 from kodo.user_config import get_user_default
 
@@ -155,7 +155,7 @@ def select_params() -> dict:
     elif orchestrator == "api":
         orch_model = _select_one(
             "Orchestrator model:",
-            [CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH],
+            api_orchestrator_model_options(),
         )
     else:
         # claude-code
@@ -292,6 +292,8 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
 
         if args.orchestrator:
             orchestrator = args.orchestrator
+        elif inferred := implied_orchestrator_from_model(orch_model):
+            orchestrator = inferred
         elif _has_gemini_key:
             orchestrator = "api"
         else:

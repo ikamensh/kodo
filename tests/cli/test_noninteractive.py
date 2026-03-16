@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -100,10 +101,16 @@ class TestBuildParamsFromFlags:
         assert params["orchestrator"] == "api"
 
     def test_orchestrator_auto_detects_claude_code_without_gemini_key(self, project):
+        """Without GEMINI/GOOGLE_API_KEY (keys absent), falls back to claude-code."""
         args = _make_args(orchestrator_model="gemini-flash")
-        with patch.dict("os.environ", {}, clear=True):
+        # Simulate user env without those keys (CI runners may set them)
+        env_no_gemini = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+        }
+        with patch.dict("kodo.cli._params.os.environ", env_no_gemini, clear=True):
             params = _build_params_from_flags(args, project)
-        # Without Gemini key, falls back to claude-code
         assert params["orchestrator"] == "claude-code"
 
     def test_improve_mode_uses_api_with_gemini_key(self, project):

@@ -7,7 +7,6 @@ Covers:
 
 from __future__ import annotations
 
-import os
 import signal
 import subprocess
 from pathlib import Path
@@ -38,7 +37,7 @@ def test_suppress_keyboard_interrupt_defers_sigint():
     with pytest.raises(KeyboardInterrupt):
         with _suppress_keyboard_interrupt():
             # Send SIGINT to ourselves — the handler should defer it
-            os.kill(os.getpid(), signal.SIGINT)
+            signal.raise_signal(signal.SIGINT)
             # Execution should continue (not immediately interrupted)
             # The signal is only re-raised on context exit
 

@@ -6,8 +6,15 @@ import pytest
 
 from kodo.models import (
     MODEL_PRICING,
+    OLLAMA_LOCAL,
     PYDANTIC_MODEL_MAP,
+    api_orchestrator_model_options,
+    ensure_ollama_base_url,
+    implied_orchestrator_from_model,
+    is_ollama_model,
+    list_ollama_models,
     make_fresh_model,
+    normalize_ollama_model,
 )
 
 
@@ -97,3 +104,75 @@ class TestMakeFreshModel:
         result = make_fresh_model("google-vertex:gemini-3-flash-preview")
         assert not isinstance(result, str)
         assert type(result).__name__ == "GoogleModel"
+
+    def test_ollama_returns_openai_chat_model(self):
+        """ollama: prefix creates an OpenAIChatModel backed by Ollama."""
+        result = make_fresh_model("ollama:llama3.2")
+        assert not isinstance(result, str)
+        assert type(result).__name__ == "OpenAIChatModel"
+
+
+class TestOllamaHelpers:
+    def test_list_ollama_models_returns_unique_names(self):
+        payload = {
+            "models": [
+                {"name": "qwen2.5-coder:14b"},
+                {"model": "llama3.2"},
+                {"name": "qwen2.5-coder:14b"},
+            ],
+        }
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                import json
+
+                return json.dumps(payload).encode()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("urllib.request.urlopen", lambda *args, **kwargs: _Resp())
+            assert list_ollama_models() == ["qwen2.5-coder:14b", "llama3.2"]
+
+    def test_is_ollama_model_recognizes_alias_and_prefixes(self):
+        assert is_ollama_model(OLLAMA_LOCAL) is True
+        assert is_ollama_model("ollama:llama3.2") is True
+        assert is_ollama_model("ollama/llama3.2") is True
+        assert is_ollama_model("gemini-flash") is False
+
+    def test_implied_orchestrator_from_ollama_model_is_api(self):
+        assert implied_orchestrator_from_model("ollama:qwen2.5-coder:14b") == "api"
+        assert implied_orchestrator_from_model(OLLAMA_LOCAL) == "api"
+        assert implied_orchestrator_from_model("gemini-flash") is None
+
+    def test_normalize_ollama_model_resolves_slash_form(self):
+        assert normalize_ollama_model("ollama/llama3.2") == "ollama:llama3.2"
+
+    def test_normalize_ollama_model_resolves_local_alias(self):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("kodo.models.list_ollama_models", lambda: ["qwen2.5-coder"])
+            assert normalize_ollama_model(OLLAMA_LOCAL) == "ollama:qwen2.5-coder"
+
+    def test_ensure_ollama_base_url_sets_default(self):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.delenv("OLLAMA_BASE_URL", raising=False)
+            assert ensure_ollama_base_url() == "http://localhost:11434/v1"
+
+    def test_api_orchestrator_model_options_include_detected_ollama_models(self):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "kodo.models.list_ollama_models",
+                lambda: ["qwen2.5-coder:14b", "llama3.2"],
+            )
+            assert api_orchestrator_model_options() == [
+                "opus",
+                "sonnet",
+                "gemini-pro",
+                "gemini-flash",
+                "ollama:qwen2.5-coder:14b",
+                "ollama:llama3.2",
+            ]

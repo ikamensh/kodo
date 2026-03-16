@@ -358,6 +358,35 @@ class TestBuildParamsFromFlags:
         # effort should be set when provided via CLI flag
         assert result["effort"] == "high"
 
+    def test_ollama_model_implies_api_orchestrator(self, tmp_path):
+        args = type('obj', (), {
+            'debug': False,
+            'team': 'full',
+            'orchestrator': None,
+            'orchestrator_model': 'ollama:qwen2.5-coder:14b',
+            'exchanges': None,
+            'cycles': None,
+            'no_auto_commit': False,
+            'effort': None,
+        })()
+
+        with (
+            patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
+            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+        ):
+            mock_team = type('obj', (), {
+                'name': 'full',
+                'default_max_exchanges': 30,
+                'default_max_cycles': 5,
+            })()
+            mock_get_team.return_value = mock_team
+
+            result = _build_params_from_flags(args, tmp_path)
+
+        assert result["orchestrator"] == "api"
+        assert result["orchestrator_model"] == "ollama:qwen2.5-coder:14b"
+
     def test_effort_not_set_when_none(self, tmp_path):
         """When no --effort flag, 'effort' key should not appear in params."""
         args = type('obj', (), {
@@ -623,6 +652,27 @@ class TestSelectParams:
         assert CLAUDE_SONNET in model_options
         assert GEMINI_ALIAS_PRO in model_options
         assert GEMINI_ALIAS_FLASH in model_options
+
+    def test_api_orchestrator_offers_ollama_when_local_model_detected(self):
+        with (
+            patch(
+                "kodo.cli._params._select_one",
+                autospec=True,
+                side_effect=self._patch_select_one("api"),
+            ),
+            patch(
+                "kodo.models.list_ollama_models",
+                autospec=True,
+                return_value=["qwen2.5-coder:14b", "llama3.2"],
+            ),
+        ):
+            select_params()
+
+        model_call = [c for c in self._select_one_calls if "model" in c[0].lower()]
+        assert len(model_call) == 1
+        model_options = model_call[0][1]
+        assert "ollama:qwen2.5-coder:14b" in model_options
+        assert "ollama:llama3.2" in model_options
 
     def test_claude_code_orchestrator(self):
         """claude-code orchestrator should offer Claude model choices."""

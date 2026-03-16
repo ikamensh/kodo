@@ -546,6 +546,22 @@ class TestCmdBackends:
         out = capsys.readouterr().out
         assert "ready" in out
 
+    def test_ollama_local_model_listed_when_detected(self, capsys):
+        with (
+            patch(
+                "kodo.models.list_ollama_models",
+                autospec=True,
+                return_value=["qwen2.5-coder:14b", "llama3.2"],
+            ),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+
+        out = capsys.readouterr().out
+        assert "ollama-local" in out
+        assert "ollama:qwen2.5-coder:14b" in out
+        assert "ollama:llama3.2" in out
+
     def test_gemini_key_shown_when_set(self, capsys):
         """When GEMINI_API_KEY is set, output should show masked Gemini key."""
         with (

@@ -32,6 +32,10 @@ from kodo.models import (
     GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
     KIMI_K2_5,
+    OLLAMA_LOCAL,
+    list_ollama_models,
+    is_ollama_model,
+    normalize_ollama_model,
 )
 from kodo.orchestrators.base import TeamConfig
 from kodo.prompts.roles import (
@@ -176,6 +180,15 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
     import os
 
     if orchestrator in _CLI_ORCHESTRATORS:
+        return None
+
+    if is_ollama_model(model):
+        if model == OLLAMA_LOCAL:
+            if not list_ollama_models():
+                return (
+                    "No local Ollama model detected at http://localhost:11434 — "
+                    "run `ollama pull <model>` first."
+                )
         return None
 
     _GEMINI_ALIASES = {
@@ -721,11 +734,15 @@ def build_orchestrator(
         from kodo.orchestrators.api import ApiOrchestrator
 
         orch_model = _MODEL_ALIASES.get(model, model) if model else CLAUDE_OPUS_FULL
+        if orch_model and is_ollama_model(orch_model):
+            orch_model = normalize_ollama_model(orch_model)
         fb_model = (
             _MODEL_ALIASES.get(fallback_model, fallback_model)
             if fallback_model
             else None
         )
+        if fb_model and is_ollama_model(fb_model):
+            fb_model = normalize_ollama_model(fb_model)
         return ApiOrchestrator(
             model=orch_model,
             system_prompt=system_prompt,

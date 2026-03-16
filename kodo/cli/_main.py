@@ -51,7 +51,12 @@ from kodo.cli._subcommands import (  # noqa: E402
 )
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
-from kodo.models import CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_FLASH, GEMINI_ALIAS_PRO  # noqa: E402
+from kodo.models import (  # noqa: E402
+    CLAUDE_OPUS,
+    CLAUDE_SONNET,
+    GEMINI_ALIAS_FLASH,
+    GEMINI_ALIAS_PRO,
+)
 from kodo.log import RunDir  # noqa: E402
 from kodo.orchestrators.base import GoalPlan  # noqa: E402
 
@@ -175,8 +180,11 @@ def _main_inner() -> None:
         "--orchestrator-model",
         type=str,
         default=None,
-        choices=[CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH],
-        help="Model for the orchestrator LLM.",
+        help=(
+            "Model for the orchestrator LLM. Examples: opus, sonnet, "
+            "gemini-flash, ollama-local, ollama:qwen2.5-coder:14b. "
+            "Ollama models imply the API orchestrator automatically."
+        ),
     )
     parser.add_argument(
         "--skip-intake",
@@ -284,15 +292,19 @@ def _main_inner() -> None:
     _GEMINI_MODELS = {GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH}
     _CLAUDE_MODELS = {CLAUDE_OPUS, CLAUDE_SONNET}
     if args.orchestrator and args.orchestrator_model:
-        if args.orchestrator == "claude-code" and args.orchestrator_model in _GEMINI_MODELS:
+        if args.orchestrator == "claude-code" and args.orchestrator_model not in _CLAUDE_MODELS:
             _fail(
                 f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
                 f"--orchestrator 'claude-code'. Use {', '.join(sorted(_CLAUDE_MODELS))} instead."
             )
-        if args.orchestrator == "gemini-cli" and args.orchestrator_model in _CLAUDE_MODELS:
+        if args.orchestrator == "gemini-cli" and not (
+            args.orchestrator_model in _GEMINI_MODELS
+            or args.orchestrator_model.startswith("gemini")
+        ):
             _fail(
                 f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
-                f"--orchestrator 'gemini-cli'. Use {', '.join(sorted(_GEMINI_MODELS))} instead."
+                "--orchestrator 'gemini-cli'. Use a Gemini model "
+                "(for example gemini-pro or gemini-3-pro) instead."
             )
 
     # --json and --auto-refine imply --yes

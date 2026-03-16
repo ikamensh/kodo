@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import signal
 import subprocess
 from contextlib import contextmanager
@@ -184,8 +183,8 @@ def _suppress_keyboard_interrupt():
     during that window it is re-raised on exit so the caller still sees
     the interrupt — but only *after* cleanup has finished.
 
-    On non-Unix (or when ``signal.getsignal`` isn't available) this is a
-    no-op: the cleanup proceeds unprotected, which is the status quo.
+    When the signal handler cannot be changed, such as from a non-main
+    thread, this becomes a no-op and cleanup proceeds unprotected.
     """
     interrupted = False
     original_handler = None
@@ -211,8 +210,10 @@ def _suppress_keyboard_interrupt():
             except (OSError, ValueError):
                 pass
         if interrupted:
-            # Re-raise so the caller knows the user pressed Ctrl-C
-            os.kill(os.getpid(), signal.SIGINT)
+            # Re-raise through Python's signal machinery so this stays
+            # portable on Windows, where os.kill(..., SIGINT) terminates
+            # the process instead of delivering an in-process SIGINT.
+            signal.raise_signal(signal.SIGINT)
 
 
 def cleanup_and_merge_worktrees(

@@ -23,6 +23,8 @@ from kodo.models import (
     CLAUDE_OPUS_FULL,
     MODEL_PRICING,
     PYDANTIC_MODEL_MAP,
+    ensure_ollama_base_url,
+    is_ollama_model,
 )
 from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
@@ -79,6 +81,8 @@ class ApiOrchestrator(OrchestratorBase):
         self._orchestrator_name = "api"
         self.max_context_tokens = max_context_tokens
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
+        if is_ollama_model(model):
+            ensure_ollama_base_url()
         self._pydantic_model = PYDANTIC_MODEL_MAP.get(model, model)
         self._fallback_model = fallback_model
         self._fallback_pydantic = (
@@ -212,7 +216,10 @@ class ApiOrchestrator(OrchestratorBase):
                 status = exc.status_code
                 # Auth failures: not retryable, give a clear message
                 if status in (401, 403):
-                    provider = "Gemini" if "gemini" in self.model else "Anthropic"
+                    if is_ollama_model(self.model):
+                        provider = "Ollama"
+                    else:
+                        provider = "Gemini" if "gemini" in self.model else "Anthropic"
                     log.tprint(
                         f"[orchestrator] Authentication failed (HTTP {status}). "
                         f"Check your API key for {provider}.",

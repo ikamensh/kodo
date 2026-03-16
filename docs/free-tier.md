@@ -1,6 +1,8 @@
-# Running kodo for Free (Gemini CLI Only)
+# Running kodo for Free
 
-You can run kodo with **zero cost** using only Gemini CLI and a free Google API key. No Claude Code, no Cursor, no credit card required.
+You can run kodo with **zero cost** using Gemini CLI and a free Google API key. No Claude Code, no Cursor, no credit card required.
+
+If you already run Ollama locally, you can also make the **orchestrator** local with `--orchestrator-model ollama:<model>`. That implies the API orchestrator automatically, removes orchestrator API cost, and still leaves `ollama-local` as a shortcut for the first detected local model. You still need at least one worker backend.
 
 ## Setup
 
@@ -72,6 +74,13 @@ For overnight runs, the daily Pro limit (50 requests) is the main constraint. Co
 ```bash
 # Minimal run with free tier
 kodo --goal "Add input validation to the user registration form" \
+     --mode quick --yes ./my-project
+```
+
+```bash
+# Same setup, but run the orchestrator through local Ollama
+kodo --goal "Add input validation to the user registration form" \
+     --orchestrator-model ollama:qwen2.5-coder:14b \
      --mode quick --yes ./my-project
 ```
 

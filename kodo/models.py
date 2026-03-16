@@ -7,6 +7,87 @@ Import from here instead of scattering raw literals.
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
+# Ollama
+# ---------------------------------------------------------------------------
+OLLAMA_LOCAL = "ollama-local"
+OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
+
+
+def list_ollama_models() -> list[str]:
+    """Return available Ollama model names from the local server."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    try:
+        req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read())
+    except (
+        urllib.error.URLError,
+        urllib.error.HTTPError,
+        json.JSONDecodeError,
+        OSError,
+        TimeoutError,
+    ):
+        return []
+
+    models: list[str] = []
+    for item in data.get("models", []):
+        name = item.get("name") or item.get("model")
+        if isinstance(name, str) and name and name not in models:
+            models.append(name)
+    return models
+
+
+def is_ollama_model(model: str | None) -> bool:
+    """Return True for Ollama model aliases and provider-qualified strings."""
+    return bool(model) and (
+        model == OLLAMA_LOCAL
+        or model.startswith("ollama:")
+        or model.startswith("ollama/")
+    )
+
+
+def implied_orchestrator_from_model(model: str | None) -> str | None:
+    """Infer the orchestrator when the model makes it unambiguous."""
+    if is_ollama_model(model):
+        return "api"
+    return None
+
+
+def normalize_ollama_model(model: str) -> str:
+    """Resolve Ollama aliases to a provider-qualified model string."""
+    if model == OLLAMA_LOCAL:
+        models = list_ollama_models()
+        if not models:
+            raise ValueError(
+                "No local Ollama model detected at http://localhost:11434. "
+                "Run `ollama pull <model>` first.",
+            )
+        return f"ollama:{models[0]}"
+
+    if model.startswith("ollama/"):
+        return f"ollama:{model.split('/', maxsplit=1)[1]}"
+
+    return model
+
+
+def ensure_ollama_base_url() -> str:
+    """Set the default Ollama OpenAI-compatible endpoint if absent."""
+    import os
+
+    return os.environ.setdefault("OLLAMA_BASE_URL", OLLAMA_DEFAULT_BASE_URL)
+
+
+def api_orchestrator_model_options() -> list[str]:
+    """Return user-facing model options for the API orchestrator."""
+    options = [CLAUDE_OPUS, CLAUDE_SONNET, GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH]
+    options.extend(f"ollama:{model}" for model in list_ollama_models())
+    return options
+
+
+# ---------------------------------------------------------------------------
 # Claude
 # ---------------------------------------------------------------------------
 CLAUDE_OPUS = "opus"
@@ -108,6 +189,19 @@ def make_fresh_model(model_str: str):
             http_client=fresh_client,
         )
         return GoogleModel(model_name, provider=provider)
+
+    if provider_name == "ollama":
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.ollama import OllamaProvider
+
+        fresh_client = _httpx.AsyncClient(
+            timeout=_httpx.Timeout(timeout=600, connect=5),
+        )
+        provider = OllamaProvider(
+            base_url=ensure_ollama_base_url(),
+            http_client=fresh_client,
+        )
+        return OpenAIChatModel(model_name, provider=provider)
 
     # Non-Google models: return the string, let pydantic-ai handle it
     return model_str

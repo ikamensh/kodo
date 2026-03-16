@@ -295,6 +295,8 @@ def _cmd_backends() -> None:
         check_backend_status,
     )
     from kodo.formatting import DIM as _DIM, GREEN as _GRN, RESET as _RST, YELLOW as _YLW
+    from kodo.models import OLLAMA_LOCAL
+    from kodo.models import list_ollama_models
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -329,9 +331,19 @@ def _cmd_backends() -> None:
         key_err = check_api_key("api", alias)
         provider = "Gemini" if full_id.startswith("gemini") else "Anthropic"
         if key_err is None:
-            print(f"  {_GRN}{alias:<14}{_RST}  {full_id:<35}  {provider:<10}  ready")
+            print(f"  {_GRN}{alias:<28}{_RST}  {full_id:<35}  {provider:<10}  ready")
         else:
-            print(f"  {_DIM}{alias:<14}  {full_id:<35}  {provider:<10}  no key{_RST}")
+            print(f"  {_DIM}{alias:<28}  {full_id:<35}  {provider:<10}  no key{_RST}")
+
+    ollama_models = list_ollama_models()
+    if ollama_models:
+        print(
+            f"  {_GRN}{OLLAMA_LOCAL:<28}{_RST}  "
+            f"{f'ollama:{ollama_models[0]}':<35}  Ollama      first local model",
+        )
+        for model in ollama_models:
+            explicit = f"ollama:{model}"
+            print(f"  {_GRN}{explicit:<28}{_RST}  {explicit:<35}  Ollama      ready")
 
     # --- API key status ---
     print("\nAPI keys:")

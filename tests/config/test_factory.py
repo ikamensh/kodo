@@ -42,6 +42,23 @@ def test_build_orchestrator_api():
     assert orch.model == "claude-opus-4-6"
 
 
+def test_build_orchestrator_api_ollama_local():
+    with (
+        patch("kodo.orchestrators.api.Summarizer", autospec=True),
+        patch("kodo.models.list_ollama_models", autospec=True, return_value=["qwen2.5-coder"]),
+    ):
+        orch = build_orchestrator("api", model="ollama-local")
+    assert type(orch).__name__ == "ApiOrchestrator"
+    assert orch.model == "ollama:qwen2.5-coder"
+
+
+def test_build_orchestrator_api_explicit_ollama_model():
+    with patch("kodo.orchestrators.api.Summarizer", autospec=True):
+        orch = build_orchestrator("api", model="ollama/qwen2.5-coder:14b")
+    assert type(orch).__name__ == "ApiOrchestrator"
+    assert orch.model == "ollama:qwen2.5-coder:14b"
+
+
 # ── User JSON team tests (relocated from test_audit_findings.py F1/F2) ───
 
 

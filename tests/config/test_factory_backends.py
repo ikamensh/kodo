@@ -199,6 +199,14 @@ class TestCheckApiKey:
         with patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}):
             assert check_api_key("api", "gemini-pro") is None
 
+    def test_ollama_local_needs_no_api_key(self):
+        with patch("kodo.factory.list_ollama_models", autospec=True, return_value=["llama3.2"]):
+            assert check_api_key("api", "ollama-local") is None
+
+    def test_explicit_ollama_model_needs_no_api_key(self):
+        with patch.dict("os.environ", {}, clear=True):
+            assert check_api_key("api", "ollama:qwen2.5-coder:14b") is None
+
     def test_claude_model_needs_anthropic_key(self):
         with patch.dict("os.environ", {}, clear=True):
             result = check_api_key("api", "opus")
