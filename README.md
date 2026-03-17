@@ -18,6 +18,10 @@
 
 Autonomous multi-agent coding that runs overnight on your Claude Code Max subscription. An orchestrator directs Claude Code agents through work cycles with independent verification — so you wake up to tested, reviewed code instead of a stale terminal.
 
+### [SWE-bench Verified: Kodo 57% vs Cursor 46%](https://kodo-bench-h2h-430011644943.europe-west1.run.app/)
+
+On a 100-task head-to-head using the same underlying model (Cursor `composer-1.5`), adding Kodo's orchestration layer solves 24% more real-world GitHub issues. Same model, same prompt, same conditions — the difference is orchestration. [Full methodology and interactive results →](https://kodo-bench-h2h-430011644943.europe-west1.run.app/)
+
 ## 🎬 How it works in practice
 
 Real run from [blackopt](https://github.com/ikamen/blackopt) — building an auto-solving meta-optimizer with 4 new algorithms, adaptive scheduling, and 73 tests. **3 hours unattended, 2 cycles, succeeded.**

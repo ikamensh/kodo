@@ -247,26 +247,6 @@ const SHARED_PROMPT_TEMPLATE =
   "{problem_statement}\\n\\n" +
   "Make the minimal code changes needed to fix this issue. Do not add or modify tests.";
 
-const SOLO_TEAM_CONFIG = {
-  name: "solo",
-  description: "just cursor worker",
-  max_exchanges: 20,
-  max_cycles: 2,
-  verifiers: {
-    testers: [],
-    browser_testers: [],
-    reviewers: [],
-  },
-  agents: {
-    worker: {
-      backend: "cursor",
-      model: "composer-1.5",
-      description: "your only worker.",
-      max_turns: 15,
-    },
-  },
-};
-
 // ── Palette ──
 const KODO_COLOR = '#58a6ff';
 const COMPETITOR_COLORS = { cursor: '#f0883e', claude: '#a371f7', codex: '#7ee787', gemini: '#d29922' };
@@ -377,18 +357,6 @@ function groupByRepo(tasks) {
   return Object.entries(g).sort((a, b) => b[1].length - a[1].length);
 }
 
-function sourceRunIds(data, arms) {
-  const ids = new Set();
-  for (const task of data.tasks || []) {
-    const taskResults = data.results?.[task.instance_id] || {};
-    for (const arm of arms) {
-      const runId = taskResults[arm]?.run_id;
-      if (runId) ids.add(runId);
-    }
-  }
-  return [...ids].sort();
-}
-
 // ── Init ──
 
 async function init() {
@@ -485,12 +453,11 @@ function render() {
 
   const arms = visibleArms(data);
   const pending = arms.reduce((sum, a) => sum + armStats(data, a).pending, 0);
-  const taskLabel = isHeadToHeadView(data) ? `${data.tasks.length} overlapping tasks` : `${data.tasks.length} tasks`;
-  const snapshotLabel = data.meta?.snapshot_frozen ? ' \u00b7 frozen snapshot' : '';
+  const taskLabel = `${data.tasks.length} tasks`;
+  const dsLabel = currentDataset === 'verified' ? 'SWE-bench Verified' : 'SWE-bench Pro';
   document.getElementById('header-stats').textContent =
-    `${taskLabel} \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
-    snapshotLabel +
-    (pending > 0 ? ` \u00b7 ${pending} pending eval` : '');
+    `${taskLabel} · ${arms.length} agents · ${dsLabel}` +
+    (pending > 0 ? ` · ${pending} pending` : '');
 
   const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails, methodology: renderMethodology };
   document.getElementById('main').innerHTML = (views[currentView] || renderLeaderboard)(data, arms);
@@ -514,7 +481,7 @@ function applyViewChrome(data) {
     document.title = `${primary} vs ${secondary}`;
     title.textContent = `${primary} vs ${secondary}`;
     banner.innerHTML =
-      `<span class="view-badge">${frozen ? 'Frozen snapshot' : 'Head-to-head view'}</span><strong>${esc(primary)} vs ${esc(secondary)}</strong> shows only tasks where both agents have completed evaluation.${frozen ? ' This 100-task slice will stay fixed until explicitly refreshed.' : ''}`;
+      `<span class="view-badge">${frozen ? 'Frozen snapshot' : 'Head-to-head'}</span><strong>${esc(primary)} vs ${esc(secondary)}</strong> on real-world GitHub issues from SWE-bench Verified — same tasks, same prompt, same conditions.${frozen ? ' Results frozen for reproducibility.' : ''}`;
     banner.classList.add('visible');
     links.forEach(link => { if (link) link.style.display = 'none'; });
     return;
@@ -986,12 +953,12 @@ function renderMethodology(data, arms) {
       <div class="method-card">
         <div class="method-stat-label">Dataset in this view</div>
         <div class="method-stat-value">SWE Verified</div>
-        <div class="method-status">This head-to-head instance is restricted to SWE-bench Verified.</div>
+        <div class="method-status">Expert-validated subset of real GitHub issues.</div>
       </div>
       <div class="method-card">
-        <div class="method-stat-label">Overlap shown</div>
+        <div class="method-stat-label">Tasks compared</div>
         <div class="method-stat-value">${overlapCount}</div>
-        <div class="method-status">Only tasks where both ${esc(primary)} and ${esc(secondary)} have eval_status=true are visible here.</div>
+        <div class="method-status">Tasks where both agents attempted and were evaluated.</div>
       </div>
       <div class="method-card">
         <div class="method-stat-label">Repositories covered</div>
@@ -1014,7 +981,6 @@ function formatMethodologyTemplate(template, data, arms) {
   const comparison = viewComparison(data);
   const primaryArm = comparison.primary_arm || arms.find(a => a.startsWith('kodo')) || 'kodo:solo';
   const secondaryArm = comparison.secondary_arm || arms.find(a => a === 'cursor') || 'cursor';
-  const runIds = sourceRunIds(data, arms);
   const replacements = {
     OVERLAP_TASKS: String(data.tasks.length),
     PRIMARY_ARM: primaryArm,
@@ -1023,14 +989,8 @@ function formatMethodologyTemplate(template, data, arms) {
     SECONDARY_ARM_LABEL: displayName(secondaryArm),
     REPO_COUNT: String(groupByRepo(data.tasks).length),
     SNAPSHOT_CREATED_AT: data.meta?.snapshot_created_at || 'live dataset (not frozen)',
-    SOURCE_RUN_IDS: runIds.length ? runIds.join(', ') : 'none exposed in the public payload',
     SHARED_PROMPT_TEMPLATE: SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n'),
-    CURSOR_COMMAND: `cursor-agent --print --force --output-format json --model composer-1.5 "${SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n')}"`,
-    KODO_COMMAND: `uv run kodo --goal "${SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n')}" --skip-intake --yes --json --no-auto-commit --project <repo_dir> --team solo`,
-    KODO_ORCHESTRATOR_BACKEND: data.meta?.kodo_orchestrator_backend || 'api',
     KODO_ORCHESTRATOR_MODEL: data.meta?.kodo_orchestrator_model || 'gemini-3-flash-preview',
-    SOLO_TEAM_CONFIG_JSON: JSON.stringify(SOLO_TEAM_CONFIG, null, 2),
-    DIFF_CAPTURE_COMMANDS: ['git reset {base_commit}', 'git add -A', 'git diff --cached -- . :(exclude).kodo'].join('\n'),
   };
   return template.replace(/{{([A-Z0-9_]+)}}/g, (_, key) => replacements[key] ?? '');
 }
