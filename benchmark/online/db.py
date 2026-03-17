@@ -356,6 +356,21 @@ def get_head_to_head_index_json(dataset: str, opponent_arm: str = "cursor") -> b
     return json.dumps(head_to_head_index(index, opponent_arm)).encode()
 
 
+def get_snapshot_index_json(dataset: str, snapshot_prefix: str) -> bytes:
+    """Read a frozen snapshot index from GCS."""
+    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/data/{dataset}/index.json")
+    if not blob.exists():
+        raise FileNotFoundError(f"Snapshot index not found: {snapshot_prefix}/{dataset}")
+    return blob.download_as_bytes()
+
+
+def save_snapshot_index(snapshot_prefix: str, dataset: str, index: dict) -> None:
+    """Write a frozen snapshot index to GCS."""
+    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/data/{dataset}/index.json")
+    payload = json.dumps(index, indent=2) + "\n"
+    blob.upload_from_string(payload, content_type="application/json")
+
+
 def _pick_kodo_head_to_head_arm(index: dict, opponent_arm: str) -> str | None:
     """Pick the Kodo arm that gives the most useful Cursor overlap."""
     arms = index.get("arms", [])
@@ -520,6 +535,22 @@ def get_patch(dataset: str, instance_id: str, arm: str) -> str | None:
     if blob.exists():
         return blob.download_as_text()
     return None
+
+
+def get_snapshot_patch(dataset: str, instance_id: str, arm: str, snapshot_prefix: str) -> str | None:
+    """Read a single frozen snapshot patch from GCS."""
+    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff")
+    if blob.exists():
+        return blob.download_as_text()
+    return None
+
+
+def save_snapshot_patch(snapshot_prefix: str, dataset: str, instance_id: str, arm: str, patch: str) -> None:
+    """Write a single frozen snapshot patch to GCS."""
+    if not patch:
+        return
+    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff")
+    blob.upload_from_string(patch, content_type="text/plain")
 
 
 def get_all_patches(dataset: str) -> dict[str, str]:

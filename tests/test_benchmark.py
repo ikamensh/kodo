@@ -1594,6 +1594,17 @@ class TestOnlineClientConfig:
             assert reloaded.ALLOWED_DATASETS == frozenset({"verified", "pro"})
         importlib.reload(online_config)
 
+    def test_snapshot_prefix_env_is_parsed(self):
+        """Snapshot prefix should be normalized without surrounding slashes."""
+        with patch.dict(
+            "os.environ",
+            {"KODO_BENCH_SNAPSHOT_PREFIX": "/frozen/h2h-verified-2026-03-16/"},
+            clear=False,
+        ):
+            reloaded = importlib.reload(online_config)
+            assert reloaded.SNAPSHOT_PREFIX == "frozen/h2h-verified-2026-03-16"
+        importlib.reload(online_config)
+
     def test_unconfigured_probe_does_not_freeze_empty_state(self):
         """Late-loaded env should still be observed after an early empty probe."""
         with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
@@ -1751,6 +1762,54 @@ class TestOnlineDb:
 
         assert filtered["arms"] == ["kodo:solo", "cursor"]
         assert [task["instance_id"] for task in filtered["tasks"]] == ["repo__1"]
+
+    def test_get_snapshot_index_json_reads_snapshot_blob(self):
+        """Frozen index reads should use the snapshot blob path."""
+        blob = MagicMock()
+        blob.exists.return_value = True
+        blob.download_as_bytes.return_value = b'{"meta":{"snapshot_frozen":true}}'
+        bucket = MagicMock()
+        bucket.blob.return_value = blob
+
+        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
+            body = online_db.get_snapshot_index_json("verified", "h2h-verified-2026-03-16")
+
+        bucket.blob.assert_called_once_with("snapshots/h2h-verified-2026-03-16/data/verified/index.json")
+        assert body == b'{"meta":{"snapshot_frozen":true}}'
+
+    def test_get_snapshot_patch_reads_snapshot_blob(self):
+        """Frozen patch reads should use the snapshot patch path."""
+        blob = MagicMock()
+        blob.exists.return_value = True
+        blob.download_as_text.return_value = "diff --git a/x b/x"
+        bucket = MagicMock()
+        bucket.blob.return_value = blob
+
+        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
+            patch_text = online_db.get_snapshot_patch(
+                "verified", "django__django-11400", "cursor", "h2h-verified-2026-03-16",
+            )
+
+        bucket.blob.assert_called_once_with(
+            "snapshots/h2h-verified-2026-03-16/patches/verified/django__django-11400/cursor.diff",
+        )
+        assert patch_text == "diff --git a/x b/x"
+
+    def test_save_snapshot_index_writes_json_blob(self):
+        """Frozen snapshot writes should land under the snapshot data prefix."""
+        blob = MagicMock()
+        bucket = MagicMock()
+        bucket.blob.return_value = blob
+
+        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
+            online_db.save_snapshot_index(
+                "h2h-verified-2026-03-16",
+                "verified",
+                {"meta": {"snapshot_frozen": True}, "tasks": []},
+            )
+
+        bucket.blob.assert_called_once_with("snapshots/h2h-verified-2026-03-16/data/verified/index.json")
+        blob.upload_from_string.assert_called_once()
 
 
 # ── runner with assignments ────────────────────────────────────────────────
@@ -2463,3 +2522,37 @@ class TestProgressView:
         assert 'id="view-banner"' in html
         assert "viewMode(data) === 'head_to_head'" in html
         assert "syncDatasetTabs()" in html
+
+    def test_methodology_markdown_exists(self):
+        """Methodology content lives in a standalone Markdown file."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        md = (static / "methodology.md").read_text()
+        assert "# Methodology" in md
+        assert "{{KODO_ORCHESTRATOR_MODEL}}" in md
+        assert "{{SNAPSHOT_CREATED_AT}}" in md
+        assert "FAIL_TO_PASS" in md
+        assert "Default benchmark timeout" not in md
+
+    def test_main_viewer_fetches_methodology_markdown(self):
+        """The Methodology tab should load the standalone Markdown document."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        html = (static / "index.html").read_text()
+        assert 'data-view="methodology"' in html
+        assert "fetchText(BASE + 'methodology.md')" in html
+        assert "markdownToHtml(" in html
+
+    def test_main_viewer_markdown_renderer_uses_defined_escape_helper(self):
+        """Methodology renderer should rely on the existing esc() helper."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        html = (static / "index.html").read_text()
+        assert "let out = esc(text);" in html
+        assert "escapeHtml(" not in html
+        assert "esc(codeLines.join(" in html
+
+    def test_main_viewer_supports_frozen_snapshot_badge(self):
+        """Frozen snapshot metadata should surface in the viewer chrome."""
+        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
+        html = (static / "index.html").read_text()
+        assert "snapshot_frozen" in html
+        assert "frozen snapshot" in html.lower()
+        assert "KODO_ORCHESTRATOR_MODEL" in html

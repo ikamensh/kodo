@@ -35,7 +35,7 @@ from pathlib import Path
 log = logging.getLogger("benchmark.online")
 
 from . import db
-from .config import ADMIN_TOKEN, ALLOWED_DATASETS, HEAD_TO_HEAD_OPPONENT, VIEW_MODE
+from .config import ADMIN_TOKEN, ALLOWED_DATASETS, HEAD_TO_HEAD_OPPONENT, SNAPSHOT_PREFIX, VIEW_MODE
 from .validation import suspicious_upload_reason
 
 PORT = int(os.environ.get("PORT", 8080))
@@ -462,7 +462,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if HEAD_TO_HEAD_MODE and not self._is_visible_in_head_to_head(dataset, iid, arm):
                 self.send_error(404, "Patch not found")
                 return
-            patch = db.get_patch(dataset, iid, arm)
+            if SNAPSHOT_PREFIX:
+                patch = db.get_snapshot_patch(dataset, iid, arm, SNAPSHOT_PREFIX)
+            else:
+                patch = db.get_patch(dataset, iid, arm)
         except Exception as e:
             self.send_error(502, str(e))
             return
@@ -493,6 +496,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             ".js": "application/javascript",
             ".css": "text/css",
             ".json": "application/json",
+            ".md": "text/markdown; charset=utf-8",
         }.get(fpath.suffix, "application/octet-stream")
 
         self._raw_response(200, content, ctype)
@@ -510,6 +514,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _cache_key(self, dataset: str, kind: str) -> str:
         """Keep cache entries distinct across viewer modes."""
+        if SNAPSHOT_PREFIX:
+            return f"{kind}:{dataset}:snapshot:{SNAPSHOT_PREFIX}:{VIEW_MODE}:{HEAD_TO_HEAD_OPPONENT}"
         if HEAD_TO_HEAD_MODE:
             return f"{kind}:{dataset}:h2h:{HEAD_TO_HEAD_OPPONENT}"
         return f"{kind}:{dataset}"
@@ -520,6 +526,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _load_index_body(self, dataset: str) -> bytes:
         """Load the dataset index for the active viewer mode."""
+        if SNAPSHOT_PREFIX:
+            return db.get_snapshot_index_json(dataset, SNAPSHOT_PREFIX)
         if HEAD_TO_HEAD_MODE:
             return db.get_head_to_head_index_json(dataset, HEAD_TO_HEAD_OPPONENT)
         # Materialized index.json in GCS — cheap read, lazy rebuild on dirty/stale

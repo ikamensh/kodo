@@ -154,6 +154,29 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
 .status-badge.ok { background: var(--accent-bg); color: var(--accent); }
 .status-badge.not-run { color: var(--text3); }
 
+/* ── Methodology ── */
+.method-layout { display: flex; flex-direction: column; gap: 16px; }
+.method-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.method-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+.method-stat-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.method-stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
+.method-status { font-size: 13px; color: var(--text2); }
+.markdown-body { font-size: 13px; line-height: 1.7; color: var(--text2); }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { color: var(--text); line-height: 1.25; }
+.markdown-body h1 { font-size: 28px; margin: 0 0 18px; }
+.markdown-body h2 { font-size: 18px; margin: 28px 0 12px; }
+.markdown-body h3 { font-size: 15px; margin: 20px 0 8px; }
+.markdown-body p { margin: 0 0 14px; }
+.markdown-body ul, .markdown-body ol { margin: 0 0 16px 20px; }
+.markdown-body li { margin: 0 0 6px; }
+.markdown-body strong { color: var(--text); }
+.markdown-body code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--text); }
+.markdown-body pre { margin: 0 0 16px; padding: 14px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+.markdown-body pre code { background: transparent; border: none; padding: 0; display: block; white-space: pre-wrap; line-height: 1.6; }
+.markdown-body blockquote { margin: 0 0 16px; padding: 12px 14px; background: var(--orange-bg); border: 1px solid var(--border); border-left: 3px solid var(--orange); border-radius: 8px; }
+.markdown-body a { color: var(--accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+
 /* ── Shared ── */
 *, header, nav, .lb-row, .h2h-card, .arm-pill, .filter-bar select, .filter-bar input, th, td { transition: background .2s, border-color .2s, color .2s; }
 @media (max-width: 768px) {
@@ -183,6 +206,7 @@ table.detail-table tr.expanded td { background: var(--bg2); border-bottom: none;
     <button class="v-tab" data-view="taskmap">Task Map</button>
     <button class="v-tab" data-view="insights">Insights</button>
     <button class="v-tab" data-view="details">Details</button>
+    <button class="v-tab" data-view="methodology">Methodology</button>
   </div>
   <a id="progress-link" href="/progress.html" style="margin-left:12px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Progress &rarr;</a>
   <a id="scheduling-link" href="/scheduling.html" style="margin-left:8px;font-size:12px;color:var(--text2);text-decoration:none;white-space:nowrap;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">Scheduling &rarr;</a>
@@ -214,6 +238,34 @@ let activeMapArms = [];
 let allData = {};
 let availableDatasets = ['verified', 'pro'];
 let sortCol = '', sortAsc = true;
+let methodologyMarkdown = null;
+let methodologyLoadStarted = false;
+
+const SHARED_PROMPT_TEMPLATE =
+  "Fix the following GitHub issue in this repository.\\n\\n" +
+  "Issue: {instance_id}\\n\\n" +
+  "{problem_statement}\\n\\n" +
+  "Make the minimal code changes needed to fix this issue. Do not add or modify tests.";
+
+const SOLO_TEAM_CONFIG = {
+  name: "solo",
+  description: "just cursor worker",
+  max_exchanges: 20,
+  max_cycles: 2,
+  verifiers: {
+    testers: [],
+    browser_testers: [],
+    reviewers: [],
+  },
+  agents: {
+    worker: {
+      backend: "cursor",
+      model: "composer-1.5",
+      description: "your only worker.",
+      max_turns: 15,
+    },
+  },
+};
 
 // ── Palette ──
 const KODO_COLOR = '#58a6ff';
@@ -325,6 +377,18 @@ function groupByRepo(tasks) {
   return Object.entries(g).sort((a, b) => b[1].length - a[1].length);
 }
 
+function sourceRunIds(data, arms) {
+  const ids = new Set();
+  for (const task of data.tasks || []) {
+    const taskResults = data.results?.[task.instance_id] || {};
+    for (const arm of arms) {
+      const runId = taskResults[arm]?.run_id;
+      if (runId) ids.add(runId);
+    }
+  }
+  return [...ids].sort();
+}
+
 // ── Init ──
 
 async function init() {
@@ -357,6 +421,7 @@ async function init() {
   }
 
   syncDatasetTabs();
+  ensureMethodologyLoaded();
   activeMapArms = defaultMapArms(allData[currentDataset]);
   render();
 }
@@ -366,6 +431,15 @@ function emptyIndex() { return { tasks: [], arms: [], results: {}, meta: {} }; }
 async function fetchJSON(url) {
   try { const r = await fetch(url); return r.ok ? await r.json() : null; }
   catch { return null; }
+}
+
+async function fetchText(url) {
+  try {
+    const r = await fetch(url);
+    return r.ok ? await r.text() : null;
+  } catch {
+    return null;
+  }
 }
 
 function defaultMapArms(data) {
@@ -390,6 +464,14 @@ function syncDatasetTabs() {
   });
 }
 
+async function ensureMethodologyLoaded() {
+  if (methodologyMarkdown !== null || methodologyLoadStarted) return;
+  methodologyLoadStarted = true;
+  const text = await fetchText(BASE + 'methodology.md');
+  methodologyMarkdown = text || '# Methodology\n\nMethodology file could not be loaded.';
+  if (currentView === 'methodology') render();
+}
+
 // ── Render dispatch ──
 
 function render() {
@@ -404,11 +486,13 @@ function render() {
   const arms = visibleArms(data);
   const pending = arms.reduce((sum, a) => sum + armStats(data, a).pending, 0);
   const taskLabel = isHeadToHeadView(data) ? `${data.tasks.length} overlapping tasks` : `${data.tasks.length} tasks`;
+  const snapshotLabel = data.meta?.snapshot_frozen ? ' \u00b7 frozen snapshot' : '';
   document.getElementById('header-stats').textContent =
     `${taskLabel} \u00b7 ${arms.length} agents \u00b7 ${currentDataset}` +
+    snapshotLabel +
     (pending > 0 ? ` \u00b7 ${pending} pending eval` : '');
 
-  const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails };
+  const views = { leaderboard: renderLeaderboard, taskmap: renderTaskMap, insights: renderInsights, details: renderDetails, methodology: renderMethodology };
   document.getElementById('main').innerHTML = (views[currentView] || renderLeaderboard)(data, arms);
 
   // Attach handlers
@@ -426,10 +510,11 @@ function applyViewChrome(data) {
     const comparison = viewComparison(data);
     const primary = displayName(comparison.primary_arm || 'kodo');
     const secondary = displayName(comparison.secondary_arm || 'cursor');
+    const frozen = data?.meta?.snapshot_frozen;
     document.title = `${primary} vs ${secondary}`;
     title.textContent = `${primary} vs ${secondary}`;
     banner.innerHTML =
-      `<span class="view-badge">Head-to-head view</span><strong>${esc(primary)} vs ${esc(secondary)}</strong> shows only tasks where both agents have completed evaluation.`;
+      `<span class="view-badge">${frozen ? 'Frozen snapshot' : 'Head-to-head view'}</span><strong>${esc(primary)} vs ${esc(secondary)}</strong> shows only tasks where both agents have completed evaluation.${frozen ? ' This 100-task slice will stay fixed until explicitly refreshed.' : ''}`;
     banner.classList.add('visible');
     links.forEach(link => { if (link) link.style.display = 'none'; });
     return;
@@ -881,6 +966,190 @@ function highlightDiff(text) {
     if (l.startsWith('@@')) return `<span class="hunk">${esc(l)}</span>`;
     return esc(l);
   }).join('\n');
+}
+
+// ── Methodology ──
+
+function renderMethodology(data, arms) {
+  const comparison = viewComparison(data);
+  const primaryArm = comparison.primary_arm || arms.find(a => a.startsWith('kodo')) || 'kodo:solo';
+  const secondaryArm = comparison.secondary_arm || arms.find(a => a === 'cursor') || 'cursor';
+  const primary = displayName(primaryArm);
+  const secondary = displayName(secondaryArm);
+  const overlapCount = data.tasks.length;
+  const repoCount = groupByRepo(data.tasks).length;
+  const snapshotNote = data.meta?.snapshot_frozen
+    ? `This frozen snapshot spans ${repoCount} repositories and will stay fixed until explicitly refreshed.`
+    : `Those overlap tasks span ${repoCount} repositories in the currently published Verified slice.`;
+  const cards = `<div class="method-layout">
+    <div class="method-grid">
+      <div class="method-card">
+        <div class="method-stat-label">Dataset in this view</div>
+        <div class="method-stat-value">SWE Verified</div>
+        <div class="method-status">This head-to-head instance is restricted to SWE-bench Verified.</div>
+      </div>
+      <div class="method-card">
+        <div class="method-stat-label">Overlap shown</div>
+        <div class="method-stat-value">${overlapCount}</div>
+        <div class="method-status">Only tasks where both ${esc(primary)} and ${esc(secondary)} have eval_status=true are visible here.</div>
+      </div>
+      <div class="method-card">
+        <div class="method-stat-label">Repositories covered</div>
+        <div class="method-stat-value">${repoCount}</div>
+        <div class="method-status">${snapshotNote}</div>
+      </div>
+    </div>
+  </div>`;
+
+  if (methodologyMarkdown === null) {
+    ensureMethodologyLoaded();
+    return `${cards}<div class="method-card"><div class="method-status">Loading methodology…</div></div>`;
+  }
+
+  const rendered = markdownToHtml(formatMethodologyTemplate(methodologyMarkdown, data, arms));
+  return `${cards}<div class="method-card"><div class="markdown-body">${rendered}</div></div>`;
+}
+
+function formatMethodologyTemplate(template, data, arms) {
+  const comparison = viewComparison(data);
+  const primaryArm = comparison.primary_arm || arms.find(a => a.startsWith('kodo')) || 'kodo:solo';
+  const secondaryArm = comparison.secondary_arm || arms.find(a => a === 'cursor') || 'cursor';
+  const runIds = sourceRunIds(data, arms);
+  const replacements = {
+    OVERLAP_TASKS: String(data.tasks.length),
+    PRIMARY_ARM: primaryArm,
+    SECONDARY_ARM: secondaryArm,
+    PRIMARY_ARM_LABEL: displayName(primaryArm),
+    SECONDARY_ARM_LABEL: displayName(secondaryArm),
+    REPO_COUNT: String(groupByRepo(data.tasks).length),
+    SNAPSHOT_CREATED_AT: data.meta?.snapshot_created_at || 'live dataset (not frozen)',
+    SOURCE_RUN_IDS: runIds.length ? runIds.join(', ') : 'none exposed in the public payload',
+    SHARED_PROMPT_TEMPLATE: SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n'),
+    CURSOR_COMMAND: `cursor-agent --print --force --output-format json --model composer-1.5 "${SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n')}"`,
+    KODO_COMMAND: `uv run kodo --goal "${SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n')}" --skip-intake --yes --json --no-auto-commit --project <repo_dir> --team solo`,
+    KODO_ORCHESTRATOR_BACKEND: data.meta?.kodo_orchestrator_backend || 'api',
+    KODO_ORCHESTRATOR_MODEL: data.meta?.kodo_orchestrator_model || 'gemini-3-flash-preview',
+    SOLO_TEAM_CONFIG_JSON: JSON.stringify(SOLO_TEAM_CONFIG, null, 2),
+    DIFF_CAPTURE_COMMANDS: ['git reset {base_commit}', 'git add -A', 'git diff --cached -- . :(exclude).kodo'].join('\n'),
+  };
+  return template.replace(/{{([A-Z0-9_]+)}}/g, (_, key) => replacements[key] ?? '');
+}
+
+function markdownToHtml(markdown) {
+  const lines = markdown.replace(/\r/g, '').split('\n');
+  const html = [];
+  let paragraph = [];
+  let listType = null;
+  let listItems = [];
+  let quote = [];
+  let inCode = false;
+  let codeLines = [];
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    html.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+    paragraph = [];
+  }
+
+  function flushList() {
+    if (!listItems.length) return;
+    const tag = listType || 'ul';
+    html.push(`<${tag}>${listItems.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${tag}>`);
+    listItems = [];
+    listType = null;
+  }
+
+  function flushQuote() {
+    if (!quote.length) return;
+    html.push(`<blockquote><p>${renderInlineMarkdown(quote.join(' '))}</p></blockquote>`);
+    quote = [];
+  }
+
+  function flushAll() {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (inCode) {
+      if (line.startsWith('```')) {
+        html.push(`<pre><code>${esc(codeLines.join('\n'))}</code></pre>`);
+        inCode = false;
+        codeLines = [];
+      } else {
+        codeLines.push(rawLine);
+      }
+      continue;
+    }
+
+    if (line.startsWith('```')) {
+      flushAll();
+      inCode = true;
+      codeLines = [];
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushAll();
+      continue;
+    }
+
+    if (line.startsWith('# ')) {
+      flushAll();
+      html.push(`<h1>${renderInlineMarkdown(line.slice(2))}</h1>`);
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      flushAll();
+      html.push(`<h2>${renderInlineMarkdown(line.slice(3))}</h2>`);
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      flushAll();
+      html.push(`<h3>${renderInlineMarkdown(line.slice(4))}</h3>`);
+      continue;
+    }
+    if (line.startsWith('> ')) {
+      flushParagraph();
+      flushList();
+      quote.push(line.slice(2).trim());
+      continue;
+    }
+    flushQuote();
+
+    const ordered = line.match(/^\d+\.\s+(.*)$/);
+    if (ordered) {
+      flushParagraph();
+      if (listType && listType !== 'ol') flushList();
+      listType = 'ol';
+      listItems.push(ordered[1]);
+      continue;
+    }
+    if (line.startsWith('- ')) {
+      flushParagraph();
+      if (listType && listType !== 'ul') flushList();
+      listType = 'ul';
+      listItems.push(line.slice(2));
+      continue;
+    }
+
+    flushList();
+    paragraph.push(line.trim());
+  }
+
+  if (inCode) html.push(`<pre><code>${esc(codeLines.join('\n'))}</code></pre>`);
+  flushAll();
+  return html.join('');
+}
+
+function renderInlineMarkdown(text) {
+  let out = esc(text);
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return out;
 }
 
 // ── Shared utils ──
