@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import os
 import signal
 import subprocess
 import threading
@@ -820,6 +821,7 @@ class TestEvalDockerSafe:
 
 
 class TestRunEvalSubprocess:
+    @pytest.mark.skipif(os.name == "nt", reason="os.killpg is POSIX-only")
     def test_timeout_kills_process_group(self):
         """Timeout should reap the evaluator group so later arms can continue."""
         proc = MagicMock()
@@ -846,6 +848,7 @@ class TestRunEvalSubprocess:
             with pytest.raises(subprocess.CalledProcessError):
                 _run_eval_subprocess(["python"], timeout=10)
 
+    @pytest.mark.skipif(os.name == "nt", reason="os.killpg is POSIX-only")
     def test_timeout_writes_diagnostics(self, tmp_path):
         """Timeouts emit a stall snapshot so hangs leave evidence behind."""
         proc = MagicMock()
@@ -922,6 +925,7 @@ class TestEvalDiagnostics:
         heartbeat.last_output_at = stale
         heartbeat.last_progress_at = stale
         heartbeat.last_filesystem_at = stale
+        heartbeat.last_diagnostic_at = stale
 
         stop_event = threading.Event()
         with patch("benchmark.evaluate._stall_seconds", autospec=True, return_value=1), \
@@ -1364,10 +1368,12 @@ class TestMainCLI:
         mock_distributed.assert_not_called()
 
     def test_upload_pending_no_auth(self, tmp_path):
-        with patch("sys.argv", ["benchmark", "--upload-pending",
-                                "--workspace", str(tmp_path)]), \
-             patch("benchmark.online.config._CLIENT_CREDENTIALS", None), \
-             patch.dict("os.environ", {}, clear=True):
+        with (
+            patch("sys.argv", ["benchmark", "--upload-pending",
+                                "--workspace", str(tmp_path)]),
+            patch("benchmark.online.config._CLIENT_CREDENTIALS", None),  # noqa: autospec
+            patch.dict("os.environ", {}, clear=True),
+        ):
             ret = main()
         assert ret == 1
 
@@ -1607,7 +1613,7 @@ class TestOnlineClientConfig:
 
     def test_unconfigured_probe_does_not_freeze_empty_state(self):
         """Late-loaded env should still be observed after an early empty probe."""
-        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
+        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):  # noqa: autospec
             with patch.dict("os.environ", {}, clear=True):
                 assert is_configured() is False
 
@@ -1626,7 +1632,7 @@ class TestOnlineClientConfig:
         response = MagicMock()
         response.read.return_value = b"{}"
 
-        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):
+        with patch("benchmark.online.config._CLIENT_CREDENTIALS", None):  # noqa: autospec
             with patch.dict(
                 "os.environ",
                 {
@@ -2178,7 +2184,7 @@ class TestOnlineMirror:
         rows = [{"instance_id": "id1", "arm": "claude"}]
         (dataset_dir / "rows.json").write_text(json.dumps(rows))
 
-        with patch.dict("os.environ", {"HOME": str(home)}, clear=False):
+        with patch.dict("os.environ", {"HOME": str(home), "USERPROFILE": str(home)}, clear=False):
             assert load_rows("~/.kodo/benchmark/mirror/verified") == rows
 
     def test_fetch_patch_quotes_instance_id_and_arm(self):

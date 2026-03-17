@@ -59,7 +59,7 @@ Evaluation uses the standard [SWE-bench harness](https://github.com/princeton-nl
 1. The agent's diff is applied to the repository at the base commit
 2. Test files are reset and the gold test patch is applied
 3. The full test suite runs inside an isolated Docker container
-4. A task is **resolved** only if every expected-to-fail test now passes *and* all previously-passing tests remain green
+4. A task is **resolved** only if every FAIL_TO_PASS test now passes *and* all previously-passing (PASS_TO_PASS) tests remain green
 5. Partial fixes do not count
 
 ## Limitations

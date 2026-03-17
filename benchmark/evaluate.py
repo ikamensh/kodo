@@ -102,7 +102,7 @@ class _EvalHeartbeat:
     latest_tree_mtime: float = 0.0
     last_completed: int = 0
     in_progress: tuple[str, ...] = ()
-    last_diagnostic_at: float = 0.0
+    last_diagnostic_at: float = -float("inf")
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def note_output(self) -> None:
