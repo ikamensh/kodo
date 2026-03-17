@@ -563,7 +563,7 @@ def evaluate_arm(
     log.info("Evaluating %s...", arm)
 
     if is_pro:
-        _evaluate_pro(pred_file, safe_arm, run_dir)
+        _evaluate_pro(pred_file, safe_arm, run_dir, on_instance=on_instance)
     else:
         _evaluate_standard(pred_file, safe_arm, run_dir, run_id, dataset, on_instance)
 
@@ -696,7 +696,38 @@ def evaluate_arms_combined(
 # ── SWE-bench Pro (Scale AI tooling) ────────────────────────────────────
 
 
-def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
+def _make_pro_result_watcher(
+    stop_event: threading.Event,
+    eval_dir: Path,
+    callback: Callable[[str, bool], None],
+) -> Callable[[], None]:
+    """Create a watcher that polls eval_results.json and invokes callback for new entries."""
+    def _watcher() -> None:
+        seen: set[str] = set()
+        results_file = eval_dir / "eval_results.json"
+        while not stop_event.is_set():
+            if results_file.exists():
+                try:
+                    results = json.loads(results_file.read_text())
+                    for iid, resolved in results.items():
+                        if iid not in seen:
+                            seen.add(iid)
+                            try:
+                                callback(iid, bool(resolved))
+                            except Exception as exc:
+                                log.debug("Pro watcher callback error for %s: %s", iid, exc)
+                except (json.JSONDecodeError, OSError):
+                    pass
+            stop_event.wait(timeout=5)
+    return _watcher
+
+
+def _evaluate_pro(
+    pred_file: Path,
+    arm: str,
+    run_dir: Path,
+    on_instance: Callable[[str, bool], None] | None = None,
+) -> None:
     """Evaluate using Scale AI's SWE-bench Pro eval script."""
     if not _PRO_EVAL_DIR.exists():
         log.warning("SWE-bench Pro eval repo not found at %s\n"
@@ -754,6 +785,13 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
     )
     progress_thread = threading.Thread(target=progress_fn, daemon=True)
     progress_thread.start()
+
+    watcher_thread = None
+    if on_instance:
+        watcher_fn = _make_pro_result_watcher(stop_reporting, eval_dir, on_instance)
+        watcher_thread = threading.Thread(target=watcher_fn, daemon=True)
+        watcher_thread.start()
+
     try:
         _run_eval_subprocess(
             cmd,
@@ -771,6 +809,8 @@ def _evaluate_pro(pred_file: Path, arm: str, run_dir: Path) -> None:
     finally:
         stop_reporting.set()
         progress_thread.join(timeout=65)
+        if watcher_thread:
+            watcher_thread.join(timeout=10)
 
 
 def _write_pro_samples(sample_file: Path, instance_ids: list[str]) -> None:
