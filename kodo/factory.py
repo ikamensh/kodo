@@ -325,6 +325,10 @@ def preflight_check_backends(team: "TeamConfig") -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_MAX_EXCHANGES: int = 30
+DEFAULT_MAX_CYCLES: int = 5
+
+
 @dataclass
 class TeamPreset:
     """Bundles a team composition, orchestrator prompt, and default params."""
@@ -333,8 +337,6 @@ class TeamPreset:
     description: str
     system_prompt: str
     build_team: Callable[..., TeamConfig]
-    default_max_exchanges: int
-    default_max_cycles: int
 
 
 # ---------------------------------------------------------------------------
@@ -620,8 +622,6 @@ def get_team_presets() -> dict[str, TeamPreset]:
         description=_quick_description(),
         system_prompt=_quick_system_prompt(),
         build_team=_build_team_quick,
-        default_max_exchanges=20,
-        default_max_cycles=1,
     )
     return {
         "full": TeamPreset(
@@ -629,8 +629,6 @@ def get_team_presets() -> dict[str, TeamPreset]:
             description=_full_description(),
             system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
             build_team=_build_team_full,
-            default_max_exchanges=30,
-            default_max_cycles=5,
         ),
         "quick": quick,
         "test": TeamPreset(
@@ -638,8 +636,6 @@ def get_team_presets() -> dict[str, TeamPreset]:
             description=f"Test generation ({_describe_backends()}): iterative write/run/fix loop",
             system_prompt=TEST_ORCHESTRATOR_SYSTEM_PROMPT,
             build_team=_build_team_full,
-            default_max_exchanges=30,
-            default_max_cycles=5,
         ),
     }
 
@@ -696,8 +692,6 @@ def get_team(name: str) -> TeamPreset:
             description=cfg.get("description", f"User team: {name}"),
             system_prompt=cfg.get("orchestrator_prompt", ORCHESTRATOR_SYSTEM_PROMPT),
             build_team=_no_build,
-            default_max_exchanges=cfg.get("max_exchanges", 30),
-            default_max_cycles=cfg.get("max_cycles", 5),
         )
 
     raise KeyError(name)

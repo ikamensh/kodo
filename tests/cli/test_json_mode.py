@@ -231,8 +231,6 @@ class TestLaunchRunReturnsResult:
             description="test",
             system_prompt="test",
             build_team=lambda: fake_team,
-            default_max_exchanges=30,
-            default_max_cycles=5,
         )
 
         with (

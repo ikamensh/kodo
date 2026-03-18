@@ -64,6 +64,10 @@ def run_stage_in_isolated_loop(
 
             log.emit("orchestrator_close_error", error=str(e))
         finally:
+            # Stop the persistent event loop if the orchestrator has one
+            # (ApiOrchestrator uses a dedicated loop thread for httpx).
+            if hasattr(orchestrator, "shutdown"):
+                orchestrator.shutdown()
             loop.close()
 
 

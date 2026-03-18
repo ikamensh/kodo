@@ -7,6 +7,8 @@ import questionary
 
 from kodo.cli._ui import _atomic_write
 from kodo.factory import (
+    DEFAULT_MAX_CYCLES,
+    DEFAULT_MAX_EXCHANGES,
     TEAMS,
     check_api_key,
     get_team,
@@ -200,7 +202,7 @@ def select_params() -> dict:
         "\n  An exchange = one orchestrator turn: think, delegate to agent, read result.",
     )
     exchange_presets = ["20", "30", "50"]
-    default_ex = str(team_preset.default_max_exchanges)
+    default_ex = str(DEFAULT_MAX_EXCHANGES)
     ex_default_idx = (
         exchange_presets.index(default_ex) if default_ex in exchange_presets else 1
     )
@@ -213,7 +215,7 @@ def select_params() -> dict:
     print("\n  A cycle = one full orchestrator session. If it doesn't finish,")
     print("  a new cycle starts with a summary of prior progress.")
     cycle_presets = ["1", "3", "5", "10"]
-    default_cy = str(team_preset.default_max_cycles)
+    default_cy = str(DEFAULT_MAX_CYCLES)
     cy_default_idx = (
         cycle_presets.index(default_cy) if default_cy in cycle_presets else 2
     )
@@ -395,10 +397,10 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         "orchestrator_model": orch_model,
         "max_exchanges": args.exchanges
         if args.exchanges and args.exchanges > 0
-        else team_preset.default_max_exchanges,
+        else DEFAULT_MAX_EXCHANGES,
         "max_cycles": args.cycles
         if cycles_explicit
-        else team_preset.default_max_cycles,
+        else DEFAULT_MAX_CYCLES,
     }
 
     # Auto-commit: on by default, disabled with --no-auto-commit or user config

@@ -18,6 +18,7 @@ from kodo import log
 from kodo.cli._intake import _load_goal_plan
 from kodo.cli._ui import _atomic_write, _backend_label, _plural
 from kodo.factory import (
+    DEFAULT_MAX_CYCLES,
     build_orchestrator,
     get_team,
     preflight_check_backends,
@@ -422,7 +423,7 @@ def launch_run(
             if advisor:
                 log.emit("advisor_type", type="pydantic-ai")
         # Adaptive mode: bump cycle cap if user didn't explicitly set --cycles
-        if advisor and max_cycles == team_preset.default_max_cycles:
+        if advisor and max_cycles == DEFAULT_MAX_CYCLES:
             max_cycles = max(max_cycles, 50)
 
     try:
@@ -663,7 +664,7 @@ def launch_resume(
     advisor = None
     if plan and plan.stages:
         advisor = _build_advisor(params)
-        if advisor and max_cycles == team_preset.default_max_cycles:
+        if advisor and max_cycles == DEFAULT_MAX_CYCLES:
             max_cycles = max(max_cycles, 50)
 
     result = orchestrator.run(

@@ -321,8 +321,6 @@ class TestBuildParamsFromFlags:
                 {
                     "name": "full",
                     "description": "Full team",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -359,8 +357,6 @@ class TestBuildParamsFromFlags:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -392,8 +388,6 @@ class TestBuildParamsFromFlags:
                 (),
                 {
                     "name": "quick",
-                    "default_max_exchanges": 20,
-                    "default_max_cycles": 1,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -432,8 +426,6 @@ class TestBuildParamsFromFlags:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -464,8 +456,6 @@ class TestBuildParamsFromFlags:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -499,8 +489,6 @@ class TestBuildParamsFromFlags:
                     (),
                     {
                         "name": "full",
-                        "default_max_exchanges": 30,
-                        "default_max_cycles": 5,
                     },
                 )()
                 mock_get_team.return_value = mock_team
@@ -636,8 +624,6 @@ def _fake_team_preset(**overrides):
     defaults = {
         "name": "full",
         "description": "Full autonomous team",
-        "default_max_exchanges": 30,
-        "default_max_cycles": 5,
     }
     defaults.update(overrides)
     return type("FakeTeamPreset", (), defaults)()
@@ -650,8 +636,6 @@ def _fake_teams():
         "quick": _fake_team_preset(
             name="quick",
             description="Quick single-agent",
-            default_max_exchanges=20,
-            default_max_cycles=1,
         ),
     }
 
@@ -1049,8 +1033,6 @@ class TestTeamFlagFlowsThrough:
                 (),
                 {
                     "name": "quick",
-                    "default_max_exchanges": 20,
-                    "default_max_cycles": 1,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1081,8 +1063,6 @@ class TestTeamFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1122,8 +1102,6 @@ class TestOrchestratorFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1153,8 +1131,6 @@ class TestOrchestratorFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1188,8 +1164,6 @@ class TestOrchestratorFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1229,8 +1203,6 @@ class TestExchangesCyclesFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1260,8 +1232,6 @@ class TestExchangesCyclesFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1291,8 +1261,6 @@ class TestExchangesCyclesFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1322,8 +1290,6 @@ class TestExchangesCyclesFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team
@@ -1353,8 +1319,6 @@ class TestExchangesCyclesFlagFlowsThrough:
                 (),
                 {
                     "name": "full",
-                    "default_max_exchanges": 30,
-                    "default_max_cycles": 5,
                 },
             )()
             mock_get_team.return_value = mock_team

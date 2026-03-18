@@ -183,6 +183,7 @@ Goal (mutually exclusive):
   --goal-file PATH          Path to file containing goal
   --improve                 Code review: simplification, usability, architecture
   --test                    Find bugs through realistic interaction and workflows
+  --fix-from RUN_ID         Fix findings from a previous test or improve run
 
 Test/Improve options:
   --focus TEXT              Steer toward a specific area (e.g. 'error handling')

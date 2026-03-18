@@ -1,8 +1,6 @@
 {
   "name": "full",
   "description": "Full team: fast worker, smart worker, tester, browser tester, architect",
-  "max_exchanges": 30,
-  "max_cycles": 5,
   "verifiers": {
     "testers": ["tester"],
     "browser_testers": ["tester_browser"],

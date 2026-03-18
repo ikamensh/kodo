@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import queue
 import threading
 import time
 from concurrent.futures import Future
@@ -104,11 +106,55 @@ class ApiOrchestrator(OrchestratorBase):
         self._summarizer = Summarizer()
         self._http_client: httpx.AsyncClient | None = None
 
+        # Persistent worker thread with a stable event loop.
+        #
+        # httpx/httpcore bind asyncio primitives (Locks, Events) to whichever
+        # event loop first uses them via asyncio's lazy _get_loop() binding.
+        # Previously each _run_sync_with_timeout() call created a new daemon
+        # thread → pydantic-ai's run_sync() created a new event loop → the
+        # httpx client's primitives from cycle N were bound to a dead loop by
+        # cycle N+1, causing "bound to a different event loop" crashes.
+        #
+        # By running all run_sync() calls in the same thread, get_event_loop()
+        # always returns the same loop, and httpx primitives stay bound to it.
+        self._task_queue: queue.Queue[
+            tuple[callable, Future] | None
+        ] = queue.Queue()
+        self._worker_thread = threading.Thread(
+            target=self._run_loop_worker, daemon=True
+        )
+        self._worker_thread.start()
+
+    def _run_loop_worker(self) -> None:
+        """Worker loop: process tasks sequentially on a stable event loop.
+
+        Creates one asyncio event loop for this thread and reuses it for
+        every task, ensuring httpx's connection pool primitives always bind
+        to the same loop.
+        """
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            while True:
+                item = self._task_queue.get()
+                if item is None:  # shutdown sentinel
+                    break
+                fn, future = item
+                if future.cancelled():
+                    continue
+                try:
+                    result = fn()
+                    future.set_result(result)
+                except BaseException as exc:
+                    future.set_exception(exc)
+        finally:
+            loop.close()
+
     def for_parallel(self) -> "ApiOrchestrator":
         """Create a copy safe for use in a parallel thread.
 
-        Each copy gets its own fresh httpx client via make_fresh_model(),
-        avoiding the pydantic-ai global client cache that binds to event loops.
+        Each copy gets its own worker thread + fresh httpx client,
+        avoiding cross-loop asyncio conflicts.
         """
         return ApiOrchestrator(
             model=self.model,
@@ -122,6 +168,11 @@ class ApiOrchestrator(OrchestratorBase):
         if self._http_client is not None:
             await self._http_client.aclose()
             self._http_client = None
+
+    def shutdown(self) -> None:
+        """Stop the worker thread by sending a shutdown sentinel."""
+        self._task_queue.put(None)
+        self._worker_thread.join(timeout=5)
 
     def cycle(
         self,
@@ -367,8 +418,8 @@ class ApiOrchestrator(OrchestratorBase):
 
         return result
 
-    @staticmethod
     def _run_sync_with_timeout(
+        self,
         agent: Agent,
         prompt: str,
         max_exchanges: int,
@@ -376,29 +427,28 @@ class ApiOrchestrator(OrchestratorBase):
         *,
         timeout_s: float,
     ):
-        """Run agent.run_sync in a daemon thread with a wall-clock timeout.
+        """Run agent.run_sync() on the persistent worker thread.
+
+        All pydantic-ai run_sync() calls go through the same worker thread,
+        which owns a single event loop. This prevents httpx/httpcore asyncio
+        primitives from binding to different loops across cycles and retries.
 
         Raises _CycleWallTimeout if the call doesn't return in time.
-        Any exception from run_sync is re-raised in the calling thread.
         """
         future: Future = Future()
 
-        def _worker():
-            try:
-                res = agent.run_sync(
-                    prompt,
-                    usage_limits=UsageLimits(request_limit=max_exchanges),
-                    usage=cumulative_usage,
-                )
-                future.set_result(res)
-            except BaseException as exc:
-                future.set_exception(exc)
+        def _task():
+            return agent.run_sync(
+                prompt,
+                usage_limits=UsageLimits(request_limit=max_exchanges),
+                usage=cumulative_usage,
+            )
 
-        t = threading.Thread(target=_worker, daemon=True)
-        t.start()
+        self._task_queue.put((_task, future))
         try:
             return future.result(timeout=timeout_s)
         except FuturesTimeoutError:
+            future.cancel()
             raise _CycleWallTimeout(f"run_sync did not complete within {timeout_s}s")
 
     def _summarize(self, messages: list) -> str:
@@ -413,9 +463,18 @@ class ApiOrchestrator(OrchestratorBase):
                     "Include: what was accomplished, what's pending, any known issues."
                 ),
             )
-            summary_result = summarizer_agent.run_sync(
-                f"Conversation:\n\n{_messages_to_text(messages)}",
-            )
+            # Run on the persistent worker thread to keep httpx on the same
+            # event loop as the main cycle calls.
+            future: Future = Future()
+            text = _messages_to_text(messages)
+
+            def _task():
+                return summarizer_agent.run_sync(
+                    f"Conversation:\n\n{text}",
+                )
+
+            self._task_queue.put((_task, future))
+            summary_result = future.result(timeout=120)
             output = summary_result.output
             if output and output.strip():
                 summary = output.strip()

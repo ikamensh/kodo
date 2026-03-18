@@ -48,8 +48,6 @@ def _fake_team_preset(**overrides):
         description="Full team",
         system_prompt="You are an orchestrator.",
         build_team=lambda: {},
-        default_max_exchanges=30,
-        default_max_cycles=5,
     )
     defaults.update(overrides)
     return TeamPreset(**defaults)

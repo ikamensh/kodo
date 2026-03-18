@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.247"
+__version__ = "0.4.248"
 
 # ---------------------------------------------------------------------------
 # Compatibility shim: pydantic-ai 1.20 imports ``UserLocation`` from anthropic

@@ -89,13 +89,14 @@ class TestBuildParamsFromFlags:
     def test_cycles_falls_back_to_mode_default(self, project):
         args = _make_args()
         params = _build_params_from_flags(args, project)
-        assert params["max_cycles"] == 5  # full default
+        assert params["max_cycles"] == 5  # global default
 
     def test_quick_mode_defaults(self, project):
+        """Quick team uses the same global defaults (cycles/exchanges are team-independent)."""
         args = _make_args(team="quick")
         params = _build_params_from_flags(args, project)
-        assert params["max_exchanges"] == 20
-        assert params["max_cycles"] == 1
+        assert params["max_exchanges"] == 30
+        assert params["max_cycles"] == 5
 
     def test_orchestrator_defaults_to_api_when_gemini_key_available(self, project):
         args = _make_args(orchestrator="gemini-flash")
