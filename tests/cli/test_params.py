@@ -279,7 +279,6 @@ class TestBuildParamsFromFlags:
             'debug': True,
             'team': None,
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -311,8 +310,7 @@ class TestBuildParamsFromFlags:
         args = type('obj', (), {
             'debug': True,
             'team': 'full',
-            'orchestrator': 'api',
-            'orchestrator_model': 'gemini-flash',
+            'orchestrator': 'gemini-flash',
             'exchanges': 20,
             'cycles': 1,
             'no_auto_commit': True,
@@ -337,8 +335,7 @@ class TestBuildParamsFromFlags:
         args = type('obj', (), {
             'debug': True,
             'team': 'quick',
-            'orchestrator': 'api',
-            'orchestrator_model': 'gemini-flash',
+            'orchestrator': 'gemini-flash',
             'exchanges': 10,
             'cycles': 1,
             'no_auto_commit': False,
@@ -362,8 +359,7 @@ class TestBuildParamsFromFlags:
         args = type('obj', (), {
             'debug': False,
             'team': 'full',
-            'orchestrator': None,
-            'orchestrator_model': 'ollama:qwen2.5-coder:14b',
+            'orchestrator': 'ollama:qwen2.5-coder:14b',
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -392,8 +388,6 @@ class TestBuildParamsFromFlags:
         args = type('obj', (), {
             'debug': True,
             'team': 'full',
-            'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -420,7 +414,6 @@ class TestBuildParamsFromFlags:
                 'debug': True,
                 'team': 'full',
                 'orchestrator': None,
-                'orchestrator_model': None,
                 'exchanges': None,
                 'cycles': None,
                 'no_auto_commit': False,
@@ -648,10 +641,12 @@ class TestSelectParams:
         model_call = [c for c in self._select_one_calls if "model" in c[0].lower()]
         assert len(model_call) == 1
         model_options = model_call[0][1]
-        assert CLAUDE_OPUS in model_options
-        assert CLAUDE_SONNET in model_options
-        assert GEMINI_ALIAS_PRO in model_options
-        assert GEMINI_ALIAS_FLASH in model_options
+        # Options are now formatted as "alias — display (provider)" or plain strings
+        option_aliases = [opt.split(" — ")[0].strip() if " — " in opt else opt for opt in model_options]
+        assert CLAUDE_OPUS in option_aliases
+        assert CLAUDE_SONNET in option_aliases
+        assert GEMINI_ALIAS_PRO in option_aliases
+        assert GEMINI_ALIAS_FLASH in option_aliases
 
     def test_api_orchestrator_offers_ollama_when_local_model_detected(self):
         with (
@@ -662,6 +657,11 @@ class TestSelectParams:
             ),
             patch(
                 "kodo.models.list_ollama_models",
+                autospec=True,
+                return_value=["qwen2.5-coder:14b", "llama3.2"],
+            ),
+            patch(
+                "kodo.cli._params.list_ollama_models",
                 autospec=True,
                 return_value=["qwen2.5-coder:14b", "llama3.2"],
             ),
@@ -919,7 +919,6 @@ class TestTeamFlagFlowsThrough:
             'debug': True,
             'team': 'quick',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -944,7 +943,6 @@ class TestTeamFlagFlowsThrough:
             'debug': True,
             'team': None,
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -973,12 +971,11 @@ class TestOrchestratorFlagFlowsThrough:
     """Verify --orchestrator flag value reaches params correctly."""
 
     def test_explicit_claude_code_orchestrator(self, tmp_path):
-        """--orchestrator claude-code must produce params['orchestrator'] == 'claude-code'."""
+        """--orchestrator claude-code:opus must produce params['orchestrator'] == 'claude-code'."""
         args = type('obj', (), {
             'debug': True,
             'team': 'full',
-            'orchestrator': 'claude-code',
-            'orchestrator_model': None,
+            'orchestrator': 'claude-code:opus',
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -997,12 +994,11 @@ class TestOrchestratorFlagFlowsThrough:
         assert result["orchestrator"] == "claude-code"
 
     def test_explicit_gemini_cli_orchestrator(self, tmp_path):
-        """--orchestrator gemini-cli must produce params['orchestrator'] == 'gemini-cli'."""
+        """--orchestrator gemini-cli:gemini-pro must produce params['orchestrator'] == 'gemini-cli'."""
         args = type('obj', (), {
             'debug': True,
             'team': 'full',
-            'orchestrator': 'gemini-cli',
-            'orchestrator_model': None,
+            'orchestrator': 'gemini-cli:gemini-pro',
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -1025,8 +1021,7 @@ class TestOrchestratorFlagFlowsThrough:
         args = type('obj', (), {
             'debug': False,
             'team': 'full',
-            'orchestrator': 'codex',
-            'orchestrator_model': 'codex-1',
+            'orchestrator': 'codex:codex-1',
             'exchanges': None,
             'cycles': None,
             'no_auto_commit': False,
@@ -1064,7 +1059,6 @@ class TestExchangesCyclesFlagFlowsThrough:
             'debug': True,
             'team': 'full',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': 99,
             'cycles': None,
             'no_auto_commit': False,
@@ -1088,7 +1082,6 @@ class TestExchangesCyclesFlagFlowsThrough:
             'debug': True,
             'team': 'full',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': 12,
             'no_auto_commit': False,
@@ -1112,7 +1105,6 @@ class TestExchangesCyclesFlagFlowsThrough:
             'debug': True,
             'team': 'full',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': 0,
             'cycles': None,
             'no_auto_commit': False,
@@ -1136,7 +1128,6 @@ class TestExchangesCyclesFlagFlowsThrough:
             'debug': True,
             'team': 'full',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': None,
             'cycles': 0,
             'no_auto_commit': False,
@@ -1160,7 +1151,6 @@ class TestExchangesCyclesFlagFlowsThrough:
             'debug': True,
             'team': 'full',
             'orchestrator': None,
-            'orchestrator_model': None,
             'exchanges': -1,
             'cycles': None,
             'no_auto_commit': False,

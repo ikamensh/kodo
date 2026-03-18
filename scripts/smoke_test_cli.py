@@ -110,8 +110,6 @@ def main() -> int:
             "quick",
             "--skip-intake",
             "--orchestrator",
-            "api",
-            "--orchestrator-model",
             "opus",
             "--json",
             "--project",

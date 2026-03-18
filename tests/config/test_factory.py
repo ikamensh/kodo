@@ -39,7 +39,7 @@ def test_build_orchestrator_api():
     with patch("kodo.orchestrators.api.Summarizer", autospec=True):
         orch = build_orchestrator("api", model="opus")
     assert type(orch).__name__ == "ApiOrchestrator"
-    assert orch.model == "claude-opus-4-6"
+    assert orch.model == "opus"  # alias stored as-is; resolved internally
 
 
 def test_build_orchestrator_api_ollama_local():

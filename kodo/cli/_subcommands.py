@@ -289,14 +289,17 @@ def _cmd_backends() -> None:
     import os
 
     from kodo.factory import (
-        _MODEL_ALIASES,
         available_backends,
         check_api_key,
         check_backend_status,
     )
     from kodo.formatting import DIM as _DIM, GREEN as _GRN, RESET as _RST, YELLOW as _YLW
-    from kodo.models import OLLAMA_LOCAL
-    from kodo.models import list_ollama_models
+    from kodo.models import (
+        OLLAMA_LOCAL,
+        PROVIDER_REGISTRY,
+        check_api_key_for_model,
+        list_ollama_models,
+    )
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -325,49 +328,46 @@ def _cmd_backends() -> None:
         else:
             print(f"  {_GRN}{name:<12}{_RST}  {version}")
 
-    # --- API orchestrator models ---
+    # --- API orchestrator models (from provider registry) ---
     print("\nOrchestrator models (API):")
-    for alias, full_id in sorted(_MODEL_ALIASES.items()):
-        key_err = check_api_key("api", alias)
-        provider = "Gemini" if full_id.startswith("gemini") else "Anthropic"
-        if key_err is None:
-            print(f"  {_GRN}{alias:<28}{_RST}  {full_id:<35}  {provider:<10}  ready")
-        else:
-            print(f"  {_DIM}{alias:<28}  {full_id:<35}  {provider:<10}  no key{_RST}")
+    for provider in PROVIDER_REGISTRY:
+        has_key = any(os.environ.get(v) for v in provider.env_vars)
+        for m in provider.models:
+            if has_key:
+                print(f"  {_GRN}{m.alias:<28}{_RST}  {m.full_model_id:<35}  {provider.name:<12}  ready")
+            else:
+                print(f"  {_DIM}{m.alias:<28}  {m.full_model_id:<35}  {provider.name:<12}  no key{_RST}")
 
     ollama_models = list_ollama_models()
     if ollama_models:
         print(
             f"  {_GRN}{OLLAMA_LOCAL:<28}{_RST}  "
-            f"{f'ollama:{ollama_models[0]}':<35}  Ollama      first local model",
+            f"{f'ollama:{ollama_models[0]}':<35}  Ollama       first local model",
         )
         for model in ollama_models:
             explicit = f"ollama:{model}"
-            print(f"  {_GRN}{explicit:<28}{_RST}  {explicit:<35}  Ollama      ready")
+            print(f"  {_GRN}{explicit:<28}{_RST}  {explicit:<35}  Ollama       ready")
 
     # --- API key status ---
     print("\nAPI keys:")
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    google_key = os.environ.get("GOOGLE_API_KEY")
 
     def _masked(val: str) -> str:
         return f"{val[:4]}...{val[-4:]}" if len(val) > 12 else "***"
 
-    if anthropic_key:
-        print(f"  {_GRN}ANTHROPIC_API_KEY{_RST}       set ({_masked(anthropic_key)})")
-    else:
-        print(
-            f"  {_YLW}ANTHROPIC_API_KEY       not set  https://console.anthropic.com/settings/keys{_RST}",
-        )
-
-    # GEMINI_API_KEY and GOOGLE_API_KEY are interchangeable for Gemini
-    gkey = gemini_key or google_key
-    if gkey:
-        source = "GEMINI_API_KEY" if gemini_key else "GOOGLE_API_KEY"
-        print(f"  {_GRN}Gemini{_RST}                  set via {source} ({_masked(gkey)})")
-    else:
-        print(f"  {_YLW}Gemini                  not set  https://aistudio.google.com/apikey{_RST}")
+    for provider in PROVIDER_REGISTRY:
+        key_val = None
+        key_source = None
+        for var in provider.env_vars:
+            val = os.environ.get(var)
+            if val:
+                key_val = val
+                key_source = var
+                break
+        if key_val:
+            print(f"  {_GRN}{provider.name:<22}{_RST} set via {key_source} ({_masked(key_val)})")
+        else:
+            key_names = ", ".join(provider.env_vars)
+            print(f"  {_YLW}{provider.name:<22} not set  ({key_names}){_RST}")
 
 
 # ---------------------------------------------------------------------------

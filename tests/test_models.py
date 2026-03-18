@@ -168,11 +168,13 @@ class TestOllamaHelpers:
                 "kodo.models.list_ollama_models",
                 lambda: ["qwen2.5-coder:14b", "llama3.2"],
             )
-            assert api_orchestrator_model_options() == [
-                "opus",
-                "sonnet",
-                "gemini-pro",
-                "gemini-flash",
-                "ollama:qwen2.5-coder:14b",
-                "ollama:llama3.2",
-            ]
+            mp.setenv("ANTHROPIC_API_KEY", "test-key")
+            mp.setenv("GEMINI_API_KEY", "test-key")
+            options = api_orchestrator_model_options()
+            # Should include Anthropic and Google aliases plus Ollama models
+            assert "opus" in options
+            assert "sonnet" in options
+            assert "gemini-pro" in options
+            assert "gemini-flash" in options
+            assert "ollama:qwen2.5-coder:14b" in options
+            assert "ollama:llama3.2" in options

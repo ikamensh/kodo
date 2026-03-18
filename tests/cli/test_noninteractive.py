@@ -40,7 +40,6 @@ def _make_args(**overrides) -> Namespace:
         exchanges=None,
         cycles=None,
         orchestrator=None,
-        orchestrator_model=None,
         skip_intake=False,
         resume=None,
         project_dir=".",
@@ -95,32 +94,37 @@ class TestBuildParamsFromFlags:
         assert params["max_cycles"] == 1
 
     def test_orchestrator_defaults_to_api_when_gemini_key_available(self, project):
-        args = _make_args(orchestrator_model="gemini-flash")
+        args = _make_args(orchestrator="gemini-flash")
         with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
             params = _build_params_from_flags(args, project)
         assert params["orchestrator"] == "api"
 
-    def test_orchestrator_auto_detects_claude_code_without_gemini_key(self, project):
-        """Without GEMINI/GOOGLE_API_KEY (keys absent), falls back to claude-code."""
-        args = _make_args(orchestrator_model="gemini-flash")
-        # Simulate user env without those keys (CI runners may set them)
-        env_no_gemini = {
+    def test_orchestrator_auto_detects_claude_code_without_api_keys(self, project):
+        """Without any provider API keys and no explicit model, falls back to claude-code."""
+        args = _make_args()  # no orchestrator specified
+        # Simulate user env without any provider API keys
+        _PROVIDER_KEYS = {
+            "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY",
+            "OPENROUTER_API_KEY", "MISTRAL_API_KEY", "XAI_API_KEY",
+        }
+        env_no_keys = {
             k: v
             for k, v in os.environ.items()
-            if k not in ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+            if k not in _PROVIDER_KEYS
         }
-        with patch.dict("kodo.cli._params.os.environ", env_no_gemini, clear=True):
+        with patch.dict("kodo.cli._params.os.environ", env_no_keys, clear=True):
             params = _build_params_from_flags(args, project)
         assert params["orchestrator"] == "claude-code"
 
     def test_improve_mode_uses_api_with_gemini_key(self, project):
-        args = _make_args(improve=True, orchestrator_model="gemini-flash")
+        args = _make_args(improve=True, orchestrator="gemini-flash")
         with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
             params = _build_params_from_flags(args, project)
         assert params["orchestrator"] == "api"
 
     def test_orchestrator_explicit(self, project):
-        args = _make_args(orchestrator="api", orchestrator_model="opus")
+        args = _make_args(orchestrator="opus")
         params = _build_params_from_flags(args, project)
         assert params["orchestrator"] == "api"
 
@@ -133,7 +137,7 @@ class TestBuildParamsFromFlags:
         assert saved["team"] == "full"
 
     def test_api_key_validation_exits(self, project):
-        args = _make_args(orchestrator="api", orchestrator_model="opus")
+        args = _make_args(orchestrator="opus")
         with (
             patch(  # noqa: autospec
                 "kodo.cli._params.check_api_key",
@@ -408,8 +412,6 @@ class TestNonInteractiveEndToEnd:
                 "--cycles",
                 "7",
                 "--orchestrator",
-                "api",
-                "--orchestrator-model",
                 "gemini-pro",
                 "--project",
                 str(project),

@@ -173,17 +173,10 @@ def _main_inner() -> None:
         "--orchestrator",
         type=str,
         default=None,
-        choices=["api", "claude-code", "gemini-cli", "codex", "cursor"],
-        help="Orchestrator backend.",
-    )
-    parser.add_argument(
-        "--orchestrator-model",
-        type=str,
-        default=None,
         help=(
-            "Model for the orchestrator LLM. Examples: opus, sonnet, "
-            "gemini-flash, ollama-local, ollama:qwen2.5-coder:14b. "
-            "Ollama models imply the API orchestrator automatically."
+            "Orchestrator model. Examples: opus, gpt-5.4, openai:gpt-5.4-mini, "
+            "deepseek, ollama:qwen2.5-coder:14b. "
+            "For CLI backends: claude-code:opus, cursor:sonnet-4, gemini-cli:gemini-2.5-flash."
         ),
     )
     parser.add_argument(
@@ -287,25 +280,6 @@ def _main_inner() -> None:
         args.goal or args.goal_file or args.improve
     ):
         _fail("--skip-intake and --auto-refine require --goal, --goal-file, or --improve.")
-
-    # Orchestrator / model compatibility
-    _GEMINI_MODELS = {GEMINI_ALIAS_PRO, GEMINI_ALIAS_FLASH}
-    _CLAUDE_MODELS = {CLAUDE_OPUS, CLAUDE_SONNET}
-    if args.orchestrator and args.orchestrator_model:
-        if args.orchestrator == "claude-code" and args.orchestrator_model not in _CLAUDE_MODELS:
-            _fail(
-                f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
-                f"--orchestrator 'claude-code'. Use {', '.join(sorted(_CLAUDE_MODELS))} instead."
-            )
-        if args.orchestrator == "gemini-cli" and not (
-            args.orchestrator_model in _GEMINI_MODELS
-            or args.orchestrator_model.startswith("gemini")
-        ):
-            _fail(
-                f"--orchestrator-model {args.orchestrator_model!r} is incompatible with "
-                "--orchestrator 'gemini-cli'. Use a Gemini model "
-                "(for example gemini-pro or gemini-3-pro) instead."
-            )
 
     # --json and --auto-refine imply --yes
     if args.json or args.auto_refine:

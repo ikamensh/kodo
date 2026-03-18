@@ -200,7 +200,7 @@ class TestCheckApiKey:
             assert check_api_key("api", "gemini-pro") is None
 
     def test_ollama_local_needs_no_api_key(self):
-        with patch("kodo.factory.list_ollama_models", autospec=True, return_value=["llama3.2"]):
+        with patch("kodo.models.list_ollama_models", autospec=True, return_value=["llama3.2"]):
             assert check_api_key("api", "ollama-local") is None
 
     def test_explicit_ollama_model_needs_no_api_key(self):

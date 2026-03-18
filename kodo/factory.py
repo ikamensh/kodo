@@ -33,8 +33,12 @@ from kodo.models import (
     GEMINI_CLI_PRO,
     KIMI_K2_5,
     OLLAMA_LOCAL,
+    all_aliases,
+    available_providers as _available_model_providers,
+    check_api_key_for_model,
     list_ollama_models,
     is_ollama_model,
+    model_display_name,
     normalize_ollama_model,
 )
 from kodo.orchestrators.base import TeamConfig
@@ -177,36 +181,10 @@ _CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor", "kimi-code
 
 def check_api_key(orchestrator: str, model: str) -> str | None:
     """Return an error message if the required API key is missing, else None."""
-    import os
-
     if orchestrator in _CLI_ORCHESTRATORS:
         return None
 
-    if is_ollama_model(model):
-        if model == OLLAMA_LOCAL:
-            if not list_ollama_models():
-                return (
-                    "No local Ollama model detected at http://localhost:11434 — "
-                    "run `ollama pull <model>` first."
-                )
-        return None
-
-    _GEMINI_ALIASES = {
-        GEMINI_ALIAS_PRO,
-        GEMINI_ALIAS_FLASH,
-        GEMINI_API_PRO_V3,
-        GEMINI_API_PRO,
-        GEMINI_API_FLASH,
-    }
-    if model in _GEMINI_ALIASES or model.startswith("gemini"):
-        if not os.environ.get("GEMINI_API_KEY") and not os.environ.get(
-            "GOOGLE_API_KEY",
-        ):
-            return "GEMINI_API_KEY (or GOOGLE_API_KEY) not set — required for Gemini models"
-    else:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            return "ANTHROPIC_API_KEY not set — required for API orchestrator with Claude models"
-    return None
+    return check_api_key_for_model(model)
 
 
 # ---------------------------------------------------------------------------
@@ -709,12 +687,18 @@ def get_team(name: str) -> TeamPreset:
 # ---------------------------------------------------------------------------
 
 # Maps short names ("opus", "sonnet") to full API model IDs.
+# Generated from the provider registry; kept as a module-level dict for
+# backward compatibility (imported by _subcommands.py and tests).
 _MODEL_ALIASES: dict[str, str] = {
+    alias: pydantic_id for alias, pydantic_id in all_aliases().items()
+}
+# Ensure legacy aliases that map to bare model IDs still work
+_MODEL_ALIASES.update({
     CLAUDE_OPUS: CLAUDE_OPUS_FULL,
     CLAUDE_SONNET: CLAUDE_SONNET_FULL,
     GEMINI_ALIAS_PRO: GEMINI_API_PRO,
     GEMINI_ALIAS_FLASH: GEMINI_API_FLASH,
-}
+})
 
 
 def build_orchestrator(
@@ -733,14 +717,10 @@ def build_orchestrator(
     if name == "api":
         from kodo.orchestrators.api import ApiOrchestrator
 
-        orch_model = _MODEL_ALIASES.get(model, model) if model else CLAUDE_OPUS_FULL
-        if orch_model and is_ollama_model(orch_model):
+        orch_model = model or CLAUDE_OPUS_FULL
+        if is_ollama_model(orch_model):
             orch_model = normalize_ollama_model(orch_model)
-        fb_model = (
-            _MODEL_ALIASES.get(fallback_model, fallback_model)
-            if fallback_model
-            else None
-        )
+        fb_model = fallback_model
         if fb_model and is_ollama_model(fb_model):
             fb_model = normalize_ollama_model(fb_model)
         return ApiOrchestrator(

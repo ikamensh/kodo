@@ -27,7 +27,9 @@ from kodo.models import (
     MODEL_PRICING,
     PYDANTIC_MODEL_MAP,
     ensure_ollama_base_url,
+    get_pricing,
     is_ollama_model,
+    resolve_model,
 )
 from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
 from kodo.orchestrators.base import (
@@ -90,10 +92,10 @@ class ApiOrchestrator(OrchestratorBase):
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
         if is_ollama_model(model):
             ensure_ollama_base_url()
-        self._pydantic_model = PYDANTIC_MODEL_MAP.get(model, model)
+        self._pydantic_model = resolve_model(model)
         self._fallback_model = fallback_model
         self._fallback_pydantic = (
-            PYDANTIC_MODEL_MAP.get(fallback_model, fallback_model)
+            resolve_model(fallback_model)
             if fallback_model
             else None
         )
@@ -325,7 +327,7 @@ class ApiOrchestrator(OrchestratorBase):
         # Use cumulative_usage which includes tokens from all attempts
         # (failed retries + the final run), not just run_result.usage().
         if cumulative_usage.requests:
-            price_in, price_out = MODEL_PRICING.get(self.model, (0, 0))
+            price_in, price_out = get_pricing(self.model)
             result.total_cost_usd = (
                 cumulative_usage.input_tokens * price_in
                 + cumulative_usage.output_tokens * price_out

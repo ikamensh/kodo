@@ -118,8 +118,6 @@ def main():
             "quick",
             "--skip-intake",
             "--orchestrator",
-            "api",
-            "--orchestrator-model",
             "opus",
             "--project",
             str(project_dir),

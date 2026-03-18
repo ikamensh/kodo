@@ -19,10 +19,13 @@ from kodo.models import (
     CODEX_DEFAULT,
     CURSOR_COMPOSER,
     api_orchestrator_model_options,
+    available_model_choices,
+    available_providers as _available_model_providers,
     GEMINI_API_FLASH,
     GEMINI_CLI_FLASH,
     GEMINI_CLI_PRO,
     implied_orchestrator_from_model,
+    list_ollama_models,
 )
 from kodo.user_config import get_user_default
 
@@ -153,10 +156,31 @@ def select_params() -> dict:
             [CURSOR_COMPOSER, "sonnet-4-thinking", "gpt-5"],
         )
     elif orchestrator == "api":
-        orch_model = _select_one(
-            "Orchestrator model:",
-            api_orchestrator_model_options(),
-        )
+        # Build model list from available providers, grouped by provider
+        model_choices: list[str] = []
+        choices_data = available_model_choices()
+        current_provider = ""
+        for alias, display, provider_name in choices_data:
+            if provider_name != current_provider:
+                current_provider = provider_name
+            model_choices.append(f"{alias} — {display} ({provider_name})")
+        # Add Ollama models if running
+        for ollama_model in list_ollama_models():
+            model_choices.append(f"ollama:{ollama_model}")
+        model_choices.append("Custom...")
+        if not model_choices:
+            model_choices = api_orchestrator_model_options()
+            model_choices.append("Custom...")
+
+        selected = _select_one("Orchestrator model:", model_choices)
+        if selected == "Custom...":
+            raw = questionary.text("  Model name (provider:model or alias):").ask()
+            if raw is None:
+                _cancel()
+            orch_model = raw.strip()
+        else:
+            # Extract alias from "alias — display (provider)" format
+            orch_model = selected.split(" — ")[0].strip() if " — " in selected else selected
     else:
         # claude-code
         orch_model = _select_one("Orchestrator model:", [CLAUDE_OPUS, CLAUDE_SONNET])
@@ -271,30 +295,58 @@ def _load_or_select_params(project_dir: Path) -> dict:
     return params
 
 
+_CLI_BACKENDS = {"claude-code", "gemini-cli", "codex", "cursor"}
+
+
+def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]:
+    """Parse --orchestrator value into (backend, model).
+
+    Formats:
+        "opus"                  → (None, "opus")           — API model
+        "openai:gpt-5.4"       → (None, "openai:gpt-5.4") — API model with provider
+        "claude-code:opus"      → ("claude-code", "opus")  — CLI backend + model
+        "cursor:sonnet-4"       → ("cursor", "sonnet-4")
+        "gemini-cli:gemini-2.5" → ("gemini-cli", "gemini-2.5")
+        "codex:gpt-5.4"        → ("codex", "gpt-5.4")
+    """
+    if value is None:
+        return None, None
+
+    if ":" in value:
+        prefix, rest = value.split(":", 1)
+        if prefix in _CLI_BACKENDS:
+            return prefix, rest
+
+    # Otherwise it's a model spec (bare alias or provider:model for API)
+    return None, value
+
+
 def _build_params_from_flags(args, project_dir: Path) -> dict:
     """Build config dict from CLI flags, falling back to team defaults."""
     debug = getattr(args, "debug", False)
     team_name = args.team or "full"
     team_preset = get_team(team_name)
 
-    orch_model = args.orchestrator_model  # may be None
+    explicit_backend, orch_model = _parse_orchestrator_flag(
+        getattr(args, "orchestrator", None)
+    )
 
     if debug:
         # Debug mode: use whatever was specified, or sensible defaults.
         # No real backends needed — everything gets mocked at launch time.
-        orchestrator = args.orchestrator or "api"
+        orchestrator = explicit_backend or "api"
         if not orch_model:
             orch_model = CLAUDE_OPUS
     else:
-        _has_gemini_key = bool(
-            os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
-        )
+        _has_any_api_key = bool(_available_model_providers())
 
-        if args.orchestrator:
-            orchestrator = args.orchestrator
-        elif inferred := implied_orchestrator_from_model(orch_model):
-            orchestrator = inferred
-        elif _has_gemini_key:
+        if explicit_backend:
+            orchestrator = explicit_backend
+        elif orch_model:
+            # User gave a model — infer backend
+            inferred = implied_orchestrator_from_model(orch_model)
+            orchestrator = inferred or "api"
+        elif _has_any_api_key:
             orchestrator = "api"
         else:
             orchestrator = preferred_orchestrator()
@@ -306,9 +358,16 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
                 "gemini-cli": GEMINI_CLI_FLASH,
                 "codex": CODEX_DEFAULT,
                 "cursor": CURSOR_COMPOSER,
-                "api": GEMINI_API_FLASH,
             }
-            orch_model = _ORCH_DEFAULT_MODELS.get(orchestrator, GEMINI_API_FLASH)
+            if orchestrator in _ORCH_DEFAULT_MODELS:
+                orch_model = _ORCH_DEFAULT_MODELS[orchestrator]
+            else:
+                # API orchestrator: pick first model from first available provider
+                providers = _available_model_providers()
+                if providers and providers[0].models:
+                    orch_model = providers[0].models[0].alias
+                else:
+                    orch_model = GEMINI_API_FLASH
 
     if not debug:
         key_err = check_api_key(orchestrator, orch_model)

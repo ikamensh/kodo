@@ -602,7 +602,7 @@ class TestCmdBackends:
         assert "AIza" in out
 
     def test_gemini_key_not_set_shown(self, capsys):
-        """When no Gemini/Google key is set, show 'not set' with install link."""
+        """When no Gemini/Google key is set, show 'not set' with env var names."""
         with (
             patch.dict(
                 "os.environ",
@@ -618,7 +618,7 @@ class TestCmdBackends:
 
         out = capsys.readouterr().out
         assert "not set" in out
-        assert "aistudio.google.com" in out
+        assert "GEMINI_API_KEY" in out
 
 
 # ---------------------------------------------------------------------------

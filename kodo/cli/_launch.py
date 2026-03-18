@@ -134,7 +134,7 @@ def _build_advisor(params: dict):
     """Create an Advisor for adaptive planning, or None if no API key."""
     import os
 
-    from kodo.models import GEMINI_API_FLASH, PYDANTIC_MODEL_MAP
+    from kodo.models import GEMINI_API_FLASH, PYDANTIC_MODEL_MAP, resolve_model
 
     # Prefer Gemini Flash (cheapest)
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
@@ -142,7 +142,7 @@ def _build_advisor(params: dict):
     elif os.environ.get("ANTHROPIC_API_KEY"):
         # Fall back to orchestrator model
         orch_model = params.get("orchestrator_model", "")
-        advisor_model = PYDANTIC_MODEL_MAP.get(orch_model, orch_model)
+        advisor_model = resolve_model(orch_model)
     else:
         return None
 

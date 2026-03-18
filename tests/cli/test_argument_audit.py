@@ -307,110 +307,44 @@ class TestFocusValidation:
 # ---------------------------------------------------------------------------
 
 
-class TestOrchestratorModelCompatibility:
-    """Gemini models should not be used with claude-code and vice versa."""
-
-    def test_claude_code_with_gemini_pro_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test",
-            "--orchestrator", "claude-code",
-            "--orchestrator-model", "gemini-pro",
-            "--project", str(tmp_path),
-        ])
-        assert code != 0
-
-    def test_claude_code_with_gemini_flash_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test",
-            "--orchestrator", "claude-code",
-            "--orchestrator-model", "gemini-flash",
-            "--project", str(tmp_path),
-        ])
-        assert code != 0
-
-    def test_gemini_cli_with_opus_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test",
-            "--orchestrator", "gemini-cli",
-            "--orchestrator-model", "opus",
-            "--project", str(tmp_path),
-        ])
-        assert code != 0
-
-    def test_gemini_cli_with_sonnet_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test",
-            "--orchestrator", "gemini-cli",
-            "--orchestrator-model", "sonnet",
-            "--project", str(tmp_path),
-        ])
-        assert code != 0
+class TestOrchestratorFlag:
+    """--orchestrator accepts backend:model or plain model names."""
 
     def test_claude_code_with_opus_passes_validation(self, tmp_path):
-        """claude-code + opus should be compatible (no compatibility error)."""
+        """claude-code:opus should be accepted (no compatibility error)."""
         msgs = _get_fail_messages([
             "kodo", "--goal", "test", "--yes",
-            "--orchestrator", "claude-code",
-            "--orchestrator-model", "opus",
+            "--orchestrator", "claude-code:opus",
             "--project", str(tmp_path),
         ])
         assert not any("incompatible" in m for m in msgs)
 
     def test_gemini_cli_with_gemini_pro_passes_validation(self, tmp_path):
-        """gemini-cli + gemini-pro should be compatible."""
+        """gemini-cli:gemini-pro should be accepted."""
         msgs = _get_fail_messages([
             "kodo", "--goal", "test", "--yes",
-            "--orchestrator", "gemini-cli",
-            "--orchestrator-model", "gemini-pro",
+            "--orchestrator", "gemini-cli:gemini-pro",
             "--project", str(tmp_path),
         ])
         assert not any("incompatible" in m for m in msgs)
 
-    def test_api_with_any_model_passes_validation(self, tmp_path):
-        """api orchestrator accepts all models (no compatibility restriction)."""
+    def test_plain_model_passes_validation(self, tmp_path):
+        """Plain model names like 'opus' should be accepted."""
         for model in (
             "opus",
             "sonnet",
             "gemini-pro",
             "gemini-flash",
-            "ollama-local",
             "ollama:qwen2.5-coder:14b",
         ):
             msgs = _get_fail_messages([
                 "kodo", "--goal", "test", "--yes",
-                "--orchestrator", "api",
-                "--orchestrator-model", model,
+                "--orchestrator", model,
                 "--project", str(tmp_path),
             ])
             assert not any("incompatible" in m for m in msgs), (
-                f"api + {model} should be compatible"
+                f"--orchestrator {model} should be accepted"
             )
-
-    def test_gemini_cli_with_ollama_model_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test",
-            "--orchestrator", "gemini-cli",
-            "--orchestrator-model", "ollama:qwen2.5-coder:14b",
-            "--project", str(tmp_path),
-        ])
-        assert code != 0
-
-    def test_no_orchestrator_flag_skips_compat_check(self, tmp_path):
-        """When --orchestrator is not specified, skip compatibility check."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes",
-            "--orchestrator-model", "gemini-flash",
-            "--project", str(tmp_path),
-        ])
-        assert not any("incompatible" in m for m in msgs)
-
-    def test_no_orchestrator_flag_skips_compat_check_for_ollama_model(self, tmp_path):
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes",
-            "--orchestrator-model", "ollama:qwen2.5-coder:14b",
-            "--project", str(tmp_path),
-        ])
-        assert not any("incompatible" in m for m in msgs)
 
 
 # ---------------------------------------------------------------------------
