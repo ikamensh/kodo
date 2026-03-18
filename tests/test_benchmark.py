@@ -8,6 +8,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -669,7 +670,7 @@ class TestRunSubprocess:
     def test_exit_code_2_is_partial(self):
         # exit 2 = partial success (kodo verification unsatisfied)
         output, status, error, stdout, stderr = _run_subprocess(
-            ["sh", "-c", "exit 2"],
+            [sys.executable, "-c", "import sys; sys.exit(2)"],
             cwd=None,
             timeout=5,
         )
