@@ -441,7 +441,7 @@ def _cmd_teams() -> None:
 
 def _cmd_teams_list() -> None:
     """List all available teams (built-in and user-defined)."""
-    from kodo.factory import available_backends
+    from kodo.factory import available_backends, smart_model_for_backend
     from kodo.team_config import _BACKEND_MAP, list_available_teams
 
     available_backends.cache_clear()
@@ -474,7 +474,15 @@ def _cmd_teams_list() -> None:
 
         for akey, acfg in agents.items():
             backend = acfg.get("backend", "?")
-            model = acfg.get("model", "?")
+            raw_model = acfg.get("model")
+            if raw_model:
+                model = raw_model
+            else:
+                bkey = _BACKEND_MAP.get(backend, "")
+                try:
+                    model = f"default ({smart_model_for_backend(bkey)})"
+                except KeyError:
+                    model = "default"
             adesc = _truncate_word(acfg.get("description", "").split("\n")[0], 60)
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
