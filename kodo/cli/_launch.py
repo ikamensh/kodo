@@ -512,6 +512,7 @@ def launch_resume(
     state: log.RunState,
     *,
     team_override: str | None = None,
+    debug: bool = False,
 ) -> RunResult:
     """Resume an interrupted run from its parsed RunState. Returns the RunResult."""
     log.init_append(state.log_file)
@@ -595,12 +596,29 @@ def launch_resume(
         except (ValueError, KeyError, OSError):
             team_config = None
 
-    team, system_prompt, verifiers = _build_team_from_config(
-        team_config,
-        team_preset,
-        params["team"],
-        project_dir,
-    )
+    if debug:
+        # --- Debug mode: mock everything (same as launch_run) ---
+        from kodo.debug import build_debug_team, build_mock_orchestrator, _allocator
+
+        verifiers = None
+        _allocator.reset()
+        orch_letter = _allocator.next("orchestrator")
+        team, _ = build_debug_team(params["team"])
+        system_prompt = team_preset.system_prompt
+        orchestrator, _ = build_mock_orchestrator(
+            orch_letter,
+            team,
+            system_prompt=system_prompt,
+        )
+        if _original_stdout is None:
+            print("\n  [DEBUG MODE — mocked backends]")
+    else:
+        team, system_prompt, verifiers = _build_team_from_config(
+            team_config,
+            team_preset,
+            params["team"],
+            project_dir,
+        )
 
     # Apply effort-level adjustments (same as launch_run)
     effort = params.get("effort", "standard")
@@ -610,11 +628,12 @@ def launch_resume(
         system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
     _apply_effort_to_team(team, effort)
 
-    orchestrator = build_orchestrator(
-        params["orchestrator"],
-        params["orchestrator_model"],
-        system_prompt=system_prompt,
-    )
+    if not debug:
+        orchestrator = build_orchestrator(
+            params["orchestrator"],
+            params["orchestrator_model"],
+            system_prompt=system_prompt,
+        )
 
     resume = ResumeState(
         completed_cycles=state.completed_cycles,

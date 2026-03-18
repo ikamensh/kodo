@@ -409,7 +409,9 @@ def _main_inner() -> None:
 
         run_dir = RunDir.from_log_file(state.log_file, project_dir)
         try:
-            result = launch_resume(run_dir, state, team_override=args.team)
+            result = launch_resume(
+                run_dir, state, team_override=args.team, debug=args.debug
+            )
         except Exception as exc:
             _fail(str(exc) or type(exc).__name__)
         _emit_json_and_exit(args, result)
