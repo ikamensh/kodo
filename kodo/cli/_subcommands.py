@@ -485,7 +485,8 @@ def _cmd_teams_list() -> None:
                     model = f"default ({smart_model_for_backend(bkey)})"
                 except KeyError:
                     model = "default"
-            adesc = _truncate_word(acfg.get("description", "").split("\n")[0], desc_width)
+            raw_desc = acfg.get("description", "").split("\n")[0].strip()
+            adesc = f"  {DIM}{_truncate_word(raw_desc, desc_width)}{RESET}" if raw_desc else ""
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
             if ok:
@@ -493,7 +494,7 @@ def _cmd_teams_list() -> None:
             else:
                 status = f"{RED}missing{RESET}"
                 has_missing = True
-            print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]  {DIM}{adesc}{RESET}")
+            print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]{adesc}")
         print()
 
     # Hint if any agents have missing backends

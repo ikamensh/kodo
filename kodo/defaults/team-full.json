@@ -1,6 +1,5 @@
 {
   "name": "full",
-  "description": "Full team: fast worker, smart worker, tester, browser tester, architect",
   "verifiers": {
     "testers": ["tester"],
     "browser_testers": ["tester_browser"],

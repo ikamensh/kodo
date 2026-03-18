@@ -1,6 +1,6 @@
 {
   "name": "quick",
-  "description": "Fast + smart worker(s) solving one issue, orchestrator as quality gate",
+  "description": "No verifiers — orchestrator is the quality gate",
   "verifiers": {
     "testers": [],
     "browser_testers": [],
