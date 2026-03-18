@@ -62,6 +62,31 @@ def _fast_git():
     os.environ.pop("GIT_CONFIG_GLOBAL", None)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _fake_api_keys():
+    """Set placeholder API keys so provider classes don't raise at construction time.
+
+    pydantic-ai validates that API key env vars are set when a provider is
+    instantiated.  Tests mock the actual network calls, so a fake value is
+    sufficient to pass the env-var check without making real requests.
+    Uses setdefault so real keys in the environment are never overwritten.
+    """
+    _placeholders = {
+        "ANTHROPIC_API_KEY": "sk-ant-fake0000000000000000000000000000000000000000",
+        "OPENAI_API_KEY": "sk-fake000000000000000000000000000000000000000000000",
+        "GOOGLE_API_KEY": "fake-google-key-for-tests",
+        "GEMINI_API_KEY": "fake-gemini-key-for-tests",
+    }
+    _inserted: list[str] = []
+    for key, value in _placeholders.items():
+        if key not in os.environ:
+            os.environ[key] = value
+            _inserted.append(key)
+    yield
+    for key in _inserted:
+        os.environ.pop(key, None)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_log(tmp_path: Path):
     """Save and restore log module state; redirect ~/.kodo/runs to tmp dir."""
