@@ -118,13 +118,13 @@ def _main_inner() -> None:
         _SUBCOMMAND_MAP[sys.argv[1]]()
         return
 
-    # "kodo test [...]" → "kodo --test [...]" — natural subcommand alias
-    if len(sys.argv) > 1 and sys.argv[1] == "test":
-        sys.argv[1] = "--test"
+    # "kodo test/improve [...]" → "kodo --test/--improve [...]" — subcommand aliases
+    if len(sys.argv) > 1 and sys.argv[1] in ("test", "improve"):
+        sys.argv[1] = f"--{sys.argv[1]}"
 
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo test      Generate tests to improve coverage\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
@@ -155,13 +155,20 @@ def _main_inner() -> None:
         "--improve",
         action="store_true",
         default=False,
-        help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
+        help="Code review: simplification, usability, architecture.",
     )
     goal_group.add_argument(
         "--test",
         action="store_true",
         default=False,
-        help="Generate tests to improve coverage. Writes new tests, runs them, commits passing ones.",
+        help="Find bugs through realistic interaction and workflows.",
+    )
+    goal_group.add_argument(
+        "--fix-from",
+        type=str,
+        default=None,
+        metavar="RUN_ID",
+        help="Fix findings from a previous test or improve run.",
     )
     parser.add_argument(
         "--focus",
@@ -340,13 +347,24 @@ def _main_inner() -> None:
         if args.team is None:
             args.team = "test"
 
+    # --fix-from: load findings from a previous run and create a fix goal
+    if args.fix_from:
+        args.skip_intake = True
+        args.yes = True
+        if args.team is None:
+            args.team = "full"
+
     non_interactive = (
-        args.goal is not None or args.goal_file is not None or args.improve or args.test
+        args.goal is not None
+        or args.goal_file is not None
+        or args.improve
+        or args.test
+        or args.fix_from
     )
     skip_prompts = non_interactive or args.yes
 
     if non_interactive and args.resume is not None:
-        _fail("--resume cannot be used with --goal/--goal-file/--improve/--test")
+        _fail("--resume cannot be used with --goal/--goal-file/--improve/--test/--fix-from")
 
     project_dir = Path(args.project).resolve()
 
@@ -401,6 +419,8 @@ def _main_inner() -> None:
     goal_text: str | None = None
     if non_interactive:
         if args.improve or args.test:
+            pass  # goal_text constructed after run_dir is created
+        elif args.fix_from:
             pass  # goal_text constructed after run_dir is created
         elif args.goal is not None:
             goal_text = args.goal.strip()
@@ -550,6 +570,49 @@ def _main_inner() -> None:
                     targets=targets,
                     prior_test_work=prior_test_work,
                 )
+    elif args.fix_from:
+        from kodo.cli._shared import extract_section
+
+        source_run = log._runs_root() / args.fix_from
+        # Try test-report.md first, then improve-report.md
+        source_report = None
+        for name in ("test-report.md", "improve-report.md"):
+            candidate = source_run / name
+            if candidate.exists():
+                source_report = candidate
+                break
+        if source_report is None:
+            _fail(f"No test or improve report found in run {args.fix_from}")
+        try:
+            report_content = source_report.read_text(encoding="utf-8")
+        except OSError as exc:
+            _fail(f"Cannot read report: {source_report} — {exc}")
+
+        # Extract fixable findings
+        findings: list[str] = []
+        for section in (
+            "Critical Findings",
+            "Integration & Workflow Findings",
+            "Usability Gaps",
+            "Needs decision",
+        ):
+            body = extract_section(report_content, section)
+            for line in body.strip().splitlines():
+                line = line.strip()
+                if line.startswith("- "):
+                    findings.append(line)
+        if not findings:
+            _fail(f"No fixable findings in {source_report}")
+
+        findings_block = "\n".join(findings)
+        goal_text = (
+            f"Fix these findings from a previous kodo run ({args.fix_from}):\n\n"
+            f"{findings_block}\n\n"
+            f"For each finding, write a regression test that fails, then fix the code "
+            f"so the test passes. Commit test and fix separately."
+        )
+        if not args.json:
+            print(f"  Fixing {len(findings)} findings from run {args.fix_from}")
     elif non_interactive:
         if (
             goal_text is None
@@ -708,6 +771,10 @@ def _main_inner() -> None:
             print(f"  Auto-fixed:     {auto_fixed}")
             print(f"  Needs decision: {needs_decision}")
 
+            if needs_decision > 0 and not args.json:
+                print(f"\n  To fix 'needs decision' items:")
+                print(f"    kodo --fix-from {run_dir.run_id}")
+
             if args.json:
                 _emit_json_and_exit(args, result, improve_report=report_content)
                 return
@@ -742,6 +809,16 @@ def _main_inner() -> None:
                 print(f"  Blocked stories:  {summary['blocked_count']}")
                 for detail in summary.get("blocked_details", []):
                     print(f"    {detail}")
+
+            # Suggest fix command if there are fixable findings
+            fixable = (
+                summary.get("findings_count", 0)
+                - summary.get("blocked_count", 0)
+                - summary.get("untestable_count", 0)
+            )
+            if fixable > 0 and not args.json:
+                print(f"\n  To fix these findings:")
+                print(f"    kodo --fix-from {run_dir.run_id}")
 
             if args.json:
                 _emit_json_and_exit(args, result, test_report=report_content)

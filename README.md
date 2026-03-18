@@ -149,8 +149,11 @@ kodo test --focus 'auth module'      # focus on specific area
 kodo test --target src/api/          # scope to specific files/dirs
 
 # Improve — code review for simplification, usability, architecture
-kodo --improve                       # review current project
-kodo --improve --focus 'CLI flags'   # focus on specific area
+kodo improve                         # review current project
+kodo improve --focus 'CLI flags'     # focus on specific area
+
+# Fix findings from a previous test or improve run
+kodo --fix-from <RUN_ID>             # printed at end of test/improve runs
 
 # Resume an interrupted run (looks in ~/.kodo/runs/)
 kodo --resume                       # resume latest incomplete run in current dir

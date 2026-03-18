@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.245"
+version = "0.4.246"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -17,9 +17,7 @@ dependencies = [
     "pydantic-ai>=1.0",
     "summarization-pydantic-ai>=0.0.3",
     "uvicorn>=0.40",
-    "pillow>=12.1.0",
-    "pypdf>=6.7.4",
-    "charset-normalizer>=3.4.6",
+    "charset-normalizer>=3.4.6",  # pin to suppress deprecation warning on import
 ]
 
 [project.optional-dependencies]
