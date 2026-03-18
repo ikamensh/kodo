@@ -818,8 +818,6 @@ class TestCmdTeams:
 
         out = capsys.readouterr().out
         assert "full" in out
-        assert "(built-in)" in out
-        assert "2 agents" in out
         assert "worker_fast" in out
         assert "worker_smart" in out
 
@@ -862,8 +860,6 @@ class TestCmdTeams:
 
         out = capsys.readouterr().out
         # Both teams shown
-        assert "(built-in)" in out
-        assert "(user)" in out
         assert "custom" in out
         assert "My custom team" in out
         assert "my_agent" in out
@@ -1479,7 +1475,7 @@ class TestCmdTeamsListMissingHint:
             _cmd_teams()
 
         out = capsys.readouterr().out
-        assert "[missing]" in out
+        assert "missing" in out
         assert "kodo teams auto" in out
 
 

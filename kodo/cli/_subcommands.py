@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -15,6 +16,7 @@ import questionary
 from kodo import __version__, log
 from kodo.cli._launch import _cancel, _fail
 from kodo.cli._ui import _plural
+from kodo.formatting import BOLD, CYAN, DIM, GREEN, RED, RESET
 from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
@@ -452,25 +454,25 @@ def _cmd_teams_list() -> None:
         print("No teams found.")
         return
 
+    try:
+        term_width = os.get_terminal_size().columns
+    except (OSError, ValueError):
+        term_width = 120
+    # Fixed prefix: 4 indent + 20 key + 2 + 12 backend + 2 + 20 model + 2 + [ok/missing] + 2
+    # [ok] = 4, [missing] = 9 — use 9 as max
+    _PREFIX_WIDTH = 4 + 20 + 2 + 12 + 2 + 20 + 2 + 9 + 2
+    desc_width = max(term_width - _PREFIX_WIDTH, 10)
+
     has_missing = False
     for name, source, cfg, path in teams:
         desc = cfg.get("description", "")
         agents = cfg.get("agents", {})
-        tag = "(built-in)" if source == "built-in" else "(user)"
 
-        # Count available agents
-        available_count = sum(
-            1
-            for acfg in agents.values()
-            if backends.get(_BACKEND_MAP.get(acfg.get("backend", ""), ""), False)
-        )
-        avail_str = f"{available_count}/{len(agents)} available"
-
-        print(f"{name}  {tag}")
+        print(f"{BOLD}{CYAN}{name}{RESET}")
         if desc:
             print(f"  {desc}")
-        print(f"  {_plural(len(agents), 'agent')} ({avail_str})")
-        print(f"  {path}")
+        if source != "built-in":
+            print(f"  {DIM}{path}{RESET}")
 
         for akey, acfg in agents.items():
             backend = acfg.get("backend", "?")
@@ -483,13 +485,15 @@ def _cmd_teams_list() -> None:
                     model = f"default ({smart_model_for_backend(bkey)})"
                 except KeyError:
                     model = "default"
-            adesc = _truncate_word(acfg.get("description", "").split("\n")[0], 60)
+            adesc = _truncate_word(acfg.get("description", "").split("\n")[0], desc_width)
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
-            status = "ok" if ok else "missing"
-            if not ok:
+            if ok:
+                status = f"{GREEN}ok{RESET}"
+            else:
+                status = f"{RED}missing{RESET}"
                 has_missing = True
-            print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]  {adesc}")
+            print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]  {DIM}{adesc}{RESET}")
         print()
 
     # Hint if any agents have missing backends
