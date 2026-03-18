@@ -423,12 +423,30 @@ def _cmd_teams() -> None:
     if subcmd == "add":
         if len(args) < 2:
             _fail("Usage: kodo teams add <name>")
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_add")
+        except Exception:
+            pass
         _cmd_teams_add(args[1])
     elif subcmd == "edit":
         if len(args) < 2:
             _fail("Usage: kodo teams edit <name>")
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_edit")
+        except Exception:
+            pass
         _cmd_teams_edit(args[1])
     elif subcmd == "auto":
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_auto")
+        except Exception:
+            pass
         mode_name = args[1] if len(args) >= 2 else None
         if mode_name:
             _cmd_teams_auto(mode_name)

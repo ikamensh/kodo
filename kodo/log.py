@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import threading
 import time
 from collections import defaultdict
@@ -31,7 +32,10 @@ _lock = threading.Lock()
 
 
 def _runs_root() -> Path:
-    """Central run storage directory: ~/.kodo/runs/."""
+    """Central run storage directory: ~/.kodo/runs/ (override via KODO_RUNS_DIR)."""
+    override = os.environ.get("KODO_RUNS_DIR")
+    if override:
+        return Path(override)
     return Path.home() / ".kodo" / "runs"
 
 
@@ -480,6 +484,7 @@ class RunState:
     stage_summaries: list[str]
     current_stage_cycles: int
     pending_exchanges: list[dict] = field(default_factory=list)
+    is_debug: bool = False
 
 
 def parse_run(log_file: Path) -> RunState | None:
@@ -489,6 +494,7 @@ def parse_run(log_file: Path) -> RunState | None:
     completed_cycles = 0
     last_summary = ""
     finished = False
+    is_debug = False
     agent_session_ids: dict[str, str] = {}
     # Stage tracking
     has_stages = False
@@ -534,6 +540,8 @@ def parse_run(log_file: Path) -> RunState | None:
                     stage_summaries.append(evt.get("summary", ""))
                 current_stage_index = None
                 current_stage_cycles = 0
+            elif event == "debug_run_start":
+                is_debug = True
             elif event == "session_query_end":
                 sid = evt.get("session_id") or evt.get("chat_id")
                 session_name = evt.get("session")
@@ -595,6 +603,7 @@ def parse_run(log_file: Path) -> RunState | None:
         completed_stages=completed_stages,
         stage_summaries=stage_summaries,
         current_stage_cycles=current_stage_cycles,
+        is_debug=is_debug,
     )
 
 

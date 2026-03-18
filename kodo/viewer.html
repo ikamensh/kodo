@@ -189,6 +189,8 @@ body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: v
 #picker .run-status.failed { color: var(--red); }
 #picker .run-model { color: var(--fg-muted); font-size: 11px; min-width: 60px; flex-shrink: 0; text-align: right; }
 #picker .picker-note { font-size: 11px; color: var(--fg-faint); margin-top: 8px; }
+#picker .picker-filters { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12px; color: var(--fg-muted); }
+#picker .picker-filters label { cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
 /* Top-right controls */
 .top-controls { position: fixed; top: 12px; right: 20px; z-index: 200; display: flex; gap: 8px; }
@@ -924,22 +926,66 @@ dz.addEventListener('click', () => {
 });
 
 // -- Log Picker --
+// -- Filter state --
+let _allRuns = [];
+let _showAllProjects = false;
+let _showDebugRuns = false;
+
+function _applyFilters() {
+  const cwd = (typeof EMBEDDED_CWD !== 'undefined') ? EMBEDDED_CWD : null;
+  const hasLocalRuns = cwd && _allRuns.some(r => r.project_dir === cwd);
+
+  let filtered = _allRuns;
+  if (hasLocalRuns && !_showAllProjects) {
+    filtered = filtered.filter(r => r.project_dir === cwd);
+  }
+  if (!_showDebugRuns) {
+    filtered = filtered.filter(r => !r.is_debug);
+  }
+  _renderPickerList(filtered, hasLocalRuns);
+}
+
 function renderPicker(runs) {
+  _allRuns = runs;
   const picker = document.getElementById('picker');
   picker.style.display = 'block';
   document.getElementById('drop-zone').style.display = 'none';
+  _applyFilters();
+}
+
+function _renderPickerList(runs, hasLocalRuns) {
+  const picker = document.getElementById('picker');
 
   // Group by day
   const groups = {};
   for (const r of runs) {
-    // run_id format: YYYYMMDD_HHMMSS
     const day = formatRunDay(r.run_id);
     if (!groups[day]) groups[day] = [];
     groups[day].push(r);
   }
 
+  // Sort day groups: dated groups first (newest on top), "Other" last
+  const dayEntries = Object.entries(groups);
+  dayEntries.sort(([a], [b]) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return 0;
+  });
+
   let html = '<h2>kodo Log Viewer</h2>';
-  for (const [day, dayRuns] of Object.entries(groups)) {
+
+  // Filter controls
+  html += '<div class="picker-filters">';
+  if (hasLocalRuns) {
+    html += `<label><input type="checkbox" id="cb-all-projects" ${_showAllProjects ? 'checked' : ''}> show all projects</label>`;
+  }
+  const hasDebug = _allRuns.some(r => r.is_debug);
+  if (hasDebug) {
+    html += `<label><input type="checkbox" id="cb-debug-runs" ${_showDebugRuns ? 'checked' : ''}> show debug runs</label>`;
+  }
+  html += '</div>';
+
+  for (const [day, dayRuns] of dayEntries) {
     html += `<div class="day-group">`;
     html += `<div class="day-label">${escapeHtml(day)}</div>`;
     for (const r of dayRuns) {
@@ -960,6 +1006,12 @@ function renderPicker(runs) {
   }
   html += `<p class="picker-note">Drag &amp; drop a .jsonl file anywhere to open it directly</p>`;
   picker.innerHTML = html;
+
+  // Filter checkbox handlers
+  const cbAll = document.getElementById('cb-all-projects');
+  if (cbAll) cbAll.addEventListener('change', () => { _showAllProjects = cbAll.checked; _applyFilters(); });
+  const cbDebug = document.getElementById('cb-debug-runs');
+  if (cbDebug) cbDebug.addEventListener('change', () => { _showDebugRuns = cbDebug.checked; _applyFilters(); });
 
   // Click handlers
   picker.querySelectorAll('.run-row').forEach(row => {

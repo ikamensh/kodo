@@ -144,9 +144,12 @@ class ApiOrchestrator(OrchestratorBase):
                     continue
                 try:
                     result = fn()
-                    future.set_result(result)
                 except BaseException as exc:
-                    future.set_exception(exc)
+                    if not future.cancelled():
+                        future.set_exception(exc)
+                else:
+                    if not future.cancelled():
+                        future.set_result(result)
         finally:
             loop.close()
 
@@ -243,7 +246,7 @@ class ApiOrchestrator(OrchestratorBase):
         # during each run_sync call, so tokens consumed during failed
         # attempts are preserved when the next attempt succeeds.
         cumulative_usage = RunUsage()
-        wall_timeout_s = 600  # 10 min — guards against hung API requests
+        wall_timeout_s = 3600  # 60 min — workers can run up to ~40 min normally
         consecutive_timeouts = 0
         for attempt in range(max_retries):
             try:
@@ -444,6 +447,8 @@ class ApiOrchestrator(OrchestratorBase):
                 usage=cumulative_usage,
             )
 
+        if not self._worker_thread.is_alive():
+            raise RuntimeError("Worker thread died — cannot dispatch run_sync()")
         self._task_queue.put((_task, future))
         try:
             return future.result(timeout=timeout_s)

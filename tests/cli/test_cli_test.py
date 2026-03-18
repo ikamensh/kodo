@@ -1,4 +1,4 @@
-"""Tests for kodo.cli._test — tool forge, user story tracking, exploratory testing."""
+"""Tests for kodo.cli._test — attack surface analysis, fault injection, breakage-oriented testing."""
 
 from __future__ import annotations
 
@@ -33,6 +33,7 @@ class TestSlugify:
 
 class TestStageDetection:
     def test_recon_variants(self):
+        assert _is_recon_stage("Attack Surface Analysis") is True
         assert _is_recon_stage("Tool Forge & Story Mapping") is True
         assert _is_recon_stage("Reconnaissance") is True
         assert _is_recon_stage("Audit & Baseline") is True
@@ -41,6 +42,7 @@ class TestStageDetection:
         assert _is_recon_stage("Integration Testing") is False
 
     def test_report_variants(self):
+        assert _is_report_stage("Triage & Regression Tests") is True
         assert _is_report_stage("Regression Tests & Report") is True
         assert _is_report_stage("Final Report") is True
 
@@ -61,22 +63,22 @@ class TestRunTestDiscovery:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Tool Forge & Story Mapping",
-                    description="Build tools",
+                    name="Attack Surface Analysis",
+                    description="Map attack surfaces",
                     acceptance_criteria="Done",
                     persist_changes=True,
                 ),
                 GoalStage(
                     index=2,
-                    name="Testing",
-                    description="Test",
+                    name="Fault Injection",
+                    description="Inject faults",
                     acceptance_criteria="Findings",
                     parallel_group=1,
                 ),
                 GoalStage(
                     index=3,
-                    name="Regression Tests & Report",
-                    description="Report",
+                    name="Triage & Regression Tests",
+                    description="Triage",
                     acceptance_criteria="Report written",
                     persist_changes=True,
                 ),
@@ -127,8 +129,8 @@ class TestRunTestDiscovery:
         assert "src/cli/" in captured["prompt"]
         assert "Target Scope" in captured["prompt"]
 
-    def test_tool_forge_in_prompt(self, tmp_path):
-        """Discovery prompt must mention tool building."""
+    def test_attack_tooling_in_prompt(self, tmp_path):
+        """Discovery prompt must mention attack tooling."""
         run_dir = RunDir.create(tmp_path, "test")
         captured = {}
 
@@ -140,12 +142,11 @@ class TestRunTestDiscovery:
             "kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture
         ):
             run_test_discovery(run_dir, "/tmp/r.md")
-        assert (
-            "Tool Forge" in captured["prompt"] or "tool" in captured["prompt"].lower()
-        )
+        prompt = captured["prompt"].lower()
+        assert "attack" in prompt or "fault" in prompt or "break" in prompt
 
-    def test_story_mapping_in_prompt(self, tmp_path):
-        """Discovery prompt must mention user stories."""
+    def test_attack_surface_in_prompt(self, tmp_path):
+        """Discovery prompt must mention attack surfaces."""
         run_dir = RunDir.create(tmp_path, "test")
         captured = {}
 
@@ -157,10 +158,7 @@ class TestRunTestDiscovery:
             "kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture
         ):
             run_test_discovery(run_dir, "/tmp/r.md")
-        assert (
-            "user stor" in captured["prompt"].lower()
-            or "story" in captured["prompt"].lower()
-        )
+        assert "attack surface" in captured["prompt"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -184,14 +182,30 @@ class TestValidateTestPlan:
         result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
         assert any(_is_recon_stage(s.name) for s in result.stages)
 
+    def test_injected_recon_is_attack_surface(self):
+        plan = GoalPlan(
+            context="Test",
+            stages=[
+                GoalStage(
+                    index=1,
+                    name="Testing",
+                    description="Test",
+                    acceptance_criteria="Done",
+                ),
+            ],
+        )
+        result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
+        recon = [s for s in result.stages if _is_recon_stage(s.name)][0]
+        assert "Attack Surface" in recon.name
+
     def test_adds_missing_report(self):
         plan = GoalPlan(
             context="Test",
             stages=[
                 GoalStage(
                     index=1,
-                    name="Tool Forge",
-                    description="Build",
+                    name="Attack Surface Analysis",
+                    description="Map surfaces",
                     acceptance_criteria="Done",
                 ),
             ],
@@ -199,14 +213,30 @@ class TestValidateTestPlan:
         result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
         assert any(_is_report_stage(s.name) for s in result.stages)
 
+    def test_injected_report_is_triage(self):
+        plan = GoalPlan(
+            context="Test",
+            stages=[
+                GoalStage(
+                    index=1,
+                    name="Attack Surface Analysis",
+                    description="Map surfaces",
+                    acceptance_criteria="Done",
+                ),
+            ],
+        )
+        result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
+        report = [s for s in result.stages if _is_report_stage(s.name)][0]
+        assert "Triage" in report.name
+
     def test_reindexes(self):
         plan = GoalPlan(
             context="Test",
             stages=[
                 GoalStage(
                     index=5,
-                    name="Tool Forge",
-                    description="Build",
+                    name="Attack Surface Analysis",
+                    description="Map",
                     acceptance_criteria="Done",
                 ),
                 GoalStage(
@@ -217,8 +247,8 @@ class TestValidateTestPlan:
                 ),
                 GoalStage(
                     index=15,
-                    name="Regression Tests & Report",
-                    description="Report",
+                    name="Triage & Regression Tests",
+                    description="Triage",
                     acceptance_criteria="Done",
                 ),
             ],
@@ -232,8 +262,8 @@ class TestValidateTestPlan:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Tool Forge",
-                    description="Build",
+                    name="Attack Surface Analysis",
+                    description="Map",
                     acceptance_criteria="Done",
                     persist_changes=True,
                 ),
@@ -246,8 +276,8 @@ class TestValidateTestPlan:
                 ),
                 GoalStage(
                     index=3,
-                    name="Regression Tests & Report",
-                    description="Report",
+                    name="Triage & Regression Tests",
+                    description="Triage",
                     acceptance_criteria="Done",
                     persist_changes=True,
                 ),
@@ -269,42 +299,45 @@ class TestBuildTestFallbackPlan:
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert len(plan.stages) == 4
 
-    def test_first_stage_is_tool_forge(self):
+    def test_first_stage_is_attack_surface(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert "tool forge" in plan.stages[0].name.lower()
+        assert "attack surface" in plan.stages[0].name.lower()
 
-    def test_first_stage_mentions_user_stories(self):
+    def test_first_stage_mentions_attack_surfaces(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert "stor" in plan.stages[0].description.lower()
+        assert "attack" in plan.stages[0].description.lower()
 
     def test_first_stage_mentions_building_tools(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         desc = plan.stages[0].description.lower()
-        assert "build" in desc and "tool" in desc
+        assert "tool" in desc
 
-    def test_last_stage_is_report(self):
+    def test_last_stage_is_triage(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert _is_report_stage(plan.stages[-1].name)
+        assert "triage" in plan.stages[-1].name.lower()
 
     def test_middle_stages_parallel(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
 
-    def test_exploration_stages_reference_tools(self):
-        """Exploration stages should tell agents to use tools from Stage 1."""
+    def test_middle_stages_are_attack_oriented(self):
+        """Middle stages should be about fault injection and state corruption."""
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         for stage in plan.stages[1:3]:
+            desc = stage.description.lower()
+            name = stage.name.lower()
             assert (
-                "stage 1" in stage.description.lower()
-                or "tool" in stage.description.lower()
+                "fault" in desc or "corrupt" in desc or "break" in desc
+                or "fault" in name or "corrupt" in name or "boundar" in name
             )
 
-    def test_tool_forge_persists(self):
+    def test_attack_surface_persists(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert plan.stages[0].persist_changes is True  # tools are deliverable
+        assert plan.stages[0].persist_changes is True
 
-    def test_exploration_read_only(self):
+    def test_attack_stages_read_only(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert plan.stages[1].persist_changes is False
         assert plan.stages[2].persist_changes is False
@@ -317,11 +350,10 @@ class TestBuildTestFallbackPlan:
         plan = _build_test_fallback_plan("/tmp/run/test-report.md", targets=["src/"])
         assert "src/" in plan.context
 
-    def test_context_emphasizes_tools_and_stories(self):
+    def test_context_emphasizes_breakage(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         ctx = plan.context.lower()
-        assert "tool" in ctx
-        assert "stor" in ctx or "workflow" in ctx
+        assert "bug" in ctx or "break" in ctx or "finding" in ctx
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +375,8 @@ class TestExtractTestSection:
 
 
 class TestParseTestReportSummary:
-    def test_full_report(self):
+    def test_full_report_old_format(self):
+        """Backward compat: old report format with separate sections."""
         report = (
             "## Summary\n"
             "- **Findings:** 8 (3/3/2)\n"
@@ -363,9 +396,31 @@ class TestParseTestReportSummary:
         assert r["regression_count"] == 2
         assert r["untestable_count"] == 1
 
+    def test_full_report_new_format(self):
+        """New report format with flat Findings section."""
+        report = (
+            "## Summary\n"
+            "- **Attack surfaces probed:** 5\n"
+            "- **Findings:** 3 (1/0/1/0/1/0/0)\n"
+            "- **Regression tests written:** 2\n\n"
+            "## Findings\n"
+            "- **F1:** crash on empty input\n"
+            "- **F2:** race on concurrent writes\n"
+            "- **F3:** misleading error message\n\n"
+            "## Regression Tests & Fixes\n"
+            "- tests/a.py:t1 — F1\n- tests/b.py:t2 — F2\n\n"
+            "## Unreachable Attack Surfaces\n- Docker testing — needs container\n"
+        )
+        r = parse_test_report_summary(report)
+        assert r["findings_count"] == 3
+        assert r["findings_item_count"] == 3
+        assert r["regression_count"] == 2
+        assert r["untestable_count"] == 1
+
     def test_empty(self):
         r = parse_test_report_summary("")
         assert r["critical_count"] == 0
+        assert r["findings_item_count"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +430,24 @@ class TestParseTestReportSummary:
 
 class TestCollectPriorTestWork:
     def test_collects(self, tmp_path):
+        from kodo.cli._test import _collect_prior_test_work
+
+        run_dir = RunDir.create(tmp_path, "current")
+        runs = tmp_path / "runs"
+        prev = runs / "prev"
+        prev.mkdir(parents=True)
+        (prev / "test-report.md").write_text(
+            "## Regression Tests & Fixes\n- tests/a.py:t — F1\n\n"
+            "## Unreachable Attack Surfaces\n- websocket — needs mock\n",
+            encoding="utf-8",
+        )
+        with patch("kodo.log._runs_root", autospec=True, return_value=runs):
+            result = _collect_prior_test_work(run_dir)
+        assert "tests/a.py" in result
+        assert "websocket" in result
+
+    def test_collects_old_format(self, tmp_path):
+        """Backward compat: old section names still collected."""
         from kodo.cli._test import _collect_prior_test_work
 
         run_dir = RunDir.create(tmp_path, "current")
@@ -419,49 +492,68 @@ class TestCollectPriorTestWork:
 
 
 class TestPromptContent:
-    def test_discovery_emphasizes_tools(self):
+    def test_discovery_emphasizes_breakage(self):
         from kodo.prompts.test import DISCOVERY_PROMPT
 
         p = DISCOVERY_PROMPT.lower()
-        assert "tool" in p
-        assert "build" in p or "forge" in p
+        assert "break" in p or "bug" in p or "fault" in p
 
-    def test_discovery_emphasizes_stories(self):
+    def test_discovery_emphasizes_attack_surfaces(self):
         from kodo.prompts.test import DISCOVERY_PROMPT
 
-        assert "stor" in DISCOVERY_PROMPT.lower()
+        assert "attack surface" in DISCOVERY_PROMPT.lower()
 
-    def test_orchestrator_prevents_unit_test_fallback(self):
+    def test_orchestrator_rejects_zero_findings(self):
         from kodo.prompts.roles import TEST_ORCHESTRATOR_SYSTEM_PROMPT
 
         p = TEST_ORCHESTRATOR_SYSTEM_PROMPT.lower()
-        assert "unit test" in p  # mentioned in the "NOT" context
-        assert "tool" in p
+        assert "zero findings" in p or "push back" in p
 
-    def test_report_has_stories_table(self):
+    def test_orchestrator_fault_finding(self):
+        from kodo.prompts.roles import TEST_ORCHESTRATOR_SYSTEM_PROMPT
+
+        p = TEST_ORCHESTRATOR_SYSTEM_PROMPT.lower()
+        assert "fault" in p or "break" in p
+
+    def test_report_has_attack_surface_table(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
-        assert "User Stories Tested" in TEST_REPORT_FORMAT
+        assert "Attack Surface Coverage" in TEST_REPORT_FORMAT
 
-    def test_report_has_blocked_stories(self):
+    def test_report_has_self_critique(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
-        assert "Blocked Stories" in TEST_REPORT_FORMAT
+        assert "Self-Critique" in TEST_REPORT_FORMAT
 
-    def test_report_has_tools_built(self):
+    def test_report_has_unreachable_surfaces(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
-        assert "Testing Tools Built" in TEST_REPORT_FORMAT
+        assert "Unreachable Attack Surfaces" in TEST_REPORT_FORMAT
 
-    def test_tool_forge_guidance_lists_tool_types(self):
+    def test_tool_forge_guidance_lists_attack_tools(self):
         from kodo.prompts.test import TOOL_FORGE_GUIDANCE
 
         g = TOOL_FORGE_GUIDANCE.lower()
-        assert "cli" in g
-        assert "docker" in g or "environment" in g
-        assert "blocked" in g  # mentions what to do when tools aren't available
+        assert "scenario generator" in g or "state manipulator" in g
+        assert "interrupt" in g or "concurrency" in g
 
-    def test_story_file_constant(self):
-        from kodo.prompts.test import USER_STORY_FILE
+    def test_attack_surface_file_constant(self):
+        from kodo.prompts.test import ATTACK_SURFACE_FILE
 
-        assert USER_STORY_FILE == ".kodo/test-stories.md"
+        assert ATTACK_SURFACE_FILE == ".kodo/attack-surfaces.md"
+
+    def test_methodology_library_attack_oriented(self):
+        from kodo.prompts.test import METHODOLOGY_LIBRARY
+
+        m = METHODOLOGY_LIBRARY.lower()
+        assert "fault injection" in m
+        assert "state corruption" in m
+        assert "boundary" in m
+        assert "assumption" in m
+
+    def test_time_guidance_has_split(self):
+        from kodo.prompts.test import TEST_TIME_GUIDANCE
+
+        t = TEST_TIME_GUIDANCE.lower()
+        assert "20%" in t
+        assert "70%" in t

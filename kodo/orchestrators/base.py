@@ -328,6 +328,13 @@ class OrchestratorBase:
             if cycle_result.finished:
                 break
 
+            try:
+                from kodo.tips import maybe_show_tip
+
+                maybe_show_tip()
+            except Exception:
+                pass
+
             prior_summary = cycle_result.summary
 
     def _run_one_stage(
@@ -562,6 +569,12 @@ class OrchestratorBase:
                 stage_summaries.append(stage_res.summary)
                 completed_count += 1
                 next_index += 1
+                try:
+                    from kodo.tips import maybe_show_tip
+
+                    maybe_show_tip()
+                except Exception:
+                    pass
             else:
                 log.tprint("[orchestrator] Stopping run — stage did not complete")
                 break
@@ -683,6 +696,12 @@ class OrchestratorBase:
 
                 if stage_res.finished:
                     stage_summaries.append(stage_res.summary)
+                    try:
+                        from kodo.tips import maybe_show_tip
+
+                        maybe_show_tip()
+                    except Exception:
+                        pass
                 else:
                     log.tprint("[orchestrator] Stopping run — stage did not complete")
                     break
@@ -719,6 +738,12 @@ class OrchestratorBase:
                 # Add all parallel summaries to context for subsequent stages
                 for pr in parallel_results:
                     stage_summaries.append(pr.summary)
+                try:
+                    from kodo.tips import maybe_show_tip
+
+                    maybe_show_tip()
+                except Exception:
+                    pass
 
     def _run_parallel_group(
         self,

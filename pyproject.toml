@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo"
-version = "0.4.259"
+version = "0.4.260"
 requires-python = ">=3.13"
 dependencies = [
     "claude-agent-sdk>=0.1.36",
@@ -39,7 +39,7 @@ benchmark = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not live and not slow'"
+addopts = "-m 'not live and not slow and not integration'"
 markers = [
     "live: tests that call real backends (require local auth, run with: pytest -m live)",
     "slow: git integration tests with real subprocess calls (run with: pytest -m slow)",

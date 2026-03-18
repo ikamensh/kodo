@@ -115,6 +115,12 @@ def _main_inner() -> None:
         "help": _cmd_help,
     }
     if len(sys.argv) > 1 and sys.argv[1] in _SUBCOMMAND_MAP:
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand(sys.argv[1])
+        except Exception:
+            pass
         _SUBCOMMAND_MAP[sys.argv[1]]()
         return
 
@@ -408,6 +414,13 @@ def _main_inner() -> None:
                 sys.exit(0)
 
         run_dir = RunDir.from_log_file(state.log_file, project_dir)
+        if not args.json:
+            try:
+                from kodo.tips import record_run_start
+
+                record_run_start({}, is_resume=True, json_mode=args.json)
+            except Exception:
+                pass
         try:
             result = launch_resume(
                 run_dir, state, team_override=args.team, debug=args.debug
@@ -415,6 +428,13 @@ def _main_inner() -> None:
         except Exception as exc:
             _fail(str(exc) or type(exc).__name__)
         _emit_json_and_exit(args, result)
+        if not args.json:
+            try:
+                from kodo.tips import show_next_steps
+
+                show_next_steps(run_id=state.run_id)
+            except Exception:
+                pass
         return
 
     # 1. Get goal
@@ -732,6 +752,24 @@ def _main_inner() -> None:
             print("Aborted.")
             sys.exit(0)
 
+    # Record CLI features for progressive learning tips
+    if not args.json:
+        try:
+            from kodo.tips import record_run_start
+
+            record_run_start(
+                params,
+                is_improve=args.improve,
+                is_test=args.test,
+                is_fix_from=bool(args.fix_from),
+                has_focus=bool(args.focus),
+                has_target=bool(args.target),
+                has_goal_file=bool(args.goal_file),
+                json_mode=args.json,
+            )
+        except Exception:
+            pass
+
     # 6. Launch
     try:
         result = launch_run(
@@ -828,6 +866,19 @@ def _main_inner() -> None:
         _emit_json_and_exit(args, result)
     else:
         _emit_json_and_exit(args, result)
+
+    # Post-run: contextual next-step suggestion
+    if not args.json:
+        try:
+            from kodo.tips import show_next_steps
+
+            show_next_steps(
+                run_id=run_dir.run_id,
+                is_improve=args.improve,
+                is_test=args.test,
+            )
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

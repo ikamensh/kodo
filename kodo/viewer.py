@@ -44,18 +44,24 @@ def _build_run_index() -> list[dict]:
                 "finished": r.finished,
                 "completed_cycles": r.completed_cycles,
                 "max_cycles": r.max_cycles,
+                "is_debug": r.is_debug,
             }
         )
     return index
 
 
-def _build_html(log_path: Path | None, include_index: bool = False) -> str:
+def _build_html(
+    log_path: Path | None,
+    include_index: bool = False,
+    project_dir: Path | None = None,
+) -> str:
     template = _VIEWER_HTML.read_text()
 
     # Embed run index if requested
     if include_index:
         index = _build_run_index()
-        idx_js = f"EMBEDDED_INDEX = {json.dumps(index)};"
+        cwd = str(project_dir.resolve()) if project_dir else str(Path.cwd().resolve())
+        idx_js = f"EMBEDDED_INDEX = {json.dumps(index)};\nEMBEDDED_CWD = {json.dumps(cwd)};"
         idx_js = idx_js.replace("</script>", "<\\/script>")
         template = template.replace(_INDEX_MARKER, idx_js)
     else:
