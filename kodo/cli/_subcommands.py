@@ -456,8 +456,6 @@ def _cmd_teams_list() -> None:
     for name, source, cfg, path in teams:
         desc = cfg.get("description", "")
         agents = cfg.get("agents", {})
-        exchanges = cfg.get("max_exchanges", 30)
-        cycles = cfg.get("max_cycles", 5)
         tag = "(built-in)" if source == "built-in" else "(user)"
 
         # Count available agents
@@ -471,9 +469,7 @@ def _cmd_teams_list() -> None:
         print(f"{name}  {tag}")
         if desc:
             print(f"  {desc}")
-        print(
-            f"  {_plural(len(agents), 'agent')} ({avail_str}), {_plural(exchanges, 'exchange')}, {_plural(cycles, 'cycle')}",
-        )
+        print(f"  {_plural(len(agents), 'agent')} ({avail_str})")
         print(f"  {path}")
 
         for akey, acfg in agents.items():
@@ -629,8 +625,6 @@ def _cmd_teams_auto(mode_name: str) -> None:
     config = {
         "name": mode_name,
         "description": base_config.get("description", ""),
-        "max_exchanges": base_config.get("max_exchanges", 30),
-        "max_cycles": base_config.get("max_cycles", 5),
         "verifiers": verifiers,
         "agents": agents,
     }
@@ -810,14 +804,6 @@ def _cmd_teams_add(name: str) -> None:
     if description is None:
         _cancel()
 
-    max_exchanges = questionary.text("Max exchanges:", default="30").ask()
-    if max_exchanges is None:
-        _cancel()
-
-    max_cycles = questionary.text("Max cycles:", default="5").ask()
-    if max_cycles is None:
-        _cancel()
-
     orch_prompt = questionary.text(
         "Orchestrator prompt (Enter to use default):",
         default="",
@@ -876,8 +862,6 @@ def _cmd_teams_add(name: str) -> None:
     config = {
         "name": name,
         "description": description,
-        "max_exchanges": int(max_exchanges),
-        "max_cycles": int(max_cycles),
         "verifiers": verifiers,
         "agents": agents,
     }
@@ -919,8 +903,6 @@ def _cmd_teams_edit(name: str) -> None:
         # Show current state
         print(f"\nTeam: {name}")
         print(f"  Description: {config.get('description', '')}")
-        print(f"  Max exchanges: {config.get('max_exchanges', '?')}")
-        print(f"  Max cycles: {config.get('max_cycles', '?')}")
         orch = config.get("orchestrator_prompt", "")
         if orch:
             snippet = orch[:80].replace("\n", " ")
@@ -993,34 +975,6 @@ def _cmd_teams_edit(name: str) -> None:
             ).ask()
             if desc is not None:
                 config["description"] = desc
-
-            exc = questionary.text(
-                "Max exchanges:",
-                default=str(config.get("max_exchanges", 30)),
-            ).ask()
-            if exc is not None:
-                try:
-                    config["max_exchanges"] = int(exc)
-                except ValueError:
-                    print(
-                        f"Invalid max_exchanges value: {exc!r} (must be an integer)",
-                        file=sys.stderr,
-                    )
-                    continue
-
-            cyc = questionary.text(
-                "Max cycles:",
-                default=str(config.get("max_cycles", 5)),
-            ).ask()
-            if cyc is not None:
-                try:
-                    config["max_cycles"] = int(cyc)
-                except ValueError:
-                    print(
-                        f"Invalid max_cycles value: {cyc!r} (must be an integer)",
-                        file=sys.stderr,
-                    )
-                    continue
 
             orch_prompt = questionary.text(
                 "Orchestrator prompt (Enter to keep default):",

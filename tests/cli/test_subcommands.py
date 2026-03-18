@@ -784,8 +784,6 @@ class TestCmdTeams:
     def test_list_shows_team_info(self, capsys):
         team_cfg = {
             "description": "Full team for big projects",
-            "max_exchanges": 30,
-            "max_cycles": 5,
             "agents": {
                 "worker_fast": {"backend": "claude", "model": "sonnet"},
                 "worker_smart": {"backend": "claude", "model": "opus"},
@@ -829,16 +827,12 @@ class TestCmdTeams:
         """User-defined teams must appear in the listing alongside built-in ones."""
         builtin_cfg = {
             "description": "Built-in full team",
-            "max_exchanges": 30,
-            "max_cycles": 5,
             "agents": {
                 "worker_fast": {"backend": "claude", "model": "sonnet"},
             },
         }
         user_cfg = {
             "description": "My custom team",
-            "max_exchanges": 10,
-            "max_cycles": 2,
             "agents": {
                 "my_agent": {"backend": "claude", "model": "opus"},
             },
@@ -951,8 +945,6 @@ class TestSaveTeam:
         config = {
             "name": "test-team",
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker": {"backend": "claude", "model": "sonnet"},
             },
@@ -970,7 +962,6 @@ class TestSaveTeam:
         saved = json.loads(path.read_text())
         assert saved["name"] == "test-team"
         assert saved["description"] == "Test team"
-        assert saved["max_exchanges"] == 20
         assert "worker" in saved["agents"]
 
         # Verify console output
@@ -1043,8 +1034,6 @@ class TestCmdTeamsAuto:
         """Agents with unavailable backends should be skipped."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_claude": {"backend": "claude", "model": "sonnet"},
                 "worker_cursor": {"backend": "cursor", "model": "composer"},
@@ -1093,8 +1082,6 @@ class TestCmdTeamsAuto:
         """worker_fast should use cursor fallback when original backend missing."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_fast": {"backend": "codex", "model": "gpt-5.3-codex"},
             },
@@ -1136,8 +1123,6 @@ class TestCmdTeamsAuto:
         """worker_smart should use claude fallback when original backend missing."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_smart": {
                     "backend": "gemini-cli",
@@ -1185,8 +1170,6 @@ class TestCmdTeamsAuto:
         """tester and architect should use fallback backends when original missing."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "tester": {"backend": "codex", "model": "gpt-5.3-codex"},
                 "architect": {"backend": "gemini-cli", "model": "gemini-3-pro"},
@@ -1231,8 +1214,6 @@ class TestCmdTeamsAuto:
         """If all agents are filtered out and no fallbacks available, exit with error."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "other_agent": {"backend": "nonexistent", "model": "some-model"},
             },
@@ -1275,8 +1256,6 @@ class TestCmdTeamsAuto:
         """Successful auto generation should create proper config structure."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 30,
-            "max_cycles": 5,
             "orchestrator_prompt": "Custom prompt",
             "agents": {
                 "worker_fast": {
@@ -1324,8 +1303,8 @@ class TestCmdTeamsAuto:
         config = call_args[1]
         assert config["name"] == "myteam"
         assert config["description"] == "Test team"
-        assert config["max_exchanges"] == 30
-        assert config["max_cycles"] == 5
+        assert "max_exchanges" not in config
+        assert "max_cycles" not in config
         assert config["orchestrator_prompt"] == "Custom prompt"
         assert "worker_fast" in config["agents"]
         assert config["verifiers"]["testers"] == ["worker_fast"]
@@ -1338,8 +1317,6 @@ class TestCmdTeamsAuto:
         """Verifiers referencing skipped agents must be removed from the config."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_fast": {"backend": "claude", "model": "sonnet"},
                 "worker_cursor": {"backend": "cursor", "model": "composer"},
@@ -1480,8 +1457,6 @@ class TestCmdTeamsListMissingHint:
         """When agents have missing backends, show the 'kodo teams auto' hint."""
         team_cfg = {
             "description": "Full team",
-            "max_exchanges": 30,
-            "max_cycles": 5,
             "agents": {
                 "worker_fast": {"backend": "claude", "model": "sonnet"},
                 "worker_cursor": {"backend": "cursor", "model": "composer"},
@@ -1514,8 +1489,6 @@ class TestCmdTeamsAutoOverwrite:
     def _base_config(self):
         return {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_fast": {"backend": "claude", "model": "sonnet"},
             },
@@ -1603,8 +1576,6 @@ class TestWorkerSmartNonClaudeFallback:
         """worker_smart falling back to non-claude should drop fallback_model."""
         base_config = {
             "description": "Test team",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker_smart": {
                     "backend": "codex",
@@ -1991,8 +1962,6 @@ class TestCmdTeamsAdd:
         #   6. Agent key name (empty → finish loop)
         text_returns = [
             "My test team",  # description
-            "25",  # max_exchanges
-            "3",  # max_cycles
             "",  # orchestrator prompt (skip)
             "worker",  # agent key name
             "",  # empty → finish loop
@@ -2031,8 +2000,8 @@ class TestCmdTeamsAdd:
         assert saved_name == "newteam"
         assert saved_config["name"] == "newteam"
         assert saved_config["description"] == "My test team"
-        assert saved_config["max_exchanges"] == 25
-        assert saved_config["max_cycles"] == 3
+        assert "max_exchanges" not in saved_config
+        assert "max_cycles" not in saved_config
         assert "worker" in saved_config["agents"]
         assert saved_config["agents"]["worker"] == fake_agent
         # Single agent: no verifier assignment
@@ -2048,8 +2017,6 @@ class TestCmdTeamsAdd:
         """Create a team with two agents — verifier assignment prompts shown."""
         text_returns = [
             "Multi-agent team",  # description
-            "30",  # max_exchanges
-            "5",  # max_cycles
             "Custom prompt",  # orchestrator prompt (non-empty)
             "worker_fast",  # first agent key
             "worker_smart",  # second agent key
@@ -2120,8 +2087,6 @@ class TestCmdTeamsAdd:
         # Sequence: empty (rejected), then "worker", then empty (accepted)
         text_returns = [
             "Team desc",  # description
-            "20",  # max_exchanges
-            "1",  # max_cycles
             "",  # orch prompt
             "",  # empty agent key → "needs at least one"
             "worker",  # real agent key
@@ -2164,8 +2129,6 @@ class TestCmdTeamsAdd:
         """Duplicate agent key name should be rejected."""
         text_returns = [
             "Team desc",  # description
-            "20",  # max_exchanges
-            "1",  # max_cycles
             "",  # orch prompt
             "worker",  # first agent key
             "worker",  # duplicate → rejected
@@ -2228,8 +2191,6 @@ class TestCmdTeamsAdd:
         """Cancelling at agent key prompt should exit."""
         text_returns = [
             "Team desc",  # description
-            "20",  # max_exchanges
-            "1",  # max_cycles
             "",  # orch prompt
             None,  # agent key cancelled
         ]
@@ -2262,8 +2223,6 @@ class TestCmdTeamsEdit:
         return {
             "name": "test-team",
             "description": "Original description",
-            "max_exchanges": 20,
-            "max_cycles": 1,
             "agents": {
                 "worker": {
                     "backend": "claude",
@@ -2300,8 +2259,6 @@ class TestCmdTeamsEdit:
         other_cfg = {
             "name": "other-team",
             "description": "Wrong team",
-            "max_exchanges": 99,
-            "max_cycles": 99,
             "agents": {"wrong_agent": {"backend": "cursor", "model": "composer"}},
             "verifiers": {"testers": [], "browser_testers": [], "reviewers": []},
         }
@@ -2663,12 +2620,10 @@ class TestCmdTeamsEdit:
             m.ask.return_value = next(select_returns)
             return m
 
-        # text prompts for: description, max_exchanges, max_cycles, orchestrator_prompt
+        # text prompts for: description, orchestrator_prompt
         text_returns = iter(
             [
                 "Updated description",  # description
-                "50",  # max_exchanges
-                "10",  # max_cycles
                 "New orch prompt",  # orchestrator_prompt
             ]
         )
@@ -2692,8 +2647,8 @@ class TestCmdTeamsEdit:
 
         saved_config = mock_save.call_args[0][1]
         assert saved_config["description"] == "Updated description"
-        assert saved_config["max_exchanges"] == 50
-        assert saved_config["max_cycles"] == 10
+        assert "max_exchanges" not in saved_config
+        assert "max_cycles" not in saved_config
         assert saved_config["orchestrator_prompt"] == "New orch prompt"
 
     def test_edit_settings_clear_orch_prompt(self, capsys):
@@ -2711,8 +2666,6 @@ class TestCmdTeamsEdit:
         text_returns = iter(
             [
                 "Same desc",  # description
-                "20",  # max_exchanges
-                "1",  # max_cycles
                 "",  # orchestrator_prompt (clear)
             ]
         )
@@ -2736,87 +2689,6 @@ class TestCmdTeamsEdit:
 
         saved_config = mock_save.call_args[0][1]
         assert "orchestrator_prompt" not in saved_config
-
-    def test_edit_settings_invalid_max_exchanges(self, capsys):
-        """Invalid max_exchanges should print error and continue to next action."""
-        cfg = self._base_team_cfg()
-
-        # "Edit team settings" (with invalid exchange), then "Save & exit"
-        select_returns = iter(["Edit team settings", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        text_returns = iter(
-            [
-                "Same desc",  # description
-                "not-a-number",  # max_exchanges (invalid)
-            ]
-        )
-
-        def mock_text(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(text_returns)
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("questionary.text", autospec=True, side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
-        ):
-            _cmd_teams_edit("test-team")
-
-        err = capsys.readouterr().err
-        assert "Invalid max_exchanges" in err
-        # Should still save (continue triggered, next action is Save)
-        mock_save.assert_called_once()
-
-    def test_edit_settings_invalid_max_cycles(self, capsys):
-        """Invalid max_cycles should print error and continue to next action."""
-        cfg = self._base_team_cfg()
-
-        select_returns = iter(["Edit team settings", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        text_returns = iter(
-            [
-                "Same desc",  # description
-                "20",  # max_exchanges (valid)
-                "not-a-number",  # max_cycles (invalid)
-            ]
-        )
-
-        def mock_text(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(text_returns)
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("questionary.text", autospec=True, side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
-        ):
-            _cmd_teams_edit("test-team")
-
-        err = capsys.readouterr().err
-        assert "Invalid max_cycles" in err
-        mock_save.assert_called_once()
 
     def test_edit_verifiers(self, capsys):
         """'Edit verifiers' should update verifier assignments."""
