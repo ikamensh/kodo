@@ -599,9 +599,21 @@ def evaluate_arms_combined(
             results[arm] = evaluate_arm(run_dir, arm, run_id, dataset, on_instance=cb)
         return results
 
+    # Load valid instance IDs from the dataset so we can filter out stale predictions
+    valid_ids: set[str] | None = None
+    if dataset:
+        try:
+            from datasets import load_dataset
+            ds = load_dataset(dataset, split="test")
+            valid_ids = {row["instance_id"] for row in ds}
+            log.info("Loaded %d valid instance IDs from %s", len(valid_ids), dataset)
+        except Exception as exc:
+            log.warning("Could not load dataset for ID filtering: %s", exc)
+
     # Merge all arms' predictions into one file
     combined_file = run_dir / "predictions-_combined_.jsonl"
     total_entries = 0
+    skipped_entries = 0
     with open(combined_file, "w") as out:
         for arm in arm_names:
             safe_arm = _docker_safe(arm)
@@ -611,9 +623,18 @@ def evaluate_arms_combined(
                 continue
             with open(pred_file) as inp:
                 for line in inp:
-                    if line.strip():
-                        out.write(line if line.endswith("\n") else line + "\n")
-                        total_entries += 1
+                    if not line.strip():
+                        continue
+                    if valid_ids is not None:
+                        entry = json.loads(line)
+                        if entry.get("instance_id") not in valid_ids:
+                            skipped_entries += 1
+                            continue
+                    out.write(line if line.endswith("\n") else line + "\n")
+                    total_entries += 1
+
+    if skipped_entries:
+        log.warning("Filtered out %d predictions with IDs not in dataset", skipped_entries)
 
     if total_entries == 0:
         return {arm: _EMPTY_RESULTS.copy() for arm in arm_names}
