@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 780" font-family="Inter, -apple-system, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0f00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1c1208;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="amber" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b" /><stop offset="100%" style="stop-color:#d97706" />
+    </linearGradient>
+    <linearGradient id="darkAmber" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#451a03" /><stop offset="100%" style="stop-color:#2a1000" />
+    </linearGradient>
+    <linearGradient id="orange" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f97316" /><stop offset="100%" style="stop-color:#ea580c" />
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4" /><stop offset="100%" style="stop-color:#0891b2" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#f59e0b">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#475569">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+  </defs>
+
+  <rect width="900" height="780" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="40" text-anchor="middle" fill="#e2e8f0" font-size="24" font-weight="700">Test Mode</text>
+  <text x="450" y="60" text-anchor="middle" fill="#94a3b8" font-size="13">kodo --test [--focus "payment flow"]</text>
+
+  <!-- ===== STEP 1: DISCOVERY ===== -->
+  <rect x="30" y="78" width="840" height="90" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
+  <text x="50" y="98" fill="#fcd34d" font-size="12" font-weight="700">1  DISCOVERY</text>
+
+  <rect x="60" y="110" width="220" height="44" rx="8" fill="url(#darkAmber)" filter="url(#shadow)"/>
+  <text x="170" y="128" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="600">Planning LLM</text>
+  <text x="170" y="144" text-anchor="middle" fill="#64748b" font-size="9">Analyze project for test gaps</text>
+
+  <line x1="280" y1="132" x2="330" y2="132" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="330" y="110" width="250" height="44" rx="8" fill="url(#darkAmber)" filter="url(#shadow)"/>
+  <text x="455" y="128" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="600">Validated Test Plan</text>
+  <text x="455" y="144" text-anchor="middle" fill="#64748b" font-size="9">tool forge + explore stages + regression</text>
+
+  <rect x="620" y="110" width="230" height="44" rx="8" fill="#1f1200" stroke="#78350f" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="735" y="128" text-anchor="middle" fill="#d97706" font-size="11">Optional: --focus "area"</text>
+  <text x="735" y="144" text-anchor="middle" fill="#475569" font-size="9">Narrows testing scope</text>
+
+  <!-- Arrow down -->
+  <line x1="450" y1="168" x2="450" y2="190" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ===== STEP 2: TOOL FORGE & STORY MAPPING ===== -->
+  <rect x="30" y="190" width="840" height="170" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
+  <text x="50" y="210" fill="#fcd34d" font-size="12" font-weight="700">2  TOOL FORGE &amp; USER STORY MAPPING</text>
+  <text x="380" y="210" fill="#475569" font-size="10">Sequential. persist_changes = true. Build before you test.</text>
+
+  <!-- Tool Forge -->
+  <rect x="60" y="225" width="380" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
+  <text x="250" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">Tool Forge</text>
+  <text x="250" y="268" text-anchor="middle" fill="#94a3b8" font-size="10">How do users interact with this software?</text>
+  <line x1="80" y1="278" x2="420" y2="278" stroke="#451a03" stroke-width="1"/>
+  <text x="80" y="296" fill="#d4a574" font-size="10">CLI app?</text>
+  <text x="200" y="296" fill="#64748b" font-size="10">wrapper script, captures output + exit codes</text>
+  <text x="80" y="314" fill="#d4a574" font-size="10">Library?</text>
+  <text x="200" y="314" fill="#64748b" font-size="10">consumer project exercising the API</text>
+  <text x="80" y="332" fill="#d4a574" font-size="10">UI / Game?</text>
+  <text x="200" y="332" fill="#64748b" font-size="10">screenshot capture + visual inspection</text>
+
+  <!-- User Stories -->
+  <rect x="460" y="225" width="390" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
+  <text x="655" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">User Story Mapping</text>
+  <text x="655" y="268" text-anchor="middle" fill="#94a3b8" font-size="10">Map the full user lifecycle</text>
+  <line x1="480" y1="278" x2="830" y2="278" stroke="#451a03" stroke-width="1"/>
+  <text x="490" y="296" fill="#64748b" font-size="10">Discovery → Install → First use → Core workflows</text>
+  <text x="490" y="314" fill="#64748b" font-size="10">Config → Error recovery → Edge cases → Upgrades</text>
+  <text x="490" y="332" fill="#fde68a" font-size="9" font-family="monospace">→ .kodo/test-stories.md</text>
+  <text x="690" y="332" fill="#475569" font-size="9">+ test-recon.md</text>
+
+  <!-- Arrow down -->
+  <line x1="450" y1="360" x2="450" y2="382" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ===== STEP 3: STORY-DRIVEN TESTING ===== -->
+  <rect x="30" y="382" width="840" height="190" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
+  <text x="50" y="402" fill="#fcd34d" font-size="12" font-weight="700">3  STORY-DRIVEN TESTING</text>
+  <text x="260" y="402" fill="#475569" font-size="10">Parallel. Use tools from Stage 2. Work through user stories.</text>
+
+  <!-- Parallel group border -->
+  <rect x="50" y="415" width="800" height="145" rx="8" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="8,4"/>
+  <text x="70" y="432" fill="#06b6d4" font-size="10" font-weight="600">parallel_group = 1  (concurrent in isolated git worktrees)</text>
+
+  <!-- Two test boxes -->
+  <rect x="70" y="442" width="370" height="105" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
+  <text x="255" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Integration &amp; Workflow</text>
+  <text x="255" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Test key user stories end-to-end</text>
+  <text x="255" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">Cross-module interactions</text>
+  <text x="255" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">Update story status in test-stories.md</text>
+  <text x="255" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">→ findings-integration.md</text>
+
+  <rect x="460" y="442" width="370" height="105" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
+  <text x="645" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Exploratory &amp; Adversarial</text>
+  <text x="645" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Try to break things: invalid inputs,</text>
+  <text x="645" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">missing files, interrupted workflows,</text>
+  <text x="645" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">concurrent usage, corrupt configs</text>
+  <text x="645" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">→ findings-exploratory.md</text>
+
+  <!-- Arrow down -->
+  <line x1="450" y1="572" x2="450" y2="595" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ===== STEP 4: REGRESSION, FIXES & REPORT ===== -->
+  <rect x="30" y="595" width="840" height="170" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
+  <text x="50" y="615" fill="#fcd34d" font-size="12" font-weight="700">4  REGRESSION TESTS, FIXES &amp; REPORT</text>
+  <text x="380" y="615" fill="#475569" font-size="10">Sequential. persist_changes = true</text>
+
+  <!-- Fix cycle -->
+  <rect x="60" y="630" width="320" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
+  <text x="220" y="652" text-anchor="middle" fill="#fcd34d" font-size="12" font-weight="600">For each confirmed bug:</text>
+  <line x1="80" y1="660" x2="360" y2="660" stroke="#451a03" stroke-width="1"/>
+
+  <!-- Cycle steps -->
+  <rect x="80" y="670" width="100" height="28" rx="4" fill="#7c2d12"/>
+  <text x="130" y="688" text-anchor="middle" fill="#fde68a" font-size="10" font-weight="600">Write test</text>
+
+  <text x="188" y="688" fill="#475569" font-size="10">→</text>
+
+  <rect x="200" y="670" width="110" height="28" rx="4" fill="#7f1d1d"/>
+  <text x="255" y="688" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="600">Verify fails</text>
+
+  <text x="318" y="688" fill="#475569" font-size="10">→</text>
+
+  <!-- Second row -->
+  <rect x="80" y="706" width="100" height="28" rx="4" fill="#064e3b"/>
+  <text x="130" y="724" text-anchor="middle" fill="#a7f3d0" font-size="10" font-weight="600">Fix code</text>
+
+  <text x="188" y="724" fill="#475569" font-size="10">→</text>
+
+  <rect x="200" y="706" width="110" height="28" rx="4" fill="#065f46"/>
+  <text x="255" y="724" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="600">Verify passes</text>
+
+  <text x="318" y="724" fill="#475569" font-size="10">→</text>
+
+  <text x="345" y="706" fill="#475569" font-size="9">commit separately:</text>
+  <text x="345" y="720" fill="#64748b" font-size="8" font-family="monospace">"test: regression for F&lt;n&gt;"</text>
+  <text x="345" y="733" fill="#64748b" font-size="8" font-family="monospace">"fix: &lt;description&gt;"</text>
+
+  <!-- Report output -->
+  <rect x="410" y="630" width="440" height="120" rx="8" fill="#1f1200" stroke="#f59e0b" stroke-width="2" filter="url(#shadow)"/>
+  <text x="630" y="655" text-anchor="middle" fill="#fcd34d" font-size="16" font-weight="700" font-family="monospace">test-report.md</text>
+  <line x1="430" y1="665" x2="830" y2="665" stroke="#451a03" stroke-width="1"/>
+
+  <!-- Report metrics -->
+  <rect x="430" y="678" width="94" height="52" rx="6" fill="#065f46"/>
+  <text x="477" y="698" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="700">Stories</text>
+  <text x="477" y="718" text-anchor="middle" fill="#a7f3d0" font-size="9">tested / total</text>
+
+  <rect x="534" y="678" width="94" height="52" rx="6" fill="#7c2d12"/>
+  <text x="581" y="698" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="700">Findings</text>
+  <text x="581" y="718" text-anchor="middle" fill="#fde68a" font-size="9">crit / med / low</text>
+
+  <rect x="638" y="678" width="94" height="52" rx="6" fill="#312e81"/>
+  <text x="685" y="698" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="700">Regressions</text>
+  <text x="685" y="718" text-anchor="middle" fill="#a5b4fc" font-size="9">tests written</text>
+
+  <rect x="742" y="678" width="94" height="52" rx="6" fill="#1e293b"/>
+  <text x="789" y="698" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700">Blocked</text>
+  <text x="789" y="718" text-anchor="middle" fill="#cbd5e1" font-size="9">needs tooling</text>
+</svg>

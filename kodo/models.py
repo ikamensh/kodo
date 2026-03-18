@@ -588,5 +588,25 @@ def make_fresh_model(model_str: str):
         )
         return OpenAIChatModel(model_name, provider=provider)
 
-    # Non-Google models: return the string, let pydantic-ai handle it
+    if provider_name == "anthropic":
+        from pydantic_ai.providers.anthropic import AnthropicProvider
+        from pydantic_ai.models.anthropic import AnthropicModel
+
+        fresh_client = _httpx.AsyncClient(
+            timeout=_httpx.Timeout(timeout=600, connect=5),
+        )
+        provider = AnthropicProvider(http_client=fresh_client)
+        return AnthropicModel(model_name, provider=provider)
+
+    if provider_name == "openai":
+        from pydantic_ai.providers.openai import OpenAIProvider
+        from pydantic_ai.models.openai import OpenAIChatModel
+
+        fresh_client = _httpx.AsyncClient(
+            timeout=_httpx.Timeout(timeout=600, connect=5),
+        )
+        provider = OpenAIProvider(http_client=fresh_client)
+        return OpenAIChatModel(model_name, provider=provider)
+
+    # Unknown provider: return the string, let pydantic-ai handle it
     return model_str

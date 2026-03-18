@@ -170,10 +170,9 @@ def select_params() -> dict:
         # Add Ollama models if running
         for ollama_model in list_ollama_models():
             model_choices.append(f"ollama:{ollama_model}")
-        model_choices.append("Custom...")
         if not model_choices:
             model_choices = api_orchestrator_model_options()
-            model_choices.append("Custom...")
+        model_choices.append("Custom...")
 
         selected = _select_one("Orchestrator model:", model_choices)
         if selected == "Custom...":

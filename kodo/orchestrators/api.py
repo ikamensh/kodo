@@ -29,6 +29,7 @@ from kodo.models import (
     ensure_ollama_base_url,
     get_pricing,
     is_ollama_model,
+    make_fresh_model,
     resolve_model,
 )
 from kodo.prompts.roles import ORCHESTRATOR_SYSTEM_PROMPT
@@ -92,10 +93,13 @@ class ApiOrchestrator(OrchestratorBase):
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
         if is_ollama_model(model):
             ensure_ollama_base_url()
-        self._pydantic_model = resolve_model(model)
+        # Use make_fresh_model to avoid pydantic-ai's global httpx client cache.
+        # The cached client binds asyncio primitives to whichever event loop first
+        # uses it, causing "bound to a different event loop" crashes on re-entry.
+        self._pydantic_model = make_fresh_model(resolve_model(model))
         self._fallback_model = fallback_model
         self._fallback_pydantic = (
-            resolve_model(fallback_model) if fallback_model else None
+            make_fresh_model(resolve_model(fallback_model)) if fallback_model else None
         )
         self._summarizer = Summarizer()
         self._http_client: httpx.AsyncClient | None = None
@@ -103,28 +107,15 @@ class ApiOrchestrator(OrchestratorBase):
     def for_parallel(self) -> "ApiOrchestrator":
         """Create a copy safe for use in a parallel thread.
 
-        pydantic-ai caches a process-global ``httpx.AsyncClient`` per provider.
-        That client's transport holds asyncio primitives bound to whatever
-        event loop first used it, so reusing it from a thread with a different
-        loop crashes.  This method creates a new orchestrator whose model is an
-        explicit ``Model`` instance with its own HTTP client, bypassing the
-        cache entirely.
+        Each copy gets its own fresh httpx client via make_fresh_model(),
+        avoiding the pydantic-ai global client cache that binds to event loops.
         """
-        from kodo.models import make_fresh_model
-
-        copy = ApiOrchestrator(
+        return ApiOrchestrator(
             model=self.model,
             max_context_tokens=self.max_context_tokens,
             system_prompt=self._system_prompt,
             fallback_model=self._fallback_model,
         )
-        pydantic_model_str = self._pydantic_model
-        if isinstance(pydantic_model_str, str):
-            copy._pydantic_model = make_fresh_model(pydantic_model_str)
-        else:
-            # Already a Model instance — just use it directly
-            copy._pydantic_model = pydantic_model_str
-        return copy
 
     async def close(self) -> None:
         """Close any HTTP client created by :meth:`for_parallel`."""

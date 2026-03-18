@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Inter, -apple-system, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a3e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goalGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="improveGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="testGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cliGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="engineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="520" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="45" text-anchor="middle" fill="#e2e8f0" font-size="28" font-weight="700" letter-spacing="1">kodo</text>
+  <text x="450" y="70" text-anchor="middle" fill="#94a3b8" font-size="14">Autonomous multi-agent coding orchestrator</text>
+
+  <!-- CLI Box -->
+  <rect x="300" y="90" width="300" height="56" rx="10" fill="url(#cliGrad)" filter="url(#shadow)" opacity="0.95"/>
+  <text x="450" y="115" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">kodo CLI</text>
+  <text x="450" y="133" text-anchor="middle" fill="#ddd6fe" font-size="11" font-family="monospace">--goal  |  --improve  |  --test</text>
+
+  <!-- Connector lines from CLI to modes -->
+  <line x1="370" y1="146" x2="170" y2="195" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+  <line x1="450" y1="146" x2="450" y2="195" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+  <line x1="530" y1="146" x2="730" y2="195" stroke="#64748b" stroke-width="2" stroke-dasharray="6,4"/>
+
+  <!-- GOAL MODE -->
+  <g filter="url(#shadow)">
+    <rect x="55" y="195" width="230" height="280" rx="12" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" opacity="0.95"/>
+    <rect x="55" y="195" width="230" height="44" rx="12" fill="url(#goalGrad)"/>
+    <rect x="55" y="225" width="230" height="14" fill="url(#goalGrad)"/>  <!-- cover bottom radius -->
+    <text x="170" y="222" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Goal Mode</text>
+    <text x="170" y="260" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">1. INTAKE</text>
+    <text x="170" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Chat or auto-plan from goal</text>
+    <polygon points="170,284 174,292 166,292" fill="#6366f1"/>
+    <text x="170" y="308" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">2. TEAM ASSEMBLY</text>
+    <text x="170" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Detect backends, assign roles</text>
+    <polygon points="170,332 174,340 166,340" fill="#6366f1"/>
+    <text x="170" y="356" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">3. STAGED EXECUTION</text>
+    <text x="170" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Sequential + parallel stages</text>
+    <polygon points="170,380 174,388 166,388" fill="#6366f1"/>
+    <text x="170" y="404" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">4. ADAPTIVE ADVISOR</text>
+    <text x="170" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">LLM re-assesses after stages</text>
+    <rect x="85" y="440" width="170" height="24" rx="6" fill="#312e81"/>
+    <text x="170" y="456" text-anchor="middle" fill="#c7d2fe" font-size="10">Committed code changes</text>
+  </g>
+
+  <!-- IMPROVE MODE -->
+  <g filter="url(#shadow)">
+    <rect x="335" y="195" width="230" height="280" rx="12" fill="#022c22" stroke="#10b981" stroke-width="1.5" opacity="0.95"/>
+    <rect x="335" y="195" width="230" height="44" rx="12" fill="url(#improveGrad)"/>
+    <rect x="335" y="225" width="230" height="14" fill="url(#improveGrad)"/>
+    <text x="450" y="222" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Improve Mode</text>
+    <text x="450" y="260" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">1. DISCOVERY</text>
+    <text x="450" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Analyze for improvements</text>
+    <polygon points="450,284 454,292 446,292" fill="#10b981"/>
+    <text x="450" y="308" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">2. PARALLEL ANALYSIS</text>
+    <text x="450" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Simplify | Usability | Arch+Security</text>
+    <polygon points="450,332 454,340 446,340" fill="#10b981"/>
+    <text x="450" y="356" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">3. TRIAGE &amp; VERIFY</text>
+    <text x="450" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Fix / Needs Decision / Skip</text>
+    <polygon points="450,380 454,388 446,388" fill="#10b981"/>
+    <text x="450" y="404" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="600">4. FIX &amp; REPORT</text>
+    <text x="450" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">Apply safe fixes, flag rest</text>
+    <rect x="365" y="440" width="170" height="24" rx="6" fill="#064e3b"/>
+    <text x="450" y="456" text-anchor="middle" fill="#a7f3d0" font-size="10">improve-report.md</text>
+  </g>
+
+  <!-- TEST MODE -->
+  <g filter="url(#shadow)">
+    <rect x="615" y="195" width="230" height="280" rx="12" fill="#1c1917" stroke="#f59e0b" stroke-width="1.5" opacity="0.95"/>
+    <rect x="615" y="195" width="230" height="44" rx="12" fill="url(#testGrad)"/>
+    <rect x="615" y="225" width="230" height="14" fill="url(#testGrad)"/>
+    <text x="730" y="222" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Test Mode</text>
+    <text x="730" y="260" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">1. DISCOVERY</text>
+    <text x="730" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Plan testing approach</text>
+    <polygon points="730,284 734,292 726,292" fill="#f59e0b"/>
+    <text x="730" y="308" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">2. TOOL FORGE &amp; STORIES</text>
+    <text x="730" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Build tools, map user stories</text>
+    <polygon points="730,332 734,340 726,340" fill="#f59e0b"/>
+    <text x="730" y="356" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">3. STORY TESTING</text>
+    <text x="730" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Workflow | Adversarial (parallel)</text>
+    <polygon points="730,380 734,388 726,388" fill="#f59e0b"/>
+    <text x="730" y="404" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">4. REGRESSION &amp; REPORT</text>
+    <text x="730" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">Test fails → fix → test passes</text>
+    <rect x="645" y="440" width="170" height="24" rx="6" fill="#451a03"/>
+    <text x="730" y="456" text-anchor="middle" fill="#fde68a" font-size="10">test-report.md</text>
+  </g>
+
+  <!-- Bottom engine bar -->
+  <rect x="55" y="488" width="790" height="24" rx="6" fill="url(#engineGrad)" stroke="#334155" stroke-width="1"/>
+  <text x="450" y="505" text-anchor="middle" fill="#64748b" font-size="11">Shared Orchestrator Cycle Engine  ·  Gemini Flash orchestrates  ·  Claude / Cursor / Kimi agents execute  ·  Git worktree isolation</text>
+</svg>

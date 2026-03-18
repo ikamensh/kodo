@@ -473,8 +473,18 @@ class OrchestratorBase:
         """Adaptive execution: advisor generates stages one at a time."""
         from kodo import log
 
-        # Use a separate plan for compose_stage_goal — only advisor-generated stages
-        adaptive_plan = GoalPlan(context=plan.context, stages=[])
+        # Use a separate plan for compose_stage_goal.
+        # Pre-populate with placeholders for completed stages so indices are valid.
+        placeholder_stages = [
+            GoalStage(
+                index=i + 1,
+                name=f"(completed stage {i + 1})",
+                description="",
+                acceptance_criteria="(completed)",
+            )
+            for i in range(start_stage_idx)
+        ]
+        adaptive_plan = GoalPlan(context=plan.context, stages=placeholder_stages)
         completed_count = start_stage_idx
         next_index = completed_count + 1
 

@@ -383,7 +383,8 @@ class TestCollectPriorTestWork:
         prev.mkdir(parents=True)
         (prev / "test-report.md").write_text(
             "## Regression Tests & Fixes\n- tests/a.py:t — F1\n\n"
-            "## Untestable Gaps\n- websocket — needs mock\n"
+            "## Untestable Gaps\n- websocket — needs mock\n",
+            encoding="utf-8",
         )
         with patch("kodo.log._runs_root", autospec=True, return_value=runs):
             result = _collect_prior_test_work(run_dir)

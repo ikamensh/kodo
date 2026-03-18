@@ -784,17 +784,13 @@ class TestForParallel:
         assert copy._system_prompt == "custom prompt"
         assert copy._fallback_model == "claude-sonnet-4-5"
 
-    def test_for_parallel_with_non_string_model(self):
-        """for_parallel() handles model that's already a Model instance."""
-        from unittest.mock import MagicMock
-
-        orch = ApiOrchestrator(model="claude-opus-4-6")
-        mock_model = MagicMock()
-        orch._pydantic_model = mock_model
+    def test_for_parallel_creates_fresh_model(self):
+        """for_parallel() creates a new instance with its own fresh model."""
+        orch = ApiOrchestrator(model="gemini-flash")
 
         copy = orch.for_parallel()
-        # Should use the same model instance directly
-        assert copy._pydantic_model is mock_model
+        # Each instance should have its own model (not sharing cached clients)
+        assert copy._pydantic_model is not orch._pydantic_model
 
 
 class TestMessagesToText:

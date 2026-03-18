@@ -78,15 +78,21 @@ class TestPydanticModelMap:
 
 
 class TestMakeFreshModel:
-    def test_non_google_returns_string(self):
-        """Non-Google model strings are returned unchanged."""
+    def test_anthropic_returns_model_instance(self):
+        """anthropic: prefix creates an AnthropicModel instance."""
         result = make_fresh_model("anthropic:claude-opus-4-6")
-        assert result == "anthropic:claude-opus-4-6"
+        from pydantic_ai.models.anthropic import AnthropicModel
+        assert isinstance(result, AnthropicModel)
 
     def test_no_colon_returns_string(self):
         """Model string without provider prefix is returned as-is."""
         result = make_fresh_model("claude-opus-4-6")
         assert result == "claude-opus-4-6"
+
+    def test_unknown_provider_returns_string(self):
+        """Unknown provider prefix is returned as-is."""
+        result = make_fresh_model("mystery:some-model")
+        assert result == "mystery:some-model"
 
     @pytest.mark.live
     def test_google_gla_returns_google_model(self):

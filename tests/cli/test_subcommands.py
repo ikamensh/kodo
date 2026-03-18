@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -675,7 +676,7 @@ class TestCmdBackends:
     def test_orchestrator_model_ready_status(self, capsys):
         """When API key is set, orchestrator models should show 'ready'."""
         with (
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
