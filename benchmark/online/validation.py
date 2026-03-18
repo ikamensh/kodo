@@ -59,7 +59,9 @@ def suspicious_upload_reason(
     texts = list(_iter_strings(agent_output))
     joined_text = _normalized_text("\n".join([error, *texts]))
 
-    if _is_kodo_worker_broken(arm=arm, agent_output=agent_output, joined_text=joined_text):
+    if _is_kodo_worker_broken(
+        arm=arm, agent_output=agent_output, joined_text=joined_text
+    ):
         return "kodo_worker_broken"
 
     if _is_empty_agent_output(agent_output):
@@ -86,8 +88,8 @@ def _is_kodo_worker_broken(*, arm: str, agent_output: object, joined_text: str) 
         return False
     if isinstance(agent_output, dict) and agent_output.get("status") == "error":
         return True
-    return (
-        "[worker]" in joined_text and any(marker in joined_text for marker in _KODO_WORKER_FAILURE_MARKERS)
+    return "[worker]" in joined_text and any(
+        marker in joined_text for marker in _KODO_WORKER_FAILURE_MARKERS
     )
 
 

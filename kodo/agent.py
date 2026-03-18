@@ -137,7 +137,9 @@ class Agent:
             query_result = self._run_timed(goal, project_dir, label)
         else:
             query_result = self.session.query(
-                goal, project_dir, max_turns=self.max_turns,
+                goal,
+                project_dir,
+                max_turns=self.max_turns,
             )
 
         bucket = self.session.cost_bucket
@@ -187,7 +189,9 @@ class Agent:
         def worker() -> None:
             try:
                 result = self.session.query(
-                    goal, project_dir, max_turns=self.max_turns,
+                    goal,
+                    project_dir,
+                    max_turns=self.max_turns,
                 )
                 future.set_result(result)
             except BaseException as e:

@@ -46,7 +46,10 @@ def assess(
 
     def _run():
         fresh_model = make_fresh_model(model)
-        agent = Agent(fresh_model, system_prompt="You are a convergence assessor. Respond only with valid JSON.")
+        agent = Agent(
+            fresh_model,
+            system_prompt="You are a convergence assessor. Respond only with valid JSON.",
+        )
         return agent.run_sync(prompt)
 
     try:

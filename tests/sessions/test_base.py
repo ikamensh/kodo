@@ -77,7 +77,9 @@ class ConcreteSubprocessSession(SubprocessSession):
 
     def clone(self):
         """Return a fresh session."""
-        return ConcreteSubprocessSession(self.model, self.system_prompt, self._timeout_s)
+        return ConcreteSubprocessSession(
+            self.model, self.system_prompt, self._timeout_s
+        )
 
 
 class TestPrependSystemPrompt:
@@ -207,7 +209,10 @@ class TestSubprocessWait:
         # Create a long-running process
         proc, stderr_chunks, thread = session._spawn(["sleep", "10"])
 
-        with patch("kodo.log.emit", autospec=True) as mock_emit, patch("kodo.log.tprint", autospec=True):
+        with (
+            patch("kodo.log.emit", autospec=True) as mock_emit,
+            patch("kodo.log.tprint", autospec=True),
+        ):
             session._wait(proc, stderr_chunks, thread)
 
         assert session._did_timeout is True
@@ -230,7 +235,10 @@ class TestSubprocessWait:
         stderr_chunks = []
         thread = MagicMock()
 
-        with patch("kodo.log.emit", autospec=True), patch("kodo.log.tprint", autospec=True):
+        with (
+            patch("kodo.log.emit", autospec=True),
+            patch("kodo.log.tprint", autospec=True),
+        ):
             stderr = session._wait(proc, stderr_chunks, thread)
 
         # Should not raise, just handle the error
@@ -248,7 +256,10 @@ class TestSubprocessWait:
         stderr_chunks = []
         thread = MagicMock()
 
-        with patch("kodo.log.emit", autospec=True), patch("kodo.log.tprint", autospec=True):
+        with (
+            patch("kodo.log.emit", autospec=True),
+            patch("kodo.log.tprint", autospec=True),
+        ):
             session._wait(proc, stderr_chunks, thread)
 
         # Should have called kill after terminate failed
@@ -272,7 +283,9 @@ class TestSubprocessWait:
         # Check for zombie process logging
         emit_calls = [str(call) for call in mock_emit.call_args_list]
         zombie_logged = any("zombie" in str(call).lower() for call in emit_calls)
-        assert zombie_logged or any("zombie" in str(call).lower() for call in mock_tprint.call_args_list)
+        assert zombie_logged or any(
+            "zombie" in str(call).lower() for call in mock_tprint.call_args_list
+        )
 
 
 class TestTerminate:
@@ -522,7 +535,11 @@ class TestStderrDrainEdgeCases:
         # Create a command that outputs a very long line to stderr
         # The truncation happens at 65536 bytes per line
         # Since we write without a newline, it stays in the buffer until process ends
-        cmd = [sys.executable, "-c", "import sys; sys.stderr.write('x' * 100000 + '\\n')"]
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.write('x' * 100000 + '\\n')",
+        ]
 
         proc, stderr_chunks, thread = session._spawn(cmd)
         stderr = session._wait(proc, stderr_chunks, thread)
@@ -533,7 +550,7 @@ class TestStderrDrainEdgeCases:
         # (The actual behavior depends on when chunks are processed)
         assert len(stderr) > 0
         # At minimum, verify the stderr was captured
-        assert 'x' in stderr
+        assert "x" in stderr
 
     def test_stderr_max_lines_limit(self):
         """Stderr output is limited to max lines."""

@@ -112,10 +112,14 @@ class TestIntakeInterviewLoop:
         with (
             patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
             patch(
-                "builtins.input", autospec=True, side_effect=AssertionError("should not prompt user")
+                "builtins.input",
+                autospec=True,
+                side_effect=AssertionError("should not prompt user"),
             ),
         ):
-            result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
+            result, session_out = run_intake_chat(
+                "claude", run_dir, "Build a game", staged=True
+            )
 
         # Initial query + parallelism pass — no user input waited for
         assert session.stats.queries == 2
@@ -146,7 +150,9 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
             patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
-            result, session_out = run_intake_chat("claude", run_dir, "Build a web app", staged=False)
+            result, session_out = run_intake_chat(
+                "claude", run_dir, "Build a web app", staged=False
+            )
 
         assert result == "Refined goal text"
         assert session_out is None  # non-staged doesn't keep session
@@ -186,7 +192,9 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
             patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
-            result, session_out = run_intake_chat("claude", run_dir, "Build a game", staged=True)
+            result, session_out = run_intake_chat(
+                "claude", run_dir, "Build a game", staged=True
+            )
 
         assert result is not None
         assert len(result.stages) == 1
@@ -207,7 +215,9 @@ class TestIntakeOutputFile:
             patch("kodo.cli._intake.make_session", autospec=True, return_value=session),
             patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
-            result, session_out = run_intake_chat("claude", run_dir, "Vague goal", staged=False)
+            result, session_out = run_intake_chat(
+                "claude", run_dir, "Vague goal", staged=False
+            )
 
         assert result is None
         assert session_out is None
@@ -266,7 +276,9 @@ class TestAutoRefine:
             },
         )
 
-        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
+        with patch(
+            "kodo.cli._intake.make_session", autospec=True, return_value=session
+        ):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result == "Refined: build a REST API with auth"
@@ -279,7 +291,9 @@ class TestAutoRefine:
             response_text="Implicit: needs pagination and rate limiting"
         )
 
-        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
+        with patch(
+            "kodo.cli._intake.make_session", autospec=True, return_value=session
+        ):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is not None
@@ -293,7 +307,9 @@ class TestAutoRefine:
         run_dir = RunDir.create(project, "test_auto_empty")
         session = FakeSession(response_text="")
 
-        with patch("kodo.cli._intake.make_session", autospec=True, return_value=session):
+        with patch(
+            "kodo.cli._intake.make_session", autospec=True, return_value=session
+        ):
             result = run_intake_auto("claude", run_dir, "Build an API")
 
         assert result is None
@@ -366,7 +382,9 @@ class TestIntakeChatSessionError:
             patch("builtins.input", autospec=True, side_effect=lambda *a: next(inputs)),
         ):
             # Should not raise — loop catches errors and continues
-            result, session_out = run_intake_chat("claude", run_dir, "My goal", staged=False)
+            result, session_out = run_intake_chat(
+                "claude", run_dir, "My goal", staged=False
+            )
 
         # No output file → returns None
         assert result is None

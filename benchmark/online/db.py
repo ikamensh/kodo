@@ -56,7 +56,10 @@ def _bucket():
 
 
 def save_task_result(
-    dataset: str, instance_id: str, arm: str, data: dict,
+    dataset: str,
+    instance_id: str,
+    arm: str,
+    data: dict,
 ) -> None:
     """Upsert a single task result. Merges into the arms map."""
     from google.cloud import firestore
@@ -80,12 +83,14 @@ def iter_task_results(dataset: str) -> list[dict]:
     for doc in coll.stream():
         data = doc.to_dict() or {}
         for arm, arm_data in (data.get("arms") or {}).items():
-            rows.append({
-                "dataset": dataset,
-                "instance_id": doc.id,
-                "arm": arm,
-                **arm_data,
-            })
+            rows.append(
+                {
+                    "dataset": dataset,
+                    "instance_id": doc.id,
+                    "arm": arm,
+                    **arm_data,
+                }
+            )
     return rows
 
 
@@ -154,10 +159,13 @@ def clear_eval_status_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
         batch = _db().batch()
         for instance_id, arm in rows[i : i + 500]:
             doc_ref = coll.document(instance_id)
-            batch.update(doc_ref, {
-                f"arms.{arm}.eval_status": firestore.DELETE_FIELD,
-                f"arms.{arm}.resolved": firestore.DELETE_FIELD,
-            })
+            batch.update(
+                doc_ref,
+                {
+                    f"arms.{arm}.eval_status": firestore.DELETE_FIELD,
+                    f"arms.{arm}.resolved": firestore.DELETE_FIELD,
+                },
+            )
         batch.commit()
     if rows:
         _mark_dirty(dataset)
@@ -225,7 +233,11 @@ def save_eval_results(
             doc_ref = coll.document(iid)
             batch.set(
                 doc_ref,
-                {"arms": {arm: {**eval_data, "updated_at": firestore.SERVER_TIMESTAMP}}},
+                {
+                    "arms": {
+                        arm: {**eval_data, "updated_at": firestore.SERVER_TIMESTAMP}
+                    }
+                },
                 merge=True,
             )
         batch.commit()
@@ -267,7 +279,10 @@ def get_index_json(dataset: str) -> bytes:
             # Check staleness from blob metadata
             blob.reload()
             if blob.updated:
-                age = (datetime.now(timezone.utc) - blob.updated.replace(tzinfo=timezone.utc)).total_seconds()
+                age = (
+                    datetime.now(timezone.utc)
+                    - blob.updated.replace(tzinfo=timezone.utc)
+                ).total_seconds()
                 if age > STALE_SECONDS:
                     needs_rebuild = True
 
@@ -340,7 +355,9 @@ def head_to_head_index(index: dict, opponent_arm: str = "cursor") -> dict:
             "dataset": dataset,
             "total_tasks": len(filtered_tasks),
             "total_evaluated": len(filtered_tasks),
-            "last_updated": meta.get("last_updated", datetime.now(timezone.utc).isoformat()),
+            "last_updated": meta.get(
+                "last_updated", datetime.now(timezone.utc).isoformat()
+            ),
             "view_mode": "head_to_head",
             "comparison": {
                 "primary_arm": kodo_arm,
@@ -360,7 +377,9 @@ def get_snapshot_index_json(dataset: str, snapshot_prefix: str) -> bytes:
     """Read a frozen snapshot index from GCS."""
     blob = _bucket().blob(f"snapshots/{snapshot_prefix}/data/{dataset}/index.json")
     if not blob.exists():
-        raise FileNotFoundError(f"Snapshot index not found: {snapshot_prefix}/{dataset}")
+        raise FileNotFoundError(
+            f"Snapshot index not found: {snapshot_prefix}/{dataset}"
+        )
     return blob.download_as_bytes()
 
 
@@ -537,19 +556,27 @@ def get_patch(dataset: str, instance_id: str, arm: str) -> str | None:
     return None
 
 
-def get_snapshot_patch(dataset: str, instance_id: str, arm: str, snapshot_prefix: str) -> str | None:
+def get_snapshot_patch(
+    dataset: str, instance_id: str, arm: str, snapshot_prefix: str
+) -> str | None:
     """Read a single frozen snapshot patch from GCS."""
-    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff")
+    blob = _bucket().blob(
+        f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff"
+    )
     if blob.exists():
         return blob.download_as_text()
     return None
 
 
-def save_snapshot_patch(snapshot_prefix: str, dataset: str, instance_id: str, arm: str, patch: str) -> None:
+def save_snapshot_patch(
+    snapshot_prefix: str, dataset: str, instance_id: str, arm: str, patch: str
+) -> None:
     """Write a single frozen snapshot patch to GCS."""
     if not patch:
         return
-    blob = _bucket().blob(f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff")
+    blob = _bucket().blob(
+        f"snapshots/{snapshot_prefix}/patches/{dataset}/{instance_id}/{arm}.diff"
+    )
     blob.upload_from_string(patch, content_type="text/plain")
 
 
@@ -628,16 +655,18 @@ def create_token(*, name: str, issued_to: str, notes: str = "") -> str:
 
     token = f"kb_{secrets.token_urlsafe(32)}"
     doc_ref = _db().collection("tokens").document(_token_hash(token))
-    doc_ref.set({
-        "name": name,
-        "issued_to": issued_to,
-        "notes": notes,
-        "prefix": token[:8],  # for identification in the UI
-        "active": True,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "last_used_at": None,
-        "usage_count": 0,
-    })
+    doc_ref.set(
+        {
+            "name": name,
+            "issued_to": issued_to,
+            "notes": notes,
+            "prefix": token[:8],  # for identification in the UI
+            "active": True,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "last_used_at": None,
+            "usage_count": 0,
+        }
+    )
     return token
 
 
@@ -657,10 +686,12 @@ def validate_token(token: str) -> dict | None:
         return None
     # Update usage stats (best-effort, don't fail auth on this)
     try:
-        doc_ref.update({
-            "last_used_at": firestore.SERVER_TIMESTAMP,
-            "usage_count": firestore.Increment(1),
-        })
+        doc_ref.update(
+            {
+                "last_used_at": firestore.SERVER_TIMESTAMP,
+                "usage_count": firestore.Increment(1),
+            }
+        )
     except Exception:
         pass
     return data
@@ -767,7 +798,11 @@ def _get_active_claims(dataset: str) -> set[tuple[str, str]]:
             continue
         # Firestore timestamps may or may not have tzinfo
         if hasattr(expires_at, "replace"):
-            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            exp = (
+                expires_at
+                if expires_at.tzinfo
+                else expires_at.replace(tzinfo=timezone.utc)
+            )
         else:
             continue
         if exp > now:
@@ -799,13 +834,16 @@ def _create_claims(
         batch = _db().batch()
         for a in assignments[i : i + 500]:
             doc_id = f"{a['instance_id']}___{a['arm']}"
-            batch.set(coll.document(doc_id), {
-                "instance_id": a["instance_id"],
-                "arm": a["arm"],
-                "contributor": contributor,
-                "claimed_at": firestore.SERVER_TIMESTAMP,
-                "expires_at": expires_at,
-            })
+            batch.set(
+                coll.document(doc_id),
+                {
+                    "instance_id": a["instance_id"],
+                    "arm": a["arm"],
+                    "contributor": contributor,
+                    "claimed_at": firestore.SERVER_TIMESTAMP,
+                    "expires_at": expires_at,
+                },
+            )
         batch.commit()
 
 
@@ -813,7 +851,9 @@ def release_claim(dataset: str, instance_id: str, arm: str) -> None:
     """Release a claim (called when a result is uploaded)."""
     doc_id = f"{instance_id}___{arm}"
     try:
-        _db().collection("datasets").document(dataset).collection("claims").document(doc_id).delete()
+        _db().collection("datasets").document(dataset).collection("claims").document(
+            doc_id
+        ).delete()
     except Exception:
         pass  # best-effort
 
@@ -822,7 +862,9 @@ def release_claim(dataset: str, instance_id: str, arm: str) -> None:
 
 
 def touch_activity(
-    dataset: str, contributor: str, arms: list[str],
+    dataset: str,
+    contributor: str,
+    arms: list[str],
 ) -> None:
     """Record that a contributor is actively working on these arms.
 
@@ -843,12 +885,15 @@ def touch_activity(
     batch = _db().batch()
     for arm in arms:
         doc_id = f"{contributor}___{arm}"
-        batch.set(coll.document(doc_id), {
-            "contributor": contributor,
-            "arm": arm,
-            "last_seen": firestore.SERVER_TIMESTAMP,
-            "expires_at": expires_at,
-        })
+        batch.set(
+            coll.document(doc_id),
+            {
+                "contributor": contributor,
+                "arm": arm,
+                "last_seen": firestore.SERVER_TIMESTAMP,
+                "expires_at": expires_at,
+            },
+        )
     batch.commit()
 
 
@@ -863,7 +908,11 @@ def get_arm_pressure(dataset: str) -> dict[str, int]:
         if expires_at is None:
             continue
         if hasattr(expires_at, "replace"):
-            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            exp = (
+                expires_at
+                if expires_at.tzinfo
+                else expires_at.replace(tzinfo=timezone.utc)
+            )
         else:
             continue
         if exp > now:
@@ -895,7 +944,11 @@ def get_scheduling_info(dataset: str) -> dict:
         if expires_at is None:
             continue
         if hasattr(expires_at, "replace"):
-            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            exp = (
+                expires_at
+                if expires_at.tzinfo
+                else expires_at.replace(tzinfo=timezone.utc)
+            )
         else:
             continue
         if exp > now:
@@ -904,12 +957,16 @@ def get_scheduling_info(dataset: str) -> dict:
             last_seen = data.get("last_seen")
             if arm:
                 pressure[arm] = pressure.get(arm, 0) + 1
-                activity.append({
-                    "contributor": contributor,
-                    "arm": arm,
-                    "last_seen": last_seen.isoformat() if hasattr(last_seen, "isoformat") else str(last_seen or ""),
-                    "expires_at": exp.isoformat(),
-                })
+                activity.append(
+                    {
+                        "contributor": contributor,
+                        "arm": arm,
+                        "last_seen": last_seen.isoformat()
+                        if hasattr(last_seen, "isoformat")
+                        else str(last_seen or ""),
+                        "expires_at": exp.isoformat(),
+                    }
+                )
 
     # Active claims
     claims: list[dict] = []
@@ -920,18 +977,26 @@ def get_scheduling_info(dataset: str) -> dict:
         if expires_at is None:
             continue
         if hasattr(expires_at, "replace"):
-            exp = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+            exp = (
+                expires_at
+                if expires_at.tzinfo
+                else expires_at.replace(tzinfo=timezone.utc)
+            )
         else:
             continue
         if exp > now:
             claimed_at = data.get("claimed_at")
-            claims.append({
-                "instance_id": data.get("instance_id", ""),
-                "arm": data.get("arm", ""),
-                "contributor": data.get("contributor", ""),
-                "claimed_at": claimed_at.isoformat() if hasattr(claimed_at, "isoformat") else str(claimed_at or ""),
-                "expires_at": exp.isoformat(),
-            })
+            claims.append(
+                {
+                    "instance_id": data.get("instance_id", ""),
+                    "arm": data.get("arm", ""),
+                    "contributor": data.get("contributor", ""),
+                    "claimed_at": claimed_at.isoformat()
+                    if hasattr(claimed_at, "isoformat")
+                    else str(claimed_at or ""),
+                    "expires_at": exp.isoformat(),
+                }
+            )
 
     return {
         "arm_pressure": pressure,

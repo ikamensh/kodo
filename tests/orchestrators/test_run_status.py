@@ -24,14 +24,22 @@ def test_write_includes_agent_stats(tmp_path: Path):
 
     stats = log.get_run_stats()
     stats.record_agent(
-        "worker_fast", cost_usd=0.01,
-        input_tokens=30000, output_tokens=15000,
-        elapsed_s=492.0, is_error=False, cost_bucket="claude_subscription",
+        "worker_fast",
+        cost_usd=0.01,
+        input_tokens=30000,
+        output_tokens=15000,
+        elapsed_s=492.0,
+        is_error=False,
+        cost_bucket="claude_subscription",
     )
     stats.record_agent(
-        "tester", cost_usd=0.0,
-        input_tokens=8000, output_tokens=4000,
-        elapsed_s=225.0, is_error=False, cost_bucket="cursor_subscription",
+        "tester",
+        cost_usd=0.0,
+        input_tokens=8000,
+        output_tokens=4000,
+        elapsed_s=225.0,
+        is_error=False,
+        cost_bucket="cursor_subscription",
     )
 
     content = write_run_status(tmp_path, "goal")
@@ -44,9 +52,11 @@ def test_write_includes_agent_stats(tmp_path: Path):
 def test_write_includes_stage_label(tmp_path: Path):
     """Stage label appears in progress section."""
     content = write_run_status(
-        tmp_path, "goal",
+        tmp_path,
+        "goal",
         stage_label="2/3: Implementation",
-        cycle_num=3, max_cycles=5,
+        cycle_num=3,
+        max_cycles=5,
     )
     assert "2/3: Implementation" in content
     assert "Cycle: 3/5" in content

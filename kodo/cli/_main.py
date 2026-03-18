@@ -20,7 +20,14 @@ from kodo.cli._improve import (  # noqa: E402
     _extract_section,
     run_improve_discovery,
 )
+from kodo.cli._test import (  # noqa: E402
+    _build_test_fallback_plan,
+    _collect_prior_test_work,
+    parse_test_report_summary,
+    run_test_discovery,
+)
 from kodo.prompts.improve import IMPROVE_GOAL, IMPROVE_REPORT_FORMAT  # noqa: E402
+from kodo.prompts.test import TEST_GOAL, TEST_REPORT_FORMAT  # noqa: E402
 from kodo.cli._intake import (  # noqa: E402
     _load_goal_plan,
     _offer_intake,
@@ -51,12 +58,6 @@ from kodo.cli._subcommands import (  # noqa: E402
 )
 from kodo.cli._ui import _print_banner  # noqa: E402
 from kodo.factory import TEAMS, get_team, preferred_backend  # noqa: E402
-from kodo.models import (  # noqa: E402
-    CLAUDE_OPUS,
-    CLAUDE_SONNET,
-    GEMINI_ALIAS_FLASH,
-    GEMINI_ALIAS_PRO,
-)
 from kodo.log import RunDir  # noqa: E402
 from kodo.orchestrators.base import GoalPlan  # noqa: E402
 
@@ -100,11 +101,16 @@ def _main_inner() -> None:
         _main_inner()
 
     _SUBCOMMAND_MAP = {
-        "run": _cmd_runs, "runs": _cmd_runs,
-        "backend": _cmd_backends, "backends": _cmd_backends,
-        "team": _cmd_teams, "teams": _cmd_teams,
-        "log": _cmd_logs, "logs": _cmd_logs,
-        "issue": _cmd_issue, "issues": _cmd_issue,
+        "run": _cmd_runs,
+        "runs": _cmd_runs,
+        "backend": _cmd_backends,
+        "backends": _cmd_backends,
+        "team": _cmd_teams,
+        "teams": _cmd_teams,
+        "log": _cmd_logs,
+        "logs": _cmd_logs,
+        "issue": _cmd_issue,
+        "issues": _cmd_issue,
         "update": _cmd_update,
         "help": _cmd_help,
     }
@@ -112,9 +118,13 @@ def _main_inner() -> None:
         _SUBCOMMAND_MAP[sys.argv[1]]()
         return
 
+    # "kodo test [...]" → "kodo --test [...]" — natural subcommand alias
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        sys.argv[1] = "--test"
+
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo runs     List all known runs\n  kodo logs     Open log viewer in browser\n  kodo issue    Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo test      Generate tests to improve coverage\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
@@ -147,11 +157,24 @@ def _main_inner() -> None:
         default=False,
         help="Analyze codebase, auto-fix safe issues, and produce an improvement report.",
     )
+    goal_group.add_argument(
+        "--test",
+        action="store_true",
+        default=False,
+        help="Generate tests to improve coverage. Writes new tests, runs them, commits passing ones.",
+    )
     parser.add_argument(
         "--focus",
         type=str,
         default=None,
-        help="Short guidance on what to focus on during --improve (e.g. 'error handling in CLI').",
+        help="Short guidance on what to focus on during --improve or --test (e.g. 'error handling in CLI').",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        action="append",
+        default=None,
+        help="File or directory to target for --test (repeatable). E.g. --target src/auth/ --target api.py.",
     )
 
     # Non-interactive config flags — discover available teams dynamically
@@ -166,7 +189,10 @@ def _main_inner() -> None:
         help="Team preset (default: full).",
     )
     parser.add_argument(
-        "--exchanges", type=int, default=None, help="Max exchanges per cycle.",
+        "--exchanges",
+        type=int,
+        default=None,
+        help="Max exchanges per cycle.",
     )
     parser.add_argument("--cycles", type=int, default=None, help="Max cycles.")
     parser.add_argument(
@@ -265,21 +291,36 @@ def _main_inner() -> None:
 
     # --resume must not be an empty string
     if args.resume is not None and args.resume == "":
-        _fail("--resume must not be an empty string. Omit the value to resume the latest run.")
+        _fail(
+            "--resume must not be an empty string. Omit the value to resume the latest run."
+        )
 
     # --focus must not be empty if provided
     if args.focus is not None and not args.focus.strip():
         _fail("--focus must not be empty or whitespace-only.")
 
-    # --focus requires --improve
-    if args.focus and not args.improve:
-        _fail("--focus can only be used with --improve.")
+    # --focus requires --improve or --test
+    if args.focus and not args.improve and not args.test:
+        _fail("--focus can only be used with --improve or --test.")
+
+    # --target requires --test
+    if args.target and not args.test:
+        _fail("--target can only be used with --test.")
+
+    # Validate --target paths exist relative to project dir
+    if args.target:
+        for t in args.target:
+            target_path = _project_path / t
+            if not target_path.exists():
+                _fail(f"--target path does not exist: {t} (resolved: {target_path})")
 
     # --skip-intake and --auto-refine require a goal (otherwise silently goes interactive)
     if (args.skip_intake or args.auto_refine) and not (
-        args.goal or args.goal_file or args.improve
+        args.goal or args.goal_file or args.improve or args.test
     ):
-        _fail("--skip-intake and --auto-refine require --goal, --goal-file, or --improve.")
+        _fail(
+            "--skip-intake and --auto-refine require --goal, --goal-file, --improve, or --test."
+        )
 
     # --json and --auto-refine imply --yes
     if args.json or args.auto_refine:
@@ -292,13 +333,20 @@ def _main_inner() -> None:
         if args.team is None:
             args.team = "full"
 
+    # --test forces non-interactive, skip-intake, yes, and defaults to test team
+    if args.test:
+        args.skip_intake = True
+        args.yes = True
+        if args.team is None:
+            args.team = "test"
+
     non_interactive = (
-        args.goal is not None or args.goal_file is not None or args.improve
+        args.goal is not None or args.goal_file is not None or args.improve or args.test
     )
     skip_prompts = non_interactive or args.yes
 
     if non_interactive and args.resume is not None:
-        _fail("--resume cannot be used with --goal/--goal-file/--improve")
+        _fail("--resume cannot be used with --goal/--goal-file/--improve/--test")
 
     project_dir = Path(args.project).resolve()
 
@@ -352,7 +400,7 @@ def _main_inner() -> None:
     # 1. Get goal
     goal_text: str | None = None
     if non_interactive:
-        if args.improve:
+        if args.improve or args.test:
             pass  # goal_text constructed after run_dir is created
         elif args.goal is not None:
             goal_text = args.goal.strip()
@@ -379,7 +427,8 @@ def _main_inner() -> None:
             _print_banner()
             print(f"  Project: {project_dir}")
         goal_file = next(
-            (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"), None,
+            (p for p in project_dir.iterdir() if p.name.lower() == "goal.md"),
+            None,
         )
         if goal_file is not None:
             try:
@@ -424,10 +473,13 @@ def _main_inner() -> None:
         prior = _collect_prior_needs_decision(run_dir)
         focus = args.focus
         focus_line = f"\n\n**Focus area:** {focus}" if focus else ""
-        goal_text = IMPROVE_GOAL.format(
-            report_path=report_path,
-            report_format=IMPROVE_REPORT_FORMAT,
-        ) + focus_line
+        goal_text = (
+            IMPROVE_GOAL.format(
+                report_path=report_path,
+                report_format=IMPROVE_REPORT_FORMAT,
+            )
+            + focus_line
+        )
         if not args.json:
             if prior:
                 print("  Carrying forward prior 'Needs decision' items.")
@@ -445,8 +497,63 @@ def _main_inner() -> None:
                 if not args.json:
                     print("  Discovery unavailable; using default plan.")
                 plan = _build_fallback_plan(str(report_path), prior, focus=focus)
+    elif args.test:
+        report_path = run_dir.root / "test-report.md"
+        prior_test_work = _collect_prior_test_work(run_dir)
+        focus = args.focus
+        targets = args.target
+        focus_line = f"\n\n**Focus area:** {focus}" if focus else ""
+        target_line = ""
+        if targets:
+            target_list = ", ".join(f"`{t}`" for t in targets)
+            target_line = f"\n\n**Target files/dirs:** {target_list}"
+        goal_text = (
+            TEST_GOAL.format(
+                report_path=report_path,
+                report_format=TEST_REPORT_FORMAT,
+            )
+            + focus_line
+            + target_line
+        )
+        if not args.json:
+            if prior_test_work:
+                print("  Carrying forward context from prior test runs.")
+            if focus:
+                print(f"  Focus: {focus}")
+            if targets:
+                print(f"  Targets: {', '.join(targets)}")
+        if args.debug:
+            if not args.json:
+                print("  Debug mode; using default test plan.")
+            plan = _build_test_fallback_plan(
+                str(report_path),
+                focus=focus,
+                targets=targets,
+                prior_test_work=prior_test_work,
+            )
+        else:
+            if not args.json:
+                print("  Running test discovery...")
+            plan = run_test_discovery(
+                run_dir,
+                str(report_path),
+                focus=focus,
+                targets=targets,
+                prior_test_work=prior_test_work,
+            )
+            if plan is None:
+                if not args.json:
+                    print("  Discovery unavailable; using default test plan.")
+                plan = _build_test_fallback_plan(
+                    str(report_path),
+                    focus=focus,
+                    targets=targets,
+                    prior_test_work=prior_test_work,
+                )
     elif non_interactive:
-        if goal_text is None:  # pragma: no cover – defensive; set in the non-improve branch above
+        if (
+            goal_text is None
+        ):  # pragma: no cover – defensive; set in the non-improve branch above
             _fail("Internal error: goal_text is not set.")
         existing_plan = _load_goal_plan(run_dir)
         if existing_plan:
@@ -462,7 +569,9 @@ def _main_inner() -> None:
         elif not args.skip_intake:
             plan = run_intake_noninteractive(run_dir, goal_text)
     else:
-        if goal_text is None:  # pragma: no cover – defensive; set in the interactive branch above
+        if (
+            goal_text is None
+        ):  # pragma: no cover – defensive; set in the interactive branch above
             _fail("Internal error: goal_text is not set.")
         # Check for existing goal plan first
         existing_plan = _load_goal_plan(run_dir)
@@ -482,7 +591,9 @@ def _main_inner() -> None:
             if args.auto_refine:
                 backend = preferred_backend()
                 if backend is None:
-                    _fail("No backend available for auto-refine. Install a backend first.")
+                    _fail(
+                        "No backend available for auto-refine. Install a backend first."
+                    )
                 refined = run_intake_auto(backend, run_dir, goal_text)
                 if refined:
                     goal_text = refined
@@ -497,7 +608,9 @@ def _main_inner() -> None:
 
     # By this point, goal_text is always a str (None paths call _fail() or
     # _fail() is unreachable in --improve where it's set on line 410).
-    if goal_text is None:  # pragma: no cover – defensive; all code paths set goal_text or call _fail()
+    if (
+        goal_text is None
+    ):  # pragma: no cover – defensive; all code paths set goal_text or call _fail()
         _fail("Internal error: goal_text is not set.")
 
     # 5. Summary and confirm
@@ -505,12 +618,15 @@ def _main_inner() -> None:
     # Accept both hardcoded presets and user-defined JSON teams from ~/.kodo/teams/
     _all_team_names = set(TEAMS) | {n for n, *_ in list_available_teams()}
     if not isinstance(team_name, str) or team_name not in _all_team_names:
-        _fail(f"Unknown team {team_name!r}. Valid teams: {', '.join(sorted(_all_team_names))}.")
+        _fail(
+            f"Unknown team {team_name!r}. Valid teams: {', '.join(sorted(_all_team_names))}."
+        )
     if not args.json:
         team_preset = get_team(team_name)
         print(f"\n  ┌{'─' * 58}┐")
         print(f"  │{'READY TO LAUNCH':^58}│")
         print(f"  ├{'─' * 58}┤")
+
         def _box_line(text: str, w: int = 56) -> None:
             print(f"  │ {text:<{w}} │")
 
@@ -554,13 +670,18 @@ def _main_inner() -> None:
     # 6. Launch
     try:
         result = launch_run(
-            run_dir, goal_text, params, plan=plan, json_mode=args.json, debug=args.debug,
+            run_dir,
+            goal_text,
+            params,
+            plan=plan,
+            json_mode=args.json,
+            debug=args.debug,
             intake_session=intake_session,
         )
     except Exception as exc:
         _fail(str(exc) or type(exc).__name__)
 
-    # 7. --improve post-run: report summary
+    # 7. --improve / --test post-run: report summary
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
         if report_path.exists():
@@ -589,6 +710,41 @@ def _main_inner() -> None:
 
             if args.json:
                 _emit_json_and_exit(args, result, improve_report=report_content)
+                return
+        _emit_json_and_exit(args, result)
+    elif args.test:
+        report_path = run_dir.root / "test-report.md"
+        if report_path.exists():
+            try:
+                report_content = report_path.read_text(encoding="utf-8")
+            except OSError:
+                report_content = ""
+            summary = parse_test_report_summary(report_content)
+            print(f"\n{'=' * 50}")
+            print(f"Test report: {report_path}")
+            if summary.get("findings_count"):
+                print(f"  Findings:         {summary['findings_count']}")
+            if summary.get("critical_count"):
+                print(f"  Critical:         {summary['critical_count']}")
+            if summary.get("bugs_confirmed"):
+                print(f"  Bugs confirmed:   {summary['bugs_confirmed']}")
+            if summary.get("usability_gaps") or summary.get("usability_count"):
+                count = summary.get("usability_gaps") or summary.get(
+                    "usability_count", 0
+                )
+                print(f"  Usability gaps:   {count}")
+            if summary.get("regression_tests") or summary.get("regression_count"):
+                count = summary.get("regression_tests") or summary.get(
+                    "regression_count", 0
+                )
+                print(f"  Regression tests: {count}")
+            if summary.get("blocked_count"):
+                print(f"  Blocked stories:  {summary['blocked_count']}")
+                for detail in summary.get("blocked_details", []):
+                    print(f"    {detail}")
+
+            if args.json:
+                _emit_json_and_exit(args, result, test_report=report_content)
                 return
         _emit_json_and_exit(args, result)
     else:

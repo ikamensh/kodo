@@ -8,7 +8,6 @@ Covers:
 from __future__ import annotations
 
 import signal
-import subprocess
 from pathlib import Path
 from unittest import mock
 
@@ -93,7 +92,9 @@ def test_cleanup_handles_session_close_raising_keyboard_interrupt():
     # No worktrees (empty dict) — skip worktree phases
     worktrees: dict[int, tuple[Path, str]] = {}
     parallel_results = [
-        StageResult(stage_index=1, stage_name="test-stage", finished=True, success=True),
+        StageResult(
+            stage_index=1, stage_name="test-stage", finished=True, success=True
+        ),
     ]
 
     # Should not raise — SIGINT is suppressed during cleanup
@@ -109,7 +110,11 @@ def test_cleanup_handles_session_close_raising_keyboard_interrupt():
         from kodo.orchestrators.parallel import _cleanup_and_merge_worktrees_inner
 
         _cleanup_and_merge_worktrees_inner(
-            [stage], worktrees, stage_teams, parallel_results, Path("/tmp/fake"),
+            [stage],
+            worktrees,
+            stage_teams,
+            parallel_results,
+            Path("/tmp/fake"),
         )
 
     # Both agents should have had close() called
@@ -130,23 +135,31 @@ def test_cleanup_handles_commit_worktree_changes_raising_base_exception():
     worktrees = {1: (Path("/tmp/kodo-fake-wt"), "kodo-fake-branch")}
     stage_teams: dict = {}
     parallel_results = [
-        StageResult(stage_index=1, stage_name="persist-stage", finished=True, success=True),
+        StageResult(
+            stage_index=1, stage_name="persist-stage", finished=True, success=True
+        ),
     ]
 
     # Mock commit_worktree_changes to raise KeyboardInterrupt
     with (
         mock.patch(
-            "kodo.orchestrators.parallel.commit_worktree_changes", autospec=True,
+            "kodo.orchestrators.parallel.commit_worktree_changes",
+            autospec=True,
             side_effect=KeyboardInterrupt("simulated"),
         ),
         mock.patch(
-            "kodo.orchestrators.parallel.remove_worktree", autospec=True,
+            "kodo.orchestrators.parallel.remove_worktree",
+            autospec=True,
         ) as mock_remove,
     ):
         from kodo.orchestrators.parallel import _cleanup_and_merge_worktrees_inner
 
         _cleanup_and_merge_worktrees_inner(
-            [stage], worktrees, stage_teams, parallel_results, Path("/tmp/fake"),
+            [stage],
+            worktrees,
+            stage_teams,
+            parallel_results,
+            Path("/tmp/fake"),
         )
 
     # Should still have attempted to remove the worktree
@@ -163,9 +176,14 @@ def test_cleanup_and_merge_worktrees_wraps_with_sigint_suppression():
     )
 
     with mock.patch(
-        "kodo.orchestrators.parallel._cleanup_and_merge_worktrees_inner", autospec=True,
+        "kodo.orchestrators.parallel._cleanup_and_merge_worktrees_inner",
+        autospec=True,
     ) as mock_inner:
         cleanup_and_merge_worktrees(
-            [stage], {}, {}, [], Path("/tmp/fake"),
+            [stage],
+            {},
+            {},
+            [],
+            Path("/tmp/fake"),
         )
         mock_inner.assert_called_once()

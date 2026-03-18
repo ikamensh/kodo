@@ -233,7 +233,6 @@ def print_status(workspace: Path) -> int:
     return 0
 
 
-
 def _median(values: list[float]) -> float:
     s = sorted(values)
     n = len(s)

@@ -64,9 +64,7 @@ class TestParseRunPermissionError:
             },
             {"ts": "t", "t": 0, "event": "cli_args", "team": "full"},
         ]
-        (good / "log.jsonl").write_text(
-            "\n".join(json.dumps(e) for e in events) + "\n"
-        )
+        (good / "log.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
 
         # Create a run with unreadable log
         bad = log._runs_root() / "bad_perm_run"
@@ -80,9 +78,7 @@ class TestParseRunPermissionError:
             # Should still return the good run
             assert any(r.run_id == "good_run" for r in runs)
         except PermissionError:
-            pytest.fail(
-                "list_runs crashed with PermissionError on unreadable log file"
-            )
+            pytest.fail("list_runs crashed with PermissionError on unreadable log file")
         finally:
             bad_log.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
@@ -186,7 +182,8 @@ class TestInvalidSavedTeamConfig:
         # we short-circuit by raising SystemExit via the mocked select_params)
         with (
             patch(
-                "kodo.cli._params.select_params", autospec=True,
+                "kodo.cli._params.select_params",
+                autospec=True,
                 side_effect=SystemExit(99),
             ),
             pytest.raises(SystemExit) as exc_info,
@@ -229,12 +226,13 @@ class TestResumeCompletedRun:
             {"ts": "t", "t": 0, "event": "cycle_end", "summary": "done"},
             {"ts": "t", "t": 0, "event": "run_end"},
         ]
-        (d / "log.jsonl").write_text(
-            "\n".join(json.dumps(e) for e in events) + "\n"
-        )
+        (d / "log.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n")
 
         with (
-            patch("sys.argv", ["kodo", "--resume", "finished_run", "--project", str(tmp_path)]),
+            patch(
+                "sys.argv",
+                ["kodo", "--resume", "finished_run", "--project", str(tmp_path)],
+            ),
             pytest.raises(SystemExit),
         ):
             _main_inner()

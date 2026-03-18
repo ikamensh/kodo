@@ -176,7 +176,9 @@ def cleanup_stale_worktrees(project_dir: Path) -> None:
                     try:
                         mtime = current_worktree.stat().st_mtime
                         if mtime < six_hours_ago:
-                            worktrees_to_clean.append((current_worktree, current_branch))
+                            worktrees_to_clean.append(
+                                (current_worktree, current_branch)
+                            )
                     except (OSError, FileNotFoundError):
                         # Worktree path doesn't exist or is inaccessible
                         pass
@@ -243,7 +245,9 @@ def cleanup_stale_worktrees(project_dir: Path) -> None:
         # are left behind when cleanup is interrupted between worktree
         # removal and branch deletion.
         _cleanup_orphaned_kodo_branches(
-            project_dir, active_worktree_branches, log,
+            project_dir,
+            active_worktree_branches,
+            log,
         )
 
     except Exception as exc:
@@ -287,9 +291,7 @@ def _cleanup_orphaned_kodo_branches(
     if not orphaned:
         return
 
-    log.tprint(
-        f"[cleanup] Found {len(orphaned)} orphaned kodo branch(es) to remove"
-    )
+    log.tprint(f"[cleanup] Found {len(orphaned)} orphaned kodo branch(es) to remove")
     log.emit("cleanup_orphaned_branches_found", count=len(orphaned))
 
     for branch in orphaned:
@@ -316,8 +318,7 @@ def _strip_pycache_from_index(repo_dir: Path) -> None:
     when multiple parallel branches each commit different bytecode.
     """
     cached = subprocess.run(
-        [_GIT, "ls-files", "--cached", "-z",
-         "*/__pycache__/*", "*.pyc"],
+        [_GIT, "ls-files", "--cached", "-z", "*/__pycache__/*", "*.pyc"],
         cwd=repo_dir,
         capture_output=True,
         text=True,
@@ -403,7 +404,9 @@ def _remove_worktree_keep_branch(project_dir: Path, worktree_dir: Path) -> None:
 
 
 def _resolve_conflicts_with_agent(
-    project_dir: Path, branch_name: str, stage_name: str,
+    project_dir: Path,
+    branch_name: str,
+    stage_name: str,
 ) -> bool:
     """Spin up a Claude Code agent to resolve merge conflicts.
 
@@ -495,7 +498,9 @@ def _resolve_conflicts_with_agent(
 
 
 def merge_worktree_branch(
-    project_dir: Path, branch_name: str, stage_name: str,
+    project_dir: Path,
+    branch_name: str,
+    stage_name: str,
 ) -> MergeResult:
     """Merge a worktree branch into the current branch at *project_dir*.
 
@@ -535,7 +540,9 @@ def merge_worktree_branch(
     if diff_check.returncode != 0:
         log.tprint(f"[persist] Stage '{stage_name}': branch '{branch_name}' not found")
         return MergeResult(
-            success=False, had_changes=False, error=diff_check.stderr or "",
+            success=False,
+            had_changes=False,
+            error=diff_check.stderr or "",
         )
     if not diff_check.stdout.strip():
         log.tprint(f"[persist] Stage '{stage_name}': no commits to merge")
@@ -552,7 +559,9 @@ def merge_worktree_branch(
     )
     if rev_parse.returncode != 0:
         return MergeResult(
-            success=False, had_changes=False, error=rev_parse.stderr or "",
+            success=False,
+            had_changes=False,
+            error=rev_parse.stderr or "",
         )
     current_branch = rev_parse.stdout.strip()
 
@@ -696,7 +705,9 @@ def merge_worktree_branch(
                 f"[persist] Stage '{stage_name}': merge conflict, attempting agent resolution",
             )
             resolved = _resolve_conflicts_with_agent(
-                project_dir, branch_name, stage_name,
+                project_dir,
+                branch_name,
+                stage_name,
             )
             if resolved:
                 log.tprint(

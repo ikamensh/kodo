@@ -185,7 +185,11 @@ def test_background_event_errors_captured(tmp_path: Path):
 
     # Codex detects errors even with returncode=0 when error_messages exist
     assert result.is_error is True
-    assert "500" in result.text or "retry" in result.text.lower() or "failed" in result.text.lower()
+    assert (
+        "500" in result.text
+        or "retry" in result.text.lower()
+        or "failed" in result.text.lower()
+    )
 
 
 def test_model_not_supported_hint(tmp_path: Path):

@@ -60,7 +60,11 @@ class TestJsonOutput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch(
+                "kodo.cli._params.preferred_orchestrator",
+                autospec=True,
+                return_value="claude-code",
+            ),
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
             yield
@@ -69,9 +73,20 @@ class TestJsonOutput:
         """--json should print a parseable JSON object to stdout."""
         with (
             patch("kodo.cli._main.launch_run", autospec=True, side_effect=_fake_launch),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
+            sys.argv = [
+                "kodo",
+                "--goal",
+                "Build X",
+                "--json",
+                "--project",
+                str(project),
+            ]
             try:
                 _main_inner()
             except SystemExit:
@@ -86,10 +101,25 @@ class TestJsonOutput:
     def test_json_partial_status(self, project, capsys):
         """Unfinished run should report status=partial in JSON."""
         with (
-            patch("kodo.cli._main.launch_run", autospec=True, side_effect=_fake_launch_partial),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.launch_run",
+                autospec=True,
+                side_effect=_fake_launch_partial,
+            ),
+            patch(
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
+            sys.argv = [
+                "kodo",
+                "--goal",
+                "Build X",
+                "--json",
+                "--project",
+                str(project),
+            ]
             try:
                 _main_inner()
             except SystemExit:
@@ -104,13 +134,25 @@ class TestJsonOutput:
         """--json must never call input() or questionary."""
         with (
             patch("kodo.cli._main.launch_run", autospec=True, side_effect=_fake_launch),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
             patch(
-                "builtins.input", autospec=True,
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
+            patch(
+                "builtins.input",
+                autospec=True,
                 side_effect=AssertionError("input() called in --json mode"),
             ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
+            sys.argv = [
+                "kodo",
+                "--goal",
+                "Build X",
+                "--json",
+                "--project",
+                str(project),
+            ]
             try:
                 _main_inner()
             except SystemExit:
@@ -140,9 +182,20 @@ class TestJsonOutput:
         """JSON output should include exchanges and cost."""
         with (
             patch("kodo.cli._main.launch_run", autospec=True, side_effect=_fake_launch),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
         ):
-            sys.argv = ["kodo", "--goal", "Build X", "--json", "--project", str(project)]
+            sys.argv = [
+                "kodo",
+                "--goal",
+                "Build X",
+                "--json",
+                "--project",
+                str(project),
+            ]
             try:
                 _main_inner()
             except SystemExit:
@@ -184,7 +237,9 @@ class TestLaunchRunReturnsResult:
 
         with (
             patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch("kodo.cli._launch.load_team_config", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
             patch("kodo.cli._launch.get_team", autospec=True, return_value=fake_mode),
         ):
             mock_orch.return_value.run.return_value = fake_result
@@ -215,9 +270,15 @@ class TestImproveJsonOutput:
     @pytest.fixture(autouse=True)
     def _fake_backends(self):
         with (
-            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch(
+                "kodo.cli._params.preferred_orchestrator",
+                autospec=True,
+                return_value="claude-code",
+            ),
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
-            patch("kodo.cli._main.run_improve_discovery", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.run_improve_discovery", autospec=True, return_value=None
+            ),
         ):
             yield
 
@@ -247,8 +308,16 @@ class TestImproveJsonOutput:
             )
 
         with (
-            patch("kodo.cli._main.launch_run", autospec=True, side_effect=_launch_with_report),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.launch_run",
+                autospec=True,
+                side_effect=_launch_with_report,
+            ),
+            patch(
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
         ):
             sys.argv = ["kodo", "--improve", "--json", "--project", str(project)]
             try:
@@ -265,7 +334,11 @@ class TestImproveJsonOutput:
         """--improve --json should omit improve_report key when report file missing."""
         with (
             patch("kodo.cli._main.launch_run", autospec=True, side_effect=_fake_launch),
-            patch("kodo.cli._main.run_intake_noninteractive", autospec=True, return_value=None),
+            patch(
+                "kodo.cli._main.run_intake_noninteractive",
+                autospec=True,
+                return_value=None,
+            ),
         ):
             sys.argv = ["kodo", "--improve", "--json", "--project", str(project)]
             try:

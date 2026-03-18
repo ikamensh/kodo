@@ -141,7 +141,10 @@ class TestListRuns:
             _CLI_ARGS,
             {"event": "cycle_end", "summary": "ok"},
         ]
-        lines = [json.dumps({"ts": "2025-01-01T00:00:00Z", "t": i, **e}) for i, e in enumerate(base)]
+        lines = [
+            json.dumps({"ts": "2025-01-01T00:00:00Z", "t": i, **e})
+            for i, e in enumerate(base)
+        ]
         (d / "run.jsonl").write_text("\n".join(lines) + "\n")
         runs = log.list_runs()
         assert any(r.run_id == "legacy_run" for r in runs)

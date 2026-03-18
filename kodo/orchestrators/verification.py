@@ -44,10 +44,7 @@ _RE_DOUBLE_QUOTED = re.compile(r'"[^"]*' + _SIGNAL + r'[^"]*"')
 _RE_SIGNAL = re.compile(_SIGNAL)
 _MD_FMT = r"(?:[*_]{1,3})?"
 _RE_SIGNAL_AUTHORITATIVE = re.compile(
-    r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*"
-    + _MD_FMT
-    + _SIGNAL
-    + r"(?::|\b)",
+    r"(?:^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002))\s*" + _MD_FMT + _SIGNAL + r"(?::|\b)",
     re.MULTILINE,
 )
 
@@ -173,7 +170,10 @@ def verify_done(
 
     issues = []
     verification_prompt = _build_verification_prompt(
-        goal, summary, acceptance_criteria, effort=effort,
+        goal,
+        summary,
+        acceptance_criteria,
+        effort=effort,
     )
 
     # Resolve which agents to use for each verifier role
@@ -210,7 +210,9 @@ def verify_done(
             )
             tester_report = tester_result.text or ""
             log.emit(
-                "done_verification", agent=tester_name, report=tester_report[:5000],
+                "done_verification",
+                agent=tester_name,
+                report=tester_report[:5000],
             )
             if not _check_passed(tester_report):
                 issues.append(
@@ -237,7 +239,9 @@ def verify_done(
             )
             reviewer_report = reviewer_result.text or ""
             log.emit(
-                "done_verification", agent=reviewer_key, report=reviewer_report[:5000],
+                "done_verification",
+                agent=reviewer_key,
+                report=reviewer_report[:5000],
             )
             if not _check_passed(reviewer_report):
                 label = reviewer_key.replace("_", " ").title()
@@ -264,7 +268,8 @@ def verify_done(
         )
         if verifier:
             verifier_name = next(
-                (n for n, a in team.items() if a is verifier), "worker",
+                (n for n, a in team.items() if a is verifier),
+                "worker",
             )
             try:
                 log.tprint(

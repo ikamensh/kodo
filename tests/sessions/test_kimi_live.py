@@ -63,7 +63,10 @@ def test_token_tracking(kimi_session, tmp_path: Path):
     )
     assert not result.is_error, f"Query failed: {result.text}"
     # Token counts should be populated
-    assert kimi_session.stats.total_input_tokens > 0 or kimi_session.stats.total_output_tokens > 0
+    assert (
+        kimi_session.stats.total_input_tokens > 0
+        or kimi_session.stats.total_output_tokens > 0
+    )
     assert kimi_session.stats.queries == 1
 
 

@@ -37,9 +37,7 @@ class TestModelPricing:
     def test_output_price_geq_input_price(self):
         """Output tokens are always at least as expensive as input tokens."""
         for model, (inp, out) in MODEL_PRICING.items():
-            assert out >= inp, (
-                f"{model}: output price ({out}) < input price ({inp})"
-            )
+            assert out >= inp, f"{model}: output price ({out}) < input price ({inp})"
 
 
 # ── Pydantic-AI model map ────────────────────────────────────────────────

@@ -1,9 +1,14 @@
 """Improve mode: AI-driven discovery + staged plans for --improve."""
 
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from kodo.cli._shared import (
+    build_environment_section,
+    collect_prior_report_items,
+    extract_section,
+    slugify,
+)
 from kodo.orchestrators.base import GoalPlan, GoalStage, QuickCheck
 from kodo.prompts.improve import (
     DISCOVERY_PROMPT,
@@ -12,7 +17,6 @@ from kodo.prompts.improve import (
     METHODOLOGY_LIBRARY,
     TRIAGE_FINDINGS_FORMAT,
     TRIAGE_STAGE_DESCRIPTION,
-    detect_docker,
 )
 
 if TYPE_CHECKING:
@@ -25,8 +29,11 @@ if TYPE_CHECKING:
 
 
 def run_improve_discovery(
-    run_dir, report_path: str, prior_needs_decision: str = "",
-    *, focus: str | None = None,
+    run_dir,
+    report_path: str,
+    prior_needs_decision: str = "",
+    *,
+    focus: str | None = None,
 ) -> GoalPlan | None:
     """Run AI discovery to build a dynamic improve plan for --improve.
 
@@ -40,15 +47,7 @@ def run_improve_discovery(
     run_dir_str = str(run_dir.root)
     triage_path = f"{run_dir_str}/triage-results.md"
 
-    env_lines = []
-    if detect_docker():
-        env_lines.append(
-            "- **Docker**: available. You can build/run containers for isolated "
-            "testing if the project has a Dockerfile or you want a clean environment.",
-        )
-    else:
-        env_lines.append("- **Docker**: not available.")
-    environment = "\n".join(env_lines)
+    environment = build_environment_section()
 
     focus_section = ""
     if focus:
@@ -59,17 +58,20 @@ def run_improve_discovery(
             f"Other issues can still be reported but should be secondary."
         )
 
-    prompt = DISCOVERY_PROMPT.format(
-        output_path=str(output_file),
-        methodologies=METHODOLOGY_LIBRARY,
-        environment=environment,
-        run_dir=run_dir_str,
-        report_path=report_path,
-        triage_description=TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
-        report_format=IMPROVE_REPORT_FORMAT,
-        findings_format=TRIAGE_FINDINGS_FORMAT,
-        time_guidance=IMPROVE_TIME_GUIDANCE,
-    ) + focus_section
+    prompt = (
+        DISCOVERY_PROMPT.format(
+            output_path=str(output_file),
+            methodologies=METHODOLOGY_LIBRARY,
+            environment=environment,
+            run_dir=run_dir_str,
+            report_path=report_path,
+            triage_description=TRIAGE_STAGE_DESCRIPTION.format(triage_path=triage_path),
+            report_format=IMPROVE_REPORT_FORMAT,
+            findings_format=TRIAGE_FINDINGS_FORMAT,
+            time_guidance=IMPROVE_TIME_GUIDANCE,
+        )
+        + focus_section
+    )
 
     initial_message = "Analyze this project and create an improvement plan."
     if focus:
@@ -84,7 +86,10 @@ def run_improve_discovery(
 
     if isinstance(plan, GoalPlan) and plan.stages:
         return _validate_improve_plan(
-            plan, report_path, run_dir_str, prior_needs_decision,
+            plan,
+            report_path,
+            run_dir_str,
+            prior_needs_decision,
         )
     return None
 
@@ -94,10 +99,7 @@ def run_improve_discovery(
 # ---------------------------------------------------------------------------
 
 
-def _slugify(name: str) -> str:
-    """Turn a stage name into a filesystem-safe slug."""
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "stage"
+_slugify = slugify  # backward compat alias
 
 
 def _is_triage_stage(name: str) -> bool:
@@ -111,7 +113,10 @@ def _is_fix_stage(name: str) -> bool:
 
 
 def _validate_improve_plan(
-    plan: GoalPlan, report_path: str, run_dir: str, prior_needs_decision: str = "",
+    plan: GoalPlan,
+    report_path: str,
+    run_dir: str,
+    prior_needs_decision: str = "",
 ) -> GoalPlan:
     """Post-process an AI-generated plan to ensure correctness.
 
@@ -227,176 +232,122 @@ def _validate_improve_plan(
 
 
 def _build_fallback_plan(
-    report_path: str, prior_needs_decision: str = "",
-    *, focus: str | None = None,
+    report_path: str,
+    prior_needs_decision: str = "",
+    *,
+    focus: str | None = None,
 ) -> GoalPlan:
-    """Build a generic hardcoded improve plan (fallback when discovery fails).
+    """Build a hardcoded improve plan (fallback when discovery fails).
 
-    Baseline → three parallel explorations (happy path, adversarial,
-    architecture) → triage → fix & report.
+    Simplification + Usability + Architecture (parallel) → Triage → Fix & Report.
     """
     run_dir = str(Path(report_path).parent)
     focus_ctx = f"\n\n**Focus area:** {focus}" if focus else ""
-    forge_findings = f"{run_dir}/findings-test-tool-forge.md"
-    happy_findings = f"{run_dir}/findings-happy-path.md"
-    adversarial_findings = f"{run_dir}/findings-adversarial.md"
+    simplification_findings = f"{run_dir}/findings-simplification.md"
+    usability_findings = f"{run_dir}/findings-usability.md"
     architecture_findings = f"{run_dir}/findings-architecture.md"
     triage_path = f"{run_dir}/triage-results.md"
 
     return GoalPlan(
         context=(
-            "Find real bugs and simplification opportunities by RUNNING the "
-            "software and reading the code critically.\n\n"
+            "Review this codebase for significant improvements. Think like "
+            "a senior developer joining the project — what would you change "
+            "in your first week?\n\n"
             f"{IMPROVE_TIME_GUIDANCE}"
             f"{focus_ctx}"
         ),
         stages=[
             GoalStage(
                 index=1,
-                name="Test Tool Forge",
-                persist_changes=True,
+                name="Simplification & Dead Weight",
+                parallel_group=1,
                 description=(
-                    "Audit the project's existing test infrastructure: fixtures, "
-                    "helpers, conftest plugins, test scripts, Docker test setups, "
-                    "CI test jobs. Map what categories of bugs each tool can catch.\n\n"
-                    "Identify the single highest-impact testing gap — a class of "
-                    "bugs or failure modes that existing tools don't cover well. "
-                    "Consider: integration contract violations, state machine "
-                    "invariants, configuration drift, cross-module interaction "
-                    "bugs, data flow corruption, regression traps in recently-"
-                    "changed code.\n\n"
-                    "For mature projects with good test infrastructure, prefer "
-                    "extending an existing tool to cover the gap (e.g. adding new "
-                    "test cases to an existing module, enhancing a fixture, "
-                    "expanding a script's scope). For projects with sparse testing, "
-                    "create a new reusable tool (test module, script, conftest "
-                    "plugin, or fixture). Either way, the result must be runnable "
-                    "standalone and produce clear pass/fail output.\n\n"
-                    "Run the new or enhanced tool against the codebase immediately. "
-                    "Report any bugs discovered — these are findings that were "
-                    "previously invisible or untested.\n\n"
-                    f"Write findings to `{forge_findings}`.\n\n"
+                    "Read the codebase looking for unnecessary complexity. "
+                    "Abstractions that don't pay for themselves, duplicated logic, "
+                    "dead code, unused dependencies, things that reimplement "
+                    "standard library functionality. For each finding, explain "
+                    "what's simpler and why it's worth changing.\n\n"
+                    "Run linters and type checkers if configured — include "
+                    "any real issues they surface.\n\n"
+                    f"Write findings to `{simplification_findings}`.\n\n"
                     f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Test tool created or enhanced, committed, and executed. "
-                    f"Findings file written to {forge_findings} with any "
-                    "discovered bugs."
+                    f"Findings at {simplification_findings} with concrete proposals."
                 ),
                 verification=[
                     QuickCheck(
-                        path=forge_findings,
+                        path=simplification_findings,
                         description="Findings file exists",
-                        error_message=f"Expected findings file at {forge_findings}",
+                        error_message=f"Expected findings at {simplification_findings}",
                     ),
                 ],
             ),
             GoalStage(
                 index=2,
-                name="Baseline & Static Analysis",
+                name="Usability Review",
+                parallel_group=1,
                 description=(
-                    "Run test suite, linters, type-checkers. Flag obvious bugs, "
-                    "dead code, security concerns, performance hot-spots. "
-                    "Quick analytical sweep — one pass.\n\n"
+                    "Review the public interface — whatever users or consumers "
+                    "interact with. Read the README, check CLI help/flags, look "
+                    "at the library API surface, examine error messages.\n\n"
+                    "Look for: redundant options that could be merged or inferred, "
+                    "confusing naming, missing defaults, inconsistent patterns, "
+                    "poor error messages, documentation that contradicts the code, "
+                    "duplicated functionality that confuses users.\n\n"
+                    "Think about the experience of someone using this for the "
+                    "first time. What would confuse them? What friction could "
+                    "be removed?\n\n"
+                    f"Write findings to `{usability_findings}`.\n\n"
                     f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Test/lint/type-check results documented. Issues listed with "
-                    "file:line. Structured findings format used."
+                    f"Findings at {usability_findings} with concrete proposals."
                 ),
-                verification="skip",
+                verification=[
+                    QuickCheck(
+                        path=usability_findings,
+                        description="Findings file exists",
+                        error_message=f"Expected findings at {usability_findings}",
+                    ),
+                ],
             ),
             GoalStage(
                 index=3,
-                name="Happy Path Integration Testing",
+                name="Architecture & Security",
                 parallel_group=1,
                 description=(
-                    "Run 3-5 core user scenarios end-to-end. Read entry points, "
-                    "set up realistic inputs, verify outputs. Write integration "
-                    "tests for uncovered scenarios.\n\n"
-                    f"{IMPROVE_TIME_GUIDANCE}\n\n"
-                    "Mock or stub external services. Use temp dirs. Exercise real "
-                    "code paths, not real API calls.\n\n"
-                    "Do NOT modify source code. Write findings to "
-                    f"`{happy_findings}`.\n\n"
+                    "Step back and look at the structure. Module boundaries, "
+                    "dependency directions, separation of concerns. Are there "
+                    "circular dependencies, god modules, responsibilities in "
+                    "the wrong place?\n\n"
+                    "Also do a lightweight security scan at system boundaries: "
+                    "hardcoded secrets, injection risks on external inputs, "
+                    "resource leaks.\n\n"
+                    f"Write findings to `{architecture_findings}`.\n\n"
                     f"{TRIAGE_FINDINGS_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    "Core workflows tested end-to-end. Bugs documented. "
-                    f"Structured findings written to {happy_findings}."
-                ),
-                verification=[
-                    QuickCheck(
-                        path=happy_findings,
-                        description="Findings file exists",
-                        error_message=f"Expected findings file at {happy_findings}",
-                    ),
-                ],
-            ),
-            GoalStage(
-                index=4,
-                name="Exploratory & Adversarial Testing",
-                parallel_group=1,
-                description=(
-                    "Break it. Edge-case inputs (empty, None, zero, huge, unicode), "
-                    "invalid configs, missing dependencies, wrong permissions, "
-                    "undocumented flag combos. Focus on areas Stage 1 flagged.\n\n"
-                    f"{IMPROVE_TIME_GUIDANCE}\n\n"
-                    "Do NOT modify source code. Write findings to "
-                    f"`{adversarial_findings}`.\n\n"
-                    f"{TRIAGE_FINDINGS_FORMAT}"
-                ),
-                acceptance_criteria=(
-                    "Edge cases and error paths tested. Bugs documented with "
-                    f"repro steps. Structured findings written to {adversarial_findings}."
-                ),
-                verification=[
-                    QuickCheck(
-                        path=adversarial_findings,
-                        description="Findings file exists",
-                        error_message=f"Expected findings file at {adversarial_findings}",
-                    ),
-                ],
-            ),
-            GoalStage(
-                index=5,
-                name="Architecture & Simplification Audit",
-                parallel_group=1,
-                description=(
-                    "Review the codebase for unnecessary complexity and "
-                    "simplification opportunities. Focus on things that make "
-                    "the code harder to work with today, not theoretical "
-                    "concerns.\n\n"
-                    "For each finding, explain what's wrong, what it should "
-                    "look like instead, and why the change is worth making.\n\n"
-                    "Do NOT modify source code. Write findings to "
-                    f"`{architecture_findings}`.\n\n"
-                    f"{TRIAGE_FINDINGS_FORMAT}"
-                ),
-                acceptance_criteria=(
-                    "Simplification opportunities identified with concrete "
-                    f"proposals. Written to {architecture_findings}."
+                    f"Findings at {architecture_findings} with concrete proposals."
                 ),
                 verification=[
                     QuickCheck(
                         path=architecture_findings,
                         description="Findings file exists",
-                        error_message=f"Expected findings file at {architecture_findings}",
+                        error_message=f"Expected findings at {architecture_findings}",
                     ),
                 ],
             ),
             GoalStage(
-                index=6,
+                index=4,
                 name="Triage & Verify",
                 description=TRIAGE_STAGE_DESCRIPTION.format(
                     triage_path=triage_path,
                 )
                 + (
-                    f"\n\nFindings files: `{forge_findings}`, "
-                    f"`{happy_findings}`, "
-                    f"`{adversarial_findings}`, "
-                    f"`{architecture_findings}`. "
-                    "Also include Stage 2 findings from prior context."
+                    f"\n\nFindings files: `{simplification_findings}`, "
+                    f"`{usability_findings}`, "
+                    f"`{architecture_findings}`."
                 )
                 + prior_needs_decision,
                 acceptance_criteria=(f"Every finding has a verdict in {triage_path}."),
@@ -409,17 +360,15 @@ def _build_fallback_plan(
                 ],
             ),
             GoalStage(
-                index=7,
+                index=5,
                 name="Fix & Report",
                 description=(
                     f"Act only on `fix` and `needs-decision` from `{triage_path}`. "
                     "Ignore `skip`.\n\n"
-                    f"Original findings: `{forge_findings}`, "
-                    f"`{happy_findings}`, "
-                    f"`{adversarial_findings}`, "
+                    f"Original findings: `{simplification_findings}`, "
+                    f"`{usability_findings}`, "
                     f"`{architecture_findings}`.\n\n"
                     "Auto-fix safe issues, flag ambiguous ones. "
-                    "For architecture simplifications marked `fix`, apply them. "
                     f"Write report to `{report_path}`:\n\n"
                     f"{IMPROVE_REPORT_FORMAT}\n\n"
                     "Commit auto-fixes: "
@@ -434,52 +383,23 @@ def _build_fallback_plan(
     )
 
 
-def _extract_section(text: str, heading: str) -> str:
-    """Extract the body of a markdown section (## heading) from *text*."""
-    pattern = rf"^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)"
-    m = re.search(pattern, text, re.MULTILINE | re.DOTALL)
-    return m.group(1) if m else ""
+_extract_section = extract_section  # backward compat alias
 
 
 def _collect_prior_needs_decision(current_run_dir: "RunDir") -> str:
-    """Collect 'Needs decision' items from previous improve reports.
-
-    Scans all ``~/.kodo/runs/*/improve-report.md`` files except the current
-    run and returns a prompt fragment listing unresolved items.
-    """
-    from kodo.log import _runs_root
-
-    runs_dir = _runs_root()
-    if not runs_dir.exists():
-        return ""
-
-    current_id = current_run_dir.run_id
-    items: list[str] = []
-
-    for report_file in sorted(runs_dir.glob("*/improve-report.md")):
-        run_id = report_file.parent.name
-        if run_id == current_id:
-            continue
-        try:
-            content = report_file.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        section = _extract_section(content, "Needs decision")
-        for line in section.strip().splitlines():
-            line = line.strip()
-            if line.startswith("- "):
-                items.append(line)
-
-    if not items:
-        return ""
-
-    block = "\n".join(items)
-    return (
-        f"\n## Prior unresolved items\n"
-        f"Previous --improve runs flagged these as 'Needs decision'. "
-        f"Re-evaluate each one:\n"
-        f"- If the code has been fixed or the concern is no longer valid, drop it.\n"
-        f"- If you can now auto-fix it safely without human input, fix it and "
-        f"list it under 'Auto-fixed'.\n"
-        f"- Otherwise carry it forward into 'Needs decision'.\n\n{block}\n"
+    """Collect 'Needs decision' items from previous improve reports."""
+    return collect_prior_report_items(
+        current_run_id=current_run_dir.run_id,
+        report_glob="*/improve-report.md",
+        sections={
+            "Needs decision": (
+                "\n## Prior unresolved items\n"
+                "Previous --improve runs flagged these as 'Needs decision'. "
+                "Re-evaluate each one:\n"
+                "- If the code has been fixed or the concern is no longer valid, drop it.\n"
+                "- If you can now auto-fix it safely without human input, fix it and "
+                "list it under 'Auto-fixed'.\n"
+                "- Otherwise carry it forward into 'Needs decision'.\n\n{items}\n"
+            ),
+        },
     )

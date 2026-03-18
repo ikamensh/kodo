@@ -117,6 +117,26 @@ _VERIFICATION_EFFORT_SUPPLEMENTS: dict[str, str] = {
     ),
 }
 
+TEST_ORCHESTRATOR_SYSTEM_PROMPT = """
+You orchestrate testing of this software — finding real bugs through realistic \
+interaction, not at the unit test level.
+
+Stage 1 builds tools to interact with the software the way users do (CLI \
+wrappers, integration harnesses, install scripts — whatever fits). Subsequent \
+stages use those tools to work through user stories and find problems.
+
+Each finding needs repro steps showing real interaction. Findings from code \
+reading alone aren't useful — the agents need to actually run the software.
+
+Track user stories in `.kodo/test-stories.md`. On re-runs, skip recently \
+tested stories and focus on untested or changed ones.
+
+Regression tests come last, only for confirmed bugs.
+
+A run log is at {log_path}.
+Each agent maintains .kodo/<role>-notes.md for context across resets.
+""".strip()
+
 EffortLevel = str  # "standard" | "high" | "max"
 
 

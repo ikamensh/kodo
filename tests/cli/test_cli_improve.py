@@ -70,13 +70,32 @@ class TestRunImproveDiscovery:
         raw_plan = GoalPlan(
             context="Test project",
             stages=[
-                GoalStage(index=1, name="Baseline", description="Do baseline", acceptance_criteria="Done"),
-                GoalStage(index=2, name="Triage & Verify", description="Triage", acceptance_criteria="All triaged"),
-                GoalStage(index=3, name="Fix & Report", description="Fix", acceptance_criteria="Report done"),
+                GoalStage(
+                    index=1,
+                    name="Baseline",
+                    description="Do baseline",
+                    acceptance_criteria="Done",
+                ),
+                GoalStage(
+                    index=2,
+                    name="Triage & Verify",
+                    description="Triage",
+                    acceptance_criteria="All triaged",
+                ),
+                GoalStage(
+                    index=3,
+                    name="Fix & Report",
+                    description="Fix",
+                    acceptance_criteria="Report done",
+                ),
             ],
         )
 
-        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=raw_plan):
+        with patch(
+            "kodo.cli._intake.run_single_turn_plan",
+            autospec=True,
+            return_value=raw_plan,
+        ):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is not None
@@ -87,7 +106,9 @@ class TestRunImproveDiscovery:
         """When single-turn plan returns None, discovery returns None."""
         run_dir = RunDir.create(tmp_path, "test")
 
-        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=None):
+        with patch(
+            "kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=None
+        ):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is None
@@ -97,7 +118,11 @@ class TestRunImproveDiscovery:
         run_dir = RunDir.create(tmp_path, "test")
         empty_plan = GoalPlan(context="Test", stages=[])
 
-        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=empty_plan):
+        with patch(
+            "kodo.cli._intake.run_single_turn_plan",
+            autospec=True,
+            return_value=empty_plan,
+        ):
             result = run_improve_discovery(run_dir, "/tmp/report.md")
 
         assert result is None
@@ -112,7 +137,11 @@ class TestRunImproveDiscovery:
             captured_kwargs["initial_message"] = initial_message
             return None
 
-        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan):
+        with patch(
+            "kodo.cli._intake.run_single_turn_plan",
+            autospec=True,
+            side_effect=capture_plan,
+        ):
             run_improve_discovery(run_dir, "/tmp/report.md", focus="performance")
 
         assert "performance" in captured_kwargs["system_prompt"]
@@ -128,8 +157,12 @@ class TestRunImproveDiscovery:
             return None
 
         with (
-            patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan),
-            patch("kodo.cli._improve.detect_docker", autospec=True, return_value=True),
+            patch(
+                "kodo.cli._intake.run_single_turn_plan",
+                autospec=True,
+                side_effect=capture_plan,
+            ),
+            patch("kodo.cli._shared.detect_docker", autospec=True, return_value=True),
         ):
             run_improve_discovery(run_dir, "/tmp/report.md")
 
@@ -146,8 +179,12 @@ class TestRunImproveDiscovery:
             return None
 
         with (
-            patch("kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture_plan),
-            patch("kodo.cli._improve.detect_docker", autospec=True, return_value=False),
+            patch(
+                "kodo.cli._intake.run_single_turn_plan",
+                autospec=True,
+                side_effect=capture_plan,
+            ),
+            patch("kodo.cli._shared.detect_docker", autospec=True, return_value=False),
         ):
             run_improve_discovery(run_dir, "/tmp/report.md")
 
@@ -159,15 +196,34 @@ class TestRunImproveDiscovery:
         plan = GoalPlan(
             context="Test",
             stages=[
-                GoalStage(index=1, name="Analysis", description="Analyze", acceptance_criteria="Done"),
-                GoalStage(index=2, name="Triage & Verify", description="Triage", acceptance_criteria="Triaged"),
-                GoalStage(index=3, name="Fix & Report", description="Fix", acceptance_criteria="Fixed"),
+                GoalStage(
+                    index=1,
+                    name="Analysis",
+                    description="Analyze",
+                    acceptance_criteria="Done",
+                ),
+                GoalStage(
+                    index=2,
+                    name="Triage & Verify",
+                    description="Triage",
+                    acceptance_criteria="Triaged",
+                ),
+                GoalStage(
+                    index=3,
+                    name="Fix & Report",
+                    description="Fix",
+                    acceptance_criteria="Fixed",
+                ),
             ],
         )
         prior = "\n## Prior items\n- issue1\n"
 
-        with patch("kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=plan):
-            result = run_improve_discovery(run_dir, "/tmp/report.md", prior_needs_decision=prior)
+        with patch(
+            "kodo.cli._intake.run_single_turn_plan", autospec=True, return_value=plan
+        ):
+            result = run_improve_discovery(
+                run_dir, "/tmp/report.md", prior_needs_decision=prior
+            )
 
         assert result is not None
         # Prior items should be in triage stage description
@@ -273,10 +329,7 @@ class TestCollectPriorNeedsDecision:
         prev = runs_root / "prev"
         prev.mkdir(parents=True)
         (prev / "improve-report.md").write_text(
-            "## Needs decision\n"
-            "Some preamble text.\n"
-            "- real item\n"
-            "Not a bullet.\n"
+            "## Needs decision\nSome preamble text.\n- real item\nNot a bullet.\n"
         )
 
         with patch("kodo.log._runs_root", autospec=True, return_value=runs_root):

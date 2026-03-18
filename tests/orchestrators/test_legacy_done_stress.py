@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from kodo import log
 from kodo.log import RunDir
@@ -56,9 +55,9 @@ ALL CHECKS PASS"""
 
     def test_signal_in_nested_quotes(self) -> None:
         """Signal inside nested quotes should be stripped."""
-        report = '''
+        report = """
         The agent said: "Worker reported 'ALL CHECKS PASS' but tests fail."
-        '''
+        """
         assert _check_passed(report) is False
 
     def test_multiple_signals_one_valid(self) -> None:
@@ -162,6 +161,7 @@ class TestLegacyDoneNudgeLoops:
             tmp_path,
         )
         from kodo.agent import Agent
+
         team = {"tester": Agent(session, "Test verifier", max_turns=10)}
         signal = DoneSignal()
         state = VerificationState()
@@ -251,6 +251,7 @@ class TestLegacyDoneNudgeLoops:
 
 class TestLegacyDoneWithMalformedStrings:
     """Test done signal handling with edge case strings."""
+
 
 class TestVerifierReportEdgeCases:
     """Test that verifier reports with edge cases are handled correctly."""
@@ -372,11 +373,13 @@ class TestLegacyModeFullCycle:
             orchestrator_tag="test",
             config=CycleConfig(
                 done_mode="legacy",
-                verification=[QuickCheck(
-                    path="{run_dir}/output.txt",
-                    description="Output file check",
-                    error_message="output.txt not found"
-                )],
+                verification=[
+                    QuickCheck(
+                        path="{run_dir}/output.txt",
+                        description="Output file check",
+                        error_message="output.txt not found",
+                    )
+                ],
             ),
         )
 
@@ -392,22 +395,25 @@ class TestLegacyModeFullCycle:
         from tests.conftest import make_scripted_session
 
         session = make_scripted_session(
-            [
-                "Attempt 1: still failing",
-                "Attempt 2: still failing",
-                "ALL CHECKS PASS"
-            ],
+            ["Attempt 1: still failing", "Attempt 2: still failing", "ALL CHECKS PASS"],
             tmp_path,
         )
         from kodo.agent import Agent
+
         team = {"tester": Agent(session, "Test verifier", max_turns=10)}
         signal = DoneSignal()
         state = VerificationState()
 
         # First attempt
         result1 = handle_done(
-            "summary 1", True, signal, "goal", team, tmp_path,
-            verification_state=state, orchestrator_tag="test",
+            "summary 1",
+            True,
+            signal,
+            "goal",
+            team,
+            tmp_path,
+            verification_state=state,
+            orchestrator_tag="test",
             config=CycleConfig(done_mode="legacy"),
         )
         assert "DONE REJECTED" in result1
@@ -416,8 +422,14 @@ class TestLegacyModeFullCycle:
 
         # Second attempt
         result2 = handle_done(
-            "summary 2", True, signal, "goal", team, tmp_path,
-            verification_state=state, orchestrator_tag="test",
+            "summary 2",
+            True,
+            signal,
+            "goal",
+            team,
+            tmp_path,
+            verification_state=state,
+            orchestrator_tag="test",
             config=CycleConfig(done_mode="legacy"),
         )
         assert "DONE REJECTED" in result2
@@ -426,8 +438,14 @@ class TestLegacyModeFullCycle:
 
         # Third attempt - finally passes
         result3 = handle_done(
-            "summary 3", True, signal, "goal", team, tmp_path,
-            verification_state=state, orchestrator_tag="test",
+            "summary 3",
+            True,
+            signal,
+            "goal",
+            team,
+            tmp_path,
+            verification_state=state,
+            orchestrator_tag="test",
             config=CycleConfig(done_mode="legacy"),
         )
         assert "Verified and accepted" in result3

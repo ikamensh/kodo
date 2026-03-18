@@ -1,6 +1,6 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.244"
+__version__ = "0.4.245"
 
 # ---------------------------------------------------------------------------
 # Compatibility shim: pydantic-ai 1.20 imports ``UserLocation`` from anthropic
@@ -11,7 +11,10 @@ __version__ = "0.4.244"
 # ---------------------------------------------------------------------------
 try:
     from anthropic.types.beta import beta_web_search_tool_20250305_param as _ws_mod
-    if not hasattr(_ws_mod, "UserLocation") and hasattr(_ws_mod, "BetaUserLocationParam"):
+
+    if not hasattr(_ws_mod, "UserLocation") and hasattr(
+        _ws_mod, "BetaUserLocationParam"
+    ):
         _ws_mod.UserLocation = _ws_mod.BetaUserLocationParam  # type: ignore[attr-defined]
 except ImportError:
     pass
@@ -51,15 +54,21 @@ def make_session(
         )
     if backend == "gemini-cli":
         return GeminiCliSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
+            model=model,
+            system_prompt=system_prompt,
+            timeout_s=session_timeout_s,
         )
     if backend == "codex":
         return CodexSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
+            model=model,
+            system_prompt=system_prompt,
+            timeout_s=session_timeout_s,
         )
     if backend == "cursor":
         return CursorSession(
-            model=model, system_prompt=system_prompt, timeout_s=session_timeout_s,
+            model=model,
+            system_prompt=system_prompt,
+            timeout_s=session_timeout_s,
         )
     return ClaudeSession(
         model=model,

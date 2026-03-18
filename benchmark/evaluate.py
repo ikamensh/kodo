@@ -41,20 +41,27 @@ def _stall_seconds() -> int:
 
 def _stall_repeat_seconds() -> int:
     return int(
-        os.environ.get("SWEBENCH_EVAL_STALL_REPEAT_SECONDS", _DEFAULT_STALL_REPEAT_SECONDS)
+        os.environ.get(
+            "SWEBENCH_EVAL_STALL_REPEAT_SECONDS", _DEFAULT_STALL_REPEAT_SECONDS
+        )
     )
 
 
 def _stall_check_seconds() -> int:
     return int(
-        os.environ.get("SWEBENCH_EVAL_STALL_CHECK_SECONDS", _DEFAULT_STALL_CHECK_SECONDS)
+        os.environ.get(
+            "SWEBENCH_EVAL_STALL_CHECK_SECONDS", _DEFAULT_STALL_CHECK_SECONDS
+        )
     )
 
+
 # Location of the cloned scaleapi/SWE-bench_Pro-os repo
-_PRO_EVAL_DIR = Path(os.environ.get(
-    "SWEBENCH_PRO_EVAL_DIR",
-    str(Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"),
-))
+_PRO_EVAL_DIR = Path(
+    os.environ.get(
+        "SWEBENCH_PRO_EVAL_DIR",
+        str(Path.home() / ".kodo" / "benchmark" / "SWE-bench_Pro-os"),
+    )
+)
 
 
 def _kill_subprocess_group(proc: subprocess.Popen[Any]) -> None:
@@ -88,6 +95,7 @@ def _kill_subprocess_group(proc: subprocess.Popen[Any]) -> None:
 
 def _timestamp_prefix() -> str:
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -118,7 +126,10 @@ class _EvalHeartbeat:
     ) -> None:
         now = time.monotonic()
         with self.lock:
-            if completed != self.last_completed or tuple(in_progress) != self.in_progress:
+            if (
+                completed != self.last_completed
+                or tuple(in_progress) != self.in_progress
+            ):
                 self.last_progress_at = now
                 self.last_completed = completed
                 self.in_progress = tuple(in_progress)
@@ -286,14 +297,17 @@ def _recent_files(paths: list[Path], *, limit: int = 8) -> list[dict[str, Any]]:
         for path in [root, *root.rglob("*")]:
             with contextlib.suppress(OSError):
                 stat = path.stat()
-                entries.append({
-                    "path": str(path),
-                    "mtime": dt.datetime.fromtimestamp(
-                        stat.st_mtime, tz=dt.timezone.utc,
-                    ).isoformat(),
-                    "size": stat.st_size,
-                    "is_dir": path.is_dir(),
-                })
+                entries.append(
+                    {
+                        "path": str(path),
+                        "mtime": dt.datetime.fromtimestamp(
+                            stat.st_mtime,
+                            tz=dt.timezone.utc,
+                        ).isoformat(),
+                        "size": stat.st_size,
+                        "is_dir": path.is_dir(),
+                    }
+                )
     entries.sort(key=lambda item: item["mtime"], reverse=True)
     return entries[:limit]
 
@@ -415,6 +429,7 @@ def _make_progress_reporter(
         count_fn: Custom counting function(watch_dir) -> (completed, in_progress_labels).
             If None, uses standard swebench directory layout (model_dir/instance_dir/report.json).
     """
+
     def _default_count(wd: Path) -> tuple[int, list[str]]:
         completed = 0
         in_progress: list[str] = []
@@ -465,6 +480,7 @@ def _make_report_watcher(
         safe_to_arm: If provided, maps model_dir.name to original arm name.
             If None, arm is always model_dir.name.
     """
+
     def _watcher() -> None:
         seen: set[tuple[str, str]] = set()
         while not stop_event.is_set():
@@ -472,8 +488,11 @@ def _make_report_watcher(
                 for model_dir in watch_dir.iterdir():
                     if not model_dir.is_dir():
                         continue
-                    arm = (safe_to_arm.get(model_dir.name, model_dir.name)
-                           if safe_to_arm else model_dir.name)
+                    arm = (
+                        safe_to_arm.get(model_dir.name, model_dir.name)
+                        if safe_to_arm
+                        else model_dir.name
+                    )
                     for instance_dir in model_dir.iterdir():
                         if not instance_dir.is_dir():
                             continue
@@ -491,6 +510,7 @@ def _make_report_watcher(
                             except Exception as exc:
                                 log.debug("Watcher error for %s/%s: %s", arm, iid, exc)
             stop_event.wait(timeout=5)
+
     return _watcher
 
 
@@ -595,7 +615,11 @@ def evaluate_arms_combined(
         # Pro eval uses a different format; single arm gains nothing from merging.
         results = {}
         for arm in arm_names:
-            cb = (lambda iid, ok, a=arm: on_instance(iid, a, ok)) if on_instance else None
+            cb = (
+                (lambda iid, ok, a=arm: on_instance(iid, a, ok))
+                if on_instance
+                else None
+            )
             results[arm] = evaluate_arm(run_dir, arm, run_id, dataset, on_instance=cb)
         return results
 
@@ -604,6 +628,7 @@ def evaluate_arms_combined(
     if dataset:
         try:
             from datasets import load_dataset
+
             ds = load_dataset(dataset, split="test")
             valid_ids = {row["instance_id"] for row in ds}
             log.info("Loaded %d valid instance IDs from %s", len(valid_ids), dataset)
@@ -634,13 +659,18 @@ def evaluate_arms_combined(
                     total_entries += 1
 
     if skipped_entries:
-        log.warning("Filtered out %d predictions with IDs not in dataset", skipped_entries)
+        log.warning(
+            "Filtered out %d predictions with IDs not in dataset", skipped_entries
+        )
 
     if total_entries == 0:
         return {arm: _EMPTY_RESULTS.copy() for arm in arm_names}
 
-    log.info("Combined %d predictions from %d arms into single evaluation",
-             total_entries, len(arm_names))
+    log.info(
+        "Combined %d predictions from %d arms into single evaluation",
+        total_entries,
+        len(arm_names),
+    )
 
     safe_key = _docker_safe(run_id)
 
@@ -651,10 +681,14 @@ def evaluate_arms_combined(
         sys.executable,
         "-m",
         "swebench.harness.run_evaluation",
-        "--predictions_path", str(combined_file),
-        "--dataset_name", dataset,
-        "--run_id", safe_key,
-        "--max_workers", _eval_workers(),
+        "--predictions_path",
+        str(combined_file),
+        "--dataset_name",
+        dataset,
+        "--run_id",
+        safe_key,
+        "--max_workers",
+        _eval_workers(),
     ]
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
@@ -668,7 +702,10 @@ def evaluate_arms_combined(
     watcher_thread = None
     if on_instance:
         watcher_fn = _make_report_watcher(
-            stop_watching, watch_dir, on_instance, safe_to_arm=safe_to_arm,
+            stop_watching,
+            watch_dir,
+            on_instance,
+            safe_to_arm=safe_to_arm,
         )
         watcher_thread = threading.Thread(target=watcher_fn, daemon=True)
         watcher_thread.start()
@@ -684,7 +721,9 @@ def evaluate_arms_combined(
     except subprocess.CalledProcessError as exc:
         log.warning("Combined evaluation failed: %s", exc)
     except FileNotFoundError:
-        log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
+        log.warning(
+            "swebench not installed. Install with: uv pip install 'swebench>=1.0'"
+        )
     finally:
         stop_watching.set()
         progress_thread.join(timeout=65)
@@ -723,6 +762,7 @@ def _make_pro_result_watcher(
     callback: Callable[[str, bool], None],
 ) -> Callable[[], None]:
     """Create a watcher that polls eval_results.json and invokes callback for new entries."""
+
     def _watcher() -> None:
         seen: set[str] = set()
         results_file = eval_dir / "eval_results.json"
@@ -736,10 +776,13 @@ def _make_pro_result_watcher(
                             try:
                                 callback(iid, bool(resolved))
                             except Exception as exc:
-                                log.debug("Pro watcher callback error for %s: %s", iid, exc)
+                                log.debug(
+                                    "Pro watcher callback error for %s: %s", iid, exc
+                                )
                 except (json.JSONDecodeError, OSError):
                     pass
             stop_event.wait(timeout=5)
+
     return _watcher
 
 
@@ -751,9 +794,12 @@ def _evaluate_pro(
 ) -> None:
     """Evaluate using Scale AI's SWE-bench Pro eval script."""
     if not _PRO_EVAL_DIR.exists():
-        log.warning("SWE-bench Pro eval repo not found at %s\n"
-                     "  Clone it: git clone https://github.com/scaleapi/SWE-bench_Pro-os.git %s",
-                     _PRO_EVAL_DIR, _PRO_EVAL_DIR)
+        log.warning(
+            "SWE-bench Pro eval repo not found at %s\n"
+            "  Clone it: git clone https://github.com/scaleapi/SWE-bench_Pro-os.git %s",
+            _PRO_EVAL_DIR,
+            _PRO_EVAL_DIR,
+        )
         return
 
     # Convert our predictions JSONL to the patch JSON format Scale expects
@@ -762,11 +808,13 @@ def _evaluate_pro(
         if not line.strip():
             continue
         entry = json.loads(line)
-        patches.append({
-            "instance_id": entry["instance_id"],
-            "patch": entry.get("model_patch", ""),
-            "prefix": arm,
-        })
+        patches.append(
+            {
+                "instance_id": entry["instance_id"],
+                "patch": entry.get("model_patch", ""),
+                "prefix": arm,
+            }
+        )
 
     eval_dir = run_dir / "eval" / arm
     eval_dir.mkdir(parents=True, exist_ok=True)
@@ -785,12 +833,18 @@ def _evaluate_pro(
     cmd = [
         sys.executable,
         str(_PRO_EVAL_DIR / "swe_bench_pro_eval.py"),
-        "--raw_sample_path", str(sample_file),
-        "--patch_path", str(patch_file),
-        "--output_dir", str(eval_dir),
-        "--scripts_dir", str(_PRO_EVAL_DIR / "run_scripts"),
-        "--dockerhub_username", os.environ.get("DOCKERHUB_USERNAME", "jefzda"),
-        "--num_workers", _eval_workers(),
+        "--raw_sample_path",
+        str(sample_file),
+        "--patch_path",
+        str(patch_file),
+        "--output_dir",
+        str(eval_dir),
+        "--scripts_dir",
+        str(_PRO_EVAL_DIR / "run_scripts"),
+        "--dockerhub_username",
+        os.environ.get("DOCKERHUB_USERNAME", "jefzda"),
+        "--num_workers",
+        _eval_workers(),
         "--use_local_docker",
     ]
 
@@ -800,7 +854,9 @@ def _evaluate_pro(
     heartbeat = _EvalHeartbeat()
 
     progress_fn = _make_progress_reporter(
-        stop_reporting, eval_dir, total_instances,
+        stop_reporting,
+        eval_dir,
+        total_instances,
         count_fn=lambda _wd: _count_pro_progress(eval_dir),
         heartbeat=heartbeat,
     )
@@ -878,10 +934,14 @@ def _evaluate_standard(
         sys.executable,
         "-m",
         "swebench.harness.run_evaluation",
-        "--predictions_path", str(pred_file),
-        "--dataset_name", dataset,
-        "--run_id", safe_key,
-        "--max_workers", _eval_workers(),
+        "--predictions_path",
+        str(pred_file),
+        "--dataset_name",
+        dataset,
+        "--run_id",
+        safe_key,
+        "--max_workers",
+        _eval_workers(),
     ]
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
@@ -894,14 +954,18 @@ def _evaluate_standard(
     watcher_thread = None
     if on_instance:
         watcher_fn = _make_report_watcher(
-            stop_watching, watch_dir,
+            stop_watching,
+            watch_dir,
             lambda iid, _arm, resolved: on_instance(iid, resolved),
         )
         watcher_thread = threading.Thread(target=watcher_fn, daemon=True)
         watcher_thread.start()
 
     progress_fn = _make_progress_reporter(
-        stop_watching, watch_dir, total_instances, heartbeat=heartbeat,
+        stop_watching,
+        watch_dir,
+        total_instances,
+        heartbeat=heartbeat,
     )
     progress_thread = threading.Thread(target=progress_fn, daemon=True)
     progress_thread.start()
@@ -920,7 +984,9 @@ def _evaluate_standard(
     except subprocess.CalledProcessError as exc:
         log.warning("Evaluation failed for %s: %s", arm, exc)
     except FileNotFoundError:
-        log.warning("swebench not installed. Install with: uv pip install 'swebench>=1.0'")
+        log.warning(
+            "swebench not installed. Install with: uv pip install 'swebench>=1.0'"
+        )
     finally:
         stop_watching.set()
         progress_thread.join(timeout=65)
@@ -940,12 +1006,17 @@ def _evaluate_standard(
 
 
 def _collect_arm_result(
-    run_dir: Path, safe_arm: str, run_id: str, is_pro: bool,
+    run_dir: Path,
+    safe_arm: str,
+    run_id: str,
+    is_pro: bool,
 ) -> dict:
     """Collect evaluation results for a single arm."""
     eval_dir = run_dir / "eval" / safe_arm
     if is_pro:
-        return _parse_pro_results(eval_dir) if eval_dir.exists() else _EMPTY_RESULTS.copy()
+        return (
+            _parse_pro_results(eval_dir) if eval_dir.exists() else _EMPTY_RESULTS.copy()
+        )
 
     # Check copied logs first (persistent within run dir)
     copied_logs = eval_dir / "swebench_logs"
@@ -966,7 +1037,10 @@ def _collect_arm_result(
 
 
 def _collect_eval_results(
-    run_dir: Path, *, is_pro: bool = False, run_id: str = "",
+    run_dir: Path,
+    *,
+    is_pro: bool = False,
+    run_id: str = "",
 ) -> None:
     """Parse eval output into eval-summary.json and upload results."""
     eval_base = run_dir / "eval"
@@ -977,7 +1051,9 @@ def _collect_eval_results(
     for arm_dir in sorted(eval_base.iterdir()):
         if not arm_dir.is_dir():
             continue
-        summary[arm_dir.name] = _collect_arm_result(run_dir, arm_dir.name, run_id, is_pro)
+        summary[arm_dir.name] = _collect_arm_result(
+            run_dir, arm_dir.name, run_id, is_pro
+        )
 
     summary_file = run_dir / "eval-summary.json"
     summary_file.write_text(json.dumps(summary, indent=2))
@@ -1013,10 +1089,18 @@ def _upload_eval_summary(run_dir: Path, summary: dict[str, dict]) -> None:
             continue
         try:
             upload_eval_results(
-                dataset, original_arm, resolved=resolved, failed=failed, error=error,
+                dataset,
+                original_arm,
+                resolved=resolved,
+                failed=failed,
+                error=error,
             )
-            log.info("Uploaded eval for %s: %d resolved, %d failed",
-                     original_arm, len(resolved), len(failed))
+            log.info(
+                "Uploaded eval for %s: %d resolved, %d failed",
+                original_arm,
+                len(resolved),
+                len(failed),
+            )
         except Exception as exc:
             log.debug("Eval upload failed for %s: %s", original_arm, exc)
 

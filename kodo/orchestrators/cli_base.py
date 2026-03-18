@@ -91,7 +91,12 @@ class CliOrchestratorBase(OrchestratorBase):
 
         with McpServerContext(mcp) as ctx:
             self._run_subprocess(
-                ctx, full_prompt, project_dir, max_exchanges, result, done_signal,
+                ctx,
+                full_prompt,
+                project_dir,
+                max_exchanges,
+                result,
+                done_signal,
             )
 
         return self._cycle_epilogue(

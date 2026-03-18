@@ -86,7 +86,9 @@ def handle_agent_call(
     )
 
     icon = "⚠️" if agent_result.is_error else "✅"
-    done_msg = f"{icon} [{_CYAN}{agent_name}{_RESET}] done ({agent_result.elapsed_s:.1f}s)"
+    done_msg = (
+        f"{icon} [{_CYAN}{agent_name}{_RESET}] done ({agent_result.elapsed_s:.1f}s)"
+    )
     if agent_obj.session.cost_bucket != "cursor_subscription":
         done_msg += f" | session: {agent_result.session_tokens:,} tokens"
     log.tprint(done_msg)

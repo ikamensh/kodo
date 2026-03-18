@@ -26,7 +26,9 @@ _log = logging.getLogger(__name__)
 
 _GCP_PROJECT = "covenance-469421"
 _GCS_BUCKET = "kodo-bench"
-_TEXT_ARCHIVE_FILES = frozenset({"config.json", "goal.md", "log.jsonl", "run.jsonl", "team.json"})
+_TEXT_ARCHIVE_FILES = frozenset(
+    {"config.json", "goal.md", "log.jsonl", "run.jsonl", "team.json"}
+)
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"""(?ix)
     (?P<prefix>
@@ -67,7 +69,9 @@ class ArchiveResult:
 
 def is_enabled() -> bool:
     return os.environ.get("KODO_TRACE_UPLOAD", "").strip().lower() in (
-        "1", "true", "yes",
+        "1",
+        "true",
+        "yes",
     )
 
 
@@ -75,6 +79,7 @@ def _db():
     global _db_client
     if _db_client is None:
         from google.cloud import firestore
+
         _db_client = firestore.Client(project=_GCP_PROJECT)
     return _db_client
 
@@ -83,6 +88,7 @@ def _bucket():
     global _gcs_bucket_obj
     if _gcs_bucket_obj is None:
         from google.cloud import storage
+
         client = storage.Client(project=_GCP_PROJECT)
         _gcs_bucket_obj = client.bucket(_GCS_BUCKET)
     return _gcs_bucket_obj
@@ -92,6 +98,7 @@ def _get_pii_cleaner():
     global _pii_cleaner
     if _pii_cleaner is None:
         from piicleaner import Cleaner
+
         _pii_cleaner = Cleaner()
     return _pii_cleaner
 
@@ -143,7 +150,9 @@ def _archive_payload(path: Path) -> tuple[bytes, ArchiveStats]:
     if path.name in _TEXT_ARCHIVE_FILES or path.parent.name == "conversations":
         text = path.read_text(encoding="utf-8")
         scrubbed_text, redactions = _scrub_archive_text(text)
-        stats = ArchiveStats(redactions=redactions, files_changed=int(scrubbed_text != text))
+        stats = ArchiveStats(
+            redactions=redactions, files_changed=int(scrubbed_text != text)
+        )
         return scrubbed_text.encode("utf-8"), stats
     return path.read_bytes(), ArchiveStats()
 
@@ -263,9 +272,12 @@ def upload_trace(
 
     try:
         from google.cloud import firestore
-        _db().collection("traces").document(run_id).set({
-            **meta,
-            "created_at": firestore.SERVER_TIMESTAMP,
-        })
+
+        _db().collection("traces").document(run_id).set(
+            {
+                **meta,
+                "created_at": firestore.SERVER_TIMESTAMP,
+            }
+        )
     except Exception as exc:
         _log.debug("Trace metadata write to Firestore failed: %s", exc)

@@ -32,10 +32,14 @@ def public_base_url(base_url: str | None = None) -> str:
     """Return the benchmark public URL, preferring explicit input over env."""
     import os
 
-    return (base_url or os.environ.get("KODO_BENCH_URL") or DEFAULT_PUBLIC_URL).rstrip("/")
+    return (base_url or os.environ.get("KODO_BENCH_URL") or DEFAULT_PUBLIC_URL).rstrip(
+        "/"
+    )
 
 
-def fetch_public_json(path: str, *, base_url: str | None = None, timeout: int = 60) -> dict:
+def fetch_public_json(
+    path: str, *, base_url: str | None = None, timeout: int = 60
+) -> dict:
     """Fetch JSON from the public benchmark server."""
     url = f"{public_base_url(base_url)}{path}"
     with urllib.request.urlopen(url, timeout=timeout) as response:
@@ -47,11 +51,17 @@ def fetch_dataset_index(dataset: str, *, base_url: str | None = None) -> dict:
     return fetch_public_json(f"/data/{dataset}/index.json", base_url=base_url)
 
 
-def fetch_dataset_patches(dataset: str, *, base_url: str | None = None) -> dict[str, str]:
+def fetch_dataset_patches(
+    dataset: str, *, base_url: str | None = None
+) -> dict[str, str]:
     """Fetch public patches.json for one dataset."""
-    data = fetch_public_json(f"/data/{dataset}/patches.json", base_url=base_url, timeout=300)
+    data = fetch_public_json(
+        f"/data/{dataset}/patches.json", base_url=base_url, timeout=300
+    )
     if not isinstance(data, dict):
-        raise TypeError(f"Expected patches dict for {dataset}, got {type(data).__name__}")
+        raise TypeError(
+            f"Expected patches dict for {dataset}, got {type(data).__name__}"
+        )
     return {str(k): str(v) for k, v in data.items()}
 
 
@@ -85,7 +95,15 @@ def flatten_index_rows(index: dict) -> list[dict]:
             }
             provenance = result.get("provenance") or {}
             if isinstance(provenance, dict):
-                for key in ("user", "host", "platform", "country", "city", "region", "timestamp"):
+                for key in (
+                    "user",
+                    "host",
+                    "platform",
+                    "country",
+                    "city",
+                    "region",
+                    "timestamp",
+                ):
                     if key in provenance:
                         row[f"provenance_{key}"] = provenance[key]
             rows.append(row)
@@ -149,14 +167,26 @@ def fetch_patch(
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint for local mirroring."""
     parser = argparse.ArgumentParser(description="Mirror public benchmark data locally")
-    parser.add_argument("--dataset", action="append", required=True,
-                        help="Dataset to mirror. Repeatable, e.g. --dataset verified --dataset pro")
-    parser.add_argument("--out", type=Path, default=Path.home() / ".kodo" / "benchmark" / "mirror",
-                        help="Output directory for mirrored JSON files")
-    parser.add_argument("--patches", action="store_true",
-                        help="Also download patches.json for each dataset")
-    parser.add_argument("--base-url", type=str, default=None,
-                        help="Override the public benchmark URL")
+    parser.add_argument(
+        "--dataset",
+        action="append",
+        required=True,
+        help="Dataset to mirror. Repeatable, e.g. --dataset verified --dataset pro",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path.home() / ".kodo" / "benchmark" / "mirror",
+        help="Output directory for mirrored JSON files",
+    )
+    parser.add_argument(
+        "--patches",
+        action="store_true",
+        help="Also download patches.json for each dataset",
+    )
+    parser.add_argument(
+        "--base-url", type=str, default=None, help="Override the public benchmark URL"
+    )
     args = parser.parse_args(argv)
 
     for dataset in args.dataset:

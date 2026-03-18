@@ -13,14 +13,14 @@ def test_pack_run_archive_scrubs_log_sensitive_data(tmp_path):
     run_dir.mkdir()
     (run_dir / "log.jsonl").write_text(
         "\n".join(
-                [
-                    '{"event":"note","message":"safe marker stays visible"}',
-                    '{"event":"agent","message":"card 4111111111111111 should not survive"}',
-                    '{"event":"agent","message":"OPENAI_API_KEY=sk-test-1234567890\\nSECRET_KEY=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"}',
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
+            [
+                '{"event":"note","message":"safe marker stays visible"}',
+                '{"event":"agent","message":"card 4111111111111111 should not survive"}',
+                '{"event":"agent","message":"OPENAI_API_KEY=sk-test-1234567890\\nSECRET_KEY=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
     archive_result = pack_run_archive(run_dir)

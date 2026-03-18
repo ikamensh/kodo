@@ -444,6 +444,7 @@ def test_build_config_with_existing_file(tmp_path, monkeypatch):
 
     # Mock Path.home() to return tmp_path
     import pathlib
+
     original_home = pathlib.Path.home
     monkeypatch.setattr(pathlib.Path, "home", lambda: tmp_path)
 

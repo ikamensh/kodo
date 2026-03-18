@@ -148,7 +148,9 @@ class TestAdvisorAssess:
         )
         plan = GoalPlan(context="ctx", stages=[])
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
+        with patch(
+            "kodo.orchestrators.advisor.PydanticAgent", autospec=True
+        ) as MockAgent:
             instance = MockAgent.return_value
             instance.run_sync.return_value = self._mock_run_sync(decision)
 
@@ -166,7 +168,9 @@ class TestAdvisorAssess:
         )
         plan = GoalPlan(context="ctx", stages=[])
 
-        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
+        with patch(
+            "kodo.orchestrators.advisor.PydanticAgent", autospec=True
+        ) as MockAgent:
             instance = MockAgent.return_value
             instance.run_sync.return_value = self._mock_run_sync(decision)
 
@@ -178,7 +182,9 @@ class TestAdvisorAssess:
 
     def test_agent_cached_across_calls(self):
         """PydanticAgent is created once in __init__, reused across assess() calls."""
-        with patch("kodo.orchestrators.advisor.PydanticAgent", autospec=True) as MockAgent:
+        with patch(
+            "kodo.orchestrators.advisor.PydanticAgent", autospec=True
+        ) as MockAgent:
             instance = MockAgent.return_value
             result_mock = MagicMock()
             result_mock.output = AdvisorDecision(action="next_stage", stage_name="S1")
@@ -212,8 +218,16 @@ class _FakeOrchestrator(OrchestratorBase):
         self._summarizer = Summarizer()
         self._cycle_count = 0
 
-    def cycle(self, goal, project_dir, team, *, max_exchanges=30,
-              prior_summary="", config=None):
+    def cycle(
+        self,
+        goal,
+        project_dir,
+        team,
+        *,
+        max_exchanges=30,
+        prior_summary="",
+        config=None,
+    ):
         self._cycle_count += 1
         return CycleResult(
             exchanges=1,
@@ -242,29 +256,34 @@ class TestRunAdaptive:
 
     def test_two_stages_then_done(self, tmp_path: Path):
         """Advisor generates 2 stages, then says done."""
-        advisor = self._make_advisor([
-            AdvisorDecision(
-                action="next_stage",
-                stage_name="Setup",
-                stage_description="Initialize project",
-                acceptance_criteria="Project builds",
-            ),
-            AdvisorDecision(
-                action="next_stage",
-                stage_name="Build",
-                stage_description="Implement features",
-                acceptance_criteria="Tests pass",
-            ),
-            AdvisorDecision(
-                action="done",
-                summary="All done",
-            ),
-        ])
+        advisor = self._make_advisor(
+            [
+                AdvisorDecision(
+                    action="next_stage",
+                    stage_name="Setup",
+                    stage_description="Initialize project",
+                    acceptance_criteria="Project builds",
+                ),
+                AdvisorDecision(
+                    action="next_stage",
+                    stage_name="Build",
+                    stage_description="Implement features",
+                    acceptance_criteria="Tests pass",
+                ),
+                AdvisorDecision(
+                    action="done",
+                    summary="All done",
+                ),
+            ]
+        )
 
         orch = _FakeOrchestrator()
-        plan = GoalPlan(context="Test project", stages=[
-            GoalStage(1, "Original", "Original stage", "criteria"),
-        ])
+        plan = GoalPlan(
+            context="Test project",
+            stages=[
+                GoalStage(1, "Original", "Original stage", "criteria"),
+            ],
+        )
         team = {"worker": make_agent("ok")}
         result = RunResult()
 
@@ -289,9 +308,11 @@ class TestRunAdaptive:
 
     def test_advisor_stops_immediately(self, tmp_path: Path):
         """Advisor says done on first call — no stages run, synthetic result added."""
-        advisor = self._make_advisor([
-            AdvisorDecision(action="done", summary="Goal already met"),
-        ])
+        advisor = self._make_advisor(
+            [
+                AdvisorDecision(action="done", summary="Goal already met"),
+            ]
+        )
 
         orch = _FakeOrchestrator()
         plan = GoalPlan(context="ctx", stages=[])
@@ -503,6 +524,7 @@ class TestRunAdaptive:
 
     def test_advisor_assess_crash_on_first_call(self, tmp_path: Path):
         """If advisor.assess() raises on the very first call, no stages run."""
+
         def always_crash(goal, plan, summaries, count):
             raise ConnectionError("Network down")
 
@@ -576,13 +598,15 @@ class TestSessionAdvisor:
 
     def test_next_stage(self, tmp_path: Path):
         """Session returns valid next_stage JSON."""
-        decision_json = json.dumps({
-            "action": "next_stage",
-            "stage_name": "Setup DB",
-            "stage_description": "Create database schema",
-            "acceptance_criteria": "Migrations run",
-            "reasoning": "Need DB first",
-        })
+        decision_json = json.dumps(
+            {
+                "action": "next_stage",
+                "stage_name": "Setup DB",
+                "stage_description": "Create database schema",
+                "acceptance_criteria": "Migrations run",
+                "reasoning": "Need DB first",
+            }
+        )
         advisor = self._make_advisor(tmp_path, [_mock_query_result(decision_json)])
         plan = GoalPlan(context="ctx", stages=[])
 
@@ -594,10 +618,12 @@ class TestSessionAdvisor:
 
     def test_done(self, tmp_path: Path):
         """Session returns done decision."""
-        decision_json = json.dumps({
-            "action": "done",
-            "summary": "Everything is complete",
-        })
+        decision_json = json.dumps(
+            {
+                "action": "done",
+                "summary": "Everything is complete",
+            }
+        )
         advisor = self._make_advisor(tmp_path, [_mock_query_result(decision_json)])
         plan = GoalPlan(context="ctx", stages=[])
 
@@ -609,7 +635,8 @@ class TestSessionAdvisor:
     def test_handles_error(self, tmp_path: Path):
         """Session error → conservative done."""
         advisor = self._make_advisor(
-            tmp_path, [_mock_query_result("Connection lost", is_error=True)],
+            tmp_path,
+            [_mock_query_result("Connection lost", is_error=True)],
         )
         plan = GoalPlan(context="ctx", stages=[])
 
@@ -620,12 +647,18 @@ class TestSessionAdvisor:
 
     def test_code_fence_json(self, tmp_path: Path):
         """JSON wrapped in ```json``` fences is extracted."""
-        text = "Here's what I think:\n```json\n" + json.dumps({
-            "action": "next_stage",
-            "stage_name": "Tests",
-            "stage_description": "Write unit tests",
-            "acceptance_criteria": "All pass",
-        }) + "\n```\nLet me know!"
+        text = (
+            "Here's what I think:\n```json\n"
+            + json.dumps(
+                {
+                    "action": "next_stage",
+                    "stage_name": "Tests",
+                    "stage_description": "Write unit tests",
+                    "acceptance_criteria": "All pass",
+                }
+            )
+            + "\n```\nLet me know!"
+        )
         advisor = self._make_advisor(tmp_path, [_mock_query_result(text)])
         plan = GoalPlan(context="ctx", stages=[])
 
@@ -660,12 +693,14 @@ class TestSessionAdvisor:
 
     def test_subsequent_prompt(self, tmp_path: Path):
         """Second+ assess calls use lightweight stage-result prompt."""
-        decision_json = json.dumps({
-            "action": "next_stage",
-            "stage_name": "S2",
-            "stage_description": "d",
-            "acceptance_criteria": "c",
-        })
+        decision_json = json.dumps(
+            {
+                "action": "next_stage",
+                "stage_name": "S2",
+                "stage_description": "d",
+                "acceptance_criteria": "c",
+            }
+        )
         done_json = json.dumps({"action": "done", "summary": "ok"})
         session = MagicMock()
         session.query.side_effect = [

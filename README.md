@@ -141,11 +141,19 @@ kodo ./my-project        # run in specific directory
 # Non-interactive (for scripting, CI, overnight cron jobs)
 kodo --goal 'Build a REST API for user management' ./my-project
 kodo --goal-file requirements.md ./my-project
-kodo --goal 'Build X' --team saga --exchanges 50 --cycles 10 ./my-project
+kodo --goal 'Build X' --team full --exchanges 50 --cycles 10 ./my-project
+
+# Test — find bugs through realistic interaction (not unit tests)
+kodo test                            # test current project
+kodo test --focus 'auth module'      # focus on specific area
+kodo test --target src/api/          # scope to specific files/dirs
+
+# Improve — code review for simplification, usability, architecture
+kodo --improve                       # review current project
+kodo --improve --focus 'CLI flags'   # focus on specific area
 
 # Resume an interrupted run (looks in ~/.kodo/runs/)
 kodo --resume                       # resume latest incomplete run in current dir
-kodo ./my-project --resume          # resume latest in specific project
 kodo --resume 20260218_205503       # resume specific run by ID
 ```
 
@@ -170,16 +178,18 @@ kodo [project_dir] [options]
 Goal (mutually exclusive):
   --goal TEXT               Goal text (inline)
   --goal-file PATH          Path to file containing goal
-  --improve                 Auto-analyze, test, and fix the codebase
+  --improve                 Code review: simplification, usability, architecture
+  --test                    Find bugs through realistic interaction and workflows
 
-Improve options:
-  --improve-type TYPE       auto (default) | app | library
+Test/Improve options:
+  --focus TEXT              Steer toward a specific area (e.g. 'error handling')
+  --target PATH             Scope --test to specific files/dirs (repeatable)
 
 Configuration:
-  --team TEAM               saga (default) | mission | quick
+  --team TEAM               full (default) | quick | test
   --exchanges N             Max exchanges per cycle
   --cycles N                Max cycles
-  --orchestrator BACKEND    api (default, recommended) | claude-code
+  --orchestrator BACKEND    api (default) | claude-code | gemini-cli | codex | cursor
   --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
 
 Behavior:
@@ -198,15 +208,47 @@ Output:
 
 > **⚠️ Heads up:** agents run with full permissions (`bypassPermissions` mode). They primarily work in your project directory but **can access any file on your system** (installing dependencies, editing configs, etc.). Make sure you have a git commit or backup before launching.
 
+### `kodo test` — find bugs through realistic interaction
+
+Tests your software the way a real user would — not at the unit test level.
+
+1. **Tool Forge**: builds custom testing tools (CLI wrappers, integration harnesses, install scripts) so agents can actually interact with the software
+2. **User Story Mapping**: enumerates every way users interact with your software, tracks which stories are testable vs blocked on tooling
+3. **Integration & Exploratory Testing**: works through stories using the tools, tries to break things with edge cases and adversarial inputs
+4. **Regression Tests & Fixes**: for confirmed bugs, writes a test that fails, fixes the code, verifies the test passes
+
+If agents need tools they can't build (Docker, VPS, browser automation), they say so in the **Blocked Stories** section of the report. On repeated runs, previously-tested stories are skipped based on commit tracking in `.kodo/test-stories.md`.
+
+```bash
+kodo test                                # full test run
+kodo test --focus 'authentication'       # focus on area
+kodo test --target src/api/ --target src/auth/  # scope to files
+```
+
+### `kodo --improve` — code review for significant improvements
+
+Reviews your codebase like a senior developer joining the project. Focuses on simplification, usability, and architecture — not on running tests (use `kodo test` for that).
+
+1. **Simplification**: unnecessary abstractions, duplicated logic, dead code, things that reimplement stdlib
+2. **Usability**: redundant CLI flags, confusing API naming, poor error messages, missing defaults, docs that contradict code
+3. **Architecture**: module boundaries, dependency directions, circular deps, scattered responsibilities
+4. **Triage**: skeptically filters findings — most don't survive scrutiny
+5. **Fix & Report**: auto-fixes safe issues, flags ambiguous ones as "needs decision"
+
+```bash
+kodo --improve                           # full review
+kodo --improve --focus 'CLI interface'   # focus on area
+```
+
 ### Subcommands
 
 ```bash
+kodo test                     # find bugs through realistic testing
 kodo runs                     # list all past runs
 kodo runs ./my-project        # list runs for a specific project
 kodo issue [RUN_ID]           # report a bug (opens GitHub with run context pre-filled)
 kodo backends                 # show available backends, models, API key status
 kodo teams                    # list available teams
-kodo teams auto               # auto-generate a team from available backends
 kodo teams add my-team        # interactively create a custom team
 kodo teams edit my-team       # edit an existing team
 ```

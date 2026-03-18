@@ -31,7 +31,11 @@ def _make_mcp_with_tools():
     ):
         summarizer = Summarizer()
     return build_mcp_server(
-        team, Path("/tmp/proj"), summarizer, DoneSignal(), "Build X",
+        team,
+        Path("/tmp/proj"),
+        summarizer,
+        DoneSignal(),
+        "Build X",
         config=CycleConfig(done_mode="legacy"),
     )
 
@@ -103,7 +107,11 @@ def test_summarize_api_failure_includes_fallback_context(tmp_path: Path):
         self.run_sync = run_sync_raises
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ),
         patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
         patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
     ):
@@ -139,6 +147,7 @@ def test_stdio_bridge_cmd_uses_npx_when_available():
 def test_stdio_bridge_cmd_falls_back_to_python():
     """stdio_bridge_cmd should fall back to Python script when npx unavailable."""
     import sys
+
     mcp = _make_mcp_with_tools()
 
     with (
@@ -156,6 +165,7 @@ def test_stdio_bridge_cmd_falls_back_to_python():
 def test_enter_raises_on_server_runtime_error():
     """__enter__ should raise RuntimeError from server thread (non-event-loop errors)."""
     import pytest
+
     mcp = _make_mcp_with_tools()
 
     def fake_uvicorn_server(config):
@@ -186,6 +196,7 @@ def test_enter_raises_on_server_runtime_error():
 def test_enter_raises_on_server_generic_exception():
     """__enter__ should raise generic exceptions from server thread."""
     import pytest
+
     mcp = _make_mcp_with_tools()
 
     def fake_uvicorn_server(config):
@@ -216,6 +227,7 @@ def test_enter_raises_on_server_generic_exception():
 def test_enter_raises_on_startup_timeout():
     """__enter__ should raise RuntimeError when server doesn't start in time."""
     import pytest
+
     mcp = _make_mcp_with_tools()
 
     def fake_uvicorn_server(config):
@@ -247,6 +259,7 @@ def test_enter_raises_on_startup_timeout():
             def _fake_wait(timeout=None):
                 time.sleep(0.05)
                 return False
+
             evt.wait = _fake_wait
         return evt
 

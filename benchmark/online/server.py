@@ -35,17 +35,27 @@ from pathlib import Path
 log = logging.getLogger("benchmark.online")
 
 from . import db
-from .config import ADMIN_TOKEN, ALLOWED_DATASETS, HEAD_TO_HEAD_OPPONENT, SNAPSHOT_PREFIX, VIEW_MODE
+from .config import (
+    ADMIN_TOKEN,
+    ALLOWED_DATASETS,
+    HEAD_TO_HEAD_OPPONENT,
+    SNAPSHOT_PREFIX,
+    VIEW_MODE,
+)
 from .validation import suspicious_upload_reason
 
 PORT = int(os.environ.get("PORT", 8080))
-BASE_PATH = os.environ.get("BASE_PATH", "")  # e.g. "/bench" when behind Firebase Hosting
+BASE_PATH = os.environ.get(
+    "BASE_PATH", ""
+)  # e.g. "/bench" when behind Firebase Hosting
 STATIC_DIR = Path(__file__).parent / "static"
 HEAD_TO_HEAD_MODE = VIEW_MODE == "head_to_head"
 
 # In-memory cache: key -> (timestamp, bytes)
 _cache: dict[str, tuple[float, bytes]] = {}
-CACHE_TTL = 300  # 5 minutes — index.json is materialized in GCS, this is just edge cache
+CACHE_TTL = (
+    300  # 5 minutes — index.json is materialized in GCS, this is just edge cache
+)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -54,7 +64,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _strip_base(self) -> str:
         """Strip BASE_PATH prefix from self.path for routing."""
         if BASE_PATH and self.path.startswith(BASE_PATH):
-            stripped = self.path[len(BASE_PATH):]
+            stripped = self.path[len(BASE_PATH) :]
             return stripped or "/"
         return self.path
 
@@ -167,7 +177,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, str(e))
             return
-        self._json_ok({"token": token, "note": "Save this token — it cannot be retrieved again."})
+        self._json_ok(
+            {"token": token, "note": "Save this token — it cannot be retrieved again."}
+        )
 
     def _handle_list_tokens(self):
         if not self._check_admin():
@@ -249,7 +261,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Implicit activity signal: contributor is actively producing results for this arm
         prov = result_data.get("provenance") or {}
-        contributor = f"{prov.get('user', '')}@{prov.get('host', '')}" if prov.get("user") else ""
+        contributor = (
+            f"{prov.get('user', '')}@{prov.get('host', '')}" if prov.get("user") else ""
+        )
         if contributor:
             try:
                 db.touch_activity(dataset, contributor, [arm])
@@ -352,10 +366,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not meta:
             self.send_error(401)
             return
-        self._json_ok({
-            "name": meta.get("name", ""),
-            "issued_to": meta.get("issued_to", ""),
-        })
+        self._json_ok(
+            {
+                "name": meta.get("name", ""),
+                "issued_to": meta.get("issued_to", ""),
+            }
+        )
 
     # ── Self-service registration ───────────────────────────────────
 
@@ -459,7 +475,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         try:
-            if HEAD_TO_HEAD_MODE and not self._is_visible_in_head_to_head(dataset, iid, arm):
+            if HEAD_TO_HEAD_MODE and not self._is_visible_in_head_to_head(
+                dataset, iid, arm
+            ):
                 self.send_error(404, "Patch not found")
                 return
             if SNAPSHOT_PREFIX:
@@ -478,7 +496,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _serve_static(self, p: str = ""):
         path = (p or self._strip_base()).rstrip("/")
-        if HEAD_TO_HEAD_MODE and path in ("/progress.html", "/scheduling.html", "/register.html"):
+        if HEAD_TO_HEAD_MODE and path in (
+            "/progress.html",
+            "/scheduling.html",
+            "/register.html",
+        ):
             self.send_error(404)
             return
         if path in ("", "/index.html"):
@@ -533,7 +555,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Materialized index.json in GCS — cheap read, lazy rebuild on dirty/stale
         return db.get_index_json(dataset)
 
-    def _is_visible_in_head_to_head(self, dataset: str, instance_id: str, arm: str) -> bool:
+    def _is_visible_in_head_to_head(
+        self, dataset: str, instance_id: str, arm: str
+    ) -> bool:
         """Gate patch access to the overlap-only dataset in head-to-head mode."""
         cached = _cache.get(self._cache_key(dataset, "index"))
         if cached is None:
@@ -567,5 +591,7 @@ if __name__ == "__main__":
     print(f"Benchmark API server on :{PORT}")
     print(f"  Project: {os.environ.get('KODO_BENCH_PROJECT', '(default)')}")
     print(f"  Bucket:  {os.environ.get('KODO_BENCH_BUCKET', '(default)')}")
-    print(f"  Admin token: {'set' if ADMIN_TOKEN else 'NOT SET (admin endpoints disabled)'}")
+    print(
+        f"  Admin token: {'set' if ADMIN_TOKEN else 'NOT SET (admin endpoints disabled)'}"
+    )
     server.serve_forever()

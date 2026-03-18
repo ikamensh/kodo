@@ -48,9 +48,12 @@ def publish_results(workspace: Path, run_id: str | None = None) -> int:
         run_dirs = sorted(d for d in runs_dir.iterdir() if d.is_dir())
 
     provenance = collect_provenance()
-    log.info("Publisher: %s@%s (%s)",
-             provenance.get('user'), provenance.get('host'),
-             provenance.get('country', '?'))
+    log.info(
+        "Publisher: %s@%s (%s)",
+        provenance.get("user"),
+        provenance.get("host"),
+        provenance.get("country", "?"),
+    )
 
     # Collect everything locally, grouped by dataset
     datasets: dict[str, _DatasetBuild] = {}
@@ -113,7 +116,9 @@ def publish_results(workspace: Path, run_id: str | None = None) -> int:
                     safe_arm = pred.get("model_name_or_path", "")
                     patch = pred.get("model_patch", "")
                     if ".." in iid or ".." in safe_arm:
-                        log.warning("Skipping suspicious instance_id/arm: %s/%s", iid, safe_arm)
+                        log.warning(
+                            "Skipping suspicious instance_id/arm: %s/%s", iid, safe_arm
+                        )
                         continue
                     if patch and iid and safe_arm:
                         ds.patches[f"{iid}/{safe_arm}"] = patch
@@ -180,9 +185,12 @@ def _build_site(site_dir: Path, datasets: dict[str, _DatasetBuild]) -> None:
         merged_patches.update(local.patches)
 
         total_evaluated = sum(
-            1 for iid in merged_tasks
-            if any(merged_results.get(iid, {}).get(a, {}).get("eval_status")
-                   for a in merged_arms)
+            1
+            for iid in merged_tasks
+            if any(
+                merged_results.get(iid, {}).get(a, {}).get("eval_status")
+                for a in merged_arms
+            )
         )
 
         index_data = {
@@ -205,11 +213,17 @@ def _build_site(site_dir: Path, datasets: dict[str, _DatasetBuild]) -> None:
 
         idx_kb = len(index_json) / 1024
         patches_kb = len(patches_json) / 1024
-        log.info("Built data/%s/ — %d tasks, %d arms, %d patches, %d evaluated "
-                 "(%dKB index + %dKB patches)",
-                 ds_key, len(merged_tasks), len(merged_arms),
-                 len(merged_patches), total_evaluated,
-                 idx_kb, patches_kb)
+        log.info(
+            "Built data/%s/ — %d tasks, %d arms, %d patches, %d evaluated "
+            "(%dKB index + %dKB patches)",
+            ds_key,
+            len(merged_tasks),
+            len(merged_arms),
+            len(merged_patches),
+            total_evaluated,
+            idx_kb,
+            patches_kb,
+        )
 
 
 def _read_gh_pages_data() -> dict[str, dict]:
@@ -221,7 +235,8 @@ def _read_gh_pages_data() -> dict[str, dict]:
             for fname in ("index.json", "patches.json"):
                 proc = subprocess.run(
                     ["git", "show", f"gh-pages:data/{ds_key}/{fname}"],
-                    capture_output=True, timeout=10,
+                    capture_output=True,
+                    timeout=10,
                 )
                 if proc.returncode == 0:
                     ds_data[fname.replace(".json", "")] = json.loads(proc.stdout)
@@ -242,27 +257,44 @@ def _push_gh_pages(site_dir: Path) -> None:
         # Create orphan gh-pages branch if needed
         check = subprocess.run(
             ["git", "rev-parse", "--verify", "gh-pages"],
-            capture_output=True, cwd=repo_root,
+            capture_output=True,
+            cwd=repo_root,
         )
         if check.returncode != 0:
             log.info("Creating gh-pages branch...")
             # Use git plumbing to create orphan branch (Apple Git lacks --orphan worktree)
-            empty_tree = subprocess.run(
-                ["git", "hash-object", "-t", "tree", "/dev/null"],
-                capture_output=True, cwd=repo_root, check=True,
-            ).stdout.decode().strip()
-            init_commit = subprocess.run(
-                ["git", "commit-tree", "-m", "Initial gh-pages", empty_tree],
-                capture_output=True, cwd=repo_root, check=True,
-            ).stdout.decode().strip()
+            empty_tree = (
+                subprocess.run(
+                    ["git", "hash-object", "-t", "tree", "/dev/null"],
+                    capture_output=True,
+                    cwd=repo_root,
+                    check=True,
+                )
+                .stdout.decode()
+                .strip()
+            )
+            init_commit = (
+                subprocess.run(
+                    ["git", "commit-tree", "-m", "Initial gh-pages", empty_tree],
+                    capture_output=True,
+                    cwd=repo_root,
+                    check=True,
+                )
+                .stdout.decode()
+                .strip()
+            )
             subprocess.run(
                 ["git", "branch", "gh-pages", init_commit],
-                capture_output=True, cwd=repo_root, check=True,
+                capture_output=True,
+                cwd=repo_root,
+                check=True,
             )
 
         subprocess.run(
             ["git", "worktree", "add", str(wt_path), "gh-pages"],
-            capture_output=True, cwd=repo_root, check=True,
+            capture_output=True,
+            cwd=repo_root,
+            check=True,
         )
 
         try:
@@ -288,12 +320,15 @@ def _push_gh_pages(site_dir: Path) -> None:
 
             subprocess.run(
                 ["git", "add", "-A"],
-                cwd=wt_path, capture_output=True, check=True,
+                cwd=wt_path,
+                capture_output=True,
+                check=True,
             )
 
             diff = subprocess.run(
                 ["git", "diff", "--cached", "--quiet"],
-                cwd=wt_path, capture_output=True,
+                cwd=wt_path,
+                capture_output=True,
             )
             if diff.returncode == 0:
                 log.info("No changes to publish.")
@@ -301,19 +336,29 @@ def _push_gh_pages(site_dir: Path) -> None:
 
             ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
             subprocess.run(
-                ["git", "commit", "--no-verify", "-m",
-                 f"Update benchmark results ({ts})"],
-                cwd=wt_path, capture_output=True, check=True,
+                [
+                    "git",
+                    "commit",
+                    "--no-verify",
+                    "-m",
+                    f"Update benchmark results ({ts})",
+                ],
+                cwd=wt_path,
+                capture_output=True,
+                check=True,
             )
             subprocess.run(
                 ["git", "push", "origin", "gh-pages"],
-                cwd=wt_path, capture_output=True, check=True,
+                cwd=wt_path,
+                capture_output=True,
+                check=True,
             )
             log.info("Pushed to gh-pages → https://ikamensh.github.io/kodo/")
         finally:
             subprocess.run(
                 ["git", "worktree", "remove", str(wt_path), "--force"],
-                capture_output=True, cwd=repo_root,
+                capture_output=True,
+                cwd=repo_root,
             )
 
 
@@ -326,7 +371,8 @@ def extract_patch(instance_id: str, arm: str) -> int:
         try:
             proc = subprocess.run(
                 ["git", "show", f"gh-pages:data/{ds_key}/patches.json"],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
             )
             if proc.returncode != 0:
                 continue

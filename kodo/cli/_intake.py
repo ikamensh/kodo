@@ -49,7 +49,6 @@ def _close_session(session) -> None:
         log.emit("session_cleanup_warning", error=str(e))
 
 
-
 # TODO: The canned questions above are a starting point. Experiment with whether
 # letting the LLM ask its own probing questions (rather than canned ones) produces
 # better refinement. The hypothesis is that canned "is this the simplest
@@ -380,8 +379,7 @@ def _read_intake_output(
             try:
                 _raw = json.loads(output_file.read_text(encoding="utf-8"))
                 _has_parallel = any(
-                    s.get("parallel_group") is not None
-                    for s in _raw.get("stages", [])
+                    s.get("parallel_group") is not None for s in _raw.get("stages", [])
                 )
             except (OSError, json.JSONDecodeError, ValueError):
                 _has_parallel = False
@@ -569,7 +567,8 @@ def run_intake_noninteractive(
 
 
 def _offer_intake(
-    run_dir: RunDir, goal_text: str,
+    run_dir: RunDir,
+    goal_text: str,
 ) -> tuple[GoalPlan | str | None, object | None]:
     """Offer goal refinement before launch.
 
@@ -601,6 +600,7 @@ def _offer_intake(
     if confirm in ("n", "no"):
         print("Aborted.")
         import sys
+
         sys.exit(0)
 
     if choice.startswith("Quick"):

@@ -148,4 +148,6 @@ class DoneSignal:
         self.called = False
         self.summary = ""
         self.success = False
-        self.terminal: Literal["goal_done", "end_cycle", "raise_issue", "legacy"] | None = None
+        self.terminal: (
+            Literal["goal_done", "end_cycle", "raise_issue", "legacy"] | None
+        ) = None

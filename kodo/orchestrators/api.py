@@ -95,9 +95,7 @@ class ApiOrchestrator(OrchestratorBase):
         self._pydantic_model = resolve_model(model)
         self._fallback_model = fallback_model
         self._fallback_pydantic = (
-            resolve_model(fallback_model)
-            if fallback_model
-            else None
+            resolve_model(fallback_model) if fallback_model else None
         )
         self._summarizer = Summarizer()
         self._http_client: httpx.AsyncClient | None = None
@@ -208,7 +206,10 @@ class ApiOrchestrator(OrchestratorBase):
         for attempt in range(max_retries):
             try:
                 run_result = self._run_sync_with_timeout(
-                    agent, prompt, max_exchanges, cumulative_usage,
+                    agent,
+                    prompt,
+                    max_exchanges,
+                    cumulative_usage,
                     timeout_s=wall_timeout_s,
                 )
                 consecutive_timeouts = 0
@@ -234,8 +235,11 @@ class ApiOrchestrator(OrchestratorBase):
                         if accumulated
                         else f"[Cycle aborted: orchestrator API hung {max_retries} times.]"
                     )
-                    log.emit("cycle_end", reason="wall_timeout_exhausted",
-                             summary=result.summary)
+                    log.emit(
+                        "cycle_end",
+                        reason="wall_timeout_exhausted",
+                        summary=result.summary,
+                    )
                     return result
                 continue
             except FatalAgentError as exc:
@@ -404,9 +408,7 @@ class ApiOrchestrator(OrchestratorBase):
         try:
             return future.result(timeout=timeout_s)
         except FuturesTimeoutError:
-            raise _CycleWallTimeout(
-                f"run_sync did not complete within {timeout_s}s"
-            )
+            raise _CycleWallTimeout(f"run_sync did not complete within {timeout_s}s")
 
     def _summarize(self, messages: list) -> str:
         """Compress conversation into a summary using a simple agent."""

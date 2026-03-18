@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 # Workspace tools (available to agents)
 # ---------------------------------------------------------------------------
 
+
 def _make_read_artifact(workspace: "Workspace") -> Callable:
     def read_artifact(name: str) -> str:
         """Read a knowledge artifact from the shared workspace."""
@@ -29,6 +30,7 @@ def _make_read_artifact(workspace: "Workspace") -> Callable:
             available = workspace.list_artifacts()
             return f"Artifact '{name}' not found. Available: {available}"
         return content
+
     return read_artifact
 
 
@@ -37,6 +39,7 @@ def _make_write_artifact(workspace: "Workspace") -> Callable:
         """Write or update a knowledge artifact in the shared workspace."""
         workspace.write(name, content)
         return f"Artifact '{name}' updated (v{workspace.artifacts[name].version})."
+
     return write_artifact
 
 
@@ -51,6 +54,7 @@ def _make_list_artifacts(workspace: "Workspace") -> Callable:
             art = workspace.artifacts[name]
             lines.append(f"- {name} (v{art.version}, {len(art.content)} chars)")
         return "\n".join(lines)
+
     return list_artifacts
 
 
@@ -58,12 +62,14 @@ def _make_list_artifacts(workspace: "Workspace") -> Callable:
 # Computation tool
 # ---------------------------------------------------------------------------
 
+
 def _make_compute() -> Callable:
     def compute(python_code: str) -> str:
         """Execute Python code and return stdout. For calculations,
         data analysis, or verification. The code runs in a subprocess
         with a 30-second timeout."""
         import subprocess
+
         try:
             result = subprocess.run(
                 ["python3", "-c", python_code],
@@ -77,12 +83,14 @@ def _make_compute() -> Callable:
             return output.strip() or "(no output)"
         except subprocess.TimeoutExpired:
             return "ERROR: Computation timed out after 30 seconds."
+
     return compute
 
 
 # ---------------------------------------------------------------------------
 # Orchestrator tools — agent delegation
 # ---------------------------------------------------------------------------
+
 
 def _make_knowledge_agent_handler(
     agent_name: str,
@@ -130,13 +138,16 @@ def _make_knowledge_agent_handler(
             total_workers=1,
         )
 
-    desc = f"Delegate a task to the {agent_name} agent.\n{agent_obj.description.strip()}"
+    desc = (
+        f"Delegate a task to the {agent_name} agent.\n{agent_obj.description.strip()}"
+    )
     return handler, desc
 
 
 # ---------------------------------------------------------------------------
 # Finish tool
 # ---------------------------------------------------------------------------
+
 
 def _make_finish(
     done_signal: "DoneSignal",
@@ -159,12 +170,14 @@ def _make_finish(
             f"verdict={convergence.verdict_type}): {final_summary[:200]}"
         )
         return "Knowledge task complete."
+
     return finish
 
 
 # ---------------------------------------------------------------------------
 # Public factory
 # ---------------------------------------------------------------------------
+
 
 def build_knowledge_tools(
     team: dict,
@@ -179,36 +192,49 @@ def build_knowledge_tools(
     # Agent delegation tools
     for name, agent in team.items():
         handler, desc = _make_knowledge_agent_handler(
-            name, agent, workspace, summarizer,
+            name,
+            agent,
+            workspace,
+            summarizer,
         )
-        tools.append(Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False))
+        tools.append(
+            Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False)
+        )
 
     # Workspace tools (orchestrator can also read/write directly)
-    tools.append(Tool(
-        _make_read_artifact(workspace),
-        name="read_artifact",
-        description="Read a knowledge artifact from the shared workspace.",
-        takes_ctx=False,
-    ))
-    tools.append(Tool(
-        _make_write_artifact(workspace),
-        name="write_artifact",
-        description="Write or update a knowledge artifact.",
-        takes_ctx=False,
-    ))
-    tools.append(Tool(
-        _make_list_artifacts(workspace),
-        name="list_artifacts",
-        description="List all artifacts in the workspace.",
-        takes_ctx=False,
-    ))
+    tools.append(
+        Tool(
+            _make_read_artifact(workspace),
+            name="read_artifact",
+            description="Read a knowledge artifact from the shared workspace.",
+            takes_ctx=False,
+        )
+    )
+    tools.append(
+        Tool(
+            _make_write_artifact(workspace),
+            name="write_artifact",
+            description="Write or update a knowledge artifact.",
+            takes_ctx=False,
+        )
+    )
+    tools.append(
+        Tool(
+            _make_list_artifacts(workspace),
+            name="list_artifacts",
+            description="List all artifacts in the workspace.",
+            takes_ctx=False,
+        )
+    )
 
     # Finish
-    tools.append(Tool(
-        _make_finish(done_signal, workspace, convergence),
-        name="finish",
-        description="Signal that the knowledge task is complete.",
-        takes_ctx=False,
-    ))
+    tools.append(
+        Tool(
+            _make_finish(done_signal, workspace, convergence),
+            name="finish",
+            description="Signal that the knowledge task is complete.",
+            takes_ctx=False,
+        )
+    )
 
     return tools

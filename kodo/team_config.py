@@ -147,25 +147,34 @@ def build_team_from_json(config: dict) -> TeamConfig:
         model = agent_cfg.get("model") or smart_model_for_backend(backend_key)
         if not backends.get(backend_key, False):
             logger.warning(
-                "Skipping agent %r: backend %r not available", agent_key, backend,
+                "Skipping agent %r: backend %r not available",
+                agent_key,
+                backend,
             )
             continue
 
         # Build session
         description = agent_cfg.get("description", _AGENT_DEFAULTS["description"])
         from kodo.prompts.roles import AGENT_NOTES_INSTRUCTION
+
         default_prompt = _ROLE_PROMPTS.get(agent_key, _AGENT_DEFAULTS["system_prompt"])
         system_prompt = agent_cfg.get("system_prompt", default_prompt)
         notes_instruction = AGENT_NOTES_INSTRUCTION.format(role=agent_key)
-        system_prompt = (system_prompt + notes_instruction) if system_prompt else notes_instruction.strip()
+        system_prompt = (
+            (system_prompt + notes_instruction)
+            if system_prompt
+            else notes_instruction.strip()
+        )
         max_turns = agent_cfg.get("max_turns", _AGENT_DEFAULTS["max_turns"])
         timeout_s = agent_cfg.get("timeout_s", _AGENT_DEFAULTS["timeout_s"])
         chrome = agent_cfg.get("chrome", _AGENT_DEFAULTS["chrome"])
         fallback_model = agent_cfg.get(
-            "fallback_model", _AGENT_DEFAULTS["fallback_model"],
+            "fallback_model",
+            _AGENT_DEFAULTS["fallback_model"],
         )
         session_timeout_s = agent_cfg.get(
-            "session_timeout_s", _AGENT_DEFAULTS["session_timeout_s"],
+            "session_timeout_s",
+            _AGENT_DEFAULTS["session_timeout_s"],
         )
 
         session = make_session(
@@ -252,7 +261,9 @@ def team_to_json(
         if getattr(session, "fallback_model", None):
             entry["fallback_model"] = session.fallback_model
         session_timeout = getattr(session, "_session_timeout_s", None) or getattr(
-            session, "_timeout_s", None,
+            session,
+            "_timeout_s",
+            None,
         )
         if session_timeout and session_timeout != 7200:
             entry["session_timeout_s"] = session_timeout

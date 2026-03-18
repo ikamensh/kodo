@@ -25,7 +25,11 @@ def _make_done_handler(team, project_dir, goal="Build X"):
     ):
         summarizer = Summarizer()
     mcp = build_mcp_server(
-        team, project_dir, summarizer, signal, goal,
+        team,
+        project_dir,
+        summarizer,
+        signal,
+        goal,
         config=CycleConfig(done_mode="legacy"),
     )
 
@@ -56,7 +60,9 @@ class TestDoneHandlerAccepted:
         assert signal.summary == "Built everything"
         assert "accepted" in result.lower() or "pass" in result.lower()
 
-    def test_legacy_full_verification_rejects_on_tester_failure(self, tmp_project: Path) -> None:
+    def test_legacy_full_verification_rejects_on_tester_failure(
+        self, tmp_project: Path
+    ) -> None:
         """Legacy mode with verification='full' runs verify_done gate;
         tester failure causes rejection."""
         team = {
@@ -95,13 +101,20 @@ class TestDoneHandlerQuickCheckRejection:
 
         team = {"tester": make_agent("broken")}
         done_signal = DoneSignal()
-        checks = [QuickCheck(
-            path=str(tmp_project / "nonexistent.md"),
-            description="Required",
-            error_message="Missing",
-        )]
+        checks = [
+            QuickCheck(
+                path=str(tmp_project / "nonexistent.md"),
+                description="Required",
+                error_message="Missing",
+            )
+        ]
         result = handle_done(
-            "All done", True, done_signal, "goal", team, tmp_project,
+            "All done",
+            True,
+            done_signal,
+            "goal",
+            team,
+            tmp_project,
             config=CycleConfig(verification=checks),
         )
 
@@ -121,7 +134,11 @@ class TestNewDoneTools:
         ):
             summarizer = Summarizer()
         mcp = build_mcp_server(
-            team, project_dir, summarizer, signal, goal,
+            team,
+            project_dir,
+            summarizer,
+            signal,
+            goal,
             config=CycleConfig(done_mode="new"),
         )
         tools = {}
@@ -264,7 +281,9 @@ class TestDoneSignalThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [threading.Thread(target=hammerer, args=(i % 2 == 0,)) for i in range(6)]
+        threads = [
+            threading.Thread(target=hammerer, args=(i % 2 == 0,)) for i in range(6)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -283,8 +302,8 @@ class TestDoneSignalThreadSafety:
             try:
                 i = 0
                 while not stop.is_set():
-                    ds.called = (i % 2 == 0)
-                    ds.success = (i % 3 == 0)
+                    ds.called = i % 2 == 0
+                    ds.success = i % 3 == 0
                     ds.summary = f"iter-{i}"
                     i += 1
             except Exception as e:
@@ -299,10 +318,9 @@ class TestDoneSignalThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = (
-            [threading.Thread(target=writer) for _ in range(3)]
-            + [threading.Thread(target=reader) for _ in range(5)]
-        )
+        threads = [threading.Thread(target=writer) for _ in range(3)] + [
+            threading.Thread(target=reader) for _ in range(5)
+        ]
         for t in threads:
             t.start()
 

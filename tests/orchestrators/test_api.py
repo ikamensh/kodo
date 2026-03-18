@@ -35,12 +35,23 @@ def test_cycle_done_returns_finished(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
-        patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None),
+        patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ),
+        patch(
+            "kodo.orchestrators.verification.verify_done",
+            autospec=True,
+            return_value=None,
+        ),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle(
-            "build feature", tmp_path, team, max_exchanges=10,
+            "build feature",
+            tmp_path,
+            team,
+            max_exchanges=10,
             config=CycleConfig(done_mode="legacy"),
         )
 
@@ -60,7 +71,11 @@ def test_cycle_no_done_returns_summary(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ),
         patch.object(ApiOrchestrator, "_summarize", return_value="summary of work"),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -82,7 +97,11 @@ def test_usage_limit_exceeded(tmp_path: Path):
 
     team = _make_fake_team()
 
-    with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+    with patch(
+        "kodo.orchestrators.api.Agent.__init__",
+        autospec=True,
+        side_effect=fake_agent_init,
+    ):
         orch = ApiOrchestrator(model="claude-opus-4-6")
         result = orch.cycle("build feature", tmp_path, team, max_exchanges=5)
 
@@ -110,7 +129,11 @@ def test_529_fallback(tmp_path: Path):
     team = _make_fake_team()
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ),
         patch.object(ApiOrchestrator, "_summarize", return_value="done"),
     ):
         orch = ApiOrchestrator(
@@ -137,7 +160,11 @@ def test_build_tools_creates_agent_and_done_tools(tmp_path: Path):
     summarizer = MagicMock()
 
     tools = build_pydantic_tools(
-        team, tmp_path, summarizer, done_signal, "test goal",
+        team,
+        tmp_path,
+        summarizer,
+        done_signal,
+        "test goal",
         config=CycleConfig(done_mode="legacy"),
     )
 
@@ -179,13 +206,19 @@ def test_build_tools_done_sets_signal(tmp_path: Path):
     summarizer = MagicMock()
 
     tools = build_pydantic_tools(
-        team, tmp_path, summarizer, done_signal, "test goal",
+        team,
+        tmp_path,
+        summarizer,
+        done_signal,
+        "test goal",
         config=CycleConfig(done_mode="legacy"),
     )
     done_tool = next(t for t in tools if t.name == "done")
 
     log.init(RunDir.create(tmp_path, "done_test"))
-    with patch("kodo.orchestrators.verification.verify_done", autospec=True, return_value=None):
+    with patch(
+        "kodo.orchestrators.verification.verify_done", autospec=True, return_value=None
+    ):
         done_tool.function(summary="all done", success=True)
 
     assert done_signal.called is True
@@ -227,7 +260,11 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output="")
 
-        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+        with patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -243,7 +280,11 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output="   \n\t  ")
 
-        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+        with patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -259,7 +300,11 @@ class TestSummarizeEmptyOutput:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             self.run_sync = lambda prompt, **kw: FakeRunResult(output=None)
 
-        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+        with patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -276,7 +321,11 @@ class TestSummarizeEmptyOutput:
                 output="Completed task X, pending task Y."
             )
 
-        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+        with patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch._summarize([])
 
@@ -347,12 +396,17 @@ class TestApiErrorPaths:
                 raise ModelHTTPError(
                     status_code=401, model_name="claude-opus-4-6", body="Unauthorized"
                 )
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             pytest.raises(ModelHTTPError) as exc_info,
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
@@ -370,12 +424,17 @@ class TestApiErrorPaths:
                 raise ModelHTTPError(
                     status_code=403, model_name="gemini-2.5-pro", body="Forbidden"
                 )
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             pytest.raises(ModelHTTPError) as exc_info,
         ):
             orch = ApiOrchestrator(model="gemini-2.5-pro")
@@ -396,12 +455,17 @@ class TestApiErrorPaths:
                 raise ModelHTTPError(
                     status_code=500, model_name="test", body="Internal error"
                 )
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch("time.sleep", autospec=True),  # Skip actual sleep
             pytest.raises(ModelHTTPError),
         ):
@@ -426,12 +490,17 @@ class TestApiErrorPaths:
                         status_code=429, model_name="test", body="rate limit"
                     )
                 return FakeRunResult()
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
             patch("time.sleep", autospec=True),
         ):
@@ -456,12 +525,17 @@ class TestApiErrorPaths:
                         status_code=500, model_name="test", body="internal error"
                     )
                 return FakeRunResult()
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
             patch("time.sleep", autospec=True),
         ):
@@ -483,12 +557,17 @@ class TestApiErrorPaths:
                 if call_count[0] < 3:
                     raise httpx.TimeoutException("Request timeout")
                 return FakeRunResult(output="recovered")
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch("time.sleep", autospec=True),  # Skip actual sleep
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
@@ -512,12 +591,17 @@ class TestApiErrorPaths:
                 if call_count[0] < 2:
                     raise httpx.ConnectError("Connection refused")
                 return FakeRunResult(output="connected")
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
@@ -539,12 +623,17 @@ class TestApiErrorPaths:
                 if call_count[0] == 1:
                     raise httpx.RemoteProtocolError("Protocol error")
                 return FakeRunResult(output="ok")
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="done"),
         ):
@@ -561,11 +650,16 @@ class TestApiErrorPaths:
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
             def fake_run_sync(prompt, *, usage_limits=None, **kwargs):
                 raise FatalAgentError("Worker crashed fatally")
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
-        with patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init):
+        with patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
 
@@ -588,20 +682,27 @@ class TestApiErrorPaths:
                 else:
                     # Summarizer call raises
                     raise RuntimeError("Summarization API down")
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle("test", tmp_path, team, max_exchanges=5)
 
         # Should have fallback summary even though summarization failed
         assert result.summary is not None
-        assert ("Summarization failed" in result.summary
-                or "No detailed summary" in result.summary)
+        assert (
+            "Summarization failed" in result.summary
+            or "No detailed summary" in result.summary
+        )
 
     def test_retry_accumulates_cost_from_failed_attempts(self, tmp_path: Path):
         """Cost should include tokens from failed attempts, not just the final run."""
@@ -629,12 +730,17 @@ class TestApiErrorPaths:
                     )
                 # Second attempt succeeds
                 return FakeRunResult()
+
             self.run_sync = fake_run_sync
 
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
@@ -741,7 +847,9 @@ class TestMessagesToText:
         messages = [
             ModelRequest(
                 parts=[
-                    UserPromptPart(content=long_content, timestamp="2024-01-01T00:00:00Z")
+                    UserPromptPart(
+                        content=long_content, timestamp="2024-01-01T00:00:00Z"
+                    )
                 ]
             ),
         ]
@@ -770,12 +878,19 @@ class TestCycleWithoutDoneMode:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+            patch(
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
             patch.object(ApiOrchestrator, "_summarize", return_value="progress"),
         ):
             orch = ApiOrchestrator(model="claude-opus-4-6")
             result = orch.cycle(
-                "test", tmp_path, team, max_exchanges=5,
+                "test",
+                tmp_path,
+                team,
+                max_exchanges=5,
                 config=CycleConfig(done_mode=None),  # NOT legacy
             )
 

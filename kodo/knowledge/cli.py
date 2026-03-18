@@ -23,13 +23,27 @@ def main(argv: list[str] | None = None) -> None:
         default="standard",
     )
     parser.add_argument("--model", default="claude-opus-4-6", help="Orchestrator model")
-    parser.add_argument("--designer-model", default=None, help="Model for team design (defaults to orchestrator model)")
+    parser.add_argument(
+        "--designer-model",
+        default=None,
+        help="Model for team design (defaults to orchestrator model)",
+    )
     parser.add_argument("--agent-model", default=None, help="Model for worker agents")
-    parser.add_argument("--domain", action="append", default=[], help="Domain hints (repeatable)")
-    parser.add_argument("--constraint", action="append", default=[], help="Constraints (repeatable)")
-    parser.add_argument("--format", dest="output_format", default=None, help="Desired output format")
-    parser.add_argument("--ref", action="append", default=[], help="Reference file paths (repeatable)")
-    parser.add_argument("--output", default=None, help="Write final answer to this file")
+    parser.add_argument(
+        "--domain", action="append", default=[], help="Domain hints (repeatable)"
+    )
+    parser.add_argument(
+        "--constraint", action="append", default=[], help="Constraints (repeatable)"
+    )
+    parser.add_argument(
+        "--format", dest="output_format", default=None, help="Desired output format"
+    )
+    parser.add_argument(
+        "--ref", action="append", default=[], help="Reference file paths (repeatable)"
+    )
+    parser.add_argument(
+        "--output", default=None, help="Write final answer to this file"
+    )
 
     args = parser.parse_args(argv)
 

@@ -113,22 +113,30 @@ class MockCodexProcess:
         # Result message format
         if nested_format:
             # New nested format: {"msg": {"type": "agent_message", ...}}
-            lines.append(json.dumps({
-                "id": "0",
-                "msg": {
-                    "type": "agent_message",
-                    "message": result_text,
-                }
-            }))
-            if input_tokens or output_tokens:
-                lines.append(json.dumps({
-                    "id": "1",
-                    "msg": {
-                        "type": "token_count",
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
+            lines.append(
+                json.dumps(
+                    {
+                        "id": "0",
+                        "msg": {
+                            "type": "agent_message",
+                            "message": result_text,
+                        },
                     }
-                }))
+                )
+            )
+            if input_tokens or output_tokens:
+                lines.append(
+                    json.dumps(
+                        {
+                            "id": "1",
+                            "msg": {
+                                "type": "token_count",
+                                "input_tokens": input_tokens,
+                                "output_tokens": output_tokens,
+                            },
+                        }
+                    )
+                )
         elif legacy_item:
             # Legacy format: item.completed
             lines.append(
@@ -144,10 +152,14 @@ class MockCodexProcess:
             )
         else:
             # Current format: agent_message (top-level)
-            lines.append(json.dumps({
-                "type": "agent_message",
-                "message": result_text,
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "agent_message",
+                        "message": result_text,
+                    }
+                )
+            )
 
         # Token counts
         if legacy_tokens:
@@ -165,11 +177,15 @@ class MockCodexProcess:
             )
         elif not nested_format and (input_tokens or output_tokens):
             # Current: token_count (top-level)
-            lines.append(json.dumps({
-                "type": "token_count",
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "token_count",
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    }
+                )
+            )
 
         if empty_lines:
             lines.append("")

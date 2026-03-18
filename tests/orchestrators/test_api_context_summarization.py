@@ -15,7 +15,6 @@ import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pydantic_ai.messages import (
     ModelRequest,
@@ -58,9 +57,7 @@ def _make_messages(total_chars: int, num_messages: int):
     for i in range(num_messages):
         text = "x" * chars_per_msg
         if i % 2 == 0:
-            messages.append(
-                ModelRequest(parts=[UserPromptPart(content=text)])
-            )
+            messages.append(ModelRequest(parts=[UserPromptPart(content=text)]))
         else:
             messages.append(
                 ModelResponse(
@@ -102,9 +99,14 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
+            patch(
+                "kodo.orchestrators.api.create_summarization_processor",
+                autospec=True,
                 return_value=mock_processor,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
@@ -131,9 +133,14 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
+            patch(
+                "kodo.orchestrators.api.create_summarization_processor",
+                autospec=True,
                 return_value=mock_processor,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
@@ -160,9 +167,14 @@ class TestProcessorWiring:
         team = _make_fake_team()
 
         with (
-            patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
             patch(
-                "kodo.orchestrators.api.create_summarization_processor", autospec=True,
+                "kodo.orchestrators.api.Agent.__init__",
+                autospec=True,
+                side_effect=fake_agent_init,
+            ),
+            patch(
+                "kodo.orchestrators.api.create_summarization_processor",
+                autospec=True,
             ) as mock_create,
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
@@ -377,12 +389,18 @@ class TestSafeCutoff:
 
         has_call = any(
             isinstance(msg, ModelResponse)
-            and any(isinstance(p, ToolCallPart) and p.tool_call_id == call_id for p in msg.parts)
+            and any(
+                isinstance(p, ToolCallPart) and p.tool_call_id == call_id
+                for p in msg.parts
+            )
             for msg in preserved
         )
         has_return = any(
             isinstance(msg, ModelRequest)
-            and any(isinstance(p, ToolReturnPart) and p.tool_call_id == call_id for p in msg.parts)
+            and any(
+                isinstance(p, ToolReturnPart) and p.tool_call_id == call_id
+                for p in msg.parts
+            )
             for msg in preserved
         )
 

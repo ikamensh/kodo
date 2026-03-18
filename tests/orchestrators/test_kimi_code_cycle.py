@@ -8,8 +8,6 @@ import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 
 # ── Fake kimi_agent_sdk module ──────────────────────────────────────────
 # The real SDK is an optional dependency; build a minimal fake module
@@ -79,15 +77,25 @@ def _base_patches(done_signal, session_instance):
 
     with (
         patch(
-            "kodo.orchestrators.kimi_code.build_mcp_server", autospec=True, return_value=mock_mcp
+            "kodo.orchestrators.kimi_code.build_mcp_server",
+            autospec=True,
+            return_value=mock_mcp,
         ),
         patch(
-            "kodo.orchestrators.kimi_code.McpServerContext", autospec=True, return_value=mock_ctx
+            "kodo.orchestrators.kimi_code.McpServerContext",
+            autospec=True,
+            return_value=mock_ctx,
         ),
         patch(
-            "kodo.orchestrators.kimi_code.build_cycle_prompt", autospec=True, return_value="go"
+            "kodo.orchestrators.kimi_code.build_cycle_prompt",
+            autospec=True,
+            return_value="go",
         ),
-        patch("kodo.orchestrators.kimi_code.DoneSignal", autospec=True, return_value=done_signal),
+        patch(
+            "kodo.orchestrators.kimi_code.DoneSignal",
+            autospec=True,
+            return_value=done_signal,
+        ),
         patch("kodo.orchestrators.kimi_code.VerificationState", autospec=True),
         patch("kodo.orchestrators.kimi_code.log", autospec=True),
         patch.object(
@@ -139,13 +147,18 @@ class TestKimiCycleTracking:
     def test_turn_end_increments_exchanges(self, tmp_path: Path):
         """Each TurnEnd in the stream increments result.exchanges."""
         done = MagicMock(called=True, success=True, summary="done")
-        session = _make_session([
-            [_sdk.TurnEnd(), _sdk.TurnEnd(), _sdk.TurnEnd()],
-        ])
+        session = _make_session(
+            [
+                [_sdk.TurnEnd(), _sdk.TurnEnd(), _sdk.TurnEnd()],
+            ]
+        )
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert result.exchanges >= 3
@@ -154,16 +167,21 @@ class TestKimiCycleTracking:
         """TextPart messages are concatenated when done_signal is not called."""
         done = MagicMock(called=False)
         # done_signal.called stays False through all nudges too
-        session = _make_session([
-            [_sdk.TextPart("Hello "), _sdk.TextPart("world"), _sdk.TurnEnd()],
-            [_sdk.TurnEnd()],  # nudge 1
-            [_sdk.TurnEnd()],  # nudge 2
-            [_sdk.TurnEnd()],  # nudge 3
-        ])
+        session = _make_session(
+            [
+                [_sdk.TextPart("Hello "), _sdk.TextPart("world"), _sdk.TurnEnd()],
+                [_sdk.TurnEnd()],  # nudge 1
+                [_sdk.TurnEnd()],  # nudge 2
+                [_sdk.TurnEnd()],  # nudge 3
+            ]
+        )
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         # After max nudges, summary should be set (from last response)
@@ -176,7 +194,10 @@ class TestKimiCycleTracking:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert result.finished is True
@@ -190,16 +211,21 @@ class TestKimiNudgeLoop:
     def test_nudge_limit_ends_cycle(self, tmp_path: Path):
         """After _MAX_NUDGES without done, cycle ends gracefully."""
         done = MagicMock(called=False)  # never becomes True
-        session = _make_session([
-            [_sdk.TurnEnd()],  # initial prompt
-            [_sdk.TurnEnd()],  # nudge 1
-            [_sdk.TurnEnd()],  # nudge 2
-            [_sdk.TurnEnd()],  # nudge 3
-        ])
+        session = _make_session(
+            [
+                [_sdk.TurnEnd()],  # initial prompt
+                [_sdk.TurnEnd()],  # nudge 1
+                [_sdk.TurnEnd()],  # nudge 2
+                [_sdk.TurnEnd()],  # nudge 3
+            ]
+        )
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert result.finished is False
@@ -223,14 +249,19 @@ class TestKimiNudgeLoop:
                 return call_count > 2
 
         done = FakeDone()
-        session = _make_session([
-            [_sdk.TurnEnd()],  # initial prompt
-            [_sdk.TurnEnd()],  # nudge 1 — done becomes True here
-        ])
+        session = _make_session(
+            [
+                [_sdk.TurnEnd()],  # initial prompt
+                [_sdk.TurnEnd()],  # nudge 1 — done becomes True here
+            ]
+        )
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert result.finished is True
@@ -248,7 +279,10 @@ class TestKimiApprovalRequest:
 
         with _base_patches(done, session):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert approval.resolved is True

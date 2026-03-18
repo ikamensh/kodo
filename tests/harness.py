@@ -29,7 +29,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -75,9 +75,7 @@ class KodoRunner:
         self._git_init = git_init
         self._child: pexpect.spawn | None = None
         self._owns_tmpdir = project_dir is None
-        self._project_dir = Path(
-            project_dir or tempfile.mkdtemp(prefix="kodo_test_")
-        )
+        self._project_dir = Path(project_dir or tempfile.mkdtemp(prefix="kodo_test_"))
         self._kodo_cmd = self._find_kodo()
 
     def _find_kodo(self) -> str:
@@ -129,9 +127,20 @@ class KodoRunner:
         cmd = ["uv", "run", "kodo", *args]
         # Add --project if not already specified and not a subcommand
         if "--project" not in args and not any(
-            a in args for a in ("runs", "run", "backends", "backend",
-                                "teams", "team", "logs", "log", "--help",
-                                "--version", "help")
+            a in args
+            for a in (
+                "runs",
+                "run",
+                "backends",
+                "backend",
+                "teams",
+                "team",
+                "logs",
+                "log",
+                "--help",
+                "--version",
+                "help",
+            )
         ):
             cmd.extend(["--project", str(self._project_dir)])
 

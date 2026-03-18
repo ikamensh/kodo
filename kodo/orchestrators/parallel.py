@@ -85,13 +85,18 @@ def create_stage_worktrees(
     for stage in group:
         try:
             wt_dir, branch = create_worktree(
-                project_dir, f"stage-{stage.index}",
+                project_dir,
+                f"stage-{stage.index}",
             )
             worktrees[stage.index] = (wt_dir, branch)
             log.tprint(
                 f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
             )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            OSError,
+        ) as exc:
             log.tprint(
                 f"⚠️  [orchestrator] Worktree creation failed for "
                 f"stage {stage.index}: {exc}",
@@ -170,7 +175,8 @@ def run_group_sequentially(
         stage_summaries.append(stage_res.summary)
 
     cycles_used = max(
-        (len(r.cycles) for r in parallel_results), default=0,
+        (len(r.cycles) for r in parallel_results),
+        default=0,
     )
     return parallel_results, cycles_used
 
@@ -239,7 +245,11 @@ def cleanup_and_merge_worktrees(
     """
     with _suppress_keyboard_interrupt():
         _cleanup_and_merge_worktrees_inner(
-            group, worktrees, stage_teams, parallel_results, project_dir,
+            group,
+            worktrees,
+            stage_teams,
+            parallel_results,
+            project_dir,
         )
 
 
@@ -264,18 +274,13 @@ def _cleanup_and_merge_worktrees_inner(
     branches_to_merge: list[tuple[str, str, int]] = []
     for stage_idx, (wt_dir, branch) in worktrees.items():
         stg = stages_by_idx.get(stage_idx)
-        if (
-            stg
-            and stg.persist_changes
-            and stage_idx in finished_indices
-        ):
+        if stg and stg.persist_changes and stage_idx in finished_indices:
             try:
                 commit_worktree_changes(wt_dir, stg.name)
                 branches_to_merge.append((branch, stg.name, stage_idx))
             except BaseException as exc:
                 log.tprint(
-                    f"[persist] Commit failed for "
-                    f"stage {stage_idx}: {exc}",
+                    f"[persist] Commit failed for stage {stage_idx}: {exc}",
                 )
 
     # 2. Close cloned sessions — wrap each in try/except so one failure
@@ -297,8 +302,7 @@ def _cleanup_and_merge_worktrees_inner(
                 remove_worktree(project_dir, wt_dir, branch)
         except BaseException as exc:
             log.tprint(
-                f"[orchestrator] Worktree cleanup failed for "
-                f"stage {stage_idx}: {exc}",
+                f"[orchestrator] Worktree cleanup failed for stage {stage_idx}: {exc}",
             )
 
     # 4. Merge persist_changes branches sequentially
@@ -306,7 +310,9 @@ def _cleanup_and_merge_worktrees_inner(
     for branch, stage_name, stage_idx in branches_to_merge:
         try:
             merge_result = merge_worktree_branch(
-                project_dir, branch, stage_name,
+                project_dir,
+                branch,
+                stage_name,
             )
             log.emit(
                 "persist_stage_merge",

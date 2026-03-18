@@ -24,7 +24,9 @@ def test_clear_backend_cache_invalidates():
         b1 = available_backends()
     assert all(not v for v in b1.values())
 
-    with patch("kodo.factory.shutil.which", autospec=True, return_value="/usr/bin/fake"):
+    with patch(
+        "kodo.factory.shutil.which", autospec=True, return_value="/usr/bin/fake"
+    ):
         clear_backend_cache()
         b2 = available_backends()
     assert all(v for v in b2.values())
@@ -45,7 +47,11 @@ def test_build_orchestrator_api():
 def test_build_orchestrator_api_ollama_local():
     with (
         patch("kodo.orchestrators.api.Summarizer", autospec=True),
-        patch("kodo.models.list_ollama_models", autospec=True, return_value=["qwen2.5-coder"]),
+        patch(
+            "kodo.models.list_ollama_models",
+            autospec=True,
+            return_value=["qwen2.5-coder"],
+        ),
     ):
         orch = build_orchestrator("api", model="ollama-local")
     assert type(orch).__name__ == "ApiOrchestrator"
@@ -68,7 +74,7 @@ class TestUserJsonTeams:
     def test_get_team_presets_only_returns_builtins(self):
         presets = get_team_presets()
         for name in presets:
-            assert name in {"full", "quick"}, (
+            assert name in {"full", "quick", "test"}, (
                 f"Unexpected preset {name!r} — user teams should not appear in presets"
             )
 

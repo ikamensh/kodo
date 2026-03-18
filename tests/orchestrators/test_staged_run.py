@@ -48,8 +48,16 @@ def mock_worktrees():
         pass  # cleanup handled by tmp
 
     with (
-        patch("kodo.orchestrators.parallel.create_worktree", autospec=True, side_effect=_fake_create),
-        patch("kodo.orchestrators.parallel.remove_worktree", autospec=True, side_effect=_fake_remove),
+        patch(
+            "kodo.orchestrators.parallel.create_worktree",
+            autospec=True,
+            side_effect=_fake_create,
+        ),
+        patch(
+            "kodo.orchestrators.parallel.remove_worktree",
+            autospec=True,
+            side_effect=_fake_remove,
+        ),
     ):
         yield
     import shutil
@@ -784,7 +792,9 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_group_complete_failure_stops_run(
-    mock_viewer, tmp_project, mock_worktrees,
+    mock_viewer,
+    tmp_project,
+    mock_worktrees,
 ):
     """When every stage in a parallel group fails, subsequent stages should not run."""
     plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
@@ -812,7 +822,9 @@ def test_parallel_group_complete_failure_stops_run(
 
 @patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
 def test_parallel_stage_results_sorted_by_index(
-    mock_viewer, tmp_project, mock_worktrees,
+    mock_viewer,
+    tmp_project,
+    mock_worktrees,
 ):
     """result.stage_results for parallel stages are sorted by stage_index."""
     plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
@@ -830,9 +842,7 @@ def test_parallel_stage_results_sorted_by_index(
         result = orch.run("goal", tmp_project, team, max_cycles=10, plan=plan)
 
     indices = [sr.stage_index for sr in result.stage_results]
-    assert indices == sorted(indices), (
-        f"stage_results not sorted by index: {indices}"
-    )
+    assert indices == sorted(indices), f"stage_results not sorted by index: {indices}"
 
 
 # ── Worktree helper tests ───────────────────────────────────────────────
@@ -1146,7 +1156,9 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
 
     with (
         patch(
-            "kodo.orchestrators.base.create_worktree", autospec=True, side_effect=create_then_interrupt
+            "kodo.orchestrators.base.create_worktree",
+            autospec=True,
+            side_effect=create_then_interrupt,
         ),
         patch("kodo.orchestrators.base.remove_worktree", autospec=True) as mock_remove,
         patch("kodo.viewer.open_viewer", create=True),  # noqa: autospec
@@ -1220,7 +1232,9 @@ class TestRemoveWorktreeKeepBranch:
 
 
 @pytest.fixture(scope="session")
-def _conflict_repo_template(_git_repo_template: Path, tmp_path_factory) -> tuple[Path, str]:
+def _conflict_repo_template(
+    _git_repo_template: Path, tmp_path_factory
+) -> tuple[Path, str]:
     """Pre-build a repo with a conflict branch (session-scoped, copied per test)."""
     import shutil
 
@@ -1245,7 +1259,9 @@ def _conflict_repo_template(_git_repo_template: Path, tmp_path_factory) -> tuple
 
 
 @pytest.fixture
-def conflict_project(_conflict_repo_template: tuple[Path, str], tmp_path: Path) -> tuple[Path, str]:
+def conflict_project(
+    _conflict_repo_template: tuple[Path, str], tmp_path: Path
+) -> tuple[Path, str]:
     """Per-test copy of the conflict repo template."""
     import shutil
 
@@ -1294,7 +1310,8 @@ class TestMergeWorktreeBranch:
             return True
 
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent", autospec=True,
+            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            autospec=True,
             side_effect=_fake_resolve,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")
@@ -1313,7 +1330,8 @@ class TestMergeWorktreeBranch:
         project, branch = conflict_project
 
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent", autospec=True,
+            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            autospec=True,
             return_value=False,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")

@@ -23,7 +23,9 @@ class GeminiCliOrchestrator(CliOrchestratorBase):
     _cost_bucket = "gemini_cli"
 
     def __init__(
-        self, model: str = GEMINI_CLI_FLASH, system_prompt: str | None = None,
+        self,
+        model: str = GEMINI_CLI_FLASH,
+        system_prompt: str | None = None,
     ):
         super().__init__(model, system_prompt)
 
@@ -133,7 +135,9 @@ class GeminiCliOrchestrator(CliOrchestratorBase):
                 result.total_cost_usd = 0.0  # free tier
                 log.get_run_stats().record_orchestrator(0.0, "gemini_cli")
 
-                self._apply_result(result, done_signal, response_text, is_error=proc.returncode != 0)
+                self._apply_result(
+                    result, done_signal, response_text, is_error=proc.returncode != 0
+                )
 
         finally:
             # Always clean up MCP registration

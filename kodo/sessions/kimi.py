@@ -124,7 +124,8 @@ class KimiSession:
                 "kimi": {
                     "type": "kimi",
                     "base_url": os.environ.get(
-                        "KIMI_BASE_URL", "https://api.moonshot.ai/v1",
+                        "KIMI_BASE_URL",
+                        "https://api.moonshot.ai/v1",
                     ),
                     "api_key": api_key,
                 },

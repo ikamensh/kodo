@@ -23,6 +23,7 @@ from kodo.cli._main import _main_inner
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _run_and_capture_exit(argv: list[str]) -> int:
     """Run _main_inner and return the exit code."""
     with (
@@ -64,16 +65,19 @@ def _collect_fail_calls(argv: list[str]) -> list[tuple[str, bool]]:
         patch("kodo.cli._main._print_banner", autospec=True),
         # Block execution after validation to prevent LLM calls
         patch(
-            "kodo.cli._main._build_params_from_flags", autospec=True,
+            "kodo.cli._main._build_params_from_flags",
+            autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
         patch(
-            "kodo.cli._main._load_or_select_params", autospec=True,
+            "kodo.cli._main._load_or_select_params",
+            autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
         # Also block resume path
         patch(
-            "kodo.cli._main.log.find_incomplete_runs", autospec=True,
+            "kodo.cli._main.log.find_incomplete_runs",
+            autospec=True,
             side_effect=_ValidationPassed("stopped after validation"),
         ),
     ):
@@ -108,53 +112,96 @@ class TestJsonModeEarlyValidation:
 
     def test_json_empty_goal_activates_json_before_fail(self, tmp_path):
         """--json --goal '' should have JSON mode active when _fail runs."""
-        results = _collect_fail_calls([
-            "kodo", "--json", "--goal", "", "--project", str(tmp_path),
-        ])
+        results = _collect_fail_calls(
+            [
+                "kodo",
+                "--json",
+                "--goal",
+                "",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert results, "Expected _fail to be called"
         msg, was_json = results[0]
-        assert was_json, "_original_stdout should be set (JSON mode active) before _fail"
+        assert was_json, (
+            "_original_stdout should be set (JSON mode active) before _fail"
+        )
         assert "--goal" in msg
 
     def test_json_exchanges_over_limit_activates_json(self, tmp_path):
         """--json --exchanges 9999 should have JSON mode active when _fail runs."""
-        results = _collect_fail_calls([
-            "kodo", "--json", "--goal", "test", "--exchanges", "9999",
-            "--project", str(tmp_path),
-        ])
+        results = _collect_fail_calls(
+            [
+                "kodo",
+                "--json",
+                "--goal",
+                "test",
+                "--exchanges",
+                "9999",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert results, "Expected _fail to be called"
         msg, was_json = results[0]
-        assert was_json, "_original_stdout should be set (JSON mode active) before _fail"
+        assert was_json, (
+            "_original_stdout should be set (JSON mode active) before _fail"
+        )
         assert "1000" in msg
 
     def test_json_cycles_over_limit_activates_json(self, tmp_path):
         """--json --cycles 999 should have JSON mode active when _fail runs."""
-        results = _collect_fail_calls([
-            "kodo", "--json", "--goal", "test", "--cycles", "999",
-            "--project", str(tmp_path),
-        ])
+        results = _collect_fail_calls(
+            [
+                "kodo",
+                "--json",
+                "--goal",
+                "test",
+                "--cycles",
+                "999",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert results, "Expected _fail to be called"
         msg, was_json = results[0]
-        assert was_json, "_original_stdout should be set (JSON mode active) before _fail"
+        assert was_json, (
+            "_original_stdout should be set (JSON mode active) before _fail"
+        )
         assert "100" in msg
 
     def test_json_invalid_project_activates_json(self, tmp_path):
         """--json with nonexistent --project should have JSON mode active."""
         bad_path = str(tmp_path / "does_not_exist")
-        results = _collect_fail_calls([
-            "kodo", "--json", "--goal", "test",
-            "--project", bad_path,
-        ])
+        results = _collect_fail_calls(
+            [
+                "kodo",
+                "--json",
+                "--goal",
+                "test",
+                "--project",
+                bad_path,
+            ]
+        )
         assert results, "Expected _fail to be called"
         msg, was_json = results[0]
-        assert was_json, "_original_stdout should be set (JSON mode active) before _fail"
+        assert was_json, (
+            "_original_stdout should be set (JSON mode active) before _fail"
+        )
         assert "does not exist" in msg
 
     def test_non_json_mode_does_not_set_original_stdout(self, tmp_path):
         """Without --json, _original_stdout should NOT be set when _fail runs."""
-        results = _collect_fail_calls([
-            "kodo", "--goal", "", "--project", str(tmp_path),
-        ])
+        results = _collect_fail_calls(
+            [
+                "kodo",
+                "--goal",
+                "",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert results, "Expected _fail to be called"
         _, was_json = results[0]
         assert not was_json, "_original_stdout should be None without --json"
@@ -170,24 +217,43 @@ class TestProjectValidation:
 
     def test_project_nonexistent_path_fails(self, tmp_path):
         bad_path = str(tmp_path / "nope")
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--project", bad_path,
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--project",
+                bad_path,
+            ]
+        )
         assert code != 0
 
     def test_project_is_file_fails(self, tmp_path):
         file_path = tmp_path / "afile.txt"
         file_path.write_text("hello")
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--project", str(file_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--project",
+                str(file_path),
+            ]
+        )
         assert code != 0
 
     def test_project_valid_directory_passes_validation(self, tmp_path):
         """A valid directory should not trigger project-path validation failure."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes", "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--yes",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert not any("--project path" in m for m in msgs)
 
 
@@ -200,17 +266,28 @@ class TestResumeEmptyString:
     """--resume must not be an empty string."""
 
     def test_resume_empty_string_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--resume", "", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--resume",
+                "",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_resume_no_value_is_valid(self, tmp_path):
         """--resume with no value should set __latest__ (not empty string),
         and should not fail at the empty-string validation step."""
-        msgs = _get_fail_messages([
-            "kodo", "--resume", "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--resume",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         # Fails downstream (no incomplete runs), not because of empty string
         assert not any("empty string" in m for m in msgs)
 
@@ -224,29 +301,61 @@ class TestExchangesUpperBound:
     """--exchanges must not exceed 1000."""
 
     def test_exchanges_1001_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--exchanges", "1001", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--exchanges",
+                "1001",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_exchanges_1000_passes_validation(self, tmp_path):
         """--exchanges 1000 should be accepted (boundary)."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes", "--exchanges", "1000",
-            "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--yes",
+                "--exchanges",
+                "1000",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert not any("exceed" in m for m in msgs)
 
     def test_exchanges_zero_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--exchanges", "0", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--exchanges",
+                "0",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_exchanges_negative_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--exchanges", "-5", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--exchanges",
+                "-5",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
 
@@ -254,23 +363,47 @@ class TestCyclesUpperBound:
     """--cycles must not exceed 100."""
 
     def test_cycles_101_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--cycles", "101", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--cycles",
+                "101",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_cycles_100_passes_validation(self, tmp_path):
         """--cycles 100 should be accepted (boundary)."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes", "--cycles", "100",
-            "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--yes",
+                "--cycles",
+                "100",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert not any("exceed" in m for m in msgs)
 
     def test_cycles_zero_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--cycles", "0", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--cycles",
+                "0",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
 
@@ -283,22 +416,44 @@ class TestFocusValidation:
     """--focus must not be empty or whitespace-only."""
 
     def test_focus_empty_string_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--improve", "--focus", "", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--improve",
+                "--focus",
+                "",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_focus_whitespace_only_fails(self, tmp_path):
-        code = _run_and_capture_exit([
-            "kodo", "--improve", "--focus", "   ", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--improve",
+                "--focus",
+                "   ",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
     def test_focus_without_improve_fails(self, tmp_path):
         """--focus without --improve should fail."""
-        code = _run_and_capture_exit([
-            "kodo", "--goal", "test", "--focus", "security", "--project", str(tmp_path),
-        ])
+        code = _run_and_capture_exit(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--focus",
+                "security",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert code != 0
 
 
@@ -312,20 +467,34 @@ class TestOrchestratorFlag:
 
     def test_claude_code_with_opus_passes_validation(self, tmp_path):
         """claude-code:opus should be accepted (no compatibility error)."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes",
-            "--orchestrator", "claude-code:opus",
-            "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--yes",
+                "--orchestrator",
+                "claude-code:opus",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert not any("incompatible" in m for m in msgs)
 
     def test_gemini_cli_with_gemini_pro_passes_validation(self, tmp_path):
         """gemini-cli:gemini-pro should be accepted."""
-        msgs = _get_fail_messages([
-            "kodo", "--goal", "test", "--yes",
-            "--orchestrator", "gemini-cli:gemini-pro",
-            "--project", str(tmp_path),
-        ])
+        msgs = _get_fail_messages(
+            [
+                "kodo",
+                "--goal",
+                "test",
+                "--yes",
+                "--orchestrator",
+                "gemini-cli:gemini-pro",
+                "--project",
+                str(tmp_path),
+            ]
+        )
         assert not any("incompatible" in m for m in msgs)
 
     def test_plain_model_passes_validation(self, tmp_path):
@@ -337,11 +506,18 @@ class TestOrchestratorFlag:
             "gemini-flash",
             "ollama:qwen2.5-coder:14b",
         ):
-            msgs = _get_fail_messages([
-                "kodo", "--goal", "test", "--yes",
-                "--orchestrator", model,
-                "--project", str(tmp_path),
-            ])
+            msgs = _get_fail_messages(
+                [
+                    "kodo",
+                    "--goal",
+                    "test",
+                    "--yes",
+                    "--orchestrator",
+                    model,
+                    "--project",
+                    str(tmp_path),
+                ]
+            )
             assert not any("incompatible" in m for m in msgs), (
                 f"--orchestrator {model} should be accepted"
             )

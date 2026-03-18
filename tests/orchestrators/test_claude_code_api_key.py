@@ -69,11 +69,19 @@ class TestOrchestratorApiKeyStripped:
         with (
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-key-12345"}),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
+                "kodo.orchestrators.claude_code.build_mcp_server", autospec=True
+            ) as mock_mcp,
+            patch(
+                "kodo.orchestrators.claude_code.build_cycle_prompt",
+                autospec=True,
+                return_value="go",
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch(
+                "kodo.orchestrators.claude_code.DoneSignal",
+                autospec=True,
+                return_value=fake_done,
+            ),
             patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
             patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):
@@ -112,11 +120,19 @@ class TestOrchestratorApiKeyStripped:
         with (
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": original_key}),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
+                "kodo.orchestrators.claude_code.build_mcp_server", autospec=True
+            ) as mock_mcp,
+            patch(
+                "kodo.orchestrators.claude_code.build_cycle_prompt",
+                autospec=True,
+                return_value="go",
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch(
+                "kodo.orchestrators.claude_code.DoneSignal",
+                autospec=True,
+                return_value=fake_done,
+            ),
             patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
             patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):
@@ -157,11 +173,19 @@ class TestOrchestratorApiKeyStripped:
         with (
             patch.dict(os.environ, env_without_key, clear=True),
             patch("claude_agent_sdk.ClaudeSDKClient", FakeClient),
-            patch("kodo.orchestrators.claude_code.build_mcp_server", autospec=True) as mock_mcp,
             patch(
-                "kodo.orchestrators.claude_code.build_cycle_prompt", autospec=True, return_value="go"
+                "kodo.orchestrators.claude_code.build_mcp_server", autospec=True
+            ) as mock_mcp,
+            patch(
+                "kodo.orchestrators.claude_code.build_cycle_prompt",
+                autospec=True,
+                return_value="go",
             ),
-            patch("kodo.orchestrators.claude_code.DoneSignal", autospec=True, return_value=fake_done),
+            patch(
+                "kodo.orchestrators.claude_code.DoneSignal",
+                autospec=True,
+                return_value=fake_done,
+            ),
             patch("kodo.orchestrators.claude_code.VerificationState", autospec=True),
             patch("kodo.orchestrators.claude_code.log", autospec=True),
         ):

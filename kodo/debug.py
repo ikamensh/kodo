@@ -227,7 +227,11 @@ def _flatten_messages(messages: list) -> str:
                 if isinstance(part, TextPart):
                     parts.append(part.content[:2000])
                 elif isinstance(part, ToolCallPart):
-                    args = part.args if isinstance(part.args, str) else json.dumps(part.args)
+                    args = (
+                        part.args
+                        if isinstance(part.args, str)
+                        else json.dumps(part.args)
+                    )
                     parts.append(f"{part.tool_name}({args[:500]})")
     return "\n".join(parts)
 

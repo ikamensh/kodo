@@ -1,7 +1,6 @@
 """Interactive parameter selection and config persistence."""
 
 import json
-import os
 from pathlib import Path
 
 import questionary
@@ -35,7 +34,8 @@ from kodo.user_config import get_user_default
 
 
 def _labeled_choices(
-    options: list[str], default_index: int,
+    options: list[str],
+    default_index: int,
 ) -> list[questionary.Choice]:
     """Build Choice objects, appending '(default)' to the default item's label."""
     choices = []
@@ -55,7 +55,10 @@ def _select_one(title: str, options: list[str], default_index: int = 0) -> str:
 
 
 def _select_numeric(
-    title: str, presets: list[str], default_index: int = 0, type_fn: type = int,
+    title: str,
+    presets: list[str],
+    default_index: int = 0,
+    type_fn: type = int,
 ) -> str:
     """Arrow-key selection with a 'Custom...' option for numeric values."""
     all_options = presets + ["Custom..."]
@@ -180,7 +183,9 @@ def select_params() -> dict:
             orch_model = raw.strip()
         else:
             # Extract alias from "alias — display (provider)" format
-            orch_model = selected.split(" — ")[0].strip() if " — " in selected else selected
+            orch_model = (
+                selected.split(" — ")[0].strip() if " — " in selected else selected
+            )
     else:
         # claude-code
         orch_model = _select_one("Orchestrator model:", [CLAUDE_OPUS, CLAUDE_SONNET])
@@ -188,7 +193,9 @@ def select_params() -> dict:
     # Validate API key early
     key_err = check_api_key(orchestrator, orch_model)
     if key_err:
-        _fail(f"{key_err}\n  Set the key in your environment or .env file and try again.")
+        _fail(
+            f"{key_err}\n  Set the key in your environment or .env file and try again."
+        )
 
     print(
         "\n  An exchange = one orchestrator turn: think, delegate to agent, read result.",
@@ -199,7 +206,9 @@ def select_params() -> dict:
         exchange_presets.index(default_ex) if default_ex in exchange_presets else 1
     )
     max_exchanges = _select_numeric(
-        "Max exchanges per cycle:", exchange_presets, default_index=ex_default_idx,
+        "Max exchanges per cycle:",
+        exchange_presets,
+        default_index=ex_default_idx,
     )
 
     print("\n  A cycle = one full orchestrator session. If it doesn't finish,")
@@ -210,7 +219,9 @@ def select_params() -> dict:
         cycle_presets.index(default_cy) if default_cy in cycle_presets else 2
     )
     max_cycles = _select_numeric(
-        "Max cycles:", cycle_presets, default_index=cy_default_idx,
+        "Max cycles:",
+        cycle_presets,
+        default_index=cy_default_idx,
     )
 
     return {
@@ -265,11 +276,15 @@ def _load_or_select_params(project_dir: Path) -> dict:
             try:
                 team_preset = get_team(prev["team"])
             except KeyError:
-                print(f"\n  Previous config has unknown team {prev['team']!r}, ignoring.")
+                print(
+                    f"\n  Previous config has unknown team {prev['team']!r}, ignoring."
+                )
                 prev = None
             else:
                 print("\n  Previous config found:")
-                print(f"    Team:         {team_preset.name} — {team_preset.description}")
+                print(
+                    f"    Team:         {team_preset.name} — {team_preset.description}"
+                )
                 print(
                     f"    Orchestrator: {prev['orchestrator']} ({prev['orchestrator_model']})",
                 )

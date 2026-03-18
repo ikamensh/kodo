@@ -22,24 +22,34 @@ class MockPatternVisitor(ast.NodeVisitor):
     """
 
     # Targets that replace values/constants rather than functions — autospec N/A
-    _VALUE_TARGETS = frozenset({
-        "sys.argv",
-        "sys.stdout",
-        "sys.stderr",
-    })
+    _VALUE_TARGETS = frozenset(
+        {
+            "sys.argv",
+            "sys.stdout",
+            "sys.stderr",
+        }
+    )
 
     # Suffixes that indicate value replacement (module-level constants, dicts, etc.)
     _VALUE_SUFFIXES = (
-        "_MAP", "_URL", "_TOKEN", "_CREDENTIALS", "TEAMS", "_original_stdout",
-        "available_backends", "_allocator",
+        "_MAP",
+        "_URL",
+        "_TOKEN",
+        "_CREDENTIALS",
+        "TEAMS",
+        "_original_stdout",
+        "available_backends",
+        "_allocator",
     )
 
     # External classes replaced with fake factories — autospec on constructors
     # of external deps is fragile and low-value. Enforce via integration tests.
-    _CLASS_REPLACEMENT_TARGETS = frozenset({
-        "kodo.sessions.base.subprocess.Popen",
-        "claude_agent_sdk.ClaudeSDKClient",
-    })
+    _CLASS_REPLACEMENT_TARGETS = frozenset(
+        {
+            "kodo.sessions.base.subprocess.Popen",
+            "claude_agent_sdk.ClaudeSDKClient",
+        }
+    )
 
     def __init__(self, filepath: Path, source_lines: list[str]):
         self.filepath = filepath
@@ -91,7 +101,10 @@ class MockPatternVisitor(ast.NodeVisitor):
             self.generic_visit(node)
             return
 
-        if self._is_value_target(patch_target) or patch_target in self._CLASS_REPLACEMENT_TARGETS:
+        if (
+            self._is_value_target(patch_target)
+            or patch_target in self._CLASS_REPLACEMENT_TARGETS
+        ):
             self.generic_visit(node)
             return
 

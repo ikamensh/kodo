@@ -79,11 +79,15 @@ class MockCursorProcess:
 
         # Token count message (if tokens provided)
         if input_tokens or output_tokens:
-            lines.append(json.dumps({
-                "type": "usage",
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "type": "usage",
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    }
+                )
+            )
 
         result_msg = {
             "type": "result",

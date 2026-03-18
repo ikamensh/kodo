@@ -54,7 +54,9 @@ def _make_agent_handler(
             total_workers=total_workers,
         )
 
-    desc = f"Delegate a task to the {agent_name} agent.\n{agent_obj.description.strip()}"
+    desc = (
+        f"Delegate a task to the {agent_name} agent.\n{agent_obj.description.strip()}"
+    )
     return handler, desc
 
 
@@ -193,19 +195,26 @@ def build_pydantic_tools(
             dead_workers=dead_workers,
             total_workers=total_workers,
         )
-        tools.append(Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False))
+        tools.append(
+            Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False)
+        )
 
     # Done tool(s)
     if config.done_mode == "legacy":
         done_fn = _make_legacy_done(
-            done_signal, goal, team, project_dir,
+            done_signal,
+            goal,
+            team,
+            project_dir,
             verification_state=verification_state,
             config=config,
         )
         tools.append(Tool(done_fn, takes_ctx=False))
     else:
         gd, ec, ri = _make_new_done_tools(
-            done_signal, team, project_dir,
+            done_signal,
+            team,
+            project_dir,
             config=config,
         )
         tools.append(Tool(gd, takes_ctx=False))
@@ -258,7 +267,10 @@ def add_tools_to_mcp(
     # Done tool(s)
     if config.done_mode == "legacy":
         done_fn = _make_legacy_done(
-            done_signal, goal, team, project_dir,
+            done_signal,
+            goal,
+            team,
+            project_dir,
             verification_state=verification_state,
             orchestrator_tag=orchestrator_tag,
             config=config,
@@ -266,7 +278,9 @@ def add_tools_to_mcp(
         mcp.add_tool(done_fn)
     else:
         gd, ec, ri = _make_new_done_tools(
-            done_signal, team, project_dir,
+            done_signal,
+            team,
+            project_dir,
             orchestrator_tag=orchestrator_tag,
             config=config,
         )

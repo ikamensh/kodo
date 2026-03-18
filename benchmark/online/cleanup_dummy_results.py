@@ -23,7 +23,9 @@ from benchmark.online.config import dataset_key
 from benchmark.online.validation import suspicious_upload_reason
 
 
-def candidate_rows(dataset: str, *, run_id: str = "", arm: str = "", status: str = "") -> list[dict]:
+def candidate_rows(
+    dataset: str, *, run_id: str = "", arm: str = "", status: str = ""
+) -> list[dict]:
     """Return suspicious rows that match the optional filters.
 
     Applies the same ``suspicious_upload_reason`` checks used at upload time.
@@ -91,11 +93,19 @@ def _print_rows(rows: list[dict], label: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Clean suspicious benchmark uploads from online storage")
-    parser.add_argument("--dataset", required=True, help="Dataset key stored online, e.g. pro")
+    parser = argparse.ArgumentParser(
+        description="Clean suspicious benchmark uploads from online storage"
+    )
+    parser.add_argument(
+        "--dataset", required=True, help="Dataset key stored online, e.g. pro"
+    )
     parser.add_argument("--run-id", default="", help="Only inspect a specific run_id")
     parser.add_argument("--arm", default="", help="Only inspect a specific arm")
-    parser.add_argument("--status", default="", help="Only inspect rows with this task status (e.g. error, timeout)")
+    parser.add_argument(
+        "--status",
+        default="",
+        help="Only inspect rows with this task status (e.g. error, timeout)",
+    )
     parser.add_argument(
         "--patch-len-eq",
         type=int,
@@ -120,7 +130,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Also find eval errors (eval_status=True on error/timeout results) "
         "and reset them so --evaluate-pending can retry.",
     )
-    parser.add_argument("--apply", action="store_true", help="Delete/reset matching rows instead of dry-run")
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Delete/reset matching rows instead of dry-run",
+    )
     args = parser.parse_args(argv)
     dataset = dataset_key(args.dataset) or args.dataset
 

@@ -395,5 +395,3 @@ def test_resume_session_one_shot(tmp_path: Path):
     # First client got resume, second didn't
     assert captured_resumes[0] == "old-session-123"
     assert captured_resumes[1] is None
-
-

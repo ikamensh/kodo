@@ -66,9 +66,7 @@ class FakeOrchestrator(OrchestratorBase):
         prior_summary: str = "",
         config=None,
     ) -> CycleResult:
-        self._cycle_calls.append(
-            {"goal": goal, "prior_summary": prior_summary}
-        )
+        self._cycle_calls.append({"goal": goal, "prior_summary": prior_summary})
         if self._cycle_results:
             return self._cycle_results.pop(0)
         return CycleResult(summary="cycle done")
@@ -99,7 +97,9 @@ class TestRunResultProperties:
         rr = RunResult(
             cycles=[CycleResult(finished=True, success=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="S1", finished=True, success=True),
+                StageResult(
+                    stage_index=1, stage_name="S1", finished=True, success=True
+                ),
                 StageResult(stage_index=2, stage_name="S2", finished=False),
             ],
         )
@@ -110,7 +110,9 @@ class TestRunResultProperties:
         rr = RunResult(
             cycles=[CycleResult(finished=True, success=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="S1", finished=True, success=True),
+                StageResult(
+                    stage_index=1, stage_name="S1", finished=True, success=True
+                ),
             ],
         )
         assert rr.finished is True
@@ -232,7 +234,9 @@ class TestComposeStageGoal:
     def test_invalid_stage_index_too_low(self):
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
         with pytest.raises(ValueError, match="stage_index"):
             compose_stage_goal(plan, 0, [])
@@ -240,7 +244,9 @@ class TestComposeStageGoal:
     def test_invalid_stage_index_too_high(self):
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
         with pytest.raises(ValueError, match="stage_index"):
             compose_stage_goal(plan, 2, [])
@@ -253,7 +259,9 @@ class TestComposeStageGoal:
 
 class TestHandleStageCrash:
     def test_returns_failed_stage_result(self, tmp_project):
-        stage = GoalStage(index=3, name="Deploy", description="D", acceptance_criteria="C")
+        stage = GoalStage(
+            index=3, name="Deploy", description="D", acceptance_criteria="C"
+        )
         result = _handle_stage_crash(stage, RuntimeError("boom"))
         assert isinstance(result, StageResult)
         assert result.stage_index == 3
@@ -273,7 +281,11 @@ class TestHandleAgentCallEdgePaths:
         agent = make_agent("all good")
         summarizer = _noop_summarizer()
         result = handle_agent_call(
-            "worker", agent, "do task", tmp_project, summarizer,
+            "worker",
+            agent,
+            "do task",
+            tmp_project,
+            summarizer,
             new_conversation=True,
         )
         assert "all good" in result
@@ -284,7 +296,11 @@ class TestHandleAgentCallEdgePaths:
         summarizer = _noop_summarizer()
         cycle_log: list[str] = []
         handle_agent_call(
-            "worker", agent, "do task", tmp_project, summarizer,
+            "worker",
+            agent,
+            "do task",
+            tmp_project,
+            summarizer,
             cycle_log=cycle_log,
         )
         assert len(cycle_log) == 2
@@ -300,13 +316,16 @@ class TestHandleAgentCallEdgePaths:
         summarizer = _noop_summarizer()
         cycle_log: list[str] = []
         result = handle_agent_call(
-            "worker", agent, "do task", tmp_project, summarizer,
+            "worker",
+            agent,
+            "do task",
+            tmp_project,
+            summarizer,
             cycle_log=cycle_log,
         )
         assert "crashed" in result
         assert len(cycle_log) == 2
         assert "← worker" in cycle_log[1]
-
 
 
 # ---------------------------------------------------------------------------
@@ -411,7 +430,9 @@ class TestRunEmptyPlanFallback:
     def test_empty_plan_runs_as_single(self, tmp_project, capsys):
         """Plan with no stages triggers warning and runs single-goal."""
         plan = GoalPlan(context="Test", stages=[])
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True, summary="done")])
+        orch = FakeOrchestrator(
+            [CycleResult(finished=True, success=True, summary="done")]
+        )
         team = {"worker": make_agent()}
 
         result = orch.run("goal", tmp_project, team, plan=plan)
@@ -437,7 +458,9 @@ class TestRunStagedCycleLimit:
             ],
         )
         # Only 1 cycle budget, but 3 stages — S1 consumes it, S2+S3 skipped
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True, summary="S1 done")])
+        orch = FakeOrchestrator(
+            [CycleResult(finished=True, success=True, summary="S1 done")]
+        )
         team = {"worker": make_agent()}
 
         orch.run("goal", tmp_project, team, plan=plan, max_cycles=1)
@@ -454,7 +477,9 @@ class TestRunStagedCycleLimit:
             ],
         )
         # Stage 1 done, resuming stage 2 with prior summary
-        orch = FakeOrchestrator([CycleResult(finished=True, success=True, summary="S2 done")])
+        orch = FakeOrchestrator(
+            [CycleResult(finished=True, success=True, summary="S2 done")]
+        )
         team = {"worker": make_agent()}
 
         resume = ResumeState(
@@ -492,14 +517,18 @@ class TestRunAdaptive:
             return GoalStage(
                 index=index,
                 name=decision.name if hasattr(decision, "name") else f"Stage {index}",
-                description=decision.description if hasattr(decision, "description") else "D",
+                description=decision.description
+                if hasattr(decision, "description")
+                else "D",
                 acceptance_criteria="Done",
             )
 
         advisor.make_stage = MagicMock(side_effect=make_stage)
         return advisor
 
-    def _make_decision(self, action="continue", name="Next", description="Do it", summary=""):
+    def _make_decision(
+        self, action="continue", name="Next", description="Do it", summary=""
+    ):
         d = MagicMock()
         d.action = action
         d.name = name
@@ -511,11 +540,15 @@ class TestRunAdaptive:
         """Advisor returning 'done' stops the run."""
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
-        advisor = self._make_advisor([
-            self._make_decision(action="done", summary="All complete"),
-        ])
+        advisor = self._make_advisor(
+            [
+                self._make_decision(action="done", summary="All complete"),
+            ]
+        )
         orch = FakeOrchestrator()
         team = {"worker": make_agent()}
 
@@ -527,33 +560,46 @@ class TestRunAdaptive:
         """Stage crash during adaptive execution is handled."""
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
 
         class CrashOrchestrator(FakeOrchestrator):
             def _run_one_stage(self, *args, **kwargs):
                 raise RuntimeError("stage exploded")
 
-        advisor = self._make_advisor([
-            self._make_decision(action="continue", name="Boom"),
-        ])
+        advisor = self._make_advisor(
+            [
+                self._make_decision(action="continue", name="Boom"),
+            ]
+        )
         orch = CrashOrchestrator()
         team = {"worker": make_agent()}
 
-        result = orch.run("goal", tmp_project, team, plan=plan, max_cycles=10, advisor=advisor)
+        result = orch.run(
+            "goal", tmp_project, team, plan=plan, max_cycles=10, advisor=advisor
+        )
         # Should have a stage_result with crash summary
         assert len(result.stage_results) == 1
-        assert "crashed" in result.stage_results[0].summary.lower() or "exploded" in result.stage_results[0].summary.lower()
+        assert (
+            "crashed" in result.stage_results[0].summary.lower()
+            or "exploded" in result.stage_results[0].summary.lower()
+        )
 
     def test_advisor_stage_not_completed_stops(self, tmp_project, capsys):
         """When an advisor stage doesn't finish, run stops."""
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
-        advisor = self._make_advisor([
-            self._make_decision(action="continue", name="Incomplete"),
-        ])
+        advisor = self._make_advisor(
+            [
+                self._make_decision(action="continue", name="Incomplete"),
+            ]
+        )
         # Cycle returns not-finished
         orch = FakeOrchestrator([CycleResult(finished=False, summary="Ran out")])
         team = {"worker": make_agent()}
@@ -566,14 +612,19 @@ class TestRunAdaptive:
         """Advisor safety limit stops after max_stages."""
         plan = GoalPlan(
             context="Test",
-            stages=[GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")],
+            stages=[
+                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C")
+            ],
         )
         advisor = self._make_advisor(
             [self._make_decision(action="continue", name=f"S{i}") for i in range(5)],
             max_stages=2,
         )
         orch = FakeOrchestrator(
-            [CycleResult(finished=True, success=True, summary=f"done {i}") for i in range(5)]
+            [
+                CycleResult(finished=True, success=True, summary=f"done {i}")
+                for i in range(5)
+            ]
         )
         team = {"worker": make_agent()}
 
@@ -620,8 +671,20 @@ class TestExecutionGroups:
             context="Test",
             stages=[
                 GoalStage(index=1, name="S1", description="D", acceptance_criteria="C"),
-                GoalStage(index=2, name="S2", description="D", acceptance_criteria="C", parallel_group=1),
-                GoalStage(index=3, name="S3", description="D", acceptance_criteria="C", parallel_group=1),
+                GoalStage(
+                    index=2,
+                    name="S2",
+                    description="D",
+                    acceptance_criteria="C",
+                    parallel_group=1,
+                ),
+                GoalStage(
+                    index=3,
+                    name="S3",
+                    description="D",
+                    acceptance_criteria="C",
+                    parallel_group=1,
+                ),
             ],
         )
         groups = execution_groups(plan)
@@ -633,9 +696,21 @@ class TestExecutionGroups:
         plan = GoalPlan(
             context="Test",
             stages=[
-                GoalStage(index=1, name="S1", description="D", acceptance_criteria="C", parallel_group=1),
+                GoalStage(
+                    index=1,
+                    name="S1",
+                    description="D",
+                    acceptance_criteria="C",
+                    parallel_group=1,
+                ),
                 GoalStage(index=2, name="S2", description="D", acceptance_criteria="C"),
-                GoalStage(index=3, name="S3", description="D", acceptance_criteria="C", parallel_group=1),
+                GoalStage(
+                    index=3,
+                    name="S3",
+                    description="D",
+                    acceptance_criteria="C",
+                    parallel_group=1,
+                ),
             ],
         )
         groups = execution_groups(plan)

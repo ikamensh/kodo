@@ -7,7 +7,7 @@ from pathlib import Path
 
 from kodo import log
 from kodo.models import CURSOR_COMPOSER
-from kodo.sessions.base import QueryResult, SubprocessSession, _SpawnedResult, classify_session_error
+from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
 class CursorSession(SubprocessSession):
@@ -125,8 +125,11 @@ class CursorSession(SubprocessSession):
         if isinstance(r, QueryResult):
             # Spawn failed — log and return early
             log.emit(
-                "session_query_end", session="cursor", elapsed_s=r.elapsed_s,
-                is_error=True, error=r.text,
+                "session_query_end",
+                session="cursor",
+                elapsed_s=r.elapsed_s,
+                is_error=True,
+                error=r.text,
             )
             return r
 
@@ -152,7 +155,8 @@ class CursorSession(SubprocessSession):
         conv_file = None
         if raw_messages:
             conv_file = log.save_conversation(
-                f"cursor_{id(self) % 10000:04d}", self._stats.queries, raw_messages)
+                f"cursor_{id(self) % 10000:04d}", self._stats.queries, raw_messages
+            )
 
         log.emit(
             "session_query_end",

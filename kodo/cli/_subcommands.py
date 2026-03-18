@@ -50,7 +50,7 @@ def _pick_run(
         return runs[0]
     choices = [
         questionary.Choice(
-            title=f"{r.run_id}  {'done' if r.finished else f'cycle {r.completed_cycles}/{r.max_cycles}'}  {_truncate_word(r.goal.replace("\n", " "), 50)}",
+            title=f"{r.run_id}  {'done' if r.finished else f'cycle {r.completed_cycles}/{r.max_cycles}'}  {_truncate_word(r.goal.replace('\n', ' '), 50)}",
             value=r.run_id,
         )
         for r in runs
@@ -111,7 +111,10 @@ def _cmd_logs() -> None:
     )
     parser.add_argument("logfile", nargs="?", help="Path to a specific .jsonl log file")
     parser.add_argument(
-        "--port", type=int, default=8080, help="HTTP port (default: 8080)",
+        "--port",
+        type=int,
+        default=8080,
+        help="HTTP port (default: 8080)",
     )
     args = parser.parse_args(sys.argv[2:])
 
@@ -206,7 +209,11 @@ def _cmd_issue() -> None:
     if desc is None:
         _cancel()
 
-    status = "done" if state.finished else f"interrupted at cycle {state.completed_cycles}/{state.max_cycles}"
+    status = (
+        "done"
+        if state.finished
+        else f"interrupted at cycle {state.completed_cycles}/{state.max_cycles}"
+    )
     body_parts = [
         f"**Run:** {state.run_id}",
         f"**Goal:** {state.goal[:500]}{'...' if len(state.goal) > 500 else ''}",
@@ -246,17 +253,27 @@ def _cmd_issue() -> None:
         _open_folder(run_dir)
         print()
         print("  GitHub issue form opened in your browser.")
-        print("  Run folder opened — attach run.tar.gz to the issue (drag & drop or click to add).")
-        print("  Archive scrubbed for common secrets/PII; verify manually before submitting.")
+        print(
+            "  Run folder opened — attach run.tar.gz to the issue (drag & drop or click to add)."
+        )
+        print(
+            "  Archive scrubbed for common secrets/PII; verify manually before submitting."
+        )
     else:
         print()
         print("  To report this bug:")
         print("  1. Open the URL below in your browser")
-        print("  2. Attach run.tar.gz from the run folder (drag & drop or click to add)")
-        print("  3. Archive scrubbed for common secrets/PII; verify manually before submitting")
+        print(
+            "  2. Attach run.tar.gz from the run folder (drag & drop or click to add)"
+        )
+        print(
+            "  3. Archive scrubbed for common secrets/PII; verify manually before submitting"
+        )
     print()
     print(f"  Archive: {archive_path}")
-    print(f"  Scrubbed: {archive.stats.redactions} sensitive values across {archive.stats.files_changed} file(s)")
+    print(
+        f"  Scrubbed: {archive.stats.redactions} sensitive values across {archive.stats.files_changed} file(s)"
+    )
     print()
     print("  Issue URL:")
     print(f"  {url}")
@@ -290,14 +307,17 @@ def _cmd_backends() -> None:
 
     from kodo.factory import (
         available_backends,
-        check_api_key,
         check_backend_status,
     )
-    from kodo.formatting import DIM as _DIM, GREEN as _GRN, RESET as _RST, YELLOW as _YLW
+    from kodo.formatting import (
+        DIM as _DIM,
+        GREEN as _GRN,
+        RESET as _RST,
+        YELLOW as _YLW,
+    )
     from kodo.models import (
         OLLAMA_LOCAL,
         PROVIDER_REGISTRY,
-        check_api_key_for_model,
         list_ollama_models,
     )
 
@@ -334,9 +354,13 @@ def _cmd_backends() -> None:
         has_key = any(os.environ.get(v) for v in provider.env_vars)
         for m in provider.models:
             if has_key:
-                print(f"  {_GRN}{m.alias:<28}{_RST}  {m.full_model_id:<35}  {provider.name:<12}  ready")
+                print(
+                    f"  {_GRN}{m.alias:<28}{_RST}  {m.full_model_id:<35}  {provider.name:<12}  ready"
+                )
             else:
-                print(f"  {_DIM}{m.alias:<28}  {m.full_model_id:<35}  {provider.name:<12}  no key{_RST}")
+                print(
+                    f"  {_DIM}{m.alias:<28}  {m.full_model_id:<35}  {provider.name:<12}  no key{_RST}"
+                )
 
     ollama_models = list_ollama_models()
     if ollama_models:
@@ -364,7 +388,9 @@ def _cmd_backends() -> None:
                 key_source = var
                 break
         if key_val:
-            print(f"  {_GRN}{provider.name:<22}{_RST} set via {key_source} ({_masked(key_val)})")
+            print(
+                f"  {_GRN}{provider.name:<22}{_RST} set via {key_source} ({_masked(key_val)})"
+            )
         else:
             key_names = ", ".join(provider.env_vars)
             print(f"  {_YLW}{provider.name:<22} not set  ({key_names}){_RST}")
@@ -515,7 +541,9 @@ def _cmd_teams_auto(mode_name: str) -> None:
 
     if base_config is None:
         available = ", ".join(t[0] for t in list_available_teams())
-        _fail(f"No template found for mode {mode_name!r}.\nAvailable templates: {available}")
+        _fail(
+            f"No template found for mode {mode_name!r}.\nAvailable templates: {available}"
+        )
 
     # Filter agents to only those with available backends
     src_agents = base_config.get("agents", {})
@@ -622,9 +650,13 @@ def _cmd_teams_auto(mode_name: str) -> None:
     # Confirm before overwriting an existing team config
     existing_path = _teams_dir() / f"{mode_name}.json"
     if existing_path.exists():
-        confirm = input(
-            f"Team {mode_name!r} already exists at {existing_path}. Overwrite? [y/N] "
-        ).strip().lower()
+        confirm = (
+            input(
+                f"Team {mode_name!r} already exists at {existing_path}. Overwrite? [y/N] "
+            )
+            .strip()
+            .lower()
+        )
         if confirm not in ("y", "yes"):
             print("Cancelled.", file=sys.stderr)
             return
@@ -706,7 +738,8 @@ def _ask_agent_fields(
         _cancel()
 
     max_turns = questionary.text(
-        "Max turns:", default=str(d.get("max_turns", _AGENT_DEFAULTS["max_turns"])),
+        "Max turns:",
+        default=str(d.get("max_turns", _AGENT_DEFAULTS["max_turns"])),
     ).ask()
     if max_turns is None:
         _cancel()
@@ -767,7 +800,9 @@ def _cmd_teams_add(name: str) -> None:
     """Interactive wizard to create a new team."""
     path = _teams_dir() / f"{name}.json"
     if path.exists():
-        _fail(f"Team {name!r} already exists at {path}\nUse 'kodo teams edit {name}' to modify it.")
+        _fail(
+            f"Team {name!r} already exists at {path}\nUse 'kodo teams edit {name}' to modify it."
+        )
 
     print(f"Creating team: {name}\n")
 
@@ -784,7 +819,8 @@ def _cmd_teams_add(name: str) -> None:
         _cancel()
 
     orch_prompt = questionary.text(
-        "Orchestrator prompt (Enter to use default):", default="",
+        "Orchestrator prompt (Enter to use default):",
+        default="",
     ).ask()
     if orch_prompt is None:
         _cancel()
@@ -817,19 +853,22 @@ def _cmd_teams_add(name: str) -> None:
     if len(agent_keys) > 1:
         print("\n--- Verifier assignment ---")
         testers = questionary.checkbox(
-            "Select testers (non-browser):", choices=agent_keys,
+            "Select testers (non-browser):",
+            choices=agent_keys,
         ).ask()
         if testers is not None:
             verifiers["testers"] = testers
 
         browser_testers = questionary.checkbox(
-            "Select browser testers:", choices=agent_keys,
+            "Select browser testers:",
+            choices=agent_keys,
         ).ask()
         if browser_testers is not None:
             verifiers["browser_testers"] = browser_testers
 
         reviewers = questionary.checkbox(
-            "Select reviewers (architects):", choices=agent_keys,
+            "Select reviewers (architects):",
+            choices=agent_keys,
         ).ask()
         if reviewers is not None:
             verifiers["reviewers"] = reviewers
@@ -872,7 +911,8 @@ def _cmd_teams_edit(name: str) -> None:
 
     agents = config.get("agents", {})
     verifiers = config.get(
-        "verifiers", {"testers": [], "browser_testers": [], "reviewers": []},
+        "verifiers",
+        {"testers": [], "browser_testers": [], "reviewers": []},
     )
 
     while True:
@@ -919,7 +959,8 @@ def _cmd_teams_edit(name: str) -> None:
                 print("No agents to edit.")
                 continue
             agent_key = questionary.select(
-                "Which agent?", choices=list(agents.keys()),
+                "Which agent?",
+                choices=list(agents.keys()),
             ).ask()
             if agent_key:
                 print(f"\nEditing {agent_key} (Enter to keep current value)")
@@ -930,11 +971,13 @@ def _cmd_teams_edit(name: str) -> None:
                 print("No agents to remove.")
                 continue
             agent_key = questionary.select(
-                "Remove which agent?", choices=list(agents.keys()),
+                "Remove which agent?",
+                choices=list(agents.keys()),
             ).ask()
             if agent_key:
                 confirm = questionary.confirm(
-                    f"Remove {agent_key}?", default=False,
+                    f"Remove {agent_key}?",
+                    default=False,
                 ).ask()
                 if confirm:
                     del agents[agent_key]
@@ -945,7 +988,8 @@ def _cmd_teams_edit(name: str) -> None:
 
         elif action == "Edit team settings":
             desc = questionary.text(
-                "Description:", default=config.get("description", ""),
+                "Description:",
+                default=config.get("description", ""),
             ).ask()
             if desc is not None:
                 config["description"] = desc
@@ -958,7 +1002,10 @@ def _cmd_teams_edit(name: str) -> None:
                 try:
                     config["max_exchanges"] = int(exc)
                 except ValueError:
-                    print(f"Invalid max_exchanges value: {exc!r} (must be an integer)", file=sys.stderr)
+                    print(
+                        f"Invalid max_exchanges value: {exc!r} (must be an integer)",
+                        file=sys.stderr,
+                    )
                     continue
 
             cyc = questionary.text(
@@ -969,7 +1016,10 @@ def _cmd_teams_edit(name: str) -> None:
                 try:
                     config["max_cycles"] = int(cyc)
                 except ValueError:
-                    print(f"Invalid max_cycles value: {cyc!r} (must be an integer)", file=sys.stderr)
+                    print(
+                        f"Invalid max_cycles value: {cyc!r} (must be an integer)",
+                        file=sys.stderr,
+                    )
                     continue
 
             orch_prompt = questionary.text(

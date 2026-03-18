@@ -53,10 +53,16 @@ class TestInitAppendValidation:
         log_file.parent.mkdir(parents=True)
         events = [
             {
-                "ts": "t", "t": 0, "event": "run_start",
-                "goal": "g", "orchestrator": "api", "model": "m",
-                "project_dir": str(tmp_path), "max_exchanges": 10,
-                "max_cycles": 5, "team": [],
+                "ts": "t",
+                "t": 0,
+                "event": "run_start",
+                "goal": "g",
+                "orchestrator": "api",
+                "model": "m",
+                "project_dir": str(tmp_path),
+                "max_exchanges": 10,
+                "max_cycles": 5,
+                "team": [],
             },
             {"ts": "t", "t": 0.1, "event": "cli_args", "team": "full"},
             {"ts": "t", "t": 1, "event": "cycle_end", "summary": "partial"},
@@ -89,17 +95,21 @@ def test_cycle_end_without_summary_key(tmp_path: Path):
     run_dir = RunDir.create(tmp_path, "m4_test")
     events = [
         {
-            "ts": "t", "t": 0, "event": "run_start",
-            "goal": "test goal", "project_dir": str(tmp_path),
-            "orchestrator": "api", "model": "test",
-            "max_exchanges": 10, "max_cycles": 3, "team": [],
+            "ts": "t",
+            "t": 0,
+            "event": "run_start",
+            "goal": "test goal",
+            "project_dir": str(tmp_path),
+            "orchestrator": "api",
+            "model": "test",
+            "max_exchanges": 10,
+            "max_cycles": 3,
+            "team": [],
         },
         {"ts": "t", "t": 0.1, "event": "cli_args", "team": "full"},
         {"ts": "t", "t": 1, "event": "cycle_end"},  # no summary key
     ]
-    run_dir.log_file.write_text(
-        "\n".join(json.dumps(e) for e in events) + "\n"
-    )
+    run_dir.log_file.write_text("\n".join(json.dumps(e) for e in events) + "\n")
 
     try:
         state = log.parse_run(run_dir.log_file)
@@ -127,8 +137,12 @@ def test_concurrent_record_agent_data_integrity():
         barrier.wait()
         for _ in range(n_calls):
             stats.record_agent(
-                "worker", cost_usd=0.001, input_tokens=10,
-                output_tokens=5, elapsed_s=0.01, is_error=False,
+                "worker",
+                cost_usd=0.001,
+                input_tokens=10,
+                output_tokens=5,
+                elapsed_s=0.01,
+                is_error=False,
                 cost_bucket="api",
             )
 
@@ -141,7 +155,5 @@ def test_concurrent_record_agent_data_integrity():
     expected = n_threads * n_calls
     actual = stats.agents["worker"].calls
     if actual < expected:
-        pytest.xfail(
-            f"BUG M6: lost {expected - actual} calls ({actual}/{expected})"
-        )
+        pytest.xfail(f"BUG M6: lost {expected - actual} calls ({actual}/{expected})")
     assert actual == expected

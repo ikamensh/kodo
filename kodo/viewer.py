@@ -32,18 +32,20 @@ def _build_run_index() -> list[dict]:
     index = []
     for r in list_runs():
         project_name = Path(r.project_dir).name if r.project_dir else "?"
-        index.append({
-            "run_id": r.run_id,
-            "log_file": str(r.log_file),
-            "goal": r.goal[:200],
-            "project_dir": r.project_dir,
-            "project_name": project_name,
-            "orchestrator": r.orchestrator,
-            "model": r.model,
-            "finished": r.finished,
-            "completed_cycles": r.completed_cycles,
-            "max_cycles": r.max_cycles,
-        })
+        index.append(
+            {
+                "run_id": r.run_id,
+                "log_file": str(r.log_file),
+                "goal": r.goal[:200],
+                "project_dir": r.project_dir,
+                "project_name": project_name,
+                "orchestrator": r.orchestrator,
+                "model": r.model,
+                "finished": r.finished,
+                "completed_cycles": r.completed_cycles,
+                "max_cycles": r.max_cycles,
+            }
+        )
     return index
 
 
@@ -102,7 +104,10 @@ def open_viewer(log_path: Path | None = None) -> None:
     # Include run index when no specific log is given
     html = _build_html(log_path, include_index=(log_path is None))
     with tempfile.NamedTemporaryFile(
-        "w", suffix=".html", prefix="kodo_viewer_", delete=False,
+        "w",
+        suffix=".html",
+        prefix="kodo_viewer_",
+        delete=False,
     ) as f:
         f.write(html)
         tmp = f.name
@@ -126,13 +131,14 @@ def _serve(port: int, log_path: Path | None) -> None:
         def do_GET(self):
             # API endpoint: serve individual log files by run_id
             if self.path.startswith("/api/log/"):
-                run_id = self.path[len("/api/log/"):]
+                run_id = self.path[len("/api/log/") :]
                 self._serve_log(run_id)
                 return
             super().do_GET()
 
         def _serve_log(self, run_id: str):
             from kodo.log import _runs_root
+
             if "/" in run_id or "\\" in run_id or ".." in run_id:
                 self.send_error(400, "Invalid run_id")
                 return
@@ -175,10 +181,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="kodo log viewer")
     parser.add_argument("logfile", nargs="?", help="Path to .jsonl log file")
     parser.add_argument(
-        "--serve", action="store_true", help="Serve on HTTP port instead of file://",
+        "--serve",
+        action="store_true",
+        help="Serve on HTTP port instead of file://",
     )
     parser.add_argument(
-        "--port", type=int, default=8080, help="Port for --serve (default: 8080)",
+        "--port",
+        type=int,
+        default=8080,
+        help="Port for --serve (default: 8080)",
     )
     args = parser.parse_args()
 

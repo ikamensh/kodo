@@ -29,9 +29,14 @@ from datetime import datetime, timezone
 GCP_PROJECT = os.environ.get("KODO_BENCH_PROJECT", "covenance-469421")
 GCS_BUCKET = os.environ.get("KODO_BENCH_BUCKET", "kodo-bench")
 VIEW_MODE = os.environ.get("KODO_BENCH_VIEW_MODE", "").strip().lower()
-HEAD_TO_HEAD_OPPONENT = os.environ.get(
-    "KODO_BENCH_HEAD_TO_HEAD_OPPONENT", "cursor",
-).strip().lower()
+HEAD_TO_HEAD_OPPONENT = (
+    os.environ.get(
+        "KODO_BENCH_HEAD_TO_HEAD_OPPONENT",
+        "cursor",
+    )
+    .strip()
+    .lower()
+)
 SNAPSHOT_PREFIX = os.environ.get("KODO_BENCH_SNAPSHOT_PREFIX", "").strip().strip("/")
 ALLOWED_DATASETS = frozenset(
     dataset.strip().lower()

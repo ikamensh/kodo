@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent as PydanticAgent
 
 from kodo import log
+from kodo.models import make_fresh_model
 from kodo.orchestrators.base import GoalPlan, GoalStage
 
 DEFAULT_MAX_STAGES = 20
@@ -74,7 +75,7 @@ class Advisor:
         self.model = model
         self.max_stages = max_stages
         self._agent = PydanticAgent(
-            model,
+            make_fresh_model(model),
             system_prompt=ADVISOR_SYSTEM_PROMPT,
             output_type=AdvisorDecision,
         )
@@ -88,7 +89,11 @@ class Advisor:
     ) -> AdvisorDecision:
         """Ask the advisor what to do next. Returns a structured decision."""
         prompt = _build_assess_prompt(
-            goal, plan, completed_summaries, completed_count, self.max_stages,
+            goal,
+            plan,
+            completed_summaries,
+            completed_count,
+            self.max_stages,
         )
 
         log.emit(
@@ -133,7 +138,9 @@ class SessionAdvisor(Advisor):
     what's next.
     """
 
-    def __init__(self, session, project_dir: Path, *, max_stages: int = DEFAULT_MAX_STAGES):
+    def __init__(
+        self, session, project_dir: Path, *, max_stages: int = DEFAULT_MAX_STAGES
+    ):
         # Skip Advisor.__init__ — we don't need a PydanticAgent
         self.max_stages = max_stages
         self.model = "session"
@@ -149,7 +156,9 @@ class SessionAdvisor(Advisor):
         completed_count: int,
     ) -> AdvisorDecision:
         prompt = _build_session_assess_prompt(
-            completed_summaries, completed_count, self._started,
+            completed_summaries,
+            completed_count,
+            self._started,
         )
         self._started = True
 
@@ -163,8 +172,12 @@ class SessionAdvisor(Advisor):
         result = self._session.query(prompt, self._project_dir, max_turns=3)
 
         if result.is_error:
-            log.emit("advisor_assess_end", action="done", advisor_type="session",
-                     error=result.text[:500])
+            log.emit(
+                "advisor_assess_end",
+                action="done",
+                advisor_type="session",
+                error=result.text[:500],
+            )
             return AdvisorDecision(
                 action="done",
                 summary=f"Advisor session error: {result.text[:200]}",

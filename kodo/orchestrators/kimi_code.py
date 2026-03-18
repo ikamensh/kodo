@@ -178,5 +178,7 @@ class KimiCodeOrchestrator(OrchestratorBase):
                     loop.close()
 
         return self._cycle_epilogue(
-            result, cost_bucket="kimi_api", context="kimi-code finished.",
+            result,
+            cost_bucket="kimi_api",
+            context="kimi-code finished.",
         )

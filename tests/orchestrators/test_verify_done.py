@@ -335,7 +335,12 @@ class TestHandleDoneVerificationSkip:
         team = {"tester": make_agent("THIS SHOULD NOT RUN")}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification="skip"),
         )
         assert "Verified and accepted" in result
@@ -348,7 +353,12 @@ class TestHandleDoneVerificationSkip:
         team = {"tester": tester}
         done_signal = DoneSignal()
         handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification="skip"),
         )
         assert tester.session.stats.queries == 0
@@ -358,7 +368,12 @@ class TestHandleDoneVerificationSkip:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY, False, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            False,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification="skip"),
         )
         assert "unsuccessful" in result.lower()
@@ -383,7 +398,12 @@ class TestHandleDoneQuickCheck:
             )
         ]
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert "Verified and accepted" in result
@@ -403,7 +423,12 @@ class TestHandleDoneQuickCheck:
             )
         ]
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert "Quick-check verification failed" in result
@@ -425,7 +450,12 @@ class TestHandleDoneQuickCheck:
             )
         ]
         handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert tester.session.stats.queries == 0
@@ -438,11 +468,18 @@ class TestHandleDoneQuickCheck:
         team = {}
         done_signal = DoneSignal()
         checks = [
-            QuickCheck(path=str(existing), description="File A", error_message="A missing"),
+            QuickCheck(
+                path=str(existing), description="File A", error_message="A missing"
+            ),
             QuickCheck(path=missing, description="File B", error_message="B missing"),
         ]
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert "Quick-check verification failed" in result
@@ -459,7 +496,12 @@ class TestHandleDoneFullVerification:
         team = {"tester": tester}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification="full"),
         )
         assert "Verified and accepted" in result
@@ -473,7 +515,12 @@ class TestHandleDoneFullVerification:
         team = {"tester": tester}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=CycleConfig(verification="full"),
         )
         assert "REJECTED" in result
@@ -484,7 +531,8 @@ class TestVerificationStateCycleBoundary:
     """Ensure VerificationState resets between cycles."""
 
     def test_verification_state_resets_between_cycles(
-        self, tmp_project: Path,
+        self,
+        tmp_project: Path,
     ) -> None:
         """Each cycle creates a fresh VerificationState, resetting done_attempt.
 
@@ -567,7 +615,10 @@ class TestVerifyDoneWithCriteria:
         tester = make_agent("ALL CHECKS PASS")
         team = {"tester": tester}
         verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             acceptance_criteria=SAMPLE_CRITERIA,
         )
         prompt = tester.session.prompts[0]
@@ -594,7 +645,12 @@ class TestVerifyDoneWithCriteria:
             acceptance_criteria=SAMPLE_CRITERIA,
         )
         handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=config,
         )
         prompt = tester.session.prompts[0]
@@ -606,7 +662,10 @@ class TestVerifyDoneWithCriteria:
         tester = make_agent("Criterion 1: PASS\nCriterion 2: FAIL — no borders")
         team = {"tester": tester}
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             acceptance_criteria=SAMPLE_CRITERIA,
         )
         assert result is not None
@@ -652,7 +711,10 @@ class TestEffortLevel:
     def test_effort_combined_with_criteria(self) -> None:
         """Effort supplement stacks with criteria-aware prompt."""
         prompt = _build_verification_prompt(
-            GOAL, SUMMARY, SAMPLE_CRITERIA, effort="max",
+            GOAL,
+            SUMMARY,
+            SAMPLE_CRITERIA,
+            effort="max",
         )
         assert "Acceptance Criteria" in prompt
         assert "MAX" in prompt
@@ -665,7 +727,12 @@ class TestEffortLevel:
         done_signal = DoneSignal()
         config = CycleConfig(verification="full", effort="max")
         handle_done(
-            SUMMARY, True, done_signal, GOAL, team, tmp_project,
+            SUMMARY,
+            True,
+            done_signal,
+            GOAL,
+            team,
+            tmp_project,
             config=config,
         )
         prompt = tester.session.prompts[0]
@@ -899,7 +966,12 @@ class TestHandleDoneEdgeCases:
 
         with patch("kodo.log.emit", autospec=True) as mock_emit:
             result = handle_done(
-                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                SUMMARY,
+                True,
+                done_signal,
+                GOAL,
+                team,
+                tmp_project,
                 orchestrator_tag="custom_orch",
                 config=CycleConfig(verification="full"),
             )
@@ -918,9 +990,16 @@ class TestHandleDoneEdgeCases:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
 
-        with patch("kodo.orchestrators.base._auto_commit", autospec=True) as mock_commit:
+        with patch(
+            "kodo.orchestrators.base._auto_commit", autospec=True
+        ) as mock_commit:
             handle_done(
-                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                SUMMARY,
+                True,
+                done_signal,
+                GOAL,
+                team,
+                tmp_project,
                 config=CycleConfig(verification="skip", auto_commit=True),
             )
 
@@ -933,9 +1012,16 @@ class TestHandleDoneEdgeCases:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
 
-        with patch("kodo.orchestrators.base._auto_commit", autospec=True) as mock_commit:
+        with patch(
+            "kodo.orchestrators.base._auto_commit", autospec=True
+        ) as mock_commit:
             handle_done(
-                SUMMARY, True, done_signal, GOAL, team, tmp_project,
+                SUMMARY,
+                True,
+                done_signal,
+                GOAL,
+                team,
+                tmp_project,
                 config=CycleConfig(verification="skip", auto_commit=False),
             )
 
@@ -959,7 +1045,10 @@ class TestVerifyDoneWithVerifiersDict:
             "reviewers": ["code_reviewer"],
         }
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             verifiers=verifiers,
         )
         assert result is None
@@ -975,7 +1064,10 @@ class TestVerifyDoneWithVerifiersDict:
             "reviewers": ["reviewer"],
         }
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             browser_testing=True,
             verifiers=verifiers,
         )
@@ -990,7 +1082,10 @@ class TestVerifyDoneWithVerifiersDict:
             "testers": ["custom_checker"],
         }
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             verifiers=verifiers,
         )
         assert result is not None
@@ -1005,7 +1100,10 @@ class TestVerifyDoneWithVerifiersDict:
             "reviewers": [],
         }
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             verifiers=verifiers,
         )
         # Fallback worker should run (and fail the check since response is "done")
@@ -1022,7 +1120,10 @@ class TestVerifyDoneWithVerifiersDict:
             "reviewers": [],
         }
         result = verify_done(
-            GOAL, SUMMARY, team, tmp_project,
+            GOAL,
+            SUMMARY,
+            team,
+            tmp_project,
             verifiers=verifiers,
         )
         # Should pass because tester passed (nonexistent is skipped)

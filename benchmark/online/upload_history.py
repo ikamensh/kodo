@@ -18,12 +18,16 @@ from benchmark.online.validation import suspicious_upload_reason
 
 WORKSPACE = Path.home() / ".kodo" / "benchmark"
 
+
 # Dataset string -> key mapping
 def _ds_key(dataset: str) -> str:
     low = dataset.lower()
-    if "verified" in low: return "verified"
-    if "pro" in low: return "pro"
-    if "lite" in low: return "lite"
+    if "verified" in low:
+        return "verified"
+    if "pro" in low:
+        return "pro"
+    if "lite" in low:
+        return "lite"
     return ""
 
 
@@ -61,15 +65,20 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
     print(f"\n{name}: {meta.get('task_count', 0)} tasks, arms={arms}, dataset={ds}")
 
     # Upload run metadata
-    _post(url, token, "/api/run", {
-        "run_id": name,
-        **meta,
-    })
+    _post(
+        url,
+        token,
+        "/api/run",
+        {
+            "run_id": name,
+            **meta,
+        },
+    )
 
     # Load results
     results_file = run_dir / "results.jsonl"
     if not results_file.exists():
-        print(f"  no results.jsonl")
+        print("  no results.jsonl")
         return {"uploaded": 0, "skipped": 0, "failed": 0}
 
     results = []
@@ -98,6 +107,7 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
 
     # Load already-uploaded set for delta logic
     from benchmark.online.upload_tracker import load_uploaded, mark_uploaded
+
     uploaded = load_uploaded(WORKSPACE)
 
     # Upload each result
@@ -128,19 +138,24 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
             mark_uploaded(WORKSPACE, iid, arm, name)
             continue
 
-        ok = _post(url, token, "/api/task-result", {
-            "dataset": ds,
-            "run_id": name,
-            "instance_id": iid,
-            "arm": arm,
-            "status": r.get("status", ""),
-            "elapsed_s": r.get("elapsed_s", 0),
-            "patch_len": r.get("patch_len", 0),
-            "error": r.get("error", ""),
-            "patch": patch,
-            "agent_output": r.get("agent_output"),
-            "provenance": {"source": "historical_upload", "run_id": name},
-        })
+        ok = _post(
+            url,
+            token,
+            "/api/task-result",
+            {
+                "dataset": ds,
+                "run_id": name,
+                "instance_id": iid,
+                "arm": arm,
+                "status": r.get("status", ""),
+                "elapsed_s": r.get("elapsed_s", 0),
+                "patch_len": r.get("patch_len", 0),
+                "error": r.get("error", ""),
+                "patch": patch,
+                "agent_output": r.get("agent_output"),
+                "provenance": {"source": "historical_upload", "run_id": name},
+            },
+        )
         if ok:
             counts["uploaded"] += 1
             mark_uploaded(WORKSPACE, iid, arm, name)
@@ -156,27 +171,41 @@ def upload_run(run_dir: Path, url: str, token: str) -> dict:
             orig_arm = arm_key
             for a in arms:
                 import re
+
                 if re.sub(r"[^a-zA-Z0-9_.-]", "_", a) == arm_key:
                     orig_arm = a
                     break
-            _post(url, token, "/api/eval-results", {
-                "dataset": ds,
-                "arm": orig_arm,
-                "resolved": arm_eval.get("resolved", []),
-                "failed": arm_eval.get("failed", []),
-                "error": arm_eval.get("error", []),
-            })
+            _post(
+                url,
+                token,
+                "/api/eval-results",
+                {
+                    "dataset": ds,
+                    "arm": orig_arm,
+                    "resolved": arm_eval.get("resolved", []),
+                    "failed": arm_eval.get("failed", []),
+                    "error": arm_eval.get("error", []),
+                },
+            )
         print(f"  eval results uploaded for {len(eval_data)} arm(s)")
 
-    print(f"  {counts['uploaded']} uploaded, {counts['skipped']} skipped, {counts['failed']} failed")
+    print(
+        f"  {counts['uploaded']} uploaded, {counts['skipped']} skipped, {counts['failed']} failed"
+    )
     return counts
 
 
 def main():
     import os
+
     parser = argparse.ArgumentParser(description="Upload historical benchmark runs")
     parser.add_argument("--run-id", help="Upload a specific run only")
-    parser.add_argument("--url", default=os.environ.get("KODO_BENCH_URL", "https://kodo-bench-430011644943.europe-west1.run.app"))
+    parser.add_argument(
+        "--url",
+        default=os.environ.get(
+            "KODO_BENCH_URL", "https://kodo-bench-430011644943.europe-west1.run.app"
+        ),
+    )
     parser.add_argument("--token", default=os.environ.get("KODO_BENCH_TOKEN", ""))
     args = parser.parse_args()
 
@@ -205,7 +234,9 @@ def main():
         for k in totals:
             totals[k] += counts[k]
 
-    print(f"\nDone: {totals['uploaded']} uploaded, {totals['skipped']} skipped, {totals['failed']} failed")
+    print(
+        f"\nDone: {totals['uploaded']} uploaded, {totals['skipped']} skipped, {totals['failed']} failed"
+    )
     return 0
 
 

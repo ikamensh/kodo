@@ -25,7 +25,6 @@ from kodo.orchestrators.base import create_worktree, remove_worktree
 pytestmark = pytest.mark.slow
 
 
-
 def _count_kodo_temp_dirs() -> int:
     """Count temp dirs matching kodo-* prefix."""
     return len(glob.glob(os.path.join(tempfile.gettempdir(), "kodo-*")))

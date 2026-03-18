@@ -52,21 +52,29 @@ def upload_task_result(
         agent_output=agent_output,
     )
     if reason:
-        log.info("Skipping suspicious benchmark upload for %s/%s: %s", instance_id, arm, reason)
+        log.info(
+            "Skipping suspicious benchmark upload for %s/%s: %s",
+            instance_id,
+            arm,
+            reason,
+        )
         return
-    _post("/api/task-result", {
-        "dataset": ds,
-        "run_id": run_id,
-        "instance_id": instance_id,
-        "arm": arm,
-        "status": status,
-        "elapsed_s": round(elapsed_s, 1),
-        "patch_len": len(patch),
-        "error": error,
-        "patch": patch,
-        "agent_output": agent_output,
-        "provenance": _get_provenance(),
-    })
+    _post(
+        "/api/task-result",
+        {
+            "dataset": ds,
+            "run_id": run_id,
+            "instance_id": instance_id,
+            "arm": arm,
+            "status": status,
+            "elapsed_s": round(elapsed_s, 1),
+            "patch_len": len(patch),
+            "error": error,
+            "patch": patch,
+            "agent_output": agent_output,
+            "provenance": _get_provenance(),
+        },
+    )
 
 
 def upload_run(
@@ -80,16 +88,19 @@ def upload_run(
     instance_ids: list[str] | None = None,
 ) -> None:
     """Register a benchmark run."""
-    _post("/api/run", {
-        "run_id": run_id,
-        "kodo_version": kodo_version,
-        "task_count": task_count,
-        "arms": arms or [],
-        "timeout": timeout,
-        "dataset": dataset_key(dataset) or dataset,
-        "instance_ids": instance_ids or [],
-        "provenance": _get_provenance(),
-    })
+    _post(
+        "/api/run",
+        {
+            "run_id": run_id,
+            "kodo_version": kodo_version,
+            "task_count": task_count,
+            "arms": arms or [],
+            "timeout": timeout,
+            "dataset": dataset_key(dataset) or dataset,
+            "instance_ids": instance_ids or [],
+            "provenance": _get_provenance(),
+        },
+    )
 
 
 def upload_eval_results(
@@ -104,13 +115,16 @@ def upload_eval_results(
     ds = dataset_key(dataset)
     if not ds:
         return
-    _post("/api/eval-results", {
-        "dataset": ds,
-        "arm": arm,
-        "resolved": resolved or [],
-        "failed": failed or [],
-        "error": error or [],
-    })
+    _post(
+        "/api/eval-results",
+        {
+            "dataset": ds,
+            "arm": arm,
+            "resolved": resolved or [],
+            "failed": failed or [],
+            "error": error or [],
+        },
+    )
 
 
 # ── Internals ────────────────────────────────────────────────────────
@@ -122,10 +136,13 @@ def _get_provenance() -> dict:
         _provenance = collect_provenance()
     # Always use fresh timestamp (the rest is cached for performance — ipinfo etc.)
     from datetime import datetime, timezone
+
     return {**_provenance, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
-def _request(method: str, path: str, data: dict | None = None, timeout: int = 30) -> bytes:
+def _request(
+    method: str, path: str, data: dict | None = None, timeout: int = 30
+) -> bytes:
     """Send an authenticated request to the benchmark server. Returns response body."""
     base_url, token = get_client_credentials()
     if not base_url or not token:
@@ -221,12 +238,15 @@ def fetch_assignments(
         prov = _get_provenance()
         contributor = f"{prov.get('user', 'unknown')}@{prov.get('host', 'unknown')}"
 
-    result = _post_json("/api/next-tasks", {
-        "datasets": datasets or {},
-        "backends": backends,
-        "limit": limit,
-        "contributor": contributor,
-    })
+    result = _post_json(
+        "/api/next-tasks",
+        {
+            "datasets": datasets or {},
+            "backends": backends,
+            "limit": limit,
+            "contributor": contributor,
+        },
+    )
     return result.get("assignments", [])
 
 

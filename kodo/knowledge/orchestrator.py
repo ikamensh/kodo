@@ -10,7 +10,11 @@ import time
 
 import httpx
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+)
 from pydantic_ai.usage import UsageLimits
 
 from kodo import log
@@ -127,7 +131,9 @@ class KnowledgeOrchestrator:
                 content = path.read_text(errors="replace")
                 artifact_name = f"ref_{path.stem}"
                 workspace.write(artifact_name, content)
-                log.tprint(f"[knowledge] Loaded reference: {artifact_name} ({len(content)} chars)")
+                log.tprint(
+                    f"[knowledge] Loaded reference: {artifact_name} ({len(content)} chars)"
+                )
             except Exception as exc:
                 log.tprint(f"[knowledge] Warning: failed to read {path}: {exc}")
 
@@ -205,7 +211,9 @@ class KnowledgeOrchestrator:
                 )
 
         # Build final result
-        answer = workspace.read("answer") or cycle_result.summary or "(no answer produced)"
+        answer = (
+            workspace.read("answer") or cycle_result.summary or "(no answer produced)"
+        )
         reasoning = workspace.read("reasoning_trace") or ""
         open_questions = workspace.read("open_questions") or ""
 
@@ -247,14 +255,16 @@ class KnowledgeOrchestrator:
         convergence.agreement = result["agreement"]
         convergence.completeness = result["completeness"]
 
-        convergence.history.append({
-            "round": convergence.round_number,
-            "confidence": result["confidence"],
-            "stability": result["stability"],
-            "agreement": result["agreement"],
-            "completeness": result["completeness"],
-            "answer_snapshot": current[:2000],
-        })
+        convergence.history.append(
+            {
+                "round": convergence.round_number,
+                "confidence": result["confidence"],
+                "stability": result["stability"],
+                "agreement": result["agreement"],
+                "completeness": result["completeness"],
+                "answer_snapshot": current[:2000],
+            }
+        )
 
         log.tprint(
             f"[knowledge] Assessment: confidence={result['confidence']:.2f}, "
@@ -285,8 +295,7 @@ class KnowledgeOrchestrator:
 
         # Build the orchestrator prompt
         team_desc = "\n".join(
-            f"- **{r.name}**: {r.system_prompt[:150]}..."
-            for r in design.roles
+            f"- **{r.name}**: {r.system_prompt[:150]}..." for r in design.roles
         )
         pattern_prompt = PATTERN_PROMPTS.get(
             design.pattern.value,
@@ -297,7 +306,9 @@ class KnowledgeOrchestrator:
         # Build user prompt
         user_parts = [f"## Goal\n{goal.goal}"]
         if goal.constraints:
-            user_parts.append("## Constraints\n" + "\n".join(f"- {c}" for c in goal.constraints))
+            user_parts.append(
+                "## Constraints\n" + "\n".join(f"- {c}" for c in goal.constraints)
+            )
         if goal.output_format:
             user_parts.append(
                 f"## Output format\n{goal.output_format}\n"
@@ -333,6 +344,7 @@ class KnowledgeOrchestrator:
         history_processors = []
         if self._max_context_tokens:
             from pydantic_ai_summarization import create_summarization_processor
+
             history_processors.append(
                 create_summarization_processor(
                     trigger=("tokens", self._max_context_tokens),
@@ -370,7 +382,10 @@ class KnowledgeOrchestrator:
                 status = exc.status_code
                 if status in (401, 403):
                     raise
-                if status in (408, 429, 500, 502, 503, 504, 529) and attempt < max_retries - 1:
+                if (
+                    status in (408, 429, 500, 502, 503, 504, 529)
+                    and attempt < max_retries - 1
+                ):
                     wait = 30 * (attempt + 1)
                     log.tprint(f"[knowledge] HTTP {status}, retrying in {wait}s...")
                     time.sleep(wait)

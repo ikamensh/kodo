@@ -17,7 +17,9 @@ from benchmark._util import docker_safe, log
 from benchmark.tasks import DATASET_MAP
 
 
-def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[str] | None = None) -> int:
+def evaluate_pending(
+    workspace: Path, *, dataset_arg: str = "pro", arms: list[str] | None = None
+) -> int:
     """Fetch unevaluated predictions from server, evaluate locally, upload results.
 
     Args:
@@ -68,7 +70,9 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
         arm_set = set(arms)
         skipped = set(by_arm) - arm_set
         if skipped:
-            log.info("Skipping arms not in --arm filter: %s", ", ".join(sorted(skipped)))
+            log.info(
+                "Skipping arms not in --arm filter: %s", ", ".join(sorted(skipped))
+            )
         by_arm = {a: preds for a, preds in by_arm.items() if a in arm_set}
         if not by_arm:
             log.info("No unevaluated predictions match --arm filter %s", arms)
@@ -129,15 +133,25 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
                 error=[],
             )
             status = "resolved" if resolved else "failed"
-            log.info("Uploaded %s/%s: %s (%d/%d total)",
-                     arm, instance_id, status, total_resolved, total_evaluated)
+            log.info(
+                "Uploaded %s/%s: %s (%d/%d total)",
+                arm,
+                instance_id,
+                status,
+                total_resolved,
+                total_evaluated,
+            )
         except Exception as exc:
             upload_errors += 1
             log.debug("Upload failed for %s/%s: %s", arm, instance_id, exc)
 
     # Run combined evaluation (all arms in one swebench invocation)
     arm_results = evaluate_arms_combined(
-        run_dir, list(by_arm), run_id, full_dataset, on_instance=_on_instance,
+        run_dir,
+        list(by_arm),
+        run_id,
+        full_dataset,
+        on_instance=_on_instance,
     )
 
     for arm, results in arm_results.items():
@@ -146,14 +160,20 @@ def evaluate_pending(workspace: Path, *, dataset_arg: str = "pro", arms: list[st
         error = results.get("error", [])
         log.info(
             "Arm '%s': %d resolved, %d failed, %d error",
-            arm, len(resolved), len(failed), len(error),
+            arm,
+            len(resolved),
+            len(failed),
+            len(error),
         )
         # Bulk upload results that weren't streamed via on_instance
         if resolved or failed or error:
             try:
                 upload_eval_results(
-                    full_dataset, arm,
-                    resolved=resolved, failed=failed, error=error,
+                    full_dataset,
+                    arm,
+                    resolved=resolved,
+                    failed=failed,
+                    error=error,
                 )
                 log.info("Bulk-uploaded eval results for %s", arm)
             except Exception as exc:
@@ -169,8 +189,11 @@ def main() -> int:
     import argparse
     import warnings
 
-    warnings.filterwarnings("ignore", message=r"urllib3.*doesn't match a supported version")
+    warnings.filterwarnings(
+        "ignore", message=r"urllib3.*doesn't match a supported version"
+    )
     from dotenv import find_dotenv, load_dotenv
+
     load_dotenv(find_dotenv(usecwd=True))
 
     from benchmark._util import setup_logging
@@ -206,4 +229,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

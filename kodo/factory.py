@@ -27,18 +27,13 @@ from kodo.models import (
     GEMINI_ALIAS_PRO,
     GEMINI_API_FLASH,
     GEMINI_API_PRO,
-    GEMINI_API_PRO_V3,
     GEMINI_CLI_FLASH,
     GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
     KIMI_K2_5,
-    OLLAMA_LOCAL,
     all_aliases,
-    available_providers as _available_model_providers,
     check_api_key_for_model,
-    list_ollama_models,
     is_ollama_model,
-    model_display_name,
     normalize_ollama_model,
 )
 from kodo.orchestrators.base import TeamConfig
@@ -46,6 +41,7 @@ from kodo.prompts.roles import (
     AGENT_NOTES_INSTRUCTION,
     ARCHITECT_PROMPT,
     ORCHESTRATOR_SYSTEM_PROMPT,
+    TEST_ORCHESTRATOR_SYSTEM_PROMPT,
     TESTER_BROWSER_PROMPT,
     TESTER_PROMPT,
 )
@@ -134,9 +130,7 @@ def available_backend_names() -> list[str]:
         "codex": "Codex",
         "gemini-cli": "Gemini CLI",
     }
-    return [
-        _DISPLAY_NAMES[b] for b in _BACKEND_PREFERENCE if _is_available(b)
-    ]
+    return [_DISPLAY_NAMES[b] for b in _BACKEND_PREFERENCE if _is_available(b)]
 
 
 # Default "smart" model per backend — used for intake, refine, plan generation.
@@ -263,12 +257,18 @@ def check_backend_status(name: str) -> tuple[str, str | None]:
 
     if proc.returncode != 0:
         hint = classify_session_error(
-            proc.returncode, proc.stderr, proc.stdout, name,
+            proc.returncode,
+            proc.stderr,
+            proc.stdout,
+            name,
         )
         if hint:
             return (version, hint)
         snippet = combined.strip()[:200]
-        return (version, snippet or f"Preflight failed with exit code {proc.returncode}")
+        return (
+            version,
+            snippet or f"Preflight failed with exit code {proc.returncode}",
+        )
 
     return (version, None)
 
@@ -435,6 +435,7 @@ _ROLE_CONFIG: dict[str, tuple[str | None, int]] = {
     "tester_browser": (TESTER_BROWSER_PROMPT, 20),
 }
 
+
 def _is_available(backend: str) -> bool:
     """Check backend availability via has_* functions (respects test patching)."""
     return {
@@ -470,7 +471,9 @@ def _build_team_core(
     For each role, the first available backend in its priority list is chosen.
     Roles without a description (architect, tester, tester_browser) are skipped.
     """
-    if not any(_is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli", "kimi")):
+    if not any(
+        _is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli", "kimi")
+    ):
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
             "claude, cursor, kimi, codex, or gemini-cli.",
@@ -495,7 +498,11 @@ def _build_team_core(
             continue
         sys_prompt, max_turns = _ROLE_CONFIG[role]
         notes_instruction = AGENT_NOTES_INSTRUCTION.format(role=role)
-        sys_prompt = (sys_prompt + notes_instruction) if sys_prompt else notes_instruction.strip()
+        sys_prompt = (
+            (sys_prompt + notes_instruction)
+            if sys_prompt
+            else notes_instruction.strip()
+        )
         session_kwargs = dict(pick.session_kwargs) if pick.session_kwargs else {}
         session_kwargs["system_prompt"] = sys_prompt
         if role == "tester_browser":
@@ -584,7 +591,13 @@ def _describe_backends() -> str:
 
 def _full_description() -> str:
     agents = []
-    for role in ("worker_fast", "worker_smart", "tester", "tester_browser", "architect"):
+    for role in (
+        "worker_fast",
+        "worker_smart",
+        "tester",
+        "tester_browser",
+        "architect",
+    ):
         if _pick_backend(role) is not None:
             agents.append(role.replace("_", " "))
     return f"Full team ({_describe_backends()}): {', '.join(agents)}"
@@ -620,6 +633,14 @@ def get_team_presets() -> dict[str, TeamPreset]:
             default_max_cycles=5,
         ),
         "quick": quick,
+        "test": TeamPreset(
+            name="test",
+            description=f"Test generation ({_describe_backends()}): iterative write/run/fix loop",
+            system_prompt=TEST_ORCHESTRATOR_SYSTEM_PROMPT,
+            build_team=_build_team_full,
+            default_max_exchanges=30,
+            default_max_cycles=5,
+        ),
     }
 
 
@@ -693,12 +714,14 @@ _MODEL_ALIASES: dict[str, str] = {
     alias: pydantic_id for alias, pydantic_id in all_aliases().items()
 }
 # Ensure legacy aliases that map to bare model IDs still work
-_MODEL_ALIASES.update({
-    CLAUDE_OPUS: CLAUDE_OPUS_FULL,
-    CLAUDE_SONNET: CLAUDE_SONNET_FULL,
-    GEMINI_ALIAS_PRO: GEMINI_API_PRO,
-    GEMINI_ALIAS_FLASH: GEMINI_API_FLASH,
-})
+_MODEL_ALIASES.update(
+    {
+        CLAUDE_OPUS: CLAUDE_OPUS_FULL,
+        CLAUDE_SONNET: CLAUDE_SONNET_FULL,
+        GEMINI_ALIAS_PRO: GEMINI_API_PRO,
+        GEMINI_ALIAS_FLASH: GEMINI_API_FLASH,
+    }
+)
 
 
 def build_orchestrator(

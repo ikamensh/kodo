@@ -106,7 +106,9 @@ class CodexOrchestrator(CliOrchestratorBase):
             result.total_cost_usd = 0.0  # subscription-covered
             log.get_run_stats().record_orchestrator(0.0, "codex_subscription")
 
-            self._apply_result(result, done_signal, response_text, is_error=proc.returncode != 0)
+            self._apply_result(
+                result, done_signal, response_text, is_error=proc.returncode != 0
+            )
 
         finally:
             if proc is not None:

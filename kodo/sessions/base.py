@@ -57,7 +57,11 @@ class Session(Protocol):
         return None
 
     def query(
-        self, prompt: str, project_dir: Path, *, max_turns: int,
+        self,
+        prompt: str,
+        project_dir: Path,
+        *,
+        max_turns: int,
     ) -> QueryResult: ...
 
     def reset(self) -> None: ...
@@ -121,7 +125,10 @@ class SubprocessSession:
         return prompt
 
     def _spawn(
-        self, cmd: list[str], *, cwd: str | None = None,
+        self,
+        cmd: list[str],
+        *,
+        cwd: str | None = None,
     ) -> tuple[subprocess.Popen, list[str], threading.Thread]:
         """Spawn subprocess with a stderr-drain thread.
 
@@ -131,6 +138,7 @@ class SubprocessSession:
         # Strip ANTHROPIC_API_KEY from worker subprocesses to prevent
         # accidental API billing when workers should use subscription.
         import os
+
         env = os.environ.copy()
         env.pop("ANTHROPIC_API_KEY", None)
         proc = subprocess.Popen(
@@ -229,8 +237,7 @@ class SubprocessSession:
                         pid=proc.pid,
                     )
                     log.tprint(
-                        f"⚠️  Process {proc.pid} became zombie "
-                        f"(will clean up on exit)",
+                        f"⚠️  Process {proc.pid} became zombie (will clean up on exit)",
                     )
         # Allow up to 30s for drain to finish; process has exited so stderr
         # should close soon. Increase from 5s to avoid truncating long output.
@@ -282,9 +289,7 @@ class SubprocessSession:
         cmd: list[str],
         *,
         cwd: str | None = None,
-        parse_stdout: Callable[
-            [subprocess.Popen], tuple[str, int, int]
-        ],
+        parse_stdout: Callable[[subprocess.Popen], tuple[str, int, int]],
     ) -> "QueryResult | _SpawnedResult":
         """Shared spawn → parse → wait → stats logic for subprocess queries.
 
@@ -303,9 +308,14 @@ class SubprocessSession:
             proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=cwd)
         except (FileNotFoundError, PermissionError, OSError) as exc:
             elapsed = time.monotonic() - t0
-            error_msg = classify_session_error(
-                -1, str(exc), backend=self._session_label,
-            ) or f"Failed to spawn {self._session_label}: {exc}"
+            error_msg = (
+                classify_session_error(
+                    -1,
+                    str(exc),
+                    backend=self._session_label,
+                )
+                or f"Failed to spawn {self._session_label}: {exc}"
+            )
             return QueryResult(text=error_msg, elapsed_s=elapsed, is_error=True)
 
         try:

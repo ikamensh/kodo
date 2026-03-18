@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from kodo.factory import _build_team_core, _ARCHITECT_DESC, _WORKER_FAST_DESC, _TESTER_DESC
+from kodo.factory import (
+    _build_team_core,
+    _ARCHITECT_DESC,
+    _WORKER_FAST_DESC,
+    _TESTER_DESC,
+)
 
 
 def _force_claude_available():
@@ -92,7 +97,11 @@ def test_notes_json_team():
         }
     }
     with (
-        patch("kodo.team_config.available_backends", autospec=True, return_value={"claude": True}),
+        patch(
+            "kodo.team_config.available_backends",
+            autospec=True,
+            return_value={"claude": True},
+        ),
     ):
         team = build_team_from_json(config)
 

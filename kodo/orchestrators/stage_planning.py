@@ -15,8 +15,7 @@ def _handle_stage_crash(stage: GoalStage, exc: Exception) -> StageResult:
     from kodo import log
 
     log.tprint(
-        f"[orchestrator] Stage {stage.index} "
-        f"({stage.name}) crashed: {exc}",
+        f"[orchestrator] Stage {stage.index} ({stage.name}) crashed: {exc}",
     )
     log.emit("stage_error", stage_index=stage.index, error=str(exc))
     return StageResult(

@@ -62,7 +62,4 @@ def prioritize_assignments(
     # Sort: most other coverage first, then least arm pressure, then deterministic.
     candidates.sort(key=lambda c: (-c[0], c[1], c[2], c[3]))
 
-    return [
-        {"instance_id": iid, "arm": arm}
-        for _, _, iid, arm in candidates[:limit]
-    ]
+    return [{"instance_id": iid, "arm": arm} for _, _, iid, arm in candidates[:limit]]

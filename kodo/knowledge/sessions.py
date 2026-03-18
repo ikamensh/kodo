@@ -179,25 +179,32 @@ def make_knowledge_session(
     tools: list[Tool] = []
     if "compute" in role.tools:
         from kodo.knowledge.tools import _make_compute
+
         tools.append(Tool(_make_compute(), name="compute", takes_ctx=False))
 
     if workspace is not None:
         if "read_artifact" in role.tools:
             from kodo.knowledge.tools import _make_read_artifact
-            tools.append(Tool(
-                _make_read_artifact(workspace),
-                name="read_artifact",
-                description="Read a knowledge artifact from the shared workspace.",
-                takes_ctx=False,
-            ))
+
+            tools.append(
+                Tool(
+                    _make_read_artifact(workspace),
+                    name="read_artifact",
+                    description="Read a knowledge artifact from the shared workspace.",
+                    takes_ctx=False,
+                )
+            )
         if "write_artifact" in role.tools:
             from kodo.knowledge.tools import _make_write_artifact
-            tools.append(Tool(
-                _make_write_artifact(workspace),
-                name="write_artifact",
-                description="Write or update a knowledge artifact.",
-                takes_ctx=False,
-            ))
+
+            tools.append(
+                Tool(
+                    _make_write_artifact(workspace),
+                    name="write_artifact",
+                    description="Write or update a knowledge artifact.",
+                    takes_ctx=False,
+                )
+            )
 
     return ApiSession(
         model=pydantic_model,

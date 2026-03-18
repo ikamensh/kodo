@@ -213,41 +213,62 @@ def _create_real_merge_conflict(git_project: Path) -> str:
     """
     # Create base file
     (git_project / "shared.txt").write_text("original content\n")
-    subprocess.run(["git", "add", "-A"], cwd=git_project, capture_output=True, check=True)
     subprocess.run(
-        ["git", "commit", "-m", "add shared"], cwd=git_project,
-        capture_output=True, check=True, env=_GIT_ENV,
+        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "add shared"],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
     )
 
     # Create branch with different change
     branch_name = "kodo-conflict-test"
     subprocess.run(
-        ["git", "checkout", "-b", branch_name], cwd=git_project,
-        capture_output=True, check=True,
+        ["git", "checkout", "-b", branch_name],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
     )
     (git_project / "shared.txt").write_text("branch version\n")
-    subprocess.run(["git", "add", "-A"], cwd=git_project, capture_output=True, check=True)
     subprocess.run(
-        ["git", "commit", "-m", "branch change"], cwd=git_project,
-        capture_output=True, check=True, env=_GIT_ENV,
+        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "branch change"],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
     )
 
     # Go back to main, make conflicting change
     subprocess.run(
-        ["git", "checkout", "-"], cwd=git_project,
-        capture_output=True, check=True,
+        ["git", "checkout", "-"],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
     )
     (git_project / "shared.txt").write_text("main version\n")
-    subprocess.run(["git", "add", "-A"], cwd=git_project, capture_output=True, check=True)
     subprocess.run(
-        ["git", "commit", "-m", "main change"], cwd=git_project,
-        capture_output=True, check=True, env=_GIT_ENV,
+        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "main change"],
+        cwd=git_project,
+        capture_output=True,
+        check=True,
+        env=_GIT_ENV,
     )
 
     # Start merge (will conflict) — must pass _GIT_ENV for committer identity
     subprocess.run(
         ["git", "merge", branch_name, "--no-ff"],
-        cwd=git_project, capture_output=True, env=_GIT_ENV,
+        cwd=git_project,
+        capture_output=True,
+        env=_GIT_ENV,
     )
     return branch_name
 
@@ -490,7 +511,8 @@ def test_merge_conflict_agent_resolves(git_project: Path):
 
         # Mock _resolve_conflicts_with_agent to return True (resolved)
         with mock.patch(
-            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent", autospec=True,
+            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
+            autospec=True,
             return_value=True,
         ):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
@@ -561,7 +583,8 @@ def test_merge_conflict_agent_fails(git_project: Path):
 
         # Mock _resolve_conflicts_with_agent to return False (failed)
         with mock.patch(
-            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent", autospec=True,
+            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
+            autospec=True,
             return_value=False,
         ):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
@@ -619,6 +642,7 @@ def test_merge_non_conflict_failure(git_project: Path):
                     returncode = 1
                     stdout = "merge failed: hook rejected\n"
                     stderr = "error: merge hook failed\n"
+
                 return FakeResult()
             return original_run(cmd, *args, **kwargs)
 
@@ -723,6 +747,7 @@ def test_remove_worktree_fallback_to_rmtree(git_project: Path):
                 returncode = 1
                 stdout = ""
                 stderr = "worktree remove failed"
+
             return FakeResult()
         return original_run(cmd, *args, **kwargs)
 
@@ -786,6 +811,7 @@ def test_commit_worktree_commit_fails(git_project: Path):
                     returncode = 1
                     stdout = ""
                     stderr = "commit failed: hook rejected"
+
                 return FakeResult()
             return original_run(cmd, *args, **kwargs)
 
@@ -836,7 +862,9 @@ def test_remove_worktree_git_remove_fails_dir_exists(git_project: Path):
     def mock_run(cmd, *args, **kwargs):
         if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "remove"]:
             # Simulate git worktree remove failure
-            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="error removing")
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="error removing"
+            )
         return original_run(cmd, *args, **kwargs)
 
     with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
@@ -853,7 +881,11 @@ def test_remove_worktree_dir_persists_after_git_remove(git_project: Path):
     first_remove_call = [True]
 
     def mock_run(cmd, *args, **kwargs):
-        if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "remove"] and first_remove_call[0]:
+        if (
+            isinstance(cmd, list)
+            and cmd[:3] == ["git", "worktree", "remove"]
+            and first_remove_call[0]
+        ):
             first_remove_call[0] = False
             # Return success but DON'T actually remove the dir
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
@@ -874,14 +906,19 @@ def test_resolve_conflicts_session_crash(git_project: Path):
 
     try:
         with mock.patch(
-            "kodo.make_session", autospec=True,
+            "kodo.make_session",
+            autospec=True,
             side_effect=RuntimeError("Session creation failed"),
         ):
-            result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
+            result = _resolve_conflicts_with_agent(
+                git_project, branch_name, "test-stage"
+            )
 
         assert result is False
     finally:
-        subprocess.run(["git", "merge", "--abort"], cwd=git_project, capture_output=True)
+        subprocess.run(
+            ["git", "merge", "--abort"], cwd=git_project, capture_output=True
+        )
         _cleanup_branch(git_project, branch_name)
 
 
@@ -896,14 +933,19 @@ def test_resolve_conflicts_remaining_unresolved(git_project: Path):
         fake_session = FakeSession(response_text="I tried but could not resolve")
 
         with mock.patch(
-            "kodo.make_session", autospec=True,
+            "kodo.make_session",
+            autospec=True,
             return_value=fake_session,
         ):
-            result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
+            result = _resolve_conflicts_with_agent(
+                git_project, branch_name, "test-stage"
+            )
 
         assert result is False
     finally:
-        subprocess.run(["git", "merge", "--abort"], cwd=git_project, capture_output=True)
+        subprocess.run(
+            ["git", "merge", "--abort"], cwd=git_project, capture_output=True
+        )
         _cleanup_branch(git_project, branch_name)
 
 
@@ -929,17 +971,22 @@ def test_resolve_conflicts_success(git_project: Path):
 
     try:
         with mock.patch(
-            "kodo.make_session", autospec=True,
+            "kodo.make_session",
+            autospec=True,
             return_value=ResolvingSession(response_text="resolved"),
         ):
-            result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
+            result = _resolve_conflicts_with_agent(
+                git_project, branch_name, "test-stage"
+            )
 
         assert result is True
 
         # Verify merge commit was created
         log_result = subprocess.run(
             ["git", "log", "--oneline", "-1"],
-            cwd=git_project, capture_output=True, text=True,
+            cwd=git_project,
+            capture_output=True,
+            text=True,
         )
         assert "Merge" in log_result.stdout or "merge" in log_result.stdout.lower()
     finally:
@@ -959,7 +1006,9 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
             (project_dir / "shared.txt").write_text("resolved content\n")
             subprocess.run(
                 ["git", "add", "shared.txt"],
-                cwd=project_dir, capture_output=True, check=True,
+                cwd=project_dir,
+                capture_output=True,
+                check=True,
             )
             return super().query(prompt, project_dir, max_turns=max_turns)
 
@@ -967,12 +1016,15 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
 
     def mock_run(cmd, *args, **kwargs):
         if isinstance(cmd, list) and cmd[:2] == ["git", "commit"]:
-            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="commit failed")
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="commit failed"
+            )
         return original_run(cmd, *args, **kwargs)
 
     try:
         with mock.patch(
-            "kodo.make_session", autospec=True,
+            "kodo.make_session",
+            autospec=True,
             return_value=ResolvingSession(response_text="resolved"),
         ):
             # Need to let session.query run normally first, then intercept commit
@@ -987,23 +1039,36 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
         call_count = {"commit": 0}
 
         def mock_run_commit_fail(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and cmd[:2] == ["git", "commit"] and "--no-edit" in cmd:
+            if (
+                isinstance(cmd, list)
+                and cmd[:2] == ["git", "commit"]
+                and "--no-edit" in cmd
+            ):
                 call_count["commit"] += 1
-                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="commit rejected")
+                return subprocess.CompletedProcess(
+                    cmd, 1, stdout="", stderr="commit rejected"
+                )
             return original_run(cmd, *args, **kwargs)
 
         with (
             mock.patch(
-                "kodo.make_session", autospec=True,
+                "kodo.make_session",
+                autospec=True,
                 return_value=ResolvingSession(response_text="resolved"),
             ),
-            mock.patch("subprocess.run", autospec=True, side_effect=mock_run_commit_fail),
+            mock.patch(
+                "subprocess.run", autospec=True, side_effect=mock_run_commit_fail
+            ),
         ):
-            result = _resolve_conflicts_with_agent(git_project, branch_name, "test-stage")
+            result = _resolve_conflicts_with_agent(
+                git_project, branch_name, "test-stage"
+            )
 
         assert result is False
     finally:
-        subprocess.run(["git", "merge", "--abort"], cwd=git_project, capture_output=True)
+        subprocess.run(
+            ["git", "merge", "--abort"], cwd=git_project, capture_output=True
+        )
         _cleanup_branch(git_project, branch_name)
 
 
@@ -1016,10 +1081,15 @@ def test_merge_rev_parse_fails(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "revparse")
     try:
         (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "add feature"], cwd=worktree_dir,
-            capture_output=True, check=True, env=_GIT_ENV,
+            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add feature"],
+            cwd=worktree_dir,
+            capture_output=True,
+            check=True,
+            env=_GIT_ENV,
         )
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
@@ -1027,7 +1097,9 @@ def test_merge_rev_parse_fails(git_project: Path):
 
         def mock_run(cmd, *args, **kwargs):
             if isinstance(cmd, list) and "rev-parse" in cmd:
-                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="rev-parse error")
+                return subprocess.CompletedProcess(
+                    cmd, 1, stdout="", stderr="rev-parse error"
+                )
             return original_run(cmd, *args, **kwargs)
 
         with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
@@ -1045,10 +1117,15 @@ def test_merge_checkout_branch_fails(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "cofail")
     try:
         (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "add feature"], cwd=worktree_dir,
-            capture_output=True, check=True, env=_GIT_ENV,
+            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add feature"],
+            cwd=worktree_dir,
+            capture_output=True,
+            check=True,
+            env=_GIT_ENV,
         )
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
@@ -1056,7 +1133,11 @@ def test_merge_checkout_branch_fails(git_project: Path):
         checkout_count = [0]
 
         def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and cmd[:2] == ["git", "checkout"] and branch_name in cmd:
+            if (
+                isinstance(cmd, list)
+                and cmd[:2] == ["git", "checkout"]
+                and branch_name in cmd
+            ):
                 checkout_count[0] += 1
                 raise subprocess.CalledProcessError(
                     1, cmd, output=b"", stderr=b"checkout failed: unable to checkout"
@@ -1078,17 +1159,24 @@ def test_merge_checkout_main_back_fails(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "mainback")
     try:
         (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "add feature"], cwd=worktree_dir,
-            capture_output=True, check=True, env=_GIT_ENV,
+            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add feature"],
+            cwd=worktree_dir,
+            capture_output=True,
+            check=True,
+            env=_GIT_ENV,
         )
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
         # Get current branch name
         current = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=git_project, capture_output=True, text=True,
+            cwd=git_project,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
 
         original_run = subprocess.run
@@ -1115,8 +1203,12 @@ def test_merge_checkout_main_back_fails(git_project: Path):
         assert "checkout" in result.error.lower()
     finally:
         # Make sure we're back on main branch for cleanup
-        subprocess.run(["git", "checkout", "master"], cwd=git_project, capture_output=True)
-        subprocess.run(["git", "checkout", "main"], cwd=git_project, capture_output=True)
+        subprocess.run(
+            ["git", "checkout", "master"], cwd=git_project, capture_output=True
+        )
+        subprocess.run(
+            ["git", "checkout", "main"], cwd=git_project, capture_output=True
+        )
         _cleanup_branch(git_project, branch_name)
 
 
@@ -1125,10 +1217,15 @@ def test_merge_git_clean_fails(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "cleanfail")
     try:
         (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "add feature"], cwd=worktree_dir,
-            capture_output=True, check=True, env=_GIT_ENV,
+            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add feature"],
+            cwd=worktree_dir,
+            capture_output=True,
+            check=True,
+            env=_GIT_ENV,
         )
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
@@ -1136,7 +1233,9 @@ def test_merge_git_clean_fails(git_project: Path):
 
         def mock_run(cmd, *args, **kwargs):
             if isinstance(cmd, list) and cmd[:2] == ["git", "clean"]:
-                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="clean failed")
+                return subprocess.CompletedProcess(
+                    cmd, 1, stdout="", stderr="clean failed"
+                )
             return original_run(cmd, *args, **kwargs)
 
         with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
@@ -1154,17 +1253,26 @@ def test_merge_checkout_branch_timeout(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "timeout")
     try:
         (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "add feature"], cwd=worktree_dir,
-            capture_output=True, check=True, env=_GIT_ENV,
+            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add feature"],
+            cwd=worktree_dir,
+            capture_output=True,
+            check=True,
+            env=_GIT_ENV,
         )
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
         original_run = subprocess.run
 
         def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and cmd[:2] == ["git", "checkout"] and branch_name in cmd:
+            if (
+                isinstance(cmd, list)
+                and cmd[:2] == ["git", "checkout"]
+                and branch_name in cmd
+            ):
                 raise subprocess.TimeoutExpired(cmd, 60)
             return original_run(cmd, *args, **kwargs)
 
@@ -1200,6 +1308,7 @@ def test_cleanup_stale_worktrees_removes_old(git_project: Path, tmp_path: Path):
         # Set mtime to 7 hours ago (older than 6 hour threshold)
         seven_hours_ago = time.time() - (7 * 3600)
         import os
+
         os.utime(worktree_dir, (seven_hours_ago, seven_hours_ago))
 
         # Verify worktree exists before cleanup
@@ -1271,6 +1380,7 @@ def test_cleanup_stale_worktrees_git_list_fails(git_project: Path):
 
 def test_cleanup_stale_worktrees_never_crashes(git_project: Path):
     """cleanup_stale_worktrees never crashes even on unexpected errors."""
+
     # Mock to raise an exception
     def mock_run(*args, **kwargs):
         raise RuntimeError("Unexpected error!")
@@ -1282,7 +1392,6 @@ def test_cleanup_stale_worktrees_never_crashes(git_project: Path):
 
 def test_cleanup_stale_worktrees_skips_non_kodo_paths(git_project: Path):
     """cleanup_stale_worktrees only processes worktrees with kodo- in their name."""
-    import time
 
     # Create a regular worktree (not in /tmp/kodo-*)
     # This would require mocking create_worktree, which is complex
@@ -1295,7 +1404,8 @@ def test_cleanup_stale_worktrees_skips_non_kodo_paths(git_project: Path):
         if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "list"]:
             # Return a worktree that's NOT in /tmp/kodo-*
             return subprocess.CompletedProcess(
-                cmd, 0,
+                cmd,
+                0,
                 stdout=(
                     f"worktree {git_project}\n"
                     f"HEAD {subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_project, capture_output=True, text=True).stdout.strip()}\n"
@@ -1306,7 +1416,7 @@ def test_cleanup_stale_worktrees_skips_non_kodo_paths(git_project: Path):
                     "branch refs/heads/kodo-test-branch\n"
                     "\n"
                 ),
-                stderr=""
+                stderr="",
             )
         return original_run(cmd, *args, **kwargs)
 
@@ -1323,7 +1433,8 @@ def test_cleanup_stale_worktrees_handles_missing_worktree_paths(git_project: Pat
     def mock_run(cmd, *args, **kwargs):
         if isinstance(cmd, list) and cmd[:3] == ["git", "worktree", "list"]:
             return subprocess.CompletedProcess(
-                cmd, 0,
+                cmd,
+                0,
                 stdout=(
                     f"worktree {git_project}\n"
                     f"HEAD {subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=git_project, capture_output=True, text=True).stdout.strip()}\n"
@@ -1334,7 +1445,7 @@ def test_cleanup_stale_worktrees_handles_missing_worktree_paths(git_project: Pat
                     "branch refs/heads/kodo-stage-1-abc123\n"
                     "\n"
                 ),
-                stderr=""
+                stderr="",
             )
         return original_run(cmd, *args, **kwargs)
 

@@ -110,14 +110,19 @@ class TestDetectBackends:
     def test_detects_claude(self):
         def fake_which(name):
             return "/usr/bin/claude" if name == "claude" else None
-        with patch("benchmark._util.shutil.which", autospec=True, side_effect=fake_which):
+
+        with patch(
+            "benchmark._util.shutil.which", autospec=True, side_effect=fake_which
+        ):
             backends = detect_backends()
         assert "kodo" in backends
         assert "claude" in backends
         assert "cursor" not in backends
 
     def test_detects_all(self):
-        with patch("benchmark._util.shutil.which", autospec=True, return_value="/usr/bin/x"):
+        with patch(
+            "benchmark._util.shutil.which", autospec=True, return_value="/usr/bin/x"
+        ):
             backends = detect_backends()
         assert set(backends) == {"kodo", "claude", "cursor", "codex", "gemini"}
 
@@ -143,51 +148,84 @@ class TestDockerIsReady:
             assert _docker_is_ready() is False
 
     def test_not_ready_on_timeout(self):
-        with patch("subprocess.run", autospec=True, side_effect=subprocess.TimeoutExpired("docker", 10)):
+        with patch(
+            "subprocess.run",
+            autospec=True,
+            side_effect=subprocess.TimeoutExpired("docker", 10),
+        ):
             assert _docker_is_ready() is False
 
 
 class TestStartDockerMacos:
     def test_orbstack_preferred(self):
-        with patch("benchmark._util.shutil.which", autospec=True, return_value="/opt/homebrew/bin/orbctl"), \
-             patch("subprocess.run", autospec=True) as mock_run:
+        with (
+            patch(
+                "benchmark._util.shutil.which",
+                autospec=True,
+                return_value="/opt/homebrew/bin/orbctl",
+            ),
+            patch("subprocess.run", autospec=True) as mock_run,
+        ):
             assert _start_docker_macos() is True
             mock_run.assert_called_once()
             assert mock_run.call_args[0][0] == ["orbctl", "start"]
 
     def test_docker_desktop_fallback(self):
-        with patch("benchmark._util.shutil.which", autospec=True, return_value=None), \
-             patch("subprocess.run", autospec=True) as mock_run:
+        with (
+            patch("benchmark._util.shutil.which", autospec=True, return_value=None),
+            patch("subprocess.run", autospec=True) as mock_run,
+        ):
             assert _start_docker_macos() is True
             mock_run.assert_called_once()
             assert mock_run.call_args[0][0] == ["open", "-a", "Docker"]
 
     def test_nothing_works(self):
-        with patch("benchmark._util.shutil.which", autospec=True, return_value=None), \
-             patch("subprocess.run", autospec=True, side_effect=FileNotFoundError):
+        with (
+            patch("benchmark._util.shutil.which", autospec=True, return_value=None),
+            patch("subprocess.run", autospec=True, side_effect=FileNotFoundError),
+        ):
             assert _start_docker_macos() is False
 
 
 class TestEnsureDockerRunning:
     def test_already_running(self):
-        with patch("benchmark._util._docker_is_ready", autospec=True, return_value=True):
+        with patch(
+            "benchmark._util._docker_is_ready", autospec=True, return_value=True
+        ):
             assert ensure_docker_running() is True
 
     def test_starts_and_becomes_ready(self):
         calls = {"n": 0}
+
         def ready_after_one():
             calls["n"] += 1
             return calls["n"] > 1
 
-        with patch("benchmark._util._docker_is_ready", autospec=True, side_effect=ready_after_one), \
-             patch("benchmark._util._start_docker_macos", autospec=True, return_value=True), \
-             patch("benchmark._util.platform.system", autospec=True, return_value="Darwin"), \
-             patch("benchmark._util.time.sleep", autospec=True):
+        with (
+            patch(
+                "benchmark._util._docker_is_ready",
+                autospec=True,
+                side_effect=ready_after_one,
+            ),
+            patch(
+                "benchmark._util._start_docker_macos", autospec=True, return_value=True
+            ),
+            patch(
+                "benchmark._util.platform.system", autospec=True, return_value="Darwin"
+            ),
+            patch("benchmark._util.time.sleep", autospec=True),
+        ):
             assert ensure_docker_running(timeout=10) is True
 
     def test_returns_false_on_linux(self):
-        with patch("benchmark._util._docker_is_ready", autospec=True, return_value=False), \
-             patch("benchmark._util.platform.system", autospec=True, return_value="Linux"):
+        with (
+            patch(
+                "benchmark._util._docker_is_ready", autospec=True, return_value=False
+            ),
+            patch(
+                "benchmark._util.platform.system", autospec=True, return_value="Linux"
+            ),
+        ):
             assert ensure_docker_running() is False
 
 
@@ -281,8 +319,6 @@ class TestParseArm:
         assert parse_arm("kodo:solo+opus") == ("kodo", "solo+opus")
 
 
-
-
 class TestTimeoutForArm:
     def test_kodo(self):
         assert _timeout_for_arm("kodo", 100, 999) == 999
@@ -311,8 +347,6 @@ class TestBuildPrompt:
         assert "repo__name-123" in prompt
         assert "Something is broken" in prompt
         assert "Do not add or modify tests" in prompt
-
-
 
 
 class TestParseJsonOutput:
@@ -408,8 +442,7 @@ class TestLoadCompleted:
     def test_loads_pairs(self, tmp_path):
         results = tmp_path / "results.jsonl"
         results.write_text(
-            '{"instance_id":"id1","arm":"claude"}\n'
-            '{"instance_id":"id2","arm":"kodo"}\n'
+            '{"instance_id":"id1","arm":"claude"}\n{"instance_id":"id2","arm":"kodo"}\n'
         )
         assert _load_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
 
@@ -417,7 +450,7 @@ class TestLoadCompleted:
         results = tmp_path / "results.jsonl"
         results.write_text(
             '{"instance_id":"id1","arm":"claude"}\n'
-            'bad json\n'
+            "bad json\n"
             '{"instance_id":"id2","arm":"kodo"}\n'
         )
         assert _load_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
@@ -426,7 +459,11 @@ class TestLoadCompleted:
 class TestSafeRun:
     def test_catches_exceptions(self):
         task = SWETask("id1", "owner/repo", "abc", "problem", [], [])
-        with patch("benchmark.runner._run_single_task", autospec=True, side_effect=RuntimeError("boom")):
+        with patch(
+            "benchmark.runner._run_single_task",
+            autospec=True,
+            side_effect=RuntimeError("boom"),
+        ):
             result = _safe_run(task, "claude", Path("/tmp"), 60)
         assert result.status == "error"
         assert "boom" in result.error
@@ -558,7 +595,11 @@ class TestPrintStatus:
     def test_single_run(self, tmp_path):
         run_dir = tmp_path / "runs" / "run1"
         run_dir.mkdir(parents=True)
-        meta = {"dataset": "princeton-nlp/SWE-bench_Verified", "task_count": 5, "arms": ["claude"]}
+        meta = {
+            "dataset": "princeton-nlp/SWE-bench_Verified",
+            "task_count": 5,
+            "arms": ["claude"],
+        }
         (run_dir / "meta.json").write_text(json.dumps(meta))
         (run_dir / "results.jsonl").write_text(
             '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
@@ -579,7 +620,9 @@ from benchmark.runner import (
 
 class TestCleanEnv:
     def test_removes_claudecode(self):
-        with patch.dict("os.environ", {"CLAUDECODE": "1", "PATH": "/usr/bin"}, clear=True):
+        with patch.dict(
+            "os.environ", {"CLAUDECODE": "1", "PATH": "/usr/bin"}, clear=True
+        ):
             env = _clean_env()
             assert "CLAUDECODE" not in env
             assert "PATH" in env
@@ -598,7 +641,9 @@ class TestCleanEnv:
 class TestRunSubprocess:
     def test_success(self):
         output, status, error, stdout, stderr = _run_subprocess(
-            ["echo", '{"ok": true}'], cwd=None, timeout=5,
+            ["echo", '{"ok": true}'],
+            cwd=None,
+            timeout=5,
         )
         assert status == "ok"
         assert output == {"ok": True}
@@ -606,21 +651,27 @@ class TestRunSubprocess:
 
     def test_timeout(self):
         output, status, error, stdout, stderr = _run_subprocess(
-            ["sleep", "10"], cwd=None, timeout=0.05,
+            ["sleep", "10"],
+            cwd=None,
+            timeout=0.05,
         )
         assert status == "timeout"
         assert "Timed out" in error
 
     def test_nonzero_exit(self):
         output, status, error, stdout, stderr = _run_subprocess(
-            ["false"], cwd=None, timeout=5,
+            ["false"],
+            cwd=None,
+            timeout=5,
         )
         assert status == "error"
 
     def test_exit_code_2_is_partial(self):
         # exit 2 = partial success (kodo verification unsatisfied)
         output, status, error, stdout, stderr = _run_subprocess(
-            ["sh", "-c", "exit 2"], cwd=None, timeout=5,
+            ["sh", "-c", "exit 2"],
+            cwd=None,
+            timeout=5,
         )
         assert status == "partial"
 
@@ -708,7 +759,7 @@ class TestLoadGlobalCompleted:
         run_dir.mkdir(parents=True)
         (run_dir / "results.jsonl").write_text(
             '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-            'bad json\n'
+            "bad json\n"
             '{"instance_id":"id2","arm":"kodo","status":"ok"}\n'
         )
         assert _load_global_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
@@ -760,8 +811,12 @@ class TestRunBenchmark:
         task = SWETask("id1", "o/r", "abc", "problem", [], [])
         fake_result = TaskResult("id1", "claude", "patch", 5.0, "ok")
 
-        with patch("benchmark.runner._safe_run", autospec=True, return_value=fake_result), \
-             patch("benchmark.runner._save_run_meta", autospec=True):
+        with (
+            patch(
+                "benchmark.runner._safe_run", autospec=True, return_value=fake_result
+            ),
+            patch("benchmark.runner._save_run_meta", autospec=True),
+        ):
             run_benchmark(
                 tasks=[task],
                 arms=["claude"],
@@ -785,8 +840,10 @@ class TestRunBenchmark:
             '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
         )
 
-        with patch("benchmark.runner._safe_run", autospec=True) as mock_run, \
-             patch("benchmark.runner._save_run_meta", autospec=True):
+        with (
+            patch("benchmark.runner._safe_run", autospec=True) as mock_run,
+            patch("benchmark.runner._save_run_meta", autospec=True),
+        ):
             run_benchmark(
                 tasks=[task],
                 arms=["claude"],
@@ -832,8 +889,12 @@ class TestRunEvalSubprocess:
             None,
         ]
 
-        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc), \
-             patch("benchmark.evaluate.os.killpg", autospec=True) as mock_killpg:
+        with (
+            patch(
+                "benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc
+            ),
+            patch("benchmark.evaluate.os.killpg", autospec=True) as mock_killpg,
+        ):
             with pytest.raises(subprocess.TimeoutExpired):
                 _run_eval_subprocess(["python"], timeout=10, heartbeat=_EvalHeartbeat())
 
@@ -844,7 +905,9 @@ class TestRunEvalSubprocess:
         proc = MagicMock()
         proc.wait.return_value = 7
 
-        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc):
+        with patch(
+            "benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc
+        ):
             with pytest.raises(subprocess.CalledProcessError):
                 _run_eval_subprocess(["python"], timeout=10)
 
@@ -857,9 +920,17 @@ class TestRunEvalSubprocess:
         proc.wait.side_effect = [subprocess.TimeoutExpired(["python"], 10), None]
         proc.stdout = iter(())
 
-        with patch("benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc), \
-             patch("benchmark.evaluate.os.killpg", autospec=True), \
-             patch("benchmark.evaluate._capture_command", autospec=True, return_value={"stdout": []}):
+        with (
+            patch(
+                "benchmark.evaluate.subprocess.Popen", autospec=True, return_value=proc
+            ),
+            patch("benchmark.evaluate.os.killpg", autospec=True),
+            patch(
+                "benchmark.evaluate._capture_command",
+                autospec=True,
+                return_value={"stdout": []},
+            ),
+        ):
             with pytest.raises(subprocess.TimeoutExpired):
                 _run_eval_subprocess(
                     ["python"],
@@ -899,7 +970,11 @@ class TestEvalDiagnostics:
         proc.poll.return_value = None
         (tmp_path / "trace.log").write_text("hello")
 
-        with patch("benchmark.evaluate._capture_command", autospec=True, return_value={"stdout": []}):
+        with patch(
+            "benchmark.evaluate._capture_command",
+            autospec=True,
+            return_value={"stdout": []},
+        ):
             with caplog.at_level(logging.WARNING):
                 path = _emit_eval_diagnostics(
                     proc,
@@ -928,11 +1003,21 @@ class TestEvalDiagnostics:
         heartbeat.last_diagnostic_at = stale
 
         stop_event = threading.Event()
-        with patch("benchmark.evaluate._stall_seconds", autospec=True, return_value=1), \
-             patch("benchmark.evaluate._stall_repeat_seconds", autospec=True, return_value=3600), \
-             patch("benchmark.evaluate._stall_check_seconds", autospec=True, return_value=0), \
-             patch("benchmark.evaluate._emit_eval_diagnostics", autospec=True) as mock_emit, \
-             patch.object(stop_event, "wait", side_effect=[False, True]):
+        with (
+            patch("benchmark.evaluate._stall_seconds", autospec=True, return_value=1),
+            patch(
+                "benchmark.evaluate._stall_repeat_seconds",
+                autospec=True,
+                return_value=3600,
+            ),
+            patch(
+                "benchmark.evaluate._stall_check_seconds", autospec=True, return_value=0
+            ),
+            patch(
+                "benchmark.evaluate._emit_eval_diagnostics", autospec=True
+            ) as mock_emit,
+            patch.object(stop_event, "wait", side_effect=[False, True]),
+        ):
             monitor = _make_stall_monitor(
                 stop_event,
                 proc,
@@ -1009,8 +1094,10 @@ class TestParseStandardResults:
 
     def test_mixed(self, tmp_path):
         eval_dir = self._eval_dir(tmp_path)
-        for name, data in [("id1", {"id1": {"resolved": True}}),
-                           ("id2", {"id2": {"resolved": False}})]:
+        for name, data in [
+            ("id1", {"id1": {"resolved": True}}),
+            ("id2", {"id2": {"resolved": False}}),
+        ]:
             d = eval_dir / name
             d.mkdir()
             (d / "report.json").write_text(json.dumps(data))
@@ -1048,7 +1135,9 @@ class TestEvaluatePredictions:
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
         # No meta, no predictions — should not crash
-        with patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True):
+        with patch(
+            "benchmark._util.ensure_docker_running", autospec=True, return_value=True
+        ):
             evaluate_predictions(tmp_path, "r1")
         assert (run_dir / "eval-summary.json").exists()
 
@@ -1058,7 +1147,9 @@ class TestEvaluatePredictions:
         meta = {"dataset": "princeton-nlp/SWE-bench_Lite"}
         (run_dir / "meta.json").write_text(json.dumps(meta))
 
-        with patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True):
+        with patch(
+            "benchmark._util.ensure_docker_running", autospec=True, return_value=True
+        ):
             evaluate_predictions(tmp_path, "r1")
         # Should complete without error (no predictions to evaluate)
         assert (run_dir / "eval-summary.json").exists()
@@ -1066,7 +1157,9 @@ class TestEvaluatePredictions:
     def test_skips_when_docker_unavailable(self, tmp_path):
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
-        with patch("benchmark._util.ensure_docker_running", autospec=True, return_value=False):
+        with patch(
+            "benchmark._util.ensure_docker_running", autospec=True, return_value=False
+        ):
             evaluate_predictions(tmp_path, "r1")
         # Should return early — no eval-summary written
         assert not (run_dir / "eval-summary.json").exists()
@@ -1108,7 +1201,7 @@ class TestLoadUploaded:
         f = tmp_path / "uploaded.jsonl"
         f.write_text(
             '{"instance_id":"id1","arm":"claude","run_id":"r1"}\n'
-            'bad json\n'
+            "bad json\n"
             '{"instance_id":"id2","arm":"kodo","run_id":"r2"}\n'
         )
         assert load_uploaded(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
@@ -1178,27 +1271,46 @@ class TestFlushPendingUploads:
         return run_dir
 
     def test_no_config_returns_error(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+        with patch(
+            "benchmark.online.client.is_configured", autospec=True, return_value=False
+        ):
             ret = flush_pending_uploads(tmp_path)
         assert ret == 1
 
     def test_no_runs(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True):
+        with patch(
+            "benchmark.online.client.is_configured", autospec=True, return_value=True
+        ):
             ret = flush_pending_uploads(tmp_path)
         assert ret == 0
 
     def test_uploads_pending(self, tmp_path):
         self._setup_run(
-            tmp_path, "r1",
+            tmp_path,
+            "r1",
             [{"instance_id": "id1", "arm": "claude", "status": "ok", "elapsed_s": 10}],
-            {"predictions-claude.jsonl": [
-                {"instance_id": "id1", "model_name_or_path": "claude",
-                 "arm": "claude", "model_patch": "diff"}
-            ]},
+            {
+                "predictions-claude.jsonl": [
+                    {
+                        "instance_id": "id1",
+                        "model_name_or_path": "claude",
+                        "arm": "claude",
+                        "model_patch": "diff",
+                    }
+                ]
+            },
         )
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.upload_task_result", autospec=True) as mock_upload:
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.upload_task_result", autospec=True
+            ) as mock_upload,
+        ):
             ret = flush_pending_uploads(tmp_path)
 
         assert ret == 0
@@ -1211,14 +1323,23 @@ class TestFlushPendingUploads:
 
     def test_skips_already_uploaded(self, tmp_path):
         self._setup_run(
-            tmp_path, "r1",
+            tmp_path,
+            "r1",
             [{"instance_id": "id1", "arm": "claude", "status": "ok"}],
         )
         # Pre-mark as uploaded
         mark_uploaded(tmp_path, "id1", "claude", "r1")
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.upload_task_result", autospec=True) as mock_upload:
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.upload_task_result", autospec=True
+            ) as mock_upload,
+        ):
             ret = flush_pending_uploads(tmp_path)
 
         assert ret == 0
@@ -1226,13 +1347,23 @@ class TestFlushPendingUploads:
 
     def test_handles_upload_failure(self, tmp_path):
         self._setup_run(
-            tmp_path, "r1",
+            tmp_path,
+            "r1",
             [{"instance_id": "id1", "arm": "claude", "status": "ok"}],
         )
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.upload_task_result", autospec=True,
-                   side_effect=Exception("server down")):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.upload_task_result",
+                autospec=True,
+                side_effect=Exception("server down"),
+            ),
+        ):
             ret = flush_pending_uploads(tmp_path)
 
         assert ret == 1  # failure
@@ -1241,21 +1372,33 @@ class TestFlushPendingUploads:
 
     def test_skips_suspicious_rows_without_hitting_server(self, tmp_path):
         self._setup_run(
-            tmp_path, "r1",
-            [{
-                "instance_id": "id1",
-                "arm": "codex",
-                "status": "ok",
-                "elapsed_s": 1.0,
-                "patch_len": 0,
-                "agent_output": {
-                    "msg": {"type": "error", "message": "You've hit your usage limit."}
-                },
-            }],
+            tmp_path,
+            "r1",
+            [
+                {
+                    "instance_id": "id1",
+                    "arm": "codex",
+                    "status": "ok",
+                    "elapsed_s": 1.0,
+                    "patch_len": 0,
+                    "agent_output": {
+                        "msg": {
+                            "type": "error",
+                            "message": "You've hit your usage limit.",
+                        }
+                    },
+                }
+            ],
         )
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._post", autospec=True) as mock_post:
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("benchmark.online.client._post", autospec=True) as mock_post,
+        ):
             ret = flush_pending_uploads(tmp_path)
 
         assert ret == 0
@@ -1282,7 +1425,6 @@ class TestDatasetKey:
         assert _dataset_key("something/else") == ""
 
 
-
 class TestDatasetBuild:
     def test_init(self):
         ds = _DatasetBuild()
@@ -1301,17 +1443,28 @@ class TestUploadRunOnlineWarning:
     def test_warns_once_when_unconfigured(self):
         """_upload_run_online logs a warning when auth is missing."""
         import benchmark.runner as runner_mod
+
         runner_mod._upload_warned = False  # reset state
 
-        with patch("benchmark.runner.log", autospec=True) as mock_log, \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+        with (
+            patch("benchmark.runner.log", autospec=True) as mock_log,
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=False,
+            ),
+        ):
             from benchmark.runner import _upload_run_online
+
             _upload_run_online("run1", [], [], 100, "d")
             _upload_run_online("run2", [], [], 100, "d")  # second call
 
         # Warning should fire exactly once
-        warning_calls = [c for c in mock_log.warning.call_args_list
-                         if "Online uploads disabled" in str(c)]
+        warning_calls = [
+            c
+            for c in mock_log.warning.call_args_list
+            if "Online uploads disabled" in str(c)
+        ]
         assert len(warning_calls) == 1
         runner_mod._upload_warned = False  # clean up
 
@@ -1330,19 +1483,47 @@ class TestMainCLI:
         (run_dir / "results.jsonl").write_text("")
         (run_dir / "eval-summary.json").write_text("{}")
 
-        with patch("sys.argv", ["benchmark", "--report-only", "--run-id", "r1",
-                                "--workspace", str(tmp_path)]):
+        with patch(
+            "sys.argv",
+            [
+                "benchmark",
+                "--report-only",
+                "--run-id",
+                "r1",
+                "--workspace",
+                str(tmp_path),
+            ],
+        ):
             ret = main()
         assert ret == 0
 
     def test_report_only_skips_distributed_mode_when_configured(self, tmp_path):
         """Regression: report-only should not contact the online assignment server."""
-        with patch("sys.argv", ["benchmark", "--report-only", "--run-id", "r1",
-                                "--workspace", str(tmp_path)]), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.whoami", autospec=True) as mock_whoami, \
-             patch("benchmark.__main__._run_distributed", autospec=True) as mock_distributed, \
-             patch("benchmark.report.generate_report", autospec=True, return_value=0) as mock_report:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "benchmark",
+                    "--report-only",
+                    "--run-id",
+                    "r1",
+                    "--workspace",
+                    str(tmp_path),
+                ],
+            ),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("benchmark.online.client.whoami", autospec=True) as mock_whoami,
+            patch(
+                "benchmark.__main__._run_distributed", autospec=True
+            ) as mock_distributed,
+            patch(
+                "benchmark.report.generate_report", autospec=True, return_value=0
+            ) as mock_report,
+        ):
             ret = main()
 
         assert ret == 0
@@ -1352,13 +1533,34 @@ class TestMainCLI:
 
     def test_evaluate_only_skips_distributed_mode_when_configured(self, tmp_path):
         """Regression: evaluate-only should stay on local artifacts too."""
-        with patch("sys.argv", ["benchmark", "--evaluate-only", "--run-id", "r1",
-                                "--workspace", str(tmp_path)]), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.whoami", autospec=True) as mock_whoami, \
-             patch("benchmark.__main__._run_distributed", autospec=True) as mock_distributed, \
-             patch("benchmark.evaluate.evaluate_predictions", autospec=True) as mock_evaluate, \
-             patch("benchmark.report.generate_report", autospec=True, return_value=0) as mock_report:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "benchmark",
+                    "--evaluate-only",
+                    "--run-id",
+                    "r1",
+                    "--workspace",
+                    str(tmp_path),
+                ],
+            ),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("benchmark.online.client.whoami", autospec=True) as mock_whoami,
+            patch(
+                "benchmark.__main__._run_distributed", autospec=True
+            ) as mock_distributed,
+            patch(
+                "benchmark.evaluate.evaluate_predictions", autospec=True
+            ) as mock_evaluate,
+            patch(
+                "benchmark.report.generate_report", autospec=True, return_value=0
+            ) as mock_report,
+        ):
             ret = main()
 
         assert ret == 0
@@ -1369,8 +1571,10 @@ class TestMainCLI:
 
     def test_upload_pending_no_auth(self, tmp_path):
         with (
-            patch("sys.argv", ["benchmark", "--upload-pending",
-                                "--workspace", str(tmp_path)]),
+            patch(
+                "sys.argv",
+                ["benchmark", "--upload-pending", "--workspace", str(tmp_path)],
+            ),
             patch("benchmark.online.config._CLIENT_CREDENTIALS", None),  # noqa: autospec
             patch.dict("os.environ", {}, clear=True),
         ):
@@ -1643,14 +1847,19 @@ class TestOnlineClientConfig:
             ):
                 assert is_configured() is True
 
-            with patch.dict(
-                "os.environ",
-                {
-                    "KODO_BENCH_URL": "https://bench-two.example",
-                    "KODO_BENCH_TOKEN": "token-2",
-                },
-                clear=True,
-            ), patch("urllib.request.urlopen", autospec=True, return_value=response) as mock_urlopen:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "KODO_BENCH_URL": "https://bench-two.example",
+                        "KODO_BENCH_TOKEN": "token-2",
+                    },
+                    clear=True,
+                ),
+                patch(
+                    "urllib.request.urlopen", autospec=True, return_value=response
+                ) as mock_urlopen,
+            ):
                 _request("GET", "/api/whoami")
                 assert online_config._CLIENT_CREDENTIALS == (
                     "https://bench-one.example",
@@ -1664,44 +1873,89 @@ class TestOnlineClientConfig:
 
 class TestFetchAssignments:
     def test_returns_none_when_unconfigured(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+        with patch(
+            "benchmark.online.client.is_configured", autospec=True, return_value=False
+        ):
             result = fetch_assignments(["claude"])
         assert result is None
 
     def test_raises_on_error(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._post_json", autospec=True, side_effect=Exception("timeout")):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._post_json",
+                autospec=True,
+                side_effect=Exception("timeout"),
+            ),
+        ):
             with pytest.raises(Exception, match="timeout"):
                 fetch_assignments(["claude"])
 
     def test_returns_assignments(self):
         assignments = [{"instance_id": "id1", "arm": "claude", "dataset": "pro"}]
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._post_json", autospec=True,
-                   return_value={"assignments": assignments}):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._post_json",
+                autospec=True,
+                return_value={"assignments": assignments},
+            ),
+        ):
             result = fetch_assignments(["claude"], datasets={"pro": ["id1"]})
         assert result == assignments
 
     def test_passes_datasets(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._post_json", autospec=True,
-                   return_value={"assignments": []}) as mock_post:
-            fetch_assignments(["claude"], datasets={"pro": ["id1"], "verified": ["id2"]})
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._post_json",
+                autospec=True,
+                return_value={"assignments": []},
+            ) as mock_post,
+        ):
+            fetch_assignments(
+                ["claude"], datasets={"pro": ["id1"], "verified": ["id2"]}
+            )
         body = mock_post.call_args[0][1]
         assert body["datasets"] == {"pro": ["id1"], "verified": ["id2"]}
 
     def test_empty_response(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._post_json", autospec=True,
-                   return_value={"assignments": []}):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._post_json",
+                autospec=True,
+                return_value={"assignments": []},
+            ),
+        ):
             result = fetch_assignments(["claude"], datasets={"pro": ["id1"]})
         assert result == []
 
 
 class TestOnlineDb:
     def test_delete_patch_skips_when_storage_dep_missing(self):
-        with patch("benchmark.online.db._bucket", autospec=True, side_effect=ImportError), \
-             patch("benchmark.online.db.log", autospec=True) as mock_log:
+        with (
+            patch(
+                "benchmark.online.db._bucket", autospec=True, side_effect=ImportError
+            ),
+            patch("benchmark.online.db.log", autospec=True) as mock_log,
+        ):
             online_db.delete_patch("pro", "id1", "codex")
 
         mock_log.warning.assert_called_once()
@@ -1730,7 +1984,10 @@ class TestOnlineDb:
                     "claude": {"eval_status": True, "resolved": False},
                 },
             },
-            "meta": {"dataset": "verified", "last_updated": "2026-03-16T00:00:00+00:00"},
+            "meta": {
+                "dataset": "verified",
+                "last_updated": "2026-03-16T00:00:00+00:00",
+            },
         }
 
         filtered = online_db.head_to_head_index(index)
@@ -1778,9 +2035,13 @@ class TestOnlineDb:
         bucket.blob.return_value = blob
 
         with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
-            body = online_db.get_snapshot_index_json("verified", "h2h-verified-2026-03-16")
+            body = online_db.get_snapshot_index_json(
+                "verified", "h2h-verified-2026-03-16"
+            )
 
-        bucket.blob.assert_called_once_with("snapshots/h2h-verified-2026-03-16/data/verified/index.json")
+        bucket.blob.assert_called_once_with(
+            "snapshots/h2h-verified-2026-03-16/data/verified/index.json"
+        )
         assert body == b'{"meta":{"snapshot_frozen":true}}'
 
     def test_get_snapshot_patch_reads_snapshot_blob(self):
@@ -1793,7 +2054,10 @@ class TestOnlineDb:
 
         with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
             patch_text = online_db.get_snapshot_patch(
-                "verified", "django__django-11400", "cursor", "h2h-verified-2026-03-16",
+                "verified",
+                "django__django-11400",
+                "cursor",
+                "h2h-verified-2026-03-16",
             )
 
         bucket.blob.assert_called_once_with(
@@ -1814,7 +2078,9 @@ class TestOnlineDb:
                 {"meta": {"snapshot_frozen": True}, "tasks": []},
             )
 
-        bucket.blob.assert_called_once_with("snapshots/h2h-verified-2026-03-16/data/verified/index.json")
+        bucket.blob.assert_called_once_with(
+            "snapshots/h2h-verified-2026-03-16/data/verified/index.json"
+        )
         blob.upload_from_string.assert_called_once()
 
 
@@ -1833,8 +2099,10 @@ class TestRunBenchmarkDistributed:
             call_log.append((task.instance_id, arm))
             return TaskResult(task.instance_id, arm, "patch", 1.0, "ok")
 
-        with patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run), \
-             patch("benchmark.runner._save_run_meta", autospec=True):
+        with (
+            patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run),
+            patch("benchmark.runner._save_run_meta", autospec=True),
+        ):
             run_benchmark(
                 tasks=[t1, t2],
                 arms=["claude", "kodo:solo"],
@@ -1860,8 +2128,10 @@ class TestRunBenchmarkDistributed:
             call_log.append((task.instance_id, arm))
             return TaskResult(task.instance_id, arm, "patch", 1.0, "ok")
 
-        with patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run), \
-             patch("benchmark.runner._save_run_meta", autospec=True):
+        with (
+            patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run),
+            patch("benchmark.runner._save_run_meta", autospec=True),
+        ):
             run_benchmark(
                 tasks=[t1],
                 arms=["claude", "kodo:solo"],
@@ -1890,8 +2160,10 @@ class TestRunBenchmarkDistributed:
             call_log.append((task.instance_id, arm))
             return TaskResult(task.instance_id, arm, "patch", 1.0, "ok")
 
-        with patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run), \
-             patch("benchmark.runner._save_run_meta", autospec=True):
+        with (
+            patch("benchmark.runner._safe_run", autospec=True, side_effect=fake_run),
+            patch("benchmark.runner._save_run_meta", autospec=True),
+        ):
             run_benchmark(
                 tasks=[t1],
                 arms=["claude", "kodo:solo"],
@@ -1916,58 +2188,92 @@ class TestMainDistribute:
 
     def _mock_load_tasks(self):
         """Mock load_tasks to return different tasks per dataset."""
+
         def _load(*, dataset, **kw):
             if "Pro" in dataset:
                 return [SWETask("pro1", "o/r", "abc", "p", [], [])]
             elif "Verified" in dataset:
                 return [SWETask("ver1", "o/r", "abc", "p", [], [])]
             return []
+
         return patch("benchmark.tasks.load_tasks", autospec=True, side_effect=_load)
 
     def test_distribute_no_assignments(self, tmp_path):
         """Returns 0 when server says all tasks are covered."""
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True, return_value=[]):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                return_value=[],
+            ),
+        ):
             ret = main()
         assert ret == 0
 
     def test_falls_back_to_local_when_not_configured(self, tmp_path):
         """Falls through to local mode when env vars are missing."""
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=False), \
-             patch("benchmark.tasks.load_tasks", autospec=True, return_value=[
-                 SWETask("t1", "o/r", "abc", "p", [], [])
-             ]), \
-             patch("benchmark.runner.run_benchmark", autospec=True), \
-             patch("benchmark.evaluate.evaluate_predictions", autospec=True), \
-             patch("benchmark.report.generate_report", autospec=True, return_value=0):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=False,
+            ),
+            patch(
+                "benchmark.tasks.load_tasks",
+                autospec=True,
+                return_value=[SWETask("t1", "o/r", "abc", "p", [], [])],
+            ),
+            patch("benchmark.runner.run_benchmark", autospec=True),
+            patch("benchmark.evaluate.evaluate_predictions", autospec=True),
+            patch("benchmark.report.generate_report", autospec=True, return_value=0),
+        ):
             ret = main()
         assert ret == 0
 
     def test_distribute_server_error_fails(self, tmp_path):
         """Fails hard when server returns an error."""
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   side_effect=Exception("HTTP Error 502: Bad Gateway")):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                side_effect=Exception("HTTP Error 502: Bad Gateway"),
+            ),
+        ):
             ret = main()
         assert ret == 1
 
     def test_distribute_sends_both_datasets(self, tmp_path):
         """Sends both pro and verified instance_ids to server."""
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   return_value=[]) as mock_fetch, \
-             patch("benchmark._util.shutil.which", autospec=True, return_value=None):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                return_value=[],
+            ) as mock_fetch,
+            patch("benchmark._util.shutil.which", autospec=True, return_value=None),
+        ):
             main()
         call_kwargs = mock_fetch.call_args[1]
         assert "pro" in call_kwargs["datasets"]
@@ -1977,26 +2283,50 @@ class TestMainDistribute:
 
     def test_distribute_auto_detects_backends(self, tmp_path):
         """Without --arm auto-detects available backends."""
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   return_value=[]) as mock_fetch, \
-             patch("benchmark._util.shutil.which", autospec=True, return_value=None):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                return_value=[],
+            ) as mock_fetch,
+            patch("benchmark._util.shutil.which", autospec=True, return_value=None),
+        ):
             main()
         call_kwargs = mock_fetch.call_args[1]
         assert "kodo" in call_kwargs["backends"]
 
     def test_distribute_explicit_backends_override(self, tmp_path):
         """--backends overrides auto-detection."""
-        with patch("sys.argv", ["benchmark",
-                                "--backends", "claude,cursor",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   return_value=[]) as mock_fetch:
+        with (
+            patch(
+                "sys.argv",
+                [
+                    "benchmark",
+                    "--backends",
+                    "claude,cursor",
+                    "--workspace",
+                    str(tmp_path),
+                ],
+            ),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                return_value=[],
+            ) as mock_fetch,
+        ):
             main()
         call_kwargs = mock_fetch.call_args[1]
         assert set(call_kwargs["backends"]) == {"claude", "cursor"}
@@ -2005,13 +2335,21 @@ class TestMainDistribute:
         """Keeps polling until server returns no assignments."""
         batch1 = [{"instance_id": "pro1", "arm": "claude", "dataset": "pro"}]
 
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   side_effect=[batch1, []]) as mock_fetch, \
-             patch("benchmark.runner.run_benchmark", autospec=True):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                side_effect=[batch1, []],
+            ) as mock_fetch,
+            patch("benchmark.runner.run_benchmark", autospec=True),
+        ):
             ret = main()
         assert ret == 0
         assert mock_fetch.call_count == 2
@@ -2020,13 +2358,21 @@ class TestMainDistribute:
         """If server errors after completing a batch, return 0 (work was done)."""
         batch1 = [{"instance_id": "pro1", "arm": "claude", "dataset": "pro"}]
 
-        with patch("sys.argv", ["benchmark",
-                                "--workspace", str(tmp_path)]), \
-             self._mock_load_tasks(), \
-             patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_assignments", autospec=True,
-                   side_effect=[batch1, Exception("connection reset")]), \
-             patch("benchmark.runner.run_benchmark", autospec=True):
+        with (
+            patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                side_effect=[batch1, Exception("connection reset")],
+            ),
+            patch("benchmark.runner.run_benchmark", autospec=True),
+        ):
             ret = main()
         assert ret == 0
 
@@ -2050,42 +2396,83 @@ from benchmark.online.mirror import (
 
 class TestFetchUnevaluated:
     def test_returns_none_when_unconfigured(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+        with patch(
+            "benchmark.online.client.is_configured", autospec=True, return_value=False
+        ):
             result = fetch_unevaluated("pro")
         assert result is None
 
     def test_returns_none_on_error(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._get_json", autospec=True, side_effect=Exception("timeout")):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._get_json",
+                autospec=True,
+                side_effect=Exception("timeout"),
+            ),
+        ):
             result = fetch_unevaluated("pro")
         assert result is None
 
     def test_returns_predictions(self):
         preds = [{"instance_id": "id1", "arm": "claude", "patch": "diff"}]
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._get_json", autospec=True,
-                   return_value={"predictions": preds}):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._get_json",
+                autospec=True,
+                return_value={"predictions": preds},
+            ),
+        ):
             result = fetch_unevaluated("pro")
         assert result == preds
 
     def test_empty_response(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._get_json", autospec=True,
-                   return_value={"predictions": []}):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._get_json",
+                autospec=True,
+                return_value={"predictions": []},
+            ),
+        ):
             result = fetch_unevaluated("pro")
         assert result == []
 
     def test_maps_dataset_key(self):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark.online.client._get_json", autospec=True,
-                   return_value={"predictions": []}) as mock_get:
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client._get_json",
+                autospec=True,
+                return_value={"predictions": []},
+            ) as mock_get,
+        ):
             fetch_unevaluated("ScaleAI/SWE-bench_Pro")
         assert mock_get.call_args[0][0] == "/api/unevaluated/pro"
 
 
 class TestOnlineMirror:
     def test_public_base_url_prefers_explicit_then_env_then_default(self):
-        with patch.dict("os.environ", {"KODO_BENCH_URL": "https://env.example"}, clear=True):
+        with patch.dict(
+            "os.environ", {"KODO_BENCH_URL": "https://env.example"}, clear=True
+        ):
             assert public_base_url("https://arg.example") == "https://arg.example"
             assert public_base_url() == "https://env.example"
 
@@ -2145,9 +2532,18 @@ class TestOnlineMirror:
             "results": {"id1": {"claude": {"status": "ok"}}},
         }
 
-        with patch("benchmark.online.mirror.fetch_dataset_index", autospec=True, return_value=index), \
-             patch("benchmark.online.mirror.fetch_dataset_patches", autospec=True,
-                   return_value={"id1/claude": "diff --git"}):
+        with (
+            patch(
+                "benchmark.online.mirror.fetch_dataset_index",
+                autospec=True,
+                return_value=index,
+            ),
+            patch(
+                "benchmark.online.mirror.fetch_dataset_patches",
+                autospec=True,
+                return_value={"id1/claude": "diff --git"},
+            ),
+        ):
             out = mirror_dataset("verified", out_dir=tmp_path, include_patches=True)
 
         assert out == tmp_path / "verified"
@@ -2166,7 +2562,9 @@ class TestOnlineMirror:
                 "run_id": None,
             }
         ]
-        assert json.loads((out / "patches.json").read_text()) == {"id1/claude": "diff --git"}
+        assert json.loads((out / "patches.json").read_text()) == {
+            "id1/claude": "diff --git"
+        }
 
     def test_load_rows_accepts_directory_or_file(self, tmp_path):
         dataset_dir = tmp_path / "verified"
@@ -2184,7 +2582,9 @@ class TestOnlineMirror:
         rows = [{"instance_id": "id1", "arm": "claude"}]
         (dataset_dir / "rows.json").write_text(json.dumps(rows))
 
-        with patch.dict("os.environ", {"HOME": str(home), "USERPROFILE": str(home)}, clear=False):
+        with patch.dict(
+            "os.environ", {"HOME": str(home), "USERPROFILE": str(home)}, clear=False
+        ):
             assert load_rows("~/.kodo/benchmark/mirror/verified") == rows
 
     def test_fetch_patch_quotes_instance_id_and_arm(self):
@@ -2192,7 +2592,9 @@ class TestOnlineMirror:
         response.__enter__.return_value = response
         response.read.return_value = b"patch body"
 
-        with patch("urllib.request.urlopen", autospec=True, return_value=response) as mock_urlopen:
+        with patch(
+            "urllib.request.urlopen", autospec=True, return_value=response
+        ) as mock_urlopen:
             patch_text = fetch_patch("verified", "repo__name-1", "kodo:solo+opus")
 
         assert patch_text == "patch body"
@@ -2201,8 +2603,12 @@ class TestOnlineMirror:
         )
 
     def test_mirror_main_uses_requested_output_dir(self, tmp_path):
-        with patch("benchmark.online.mirror.mirror_dataset", autospec=True) as mock_mirror:
-            ret = mirror_main(["--dataset", "verified", "--out", str(tmp_path), "--patches"])
+        with patch(
+            "benchmark.online.mirror.mirror_dataset", autospec=True
+        ) as mock_mirror:
+            ret = mirror_main(
+                ["--dataset", "verified", "--out", str(tmp_path), "--patches"]
+            )
 
         assert ret == 0
         mock_mirror.assert_called_once_with(
@@ -2236,7 +2642,11 @@ class TestCleanupDummyResults:
             },
         ]
 
-        with patch("benchmark.online.cleanup_dummy_results.db.iter_task_results", autospec=True, return_value=rows):
+        with patch(
+            "benchmark.online.cleanup_dummy_results.db.iter_task_results",
+            autospec=True,
+            return_value=rows,
+        ):
             result = candidate_rows("pro", run_id="run-a")
 
         assert result == [
@@ -2262,11 +2672,18 @@ class TestCleanupDummyResults:
                 "patch_len": 4624,
                 "run_id": "run-a",
                 "error": "[worker] error: unknown error",
-                "agent_output": {"status": "error", "error": "bound to a different event loop"},
+                "agent_output": {
+                    "status": "error",
+                    "error": "bound to a different event loop",
+                },
             },
         ]
 
-        with patch("benchmark.online.cleanup_dummy_results.db.iter_task_results", autospec=True, return_value=rows):
+        with patch(
+            "benchmark.online.cleanup_dummy_results.db.iter_task_results",
+            autospec=True,
+            return_value=rows,
+        ):
             result = candidate_rows("pro", run_id="run-a")
 
         assert result == [
@@ -2278,7 +2695,10 @@ class TestCleanupDummyResults:
                 "patch_len": 4624,
                 "run_id": "run-a",
                 "error": "[worker] error: unknown error",
-                "agent_output": {"status": "error", "error": "bound to a different event loop"},
+                "agent_output": {
+                    "status": "error",
+                    "error": "bound to a different event loop",
+                },
                 "reason": "kodo_worker_broken",
             }
         ]
@@ -2312,11 +2732,16 @@ class TestCleanupDummyResults:
         ):
             from benchmark.online.cleanup_dummy_results import main as cleanup_main
 
-            ret = cleanup_main([
-                "--dataset", "pro",
-                "--reason", "no_patch",
-                "--max-elapsed", "10",
-            ])
+            ret = cleanup_main(
+                [
+                    "--dataset",
+                    "pro",
+                    "--reason",
+                    "no_patch",
+                    "--max-elapsed",
+                    "10",
+                ]
+            )
 
         out = capsys.readouterr().out
         assert ret == 0
@@ -2336,25 +2761,33 @@ class TestCleanupDummyResults:
             }
         ]
 
-        with patch(
-            "benchmark.online.cleanup_dummy_results.candidate_rows",
-            autospec=True,
-            return_value=rows,
-        ), patch(
-            "benchmark.online.cleanup_dummy_results.db.delete_task_results_batch",
-            autospec=True,
-        ) as mock_batch, patch(
-            "benchmark.online.cleanup_dummy_results.db.delete_empty_result_docs",
-            autospec=True,
-            return_value=1,
-        ) as mock_empty:
+        with (
+            patch(
+                "benchmark.online.cleanup_dummy_results.candidate_rows",
+                autospec=True,
+                return_value=rows,
+            ),
+            patch(
+                "benchmark.online.cleanup_dummy_results.db.delete_task_results_batch",
+                autospec=True,
+            ) as mock_batch,
+            patch(
+                "benchmark.online.cleanup_dummy_results.db.delete_empty_result_docs",
+                autospec=True,
+                return_value=1,
+            ) as mock_empty,
+        ):
             from benchmark.online.cleanup_dummy_results import main as cleanup_main
 
-            ret = cleanup_main([
-                "--dataset", "pro",
-                "--reason", "no_patch",
-                "--apply",
-            ])
+            ret = cleanup_main(
+                [
+                    "--dataset",
+                    "pro",
+                    "--reason",
+                    "no_patch",
+                    "--apply",
+                ]
+            )
 
         assert ret == 0
         mock_batch.assert_called_once_with("pro", [("id1", "codex")])
@@ -2369,27 +2802,67 @@ from benchmark.evaluate_pending import evaluate_pending
 
 class TestEvaluatePending:
     def test_fails_when_unconfigured(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+        with patch(
+            "benchmark.online.client.is_configured", autospec=True, return_value=False
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
         assert result == 1
 
     def test_fails_when_docker_unavailable(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark._util.ensure_docker_running", autospec=True, return_value=False):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark._util.ensure_docker_running",
+                autospec=True,
+                return_value=False,
+            ),
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
         assert result == 1
 
     def test_returns_0_when_nothing_pending(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=[]):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark._util.ensure_docker_running",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_unevaluated",
+                autospec=True,
+                return_value=[],
+            ),
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
         assert result == 0
 
     def test_returns_1_on_fetch_failure(self, tmp_path):
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=None):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark._util.ensure_docker_running",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_unevaluated",
+                autospec=True,
+                return_value=None,
+            ),
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
         assert result == 1
 
@@ -2398,7 +2871,11 @@ class TestEvaluatePending:
         predictions = [
             {"instance_id": "django__django-12345", "arm": "claude", "patch": "diff1"},
             {"instance_id": "django__django-67890", "arm": "claude", "patch": "diff2"},
-            {"instance_id": "django__django-12345", "arm": "kodo:solo", "patch": "diff3"},
+            {
+                "instance_id": "django__django-12345",
+                "arm": "kodo:solo",
+                "patch": "diff3",
+            },
         ]
 
         eval_results = {
@@ -2420,7 +2897,10 @@ class TestEvaluatePending:
             """Simulate combined eval: call on_instance for each (instance, arm)."""
             results = {}
             for arm in arm_names:
-                result = eval_results.get(arm, {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0})
+                result = eval_results.get(
+                    arm,
+                    {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0},
+                )
                 if on_instance:
                     for iid in result.get("resolved", []):
                         on_instance(iid, arm, True)
@@ -2432,14 +2912,37 @@ class TestEvaluatePending:
         upload_calls = []
 
         def fake_upload(dataset, arm, *, resolved=None, failed=None, error=None):
-            upload_calls.append({"dataset": dataset, "arm": arm,
-                                  "resolved": resolved, "failed": failed})
+            upload_calls.append(
+                {"dataset": dataset, "arm": arm, "resolved": resolved, "failed": failed}
+            )
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=predictions), \
-             patch("benchmark.evaluate.evaluate_arms_combined", autospec=True, side_effect=fake_eval_combined) as mock_eval, \
-             patch("benchmark.online.client.upload_eval_results", autospec=True, side_effect=fake_upload):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark._util.ensure_docker_running",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_unevaluated",
+                autospec=True,
+                return_value=predictions,
+            ),
+            patch(
+                "benchmark.evaluate.evaluate_arms_combined",
+                autospec=True,
+                side_effect=fake_eval_combined,
+            ) as mock_eval,
+            patch(
+                "benchmark.online.client.upload_eval_results",
+                autospec=True,
+                side_effect=fake_upload,
+            ),
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
 
         assert result == 0
@@ -2467,27 +2970,56 @@ class TestEvaluatePending:
         # Check uploads: 3 per-instance streaming + 2 bulk (one per arm)
         assert len(upload_calls) == 5
         # Verify all instances were uploaded (via streaming)
-        streamed = {(c["arm"], c["resolved"][0] if c["resolved"] else c["failed"][0])
-                    for c in upload_calls if len(c.get("resolved", []) + c.get("failed", [])) == 1}
+        streamed = {
+            (c["arm"], c["resolved"][0] if c["resolved"] else c["failed"][0])
+            for c in upload_calls
+            if len(c.get("resolved", []) + c.get("failed", [])) == 1
+        }
         assert ("claude", "django__django-12345") in streamed
         assert ("claude", "django__django-67890") in streamed
         assert ("kodo:solo", "django__django-12345") in streamed
         # Verify bulk uploads happened (one per arm with full results)
-        bulk = [c for c in upload_calls if len(c.get("resolved", []) + c.get("failed", [])) > 1]
-        assert len(bulk) == 1  # only claude has 2 instances; kodo:solo has 1 (same as streaming)
+        bulk = [
+            c
+            for c in upload_calls
+            if len(c.get("resolved", []) + c.get("failed", [])) > 1
+        ]
+        assert (
+            len(bulk) == 1
+        )  # only claude has 2 instances; kodo:solo has 1 (same as streaming)
 
     def test_returns_0_even_when_eval_returns_empty(self, tmp_path):
         """Returns 0 when eval produces no results (empty arm)."""
         predictions = [{"instance_id": "id1", "arm": "claude", "patch": "diff"}]
 
         def fake_eval_combined(run_dir, arm_names, run_id, dataset, on_instance=None):
-            return {arm: {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
-                    for arm in arm_names}
+            return {
+                arm: {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
+                for arm in arm_names
+            }
 
-        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True), \
-             patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True), \
-             patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=predictions), \
-             patch("benchmark.evaluate.evaluate_arms_combined", autospec=True, side_effect=fake_eval_combined):
+        with (
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark._util.ensure_docker_running",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_unevaluated",
+                autospec=True,
+                return_value=predictions,
+            ),
+            patch(
+                "benchmark.evaluate.evaluate_arms_combined",
+                autospec=True,
+                side_effect=fake_eval_combined,
+            ),
+        ):
             result = evaluate_pending(tmp_path, dataset_arg="verified")
 
         assert result == 0

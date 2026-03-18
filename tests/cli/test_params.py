@@ -94,10 +94,14 @@ class TestLoadOrSelectParams:
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
         ):
             # Mock get_team to return a fake team
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'description': 'Full team',
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "description": "Full team",
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _load_or_select_params(tmp_path)
@@ -125,10 +129,14 @@ class TestLoadOrSelectParams:
             patch("builtins.input", autospec=True, return_value="y"),
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
         ):
-            mock_team = type('obj', (), {
-                'name': 'quick',
-                'description': 'Quick team',
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "quick",
+                    "description": "Quick team",
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _load_or_select_params(tmp_path)
@@ -163,8 +171,14 @@ class TestLoadOrSelectParams:
         }
 
         with (
-            patch("kodo.cli._params.get_team", autospec=True, side_effect=KeyError("nonexistent")),
-            patch("kodo.cli._params.select_params", autospec=True, return_value=new_config) as mock_select,
+            patch(
+                "kodo.cli._params.get_team",
+                autospec=True,
+                side_effect=KeyError("nonexistent"),
+            ),
+            patch(
+                "kodo.cli._params.select_params", autospec=True, return_value=new_config
+            ) as mock_select,
         ):
             result = _load_or_select_params(tmp_path)
 
@@ -204,12 +218,18 @@ class TestLoadOrSelectParams:
         with (
             patch("builtins.input", autospec=True, return_value="n"),  # User says no
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
-            patch("kodo.cli._params.select_params", autospec=True, return_value=new_config) as mock_select,
+            patch(
+                "kodo.cli._params.select_params", autospec=True, return_value=new_config
+            ) as mock_select,
         ):
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'description': 'Full team',
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "description": "Full team",
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _load_or_select_params(tmp_path)
@@ -241,10 +261,14 @@ class TestLoadOrSelectParams:
             patch("builtins.input", autospec=True, return_value="y"),
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
         ):
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'description': 'Full team',
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "description": "Full team",
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _load_or_select_params(tmp_path)
@@ -275,24 +299,32 @@ class TestBuildParamsFromFlags:
     def test_debug_mode_defaults(self, tmp_path):
         """Debug mode should use sensible defaults without real backend checks."""
         # Create args object with debug=True
-        args = type('obj', (), {
-            'debug': True,
-            'team': None,
-            'orchestrator': None,
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": None,
+                "orchestrator": None,
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
             # Mock team preset
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'description': 'Full team',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "description": "Full team",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _build_params_from_flags(args, tmp_path)
@@ -307,22 +339,30 @@ class TestBuildParamsFromFlags:
 
     def test_no_auto_commit_flag(self, tmp_path):
         """--no-auto-commit flag should disable auto-commit."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': 'gemini-flash',
-            'exchanges': 20,
-            'cycles': 1,
-            'no_auto_commit': True,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": "gemini-flash",
+                "exchanges": 20,
+                "cycles": 1,
+                "no_auto_commit": True,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _build_params_from_flags(args, tmp_path)
@@ -332,22 +372,30 @@ class TestBuildParamsFromFlags:
 
     def test_effort_flag_set(self, tmp_path):
         """--effort flag should be included in params when specified."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'quick',
-            'orchestrator': 'gemini-flash',
-            'exchanges': 10,
-            'cycles': 1,
-            'no_auto_commit': False,
-            'effort': 'high',
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "quick",
+                "orchestrator": "gemini-flash",
+                "exchanges": 10,
+                "cycles": 1,
+                "no_auto_commit": False,
+                "effort": "high",
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'quick',
-                'default_max_exchanges': 20,
-                'default_max_cycles': 1,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "quick",
+                    "default_max_exchanges": 20,
+                    "default_max_cycles": 1,
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _build_params_from_flags(args, tmp_path)
@@ -356,26 +404,38 @@ class TestBuildParamsFromFlags:
         assert result["effort"] == "high"
 
     def test_ollama_model_implies_api_orchestrator(self, tmp_path):
-        args = type('obj', (), {
-            'debug': False,
-            'team': 'full',
-            'orchestrator': 'ollama:qwen2.5-coder:14b',
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": False,
+                "team": "full",
+                "orchestrator": "ollama:qwen2.5-coder:14b",
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with (
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
-            patch("kodo.cli._params.preferred_orchestrator", autospec=True, return_value="claude-code"),
+            patch(
+                "kodo.cli._params.preferred_orchestrator",
+                autospec=True,
+                return_value="claude-code",
+            ),
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
         ):
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _build_params_from_flags(args, tmp_path)
@@ -385,53 +445,71 @@ class TestBuildParamsFromFlags:
 
     def test_effort_not_set_when_none(self, tmp_path):
         """When no --effort flag, 'effort' key should not appear in params."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
 
             result = _build_params_from_flags(args, tmp_path)
 
-        assert "effort" not in result, \
+        assert "effort" not in result, (
             "When --effort is not specified, 'effort' should not be in params"
+        )
 
     def test_effort_all_valid_values(self, tmp_path):
         """All valid effort values (low, standard, high, max) should pass through."""
         for effort_val in ("low", "standard", "high", "max"):
-            args = type('obj', (), {
-                'debug': True,
-                'team': 'full',
-                'orchestrator': None,
-                'exchanges': None,
-                'cycles': None,
-                'no_auto_commit': False,
-                'effort': effort_val,
-            })()
+            args = type(
+                "obj",
+                (),
+                {
+                    "debug": True,
+                    "team": "full",
+                    "orchestrator": None,
+                    "exchanges": None,
+                    "cycles": None,
+                    "no_auto_commit": False,
+                    "effort": effort_val,
+                },
+            )()
 
             with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-                mock_team = type('obj', (), {
-                    'name': 'full',
-                    'default_max_exchanges': 30,
-                    'default_max_cycles': 5,
-                })()
+                mock_team = type(
+                    "obj",
+                    (),
+                    {
+                        "name": "full",
+                        "default_max_exchanges": 30,
+                        "default_max_cycles": 5,
+                    },
+                )()
                 mock_get_team.return_value = mock_team
 
                 result = _build_params_from_flags(args, tmp_path)
 
-            assert result["effort"] == effort_val, \
+            assert result["effort"] == effort_val, (
                 f"--effort {effort_val} should produce params['effort'] == '{effort_val}'"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -447,7 +525,9 @@ class TestSelectOne:
         with patch("questionary.select", autospec=True) as mock_select:
             mock_select.return_value.ask.return_value = "option2"
 
-            result = _select_one("Test prompt:", ["option1", "option2", "option3"], default_index=0)
+            result = _select_one(
+                "Test prompt:", ["option1", "option2", "option3"], default_index=0
+            )
 
         assert result == "option2"
         mock_select.assert_called_once()
@@ -479,7 +559,9 @@ class TestSelectNumeric:
         with patch("questionary.select", autospec=True) as mock_select:
             mock_select.return_value.ask.return_value = "30"
 
-            result = _select_numeric("Max exchanges:", ["20", "30", "50"], default_index=1)
+            result = _select_numeric(
+                "Max exchanges:", ["20", "30", "50"], default_index=1
+            )
 
         assert result == "30"
         # Verify "Custom..." was added to choices
@@ -499,7 +581,9 @@ class TestSelectNumeric:
             # User enters valid number
             mock_text.return_value.ask.return_value = "42"
 
-            result = _select_numeric("Custom value:", ["10", "20", "30"], default_index=0, type_fn=int)
+            result = _select_numeric(
+                "Custom value:", ["10", "20", "30"], default_index=0, type_fn=int
+            )
 
         assert result == "42"
         mock_text.assert_called_once()
@@ -515,7 +599,9 @@ class TestSelectNumeric:
             # User enters invalid, then valid
             mock_text.return_value.ask.side_effect = ["invalid", "abc", "25"]
 
-            result = _select_numeric("Custom value:", ["10", "20"], default_index=0, type_fn=int)
+            result = _select_numeric(
+                "Custom value:", ["10", "20"], default_index=0, type_fn=int
+            )
 
         assert result == "25"
         # Should have been called 3 times (2 invalid, 1 valid)
@@ -593,13 +679,22 @@ class TestSelectParams:
         fake_backends.cache_clear = MagicMock()
 
         with (
-            patch("kodo.cli._params._select_numeric", autospec=True, side_effect=mock_select_numeric),
+            patch(
+                "kodo.cli._params._select_numeric",
+                autospec=True,
+                side_effect=mock_select_numeric,
+            ),
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
             patch("kodo.factory.available_backends", fake_backends),
             patch("kodo.cli._params.TEAMS", _fake_teams()),
-            patch("kodo.cli._params.get_team", autospec=True, return_value=_fake_team_preset()),
             patch(
-                "kodo.team_config.list_available_teams", autospec=True,
+                "kodo.cli._params.get_team",
+                autospec=True,
+                return_value=_fake_team_preset(),
+            ),
+            patch(
+                "kodo.team_config.list_available_teams",
+                autospec=True,
                 return_value=[],
             ),
         ):
@@ -627,7 +722,8 @@ class TestSelectParams:
     def test_api_orchestrator(self):
         """API orchestrator should offer Claude + Gemini model choices."""
         with patch(
-            "kodo.cli._params._select_one", autospec=True,
+            "kodo.cli._params._select_one",
+            autospec=True,
             side_effect=self._patch_select_one("api"),
         ):
             result = select_params()
@@ -642,7 +738,10 @@ class TestSelectParams:
         assert len(model_call) == 1
         model_options = model_call[0][1]
         # Options are now formatted as "alias — display (provider)" or plain strings
-        option_aliases = [opt.split(" — ")[0].strip() if " — " in opt else opt for opt in model_options]
+        option_aliases = [
+            opt.split(" — ")[0].strip() if " — " in opt else opt
+            for opt in model_options
+        ]
         assert CLAUDE_OPUS in option_aliases
         assert CLAUDE_SONNET in option_aliases
         assert GEMINI_ALIAS_PRO in option_aliases
@@ -677,7 +776,8 @@ class TestSelectParams:
     def test_claude_code_orchestrator(self):
         """claude-code orchestrator should offer Claude model choices."""
         with patch(
-            "kodo.cli._params._select_one", autospec=True,
+            "kodo.cli._params._select_one",
+            autospec=True,
             side_effect=self._patch_select_one("claude-code"),
         ):
             result = select_params()
@@ -706,7 +806,8 @@ class TestSelectParams:
         with (
             patch("kodo.factory.available_backends", fake_backends),
             patch(
-                "kodo.cli._params._select_one", autospec=True,
+                "kodo.cli._params._select_one",
+                autospec=True,
                 side_effect=self._patch_select_one("gemini-cli"),
             ),
         ):
@@ -734,7 +835,8 @@ class TestSelectParams:
         with (
             patch("kodo.factory.available_backends", fake_backends),
             patch(
-                "kodo.cli._params._select_one", autospec=True,
+                "kodo.cli._params._select_one",
+                autospec=True,
                 side_effect=self._patch_select_one("codex"),
             ),
         ):
@@ -761,7 +863,8 @@ class TestSelectParams:
         with (
             patch("kodo.factory.available_backends", fake_backends),
             patch(
-                "kodo.cli._params._select_one", autospec=True,
+                "kodo.cli._params._select_one",
+                autospec=True,
                 side_effect=self._patch_select_one("cursor"),
             ),
         ):
@@ -798,7 +901,8 @@ class TestSelectParams:
         """Should exit when API key validation fails."""
         with (
             patch(
-                "kodo.cli._params._select_one", autospec=True,
+                "kodo.cli._params._select_one",
+                autospec=True,
                 side_effect=self._patch_select_one("api"),
             ),
             patch(  # noqa: autospec
@@ -814,7 +918,12 @@ class TestSelectParams:
 
     def test_user_teams_listed(self):
         """User JSON teams should appear in team options."""
-        user_team = ("my-custom", "user", {"description": "My custom team"}, Path("/tmp"))
+        user_team = (
+            "my-custom",
+            "user",
+            {"description": "My custom team"},
+            Path("/tmp"),
+        )
 
         with (
             patch(  # noqa: autospec
@@ -822,7 +931,8 @@ class TestSelectParams:
                 return_value=[user_team],
             ),
             patch(
-                "kodo.cli._params._select_one", autospec=True,
+                "kodo.cli._params._select_one",
+                autospec=True,
                 side_effect=self._patch_select_one("api"),
             ),
         ):
@@ -866,7 +976,8 @@ class TestLoadOrSelectParamsEdgeCases:
             patch("builtins.input", autospec=True, return_value="y"),
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
             patch(
-                "kodo.cli._params._save_config", autospec=True,
+                "kodo.cli._params._save_config",
+                autospec=True,
                 side_effect=PermissionError("read-only"),
             ),
         ):
@@ -894,9 +1005,12 @@ class TestLoadOrSelectParamsEdgeCases:
         }
 
         with (
-            patch("kodo.cli._params.select_params", autospec=True, return_value=new_config),
             patch(
-                "kodo.cli._params._save_config", autospec=True,
+                "kodo.cli._params.select_params", autospec=True, return_value=new_config
+            ),
+            patch(
+                "kodo.cli._params._save_config",
+                autospec=True,
                 side_effect=PermissionError("read-only"),
             ),
             patch("kodo.cli._launch._original_stdout", None),
@@ -915,22 +1029,30 @@ class TestTeamFlagFlowsThrough:
 
     def test_explicit_team_quick_sets_params(self, tmp_path):
         """--team quick must produce params['team'] == 'quick'."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'quick',
-            'orchestrator': None,
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "quick",
+                "orchestrator": None,
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'quick',
-                'default_max_exchanges': 20,
-                'default_max_cycles': 1,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "quick",
+                    "default_max_exchanges": 20,
+                    "default_max_cycles": 1,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -939,22 +1061,30 @@ class TestTeamFlagFlowsThrough:
 
     def test_team_none_defaults_to_full(self, tmp_path):
         """No --team flag must default to 'full'."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': None,
-            'orchestrator': None,
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": None,
+                "orchestrator": None,
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -972,22 +1102,30 @@ class TestOrchestratorFlagFlowsThrough:
 
     def test_explicit_claude_code_orchestrator(self, tmp_path):
         """--orchestrator claude-code:opus must produce params['orchestrator'] == 'claude-code'."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': 'claude-code:opus',
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": "claude-code:opus",
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -995,22 +1133,30 @@ class TestOrchestratorFlagFlowsThrough:
 
     def test_explicit_gemini_cli_orchestrator(self, tmp_path):
         """--orchestrator gemini-cli:gemini-pro must produce params['orchestrator'] == 'gemini-cli'."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': 'gemini-cli:gemini-pro',
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": "gemini-cli:gemini-pro",
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1018,26 +1164,34 @@ class TestOrchestratorFlagFlowsThrough:
 
     def test_orchestrator_not_overridden_by_defaults(self, tmp_path):
         """Explicit --orchestrator should NOT be replaced by auto-detection logic."""
-        args = type('obj', (), {
-            'debug': False,
-            'team': 'full',
-            'orchestrator': 'codex:codex-1',
-            'exchanges': None,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": False,
+                "team": "full",
+                "orchestrator": "codex:codex-1",
+                "exchanges": None,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with (
             patch("kodo.cli._params.get_team", autospec=True) as mock_get_team,
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=False),
         ):
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1055,22 +1209,30 @@ class TestExchangesCyclesFlagFlowsThrough:
 
     def test_explicit_exchanges_overrides_team_default(self, tmp_path):
         """--exchanges 99 must produce params['max_exchanges'] == 99."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': None,
-            'exchanges': 99,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": None,
+                "exchanges": 99,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1078,22 +1240,30 @@ class TestExchangesCyclesFlagFlowsThrough:
 
     def test_explicit_cycles_overrides_team_default(self, tmp_path):
         """--cycles 12 must produce params['max_cycles'] == 12."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': None,
-            'exchanges': None,
-            'cycles': 12,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": None,
+                "exchanges": None,
+                "cycles": 12,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1101,22 +1271,30 @@ class TestExchangesCyclesFlagFlowsThrough:
 
     def test_zero_exchanges_falls_back_to_default(self, tmp_path):
         """--exchanges 0 should use team default, not zero."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': None,
-            'exchanges': 0,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": None,
+                "exchanges": 0,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1124,22 +1302,30 @@ class TestExchangesCyclesFlagFlowsThrough:
 
     def test_zero_cycles_falls_back_to_default(self, tmp_path):
         """--cycles 0 should use team default, not zero."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': None,
-            'exchanges': None,
-            'cycles': 0,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": None,
+                "exchanges": None,
+                "cycles": 0,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 
@@ -1147,22 +1333,30 @@ class TestExchangesCyclesFlagFlowsThrough:
 
     def test_negative_exchanges_falls_back_to_default(self, tmp_path):
         """--exchanges -1 should use team default (negative is invalid)."""
-        args = type('obj', (), {
-            'debug': True,
-            'team': 'full',
-            'orchestrator': None,
-            'exchanges': -1,
-            'cycles': None,
-            'no_auto_commit': False,
-            'effort': None,
-        })()
+        args = type(
+            "obj",
+            (),
+            {
+                "debug": True,
+                "team": "full",
+                "orchestrator": None,
+                "exchanges": -1,
+                "cycles": None,
+                "no_auto_commit": False,
+                "effort": None,
+            },
+        )()
 
         with patch("kodo.cli._params.get_team", autospec=True) as mock_get_team:
-            mock_team = type('obj', (), {
-                'name': 'full',
-                'default_max_exchanges': 30,
-                'default_max_cycles': 5,
-            })()
+            mock_team = type(
+                "obj",
+                (),
+                {
+                    "name": "full",
+                    "default_max_exchanges": 30,
+                    "default_max_cycles": 5,
+                },
+            )()
             mock_get_team.return_value = mock_team
             result = _build_params_from_flags(args, tmp_path)
 

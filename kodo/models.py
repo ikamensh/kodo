@@ -198,9 +198,27 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("ANTHROPIC_API_KEY",),
             pydantic_prefix="anthropic",
             models=(
-                ModelInfo("opus", "anthropic:claude-opus-4-6", "claude-opus-4-6", "Claude Opus", (5.0, 25.0)),
-                ModelInfo("sonnet", "anthropic:claude-sonnet-4-6", "claude-sonnet-4-6", "Claude Sonnet", (3.0, 15.0)),
-                ModelInfo("haiku", "anthropic:claude-haiku-4-5", "claude-haiku-4-5", "Claude Haiku", (1.0, 5.0)),
+                ModelInfo(
+                    "opus",
+                    "anthropic:claude-opus-4-6",
+                    "claude-opus-4-6",
+                    "Claude Opus",
+                    (5.0, 25.0),
+                ),
+                ModelInfo(
+                    "sonnet",
+                    "anthropic:claude-sonnet-4-6",
+                    "claude-sonnet-4-6",
+                    "Claude Sonnet",
+                    (3.0, 15.0),
+                ),
+                ModelInfo(
+                    "haiku",
+                    "anthropic:claude-haiku-4-5",
+                    "claude-haiku-4-5",
+                    "Claude Haiku",
+                    (1.0, 5.0),
+                ),
             ),
         ),
         Provider(
@@ -208,9 +226,27 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
             pydantic_prefix="google-gla",
             models=(
-                ModelInfo("gemini-pro", "google-gla:gemini-3.1-pro-preview", "gemini-3.1-pro-preview", "Gemini Pro", (2.0, 12.0)),
-                ModelInfo("gemini-flash", "google-gla:gemini-3-flash-preview", "gemini-3-flash-preview", "Gemini Flash", (0.50, 3.0)),
-                ModelInfo("gemini-flash-lite", "google-gla:gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite-preview", "Gemini Flash Lite", (0.07, 0.30)),
+                ModelInfo(
+                    "gemini-pro",
+                    "google-gla:gemini-3.1-pro-preview",
+                    "gemini-3.1-pro-preview",
+                    "Gemini Pro",
+                    (2.0, 12.0),
+                ),
+                ModelInfo(
+                    "gemini-flash",
+                    "google-gla:gemini-3-flash-preview",
+                    "gemini-3-flash-preview",
+                    "Gemini Flash",
+                    (0.50, 3.0),
+                ),
+                ModelInfo(
+                    "gemini-flash-lite",
+                    "google-gla:gemini-3.1-flash-lite-preview",
+                    "gemini-3.1-flash-lite-preview",
+                    "Gemini Flash Lite",
+                    (0.07, 0.30),
+                ),
             ),
         ),
         Provider(
@@ -218,9 +254,23 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("OPENAI_API_KEY",),
             pydantic_prefix="openai",
             models=(
-                ModelInfo("gpt-5.4", "openai:gpt-5.4", "gpt-5.4", "GPT-5.4", (2.0, 8.0)),
-                ModelInfo("gpt-5.4-mini", "openai:gpt-5.4-mini", "gpt-5.4-mini", "GPT-5.4 Mini", (0.40, 1.60)),
-                ModelInfo("gpt-5.4-nano", "openai:gpt-5.4-nano", "gpt-5.4-nano", "GPT-5.4 Nano", (0.10, 0.40)),
+                ModelInfo(
+                    "gpt-5.4", "openai:gpt-5.4", "gpt-5.4", "GPT-5.4", (2.0, 8.0)
+                ),
+                ModelInfo(
+                    "gpt-5.4-mini",
+                    "openai:gpt-5.4-mini",
+                    "gpt-5.4-mini",
+                    "GPT-5.4 Mini",
+                    (0.40, 1.60),
+                ),
+                ModelInfo(
+                    "gpt-5.4-nano",
+                    "openai:gpt-5.4-nano",
+                    "gpt-5.4-nano",
+                    "GPT-5.4 Nano",
+                    (0.10, 0.40),
+                ),
             ),
         ),
         Provider(
@@ -228,8 +278,20 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("DEEPSEEK_API_KEY",),
             pydantic_prefix="deepseek",
             models=(
-                ModelInfo("deepseek", "deepseek:deepseek-chat", "deepseek-chat", "DeepSeek Chat", (0.55, 2.19)),
-                ModelInfo("deepseek-reasoner", "deepseek:deepseek-reasoner", "deepseek-reasoner", "DeepSeek Reasoner", (0.55, 2.19)),
+                ModelInfo(
+                    "deepseek",
+                    "deepseek:deepseek-chat",
+                    "deepseek-chat",
+                    "DeepSeek Chat",
+                    (0.55, 2.19),
+                ),
+                ModelInfo(
+                    "deepseek-reasoner",
+                    "deepseek:deepseek-reasoner",
+                    "deepseek-reasoner",
+                    "DeepSeek Reasoner",
+                    (0.55, 2.19),
+                ),
             ),
         ),
         Provider(
@@ -237,8 +299,20 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("GROQ_API_KEY",),
             pydantic_prefix="groq",
             models=(
-                ModelInfo("llama-4-scout", "groq:meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-scout-17b-16e-instruct", "Llama 4 Scout", (0.11, 0.34)),
-                ModelInfo("llama-70b", "groq:llama-3.3-70b-versatile", "llama-3.3-70b-versatile", "Llama 3.3 70B", (0.59, 0.79)),
+                ModelInfo(
+                    "llama-4-scout",
+                    "groq:meta-llama/llama-4-scout-17b-16e-instruct",
+                    "meta-llama/llama-4-scout-17b-16e-instruct",
+                    "Llama 4 Scout",
+                    (0.11, 0.34),
+                ),
+                ModelInfo(
+                    "llama-70b",
+                    "groq:llama-3.3-70b-versatile",
+                    "llama-3.3-70b-versatile",
+                    "Llama 3.3 70B",
+                    (0.59, 0.79),
+                ),
             ),
         ),
         Provider(
@@ -246,7 +320,13 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("OPENROUTER_API_KEY",),
             pydantic_prefix="openrouter",
             models=(
-                ModelInfo("openrouter-auto", "openrouter:openrouter/auto", "openrouter/auto", "OpenRouter Auto", (0.0, 0.0)),
+                ModelInfo(
+                    "openrouter-auto",
+                    "openrouter:openrouter/auto",
+                    "openrouter/auto",
+                    "OpenRouter Auto",
+                    (0.0, 0.0),
+                ),
             ),
         ),
         Provider(
@@ -254,8 +334,20 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("MISTRAL_API_KEY",),
             pydantic_prefix="mistral",
             models=(
-                ModelInfo("codestral", "mistral:codestral-2508", "codestral-2508", "Codestral", (0.30, 0.90)),
-                ModelInfo("mistral-large", "mistral:mistral-large-latest", "mistral-large-latest", "Mistral Large", (2.0, 6.0)),
+                ModelInfo(
+                    "codestral",
+                    "mistral:codestral-2508",
+                    "codestral-2508",
+                    "Codestral",
+                    (0.30, 0.90),
+                ),
+                ModelInfo(
+                    "mistral-large",
+                    "mistral:mistral-large-latest",
+                    "mistral-large-latest",
+                    "Mistral Large",
+                    (2.0, 6.0),
+                ),
             ),
         ),
         Provider(
@@ -275,6 +367,7 @@ PROVIDER_REGISTRY: tuple[Provider, ...] = _build_registry()
 def _provider_has_key(provider: Provider) -> bool:
     """Return True if any of the provider's env vars are set."""
     import os
+
     return any(os.environ.get(v) for v in provider.env_vars)
 
 
@@ -433,7 +526,9 @@ def check_api_key_for_model(model: str | None) -> str | None:
 
     # Legacy heuristics for unknown models
     if model.startswith("gemini"):
-        if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
+        if not os.environ.get("GEMINI_API_KEY") and not os.environ.get(
+            "GOOGLE_API_KEY"
+        ):
             return "GEMINI_API_KEY (or GOOGLE_API_KEY) not set — required for Gemini models"
         return None
 

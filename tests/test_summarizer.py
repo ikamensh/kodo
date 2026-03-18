@@ -133,7 +133,6 @@ class TestProbeOllama:
     def test_returns_model_when_available(self):
         response = json.dumps({"models": [{"name": "llama3.2:1b"}]}).encode()
 
-        import io
         from unittest.mock import MagicMock
 
         mock_resp = MagicMock()
@@ -147,13 +146,19 @@ class TestProbeOllama:
 
     def test_returns_none_on_connection_error(self):
         import urllib.error
-        with patch("urllib.request.urlopen", autospec=True, side_effect=urllib.error.URLError("refused")):
+
+        with patch(
+            "urllib.request.urlopen",
+            autospec=True,
+            side_effect=urllib.error.URLError("refused"),
+        ):
             assert _probe_ollama() is None
 
     def test_returns_none_on_empty_models(self):
         response = json.dumps({"models": []}).encode()
 
         from unittest.mock import MagicMock
+
         mock_resp = MagicMock()
         mock_resp.read.return_value = response
         mock_resp.__enter__ = lambda s: s
@@ -190,8 +195,14 @@ class TestEnsureBackend:
     def test_ollama_preferred_over_gemini(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", autospec=True, return_value="llama3"),
-            patch("kodo.summarizer._probe_gemini", autospec=True, return_value="gemini-key"),
+            patch(
+                "kodo.summarizer._probe_ollama", autospec=True, return_value="llama3"
+            ),
+            patch(
+                "kodo.summarizer._probe_gemini",
+                autospec=True,
+                return_value="gemini-key",
+            ),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -202,7 +213,9 @@ class TestEnsureBackend:
         s = Summarizer()
         with (
             patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None),
-            patch("kodo.summarizer._probe_gemini", autospec=True, return_value="my-key"),
+            patch(
+                "kodo.summarizer._probe_gemini", autospec=True, return_value="my-key"
+            ),
         ):
             with s._lock:
                 s._ensure_backend()
@@ -222,7 +235,9 @@ class TestEnsureBackend:
     def test_only_probes_once(self):
         s = Summarizer()
         with (
-            patch("kodo.summarizer._probe_ollama", autospec=True, return_value=None) as mock_ollama,
+            patch(
+                "kodo.summarizer._probe_ollama", autospec=True, return_value=None
+            ) as mock_ollama,
             patch("kodo.summarizer._probe_gemini", autospec=True, return_value=None),
         ):
             with s._lock:
@@ -236,15 +251,12 @@ class TestEnsureBackend:
 
 class TestSummarizeGemini:
     def test_parses_successful_response(self):
-        response = json.dumps({
-            "candidates": [{
-                "content": {
-                    "parts": [{"text": "Summary of work done"}]
-                }
-            }]
-        }).encode()
+        response = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": "Summary of work done"}]}}]}
+        ).encode()
 
         from unittest.mock import MagicMock
+
         mock_resp = MagicMock()
         mock_resp.read.return_value = response
         mock_resp.__enter__ = lambda s: s
@@ -258,6 +270,7 @@ class TestSummarizeGemini:
         response = json.dumps({"candidates": []}).encode()
 
         from unittest.mock import MagicMock
+
         mock_resp = MagicMock()
         mock_resp.read.return_value = response
         mock_resp.__enter__ = lambda s: s
@@ -311,5 +324,3 @@ class TestShutdown:
         s.summarize("worker", "task", "report")
         result = s.get_accumulated_summary()
         assert result == ""
-
-

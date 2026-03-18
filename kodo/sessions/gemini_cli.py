@@ -7,7 +7,7 @@ from pathlib import Path
 
 from kodo import log
 from kodo.models import GEMINI_CLI_FLASH
-from kodo.sessions.base import QueryResult, SubprocessSession, _SpawnedResult, classify_session_error
+from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
 class GeminiCliSession(SubprocessSession):
@@ -123,8 +123,11 @@ class GeminiCliSession(SubprocessSession):
         if isinstance(r, QueryResult):
             # Spawn failed — log and return early
             log.emit(
-                "session_query_end", session="gemini-cli", elapsed_s=r.elapsed_s,
-                is_error=True, error=r.text,
+                "session_query_end",
+                session="gemini-cli",
+                elapsed_s=r.elapsed_s,
+                is_error=True,
+                error=r.text,
             )
             return r
 
@@ -163,8 +166,10 @@ class GeminiCliSession(SubprocessSession):
         conv_file = None
         if stdout_text:
             conv_file = log.save_conversation(
-                f"gemini_{id(self) % 10000:04d}", self._stats.queries,
-                [{"raw_stdout": stdout_text}])
+                f"gemini_{id(self) % 10000:04d}",
+                self._stats.queries,
+                [{"raw_stdout": stdout_text}],
+            )
 
         log.emit(
             "session_query_end",

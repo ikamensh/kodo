@@ -326,6 +326,7 @@ class ClaudeSession:
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         from claude_agent_sdk import AssistantMessage, ResultMessage
         from claude_agent_sdk.types import TextBlock, ToolUseBlock
+
         try:
             from claude_agent_sdk import ThinkingBlock
         except ImportError:
@@ -403,17 +404,40 @@ class ClaudeSession:
                             if isinstance(block, TextBlock):
                                 assistant_texts.append(block.text)
                                 blocks.append({"type": "text", "text": block.text})
-                            elif ThinkingBlock is not None and isinstance(block, ThinkingBlock):
-                                blocks.append({"type": "thinking", "thinking": block.thinking})
+                            elif ThinkingBlock is not None and isinstance(
+                                block, ThinkingBlock
+                            ):
+                                blocks.append(
+                                    {"type": "thinking", "thinking": block.thinking}
+                                )
                             elif isinstance(block, ToolUseBlock):
                                 tu_input = dict(block.input) if block.input else {}
-                                blocks.append({"type": "tool_use", "name": block.name, "input": tu_input})
+                                blocks.append(
+                                    {
+                                        "type": "tool_use",
+                                        "name": block.name,
+                                        "input": tu_input,
+                                    }
+                                )
                                 # Truncated copy for log.jsonl summary
                                 tu_summary = dict(tu_input)
-                                for key in ("content", "new_string", "old_string", "new_source"):
-                                    if key in tu_summary and isinstance(tu_summary[key], str) and len(tu_summary[key]) > 200:
-                                        tu_summary[key] = tu_summary[key][:200] + "...(truncated)"
-                                tool_uses.append({"name": block.name, "input": tu_summary})
+                                for key in (
+                                    "content",
+                                    "new_string",
+                                    "old_string",
+                                    "new_source",
+                                ):
+                                    if (
+                                        key in tu_summary
+                                        and isinstance(tu_summary[key], str)
+                                        and len(tu_summary[key]) > 200
+                                    ):
+                                        tu_summary[key] = (
+                                            tu_summary[key][:200] + "...(truncated)"
+                                        )
+                                tool_uses.append(
+                                    {"name": block.name, "input": tu_summary}
+                                )
                             else:
                                 blocks.append({"type": type(block).__name__})
                         raw_messages.append({"role": "assistant", "content": blocks})
@@ -484,7 +508,8 @@ class ClaudeSession:
         conv_file = None
         if raw_messages:
             conv_file = log.save_conversation(
-                f"claude_{id(self) % 10000:04d}", self._stats.queries, raw_messages)
+                f"claude_{id(self) % 10000:04d}", self._stats.queries, raw_messages
+            )
 
         log.emit(
             "session_query_end",

@@ -146,7 +146,9 @@ class TestAssessWithMockedLLM:
 
     @patch("kodo.knowledge.convergence.Agent", autospec=True)
     @patch("kodo.knowledge.convergence.make_fresh_model", autospec=True)
-    def test_assessment_creates_agent_with_correct_config(self, mock_make_model, mock_agent_class):
+    def test_assessment_creates_agent_with_correct_config(
+        self, mock_make_model, mock_agent_class
+    ):
         """Test that the agent is created with correct model and system prompt."""
         # This test doesn't mock run_in_thread, so _run() executes and we get coverage of lines 48-50
         mock_model = MagicMock()

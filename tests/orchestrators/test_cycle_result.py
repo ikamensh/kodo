@@ -45,9 +45,13 @@ class TestRunResult:
         rr = RunResult(
             cycles=[CycleResult(finished=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="S1", finished=True, success=True),
+                StageResult(
+                    stage_index=1, stage_name="S1", finished=True, success=True
+                ),
                 # Arrival order: stage 4 first, then stage 3
-                StageResult(stage_index=4, stage_name="S4", finished=True, success=True),
+                StageResult(
+                    stage_index=4, stage_name="S4", finished=True, success=True
+                ),
                 StageResult(stage_index=3, stage_name="S3", finished=False),
             ],
         )
@@ -59,7 +63,9 @@ class TestRunResult:
         rr = RunResult(
             cycles=[CycleResult(finished=True)],
             stage_results=[
-                StageResult(stage_index=1, stage_name="S1", finished=True, success=True),
+                StageResult(
+                    stage_index=1, stage_name="S1", finished=True, success=True
+                ),
                 StageResult(stage_index=2, stage_name="S2", finished=False),
             ],
         )

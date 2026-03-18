@@ -1,6 +1,4 @@
-"""Improve mode prompts — discovery, triage, findings, and methodology library."""
-
-import shutil
+"""Improve mode prompts — code review, simplification, usability, architecture."""
 
 IMPROVE_REPORT_FORMAT = """\
 ```markdown
@@ -10,14 +8,23 @@ IMPROVE_REPORT_FORMAT = """\
 - <file>:<line> — <description>
 
 ## Needs decision
-- <file>:<line> — <description + suggested fix>
+- <file>:<line> — <description + proposed change + tradeoff>
 
 ## Skipped by triage
 - <finding title> — <reason>
 ```"""
 
 IMPROVE_GOAL = """\
-Test and improve this codebase. Report at `{report_path}`.
+Review this codebase for significant improvements. Focus on simplification, \
+usability, and architecture — not on running tests or finding runtime bugs \
+(use `kodo test` for that).
+
+Look for things a senior developer joining the project would notice: \
+unnecessary complexity, confusing interfaces, duplicated concepts, \
+missing abstractions, poor defaults. Be ambitious — propose changes \
+that meaningfully improve the experience of working with or using this software.
+
+Report at `{report_path}`.
 
 {report_format}
 
@@ -25,29 +32,25 @@ Commit auto-fixes: "chore: auto-fix issues found by kodo improve".
 """
 
 IMPROVE_TIME_GUIDANCE = """\
-**Be fast.** Mock or stub external calls (APIs, databases, network). \
-Use targeted tests, not exhaustive sweeps. Abort anything over 30 seconds. \
-In-memory fixtures, lightweight fakes, skip heavy init."""
+Focus on high-impact findings. A single "this entire module could be \
+replaced by X" is worth more than twenty lint fixes."""
 
 TRIAGE_FINDINGS_FORMAT = """\
-Format each finding as:
-
 ### F<n>: <title>
 - **File:** <file>:<line>
-- **Severity:** bug | hardening | style | performance
-- **Evidence:** <proof: test output, error message, or code path — not just assertions>
-- **Proposed fix:** <concrete change>"""
+- **Category:** simplification | usability | architecture | dead-code | security | performance
+- **Impact:** <who benefits and how — users, contributors, or both>
+- **Evidence:** <concrete proof: code snippet, example, or comparison>
+- **Proposed change:** <what to do, with enough detail to act on>"""
 
 TRIAGE_STAGE_DESCRIPTION = """\
-Skeptically verify each finding from previous stages. Read the actual code \
-at the cited location. Most findings are phantoms — default to `skip`.
+Skeptically verify each finding. Read the actual code at the cited location. \
+Default to `skip` — most findings don't survive scrutiny.
 
 For each finding, ask:
-- Does the evidence hold when you read the actual code?
-- Is there already a guard (exception handler, early return, default, \
-framework guarantee like `exist_ok=True`)?
-- Can the claimed state actually occur? Trace callers.
-- Would the fix be net-negative (more code for an impossible case)?
+- Is this actually a problem, or does it serve a purpose I'm missing?
+- Would the proposed change make things genuinely better, or just different?
+- Is the impact worth the churn?
 
 Write `{triage_path}`:
 
@@ -57,39 +60,36 @@ Write `{triage_path}`:
 
 
 # ---------------------------------------------------------------------------
-# Discovery prompt — sent to an AI session to build a dynamic improve plan
+# Discovery prompt
 # ---------------------------------------------------------------------------
 
 DISCOVERY_PROMPT = """\
-You are analyzing a software project to create a tailored improvement plan.
+You're reviewing a software project to find significant improvements — \
+simplifications, usability wins, architectural cleanup, and dead weight removal.
 
-## Your Task
-1. Inspect the project: read README, config files (pyproject.toml, package.json, \
-Cargo.toml, go.mod, etc.), source structure, test setup, CI config
-2. Determine: language/stack, available tools (test runners, linters, formatters, \
-audit tools), project type (app, library, service, monorepo)
-3. Design an improvement plan using the recommendations below as a starting point. \
-You may adapt them, combine them, or add your own strategies based on what you \
-discover about the project.
+This is a code review, not a test run. You're reading the code critically \
+as a senior developer joining the project. Think big: what would you change \
+in your first week to make this codebase meaningfully better?
+
+## Tasks
+1. Read the project: README, source structure, config files, public API surface
+2. Understand: what does this do? Who uses it? What's the interface \
+(CLI, library API, web UI, service)?
+3. Identify the most impactful improvements
 4. Write a GoalPlan JSON to `{output_path}`
 
 {methodologies}
 
-## Host Environment
+## Environment
 {environment}
 
-## Mandatory Constraints
+## Plan structure (3-6 stages)
 
-### Stage structure
-- Total stages: 3-6 (inclusive)
-- Stages that can run independently SHOULD share a `parallel_group` integer
-- Parallel stages MUST set `persist_changes` to false (they explore/test, \
-they do NOT modify source code)
-- Each testing/analysis stage must write findings to a separate file under \
-the run directory: `{run_dir}/findings-<slug>.md`
+Stages that can run independently should share a `parallel_group` integer. \
+Parallel stages don't modify code (`persist_changes` false). \
+Each analysis stage writes findings to `{run_dir}/findings-<slug>.md`.
 
-### Required final stages
-The plan MUST end with these two stages (adapt descriptions to the project):
+The plan must end with these two stages:
 
 **Triage & Verify** (second-to-last):
 {triage_description}
@@ -105,25 +105,24 @@ Write report to `{report_path}`:
 
 Commit auto-fixes: "chore: auto-fix issues found by kodo improve".
 
-### Findings format
-All analysis/testing stages must use this format:
+## Findings format
 
 {findings_format}
 
-### Time guidance
 {time_guidance}
 
-## JSON Output Format
-Write the file as valid JSON:
+## Output format
+
+Write valid JSON:
 
 {{
-  "context": "Shared context — discovered stack, key files, conventions, tools",
+  "context": "Stack, key files, conventions, project type",
   "stages": [
     {{
       "index": 1,
       "name": "Short label",
-      "description": "What this stage accomplishes — full prose for the agent",
-      "acceptance_criteria": "Verifiable definition of done",
+      "description": "What this stage does",
+      "acceptance_criteria": "Definition of done",
       "browser_testing": false,
       "parallel_group": null,
       "persist_changes": false
@@ -131,105 +130,60 @@ Write the file as valid JSON:
   ]
 }}
 
-IMPORTANT: This is non-interactive. Do NOT ask questions. Inspect the project, \
-make reasonable assumptions, and write the JSON file immediately."""
-
-
-# ---------------------------------------------------------------------------
-# Methodology library — reference material for discovery stage
-# ---------------------------------------------------------------------------
-
-def detect_docker() -> bool:
-    """Check whether docker is available on the host."""
-    return shutil.which("docker") is not None
+Non-interactive — inspect the project and write the plan."""
 
 
 METHODOLOGY_LIBRARY = """\
-## Recommended Methodologies
+## Approaches
 
-These are starting points — adapt, combine, or invent approaches that fit \
-the project. You are not limited to this list.
+Think like a senior developer reviewing the project for the first time. \
+What would you change to make it simpler, cleaner, and easier to use?
 
-### Test Tool Forge
-- **Test Infrastructure Audit**: Inventory the project's existing test tools — \
-fixtures, helpers, conftest plugins, test scripts, Docker test setups, \
-CI test jobs. Map what categories of bugs each tool can catch.
-- **Gap Analysis**: Identify the single highest-impact testing gap — a class of \
-bugs or failure modes that existing tools don't cover well. Consider: \
-integration contract violations, state machine invariants, configuration \
-drift, cross-module interaction bugs, data flow corruption, regression traps \
-in recently-changed code.
-- **Build or Enhance**: For mature projects with good test infrastructure, \
-prefer extending an existing tool to cover the gap (e.g. adding new test \
-cases to an existing module, enhancing a fixture, expanding a script's \
-scope). For projects with sparse testing, create a new reusable tool \
-(test module, script, conftest plugin, or fixture). Either way, the result \
-must be runnable standalone and produce clear pass/fail output.
-- **Immediate Application**: Run the new or enhanced tool against the codebase \
-and report any bugs discovered. These are findings that were previously \
-invisible or untested.
+### Simplification
+Look for code that could be simpler without losing functionality:
+- Abstractions that don't pay for themselves (wrapper classes that just \
+delegate, factory patterns with one product, config systems for three settings)
+- Duplicated logic that should be one function
+- Dead code paths, unused parameters, vestigial features
+- Indirection that obscures rather than clarifies
+- Code that reimplements something available in the standard library or \
+an existing dependency
 
-### Static Analysis & Baseline
-- **Lint & Type Check**: Run the project's configured linters and type checkers \
-(mypy, pyright, eslint, tsc --noEmit, clippy, golangci-lint, etc.)
-- **Dependency Audit**: Check for known vulnerabilities \
-(pip-audit, npm audit, cargo audit, govulncheck, bundler-audit)
-- **Dead Code / Unused Deps**: Find unused imports, unreachable code, \
-dependencies in manifests that nothing imports, use dedicated tools like vulture
+### Usability
+Review the public interface — whatever users or consumers interact with:
+- **For CLIs**: redundant flags, confusing flag names, missing defaults, \
+unclear help text, flags that could be inferred, inconsistent naming
+- **For libraries**: confusing API naming, too many required parameters, \
+missing convenience methods, poor error messages, implicit ordering requirements
+- **For services**: inconsistent endpoints, missing validation feedback, \
+confusing error responses
+- **For all**: is the README accurate? Can someone start using this from \
+the docs alone? Are error messages actionable?
 
-### Functional Testing
-- **Happy Path Integration**: Run 3-5 core user scenarios end-to-end with \
-realistic inputs. Mock or stub external services.
-- **Adversarial / Edge Cases**: Empty inputs, None/null, zero, huge values, \
-unicode, invalid configs, missing dependencies, wrong permissions
-- **Property-Based Testing**: Generate random inputs to find invariant \
-violations. Tools: Hypothesis (Python), fast-check (JS/TS), proptest (Rust), \
-gopter (Go), jqwik (Java/Kotlin). Write properties for pure functions and \
-data transformations.
-- **Concurrency Testing**: Race conditions, deadlocks, thread safety. Relevant \
-when the project uses async, threading, multiprocessing, or concurrent data \
-structures.
-- **Recent-Change Focus**: Use `git diff main...HEAD` or recent commits to \
-identify recently changed code and concentrate testing effort there.
+### Architecture
+Step back and look at the structure:
+- Module boundaries: do they match the domain, or are they historical accidents?
+- Dependency direction: do high-level modules depend on low-level details?
+- Circular dependencies, god modules, scattered responsibilities
+- Configuration: is it centralized or spread across the codebase?
 
-### Library / SDK-Specific
-- **API Surface Audit**: Naming consistency, type annotations, docstring \
-accuracy vs actual signatures, error/exception types
-- **Consumer Project Testing**: Install as a dependency in a temp dir, exercise \
-from a consumer's perspective. Can a developer start from the README alone?
-- **API Misuse Testing**: Wrong types, missing args, wrong call order, edge \
-values. Grade each error message: does it say what went wrong and how to fix it?
+### Dead weight
+Find things that should be removed:
+- Unused dependencies in the manifest
+- Unreachable code, commented-out code, TODO comments older than 6 months
+- Test infrastructure that tests nothing useful (mocked-to-death tests, \
+tests that assert implementation details)
+- Documentation that contradicts the code
 
-### Security
-- **Input Validation**: SQL injection, path traversal, command injection, XSS \
-at system boundaries (user input, external APIs, file uploads)
-- **Secret Scanning**: Hardcoded credentials, API keys, tokens in source or \
-config files
-- **Permission / Auth Boundaries**: Verify access controls, privilege \
-escalation paths (relevant for web apps, APIs with auth)
+### Security (lightweight)
+Scan system boundaries — not a full security audit, just obvious issues:
+- Hardcoded secrets, credentials in source
+- SQL injection, command injection, path traversal at input boundaries
+- Missing input validation on external data
 
-### Performance & Resources
-- **Resource Leak Detection**: Unclosed files, DB connections, HTTP clients \
-without context managers / defer / try-with-resources
-- **Hot Path Profiling**: N+1 queries, unbounded loops, quadratic algorithms \
-in hot paths
-
-### Isolated Environment Testing
-- **Docker-Based Testing**: Build and run the project inside a container to \
-test in a clean environment — catches missing dependencies, implicit host \
-assumptions, and install/build issues. Especially useful for projects with \
-a Dockerfile or docker-compose setup.
-
-### Architecture & Simplification
-- **Unnecessary Complexity**: Code that could be simpler without losing \
-functionality. Abstractions that don't pay for themselves, indirection \
-that obscures rather than clarifies, dead code paths.
-- **Structural Issues**: Poor module boundaries, circular dependencies, \
-responsibilities in the wrong place.
-
-### Infrastructure
-- **Dockerfile Review**: Multi-stage builds, security (running as root, \
-secrets in layers), layer optimization
-- **CI/CD Config Audit**: Pipeline correctness, missing steps, caching, \
-flaky test handling
-"""
+### Performance (lightweight)
+Only flag things that are clearly wasteful:
+- Quadratic algorithms on potentially large inputs
+- Resource leaks (unclosed files, connections, clients)
+- N+1 query patterns
+- Unnecessary I/O in hot paths"""

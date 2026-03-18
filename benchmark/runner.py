@@ -88,10 +88,12 @@ def run_benchmark(
         completed = _load_completed(run_dir)
         # Mark everything not assigned as "completed" to skip it
         all_pairs = {(t.instance_id, arm) for t in tasks for arm in arms}
-        completed |= (all_pairs - assigned_set)
+        completed |= all_pairs - assigned_set
     else:
         # Normal mode: skip globally completed + current run
-        completed = _load_global_completed(workspace, exclude_run_dir=run_dir, seed=seed)
+        completed = _load_global_completed(
+            workspace, exclude_run_dir=run_dir, seed=seed
+        )
         completed |= _load_completed(run_dir)
 
     total = len(tasks) * len(arms)
@@ -100,7 +102,11 @@ def run_benchmark(
     log.info("─── Benchmark %s ───", run_id)
     log.info("  Tasks:   %d (%d remaining)", len(tasks), remaining)
     log.info("  Agents:  %s", ", ".join(arms))
-    log.info("  Timeout: %s per task (%s for kodo)", fmt_duration(timeout), fmt_duration(timeout_kodo))
+    log.info(
+        "  Timeout: %s per task (%s for kodo)",
+        fmt_duration(timeout),
+        fmt_duration(timeout_kodo),
+    )
     if remaining < total:
         log.info("  Skipped: %d already completed", len(completed))
 
@@ -108,9 +114,30 @@ def run_benchmark(
 
     try:
         if parallel > 1:
-            _run_parallel(tasks, arms, workspace, run_dir, timeout, timeout_kodo, parallel, completed, dataset, seed)
+            _run_parallel(
+                tasks,
+                arms,
+                workspace,
+                run_dir,
+                timeout,
+                timeout_kodo,
+                parallel,
+                completed,
+                dataset,
+                seed,
+            )
         else:
-            _run_sequential(tasks, arms, workspace, run_dir, timeout, timeout_kodo, completed, dataset, seed)
+            _run_sequential(
+                tasks,
+                arms,
+                workspace,
+                run_dir,
+                timeout,
+                timeout_kodo,
+                completed,
+                dataset,
+                seed,
+            )
     except BenchmarkInterrupted:
         raise  # let caller handle summary
 
@@ -119,6 +146,7 @@ def run_benchmark(
 
 class BenchmarkInterrupted(Exception):
     """Raised when the user cancels a benchmark run."""
+
     def __init__(self, completed_count: int = 0):
         self.completed_count = completed_count
 
@@ -144,19 +172,23 @@ def _run_sequential(
                 continue
             try:
                 t = _timeout_for_arm(arm, timeout, timeout_kodo)
-                log.info("  ▸ %s | %s",
-                         short_iid(task.instance_id), arm)
+                log.info("  ▸ %s | %s", short_iid(task.instance_id), arm)
                 result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
                 _upload_task_online(result, run_dir.name, dataset, workspace)
                 completed.add((task.instance_id, arm))
                 newly_completed += 1
-                log.info("[%d/%d] %s | %s | %s (%s, %s patch)",
-                         newly_completed, total_work,
-                         short_iid(task.instance_id), arm,
-                         result.status, fmt_duration(int(result.elapsed_s)),
-                         _fmt_size(len(result.patch)))
+                log.info(
+                    "[%d/%d] %s | %s | %s (%s, %s patch)",
+                    newly_completed,
+                    total_work,
+                    short_iid(task.instance_id),
+                    arm,
+                    result.status,
+                    fmt_duration(int(result.elapsed_s)),
+                    _fmt_size(len(result.patch)),
+                )
             except KeyboardInterrupt:
                 raise BenchmarkInterrupted(newly_completed)
 
@@ -187,7 +219,14 @@ def _run_parallel(
     with ThreadPoolExecutor(max_workers=parallel) as pool:
         futures = {}
         for task, arm in work:
-            f = pool.submit(_safe_run, task, arm, workspace, _timeout_for_arm(arm, timeout, timeout_kodo), run_dir)
+            f = pool.submit(
+                _safe_run,
+                task,
+                arm,
+                workspace,
+                _timeout_for_arm(arm, timeout, timeout_kodo),
+                run_dir,
+            )
             futures[f] = (task, arm)
             log.info("  ▸ %s | %s", short_iid(task.instance_id), arm)
         try:
@@ -198,18 +237,26 @@ def _run_parallel(
                 _append_prediction(run_dir, result)
                 _upload_task_online(result, run_dir.name, dataset, workspace)
                 newly_completed += 1
-                log.info("[%d/%d] %s | %s | %s (%s, %s patch)",
-                         newly_completed, total_work,
-                         short_iid(task.instance_id), arm,
-                         result.status, fmt_duration(int(result.elapsed_s)),
-                         _fmt_size(len(result.patch)))
+                log.info(
+                    "[%d/%d] %s | %s | %s (%s, %s patch)",
+                    newly_completed,
+                    total_work,
+                    short_iid(task.instance_id),
+                    arm,
+                    result.status,
+                    fmt_duration(int(result.elapsed_s)),
+                    _fmt_size(len(result.patch)),
+                )
         except KeyboardInterrupt:
             pool.shutdown(wait=False, cancel_futures=True)
             raise BenchmarkInterrupted(newly_completed)
 
 
 def _safe_run(
-    task: SWETask, arm: str, workspace: Path, timeout: int,
+    task: SWETask,
+    arm: str,
+    workspace: Path,
+    timeout: int,
     run_dir: Path | None = None,
 ) -> TaskResult:
     """Run a single task, catching all exceptions."""
@@ -227,7 +274,10 @@ def _safe_run(
 
 
 def _run_single_task(
-    task: SWETask, arm: str, workspace: Path, timeout: int,
+    task: SWETask,
+    arm: str,
+    workspace: Path,
+    timeout: int,
     run_dir: Path | None = None,
 ) -> TaskResult:
     repo_dir = _prepare_repo(task, workspace, arm)
@@ -235,15 +285,25 @@ def _run_single_task(
 
     base, team = parse_arm(arm)
     if base == "kodo":
-        agent_output, status, error, raw_stdout, raw_stderr = _run_kodo(task, repo_dir, timeout, team=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_kodo(
+            task, repo_dir, timeout, team=team
+        )
     elif base == "claude":
-        agent_output, status, error, raw_stdout, raw_stderr = _run_claude(task, repo_dir, timeout, model=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_claude(
+            task, repo_dir, timeout, model=team
+        )
     elif base == "cursor":
-        agent_output, status, error, raw_stdout, raw_stderr = _run_cursor(task, repo_dir, timeout)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_cursor(
+            task, repo_dir, timeout
+        )
     elif base == "codex":
-        agent_output, status, error, raw_stdout, raw_stderr = _run_codex(task, repo_dir, timeout, model=team)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_codex(
+            task, repo_dir, timeout, model=team
+        )
     elif base == "gemini":
-        agent_output, status, error, raw_stdout, raw_stderr = _run_gemini(task, repo_dir, timeout)
+        agent_output, status, error, raw_stdout, raw_stderr = _run_gemini(
+            task, repo_dir, timeout
+        )
     else:
         raise ValueError(f"Unknown arm: {arm}")
 
@@ -352,7 +412,9 @@ def _run_kodo(
     if team and "+" in team:
         team, orch_model = team.rsplit("+", 1)
     cmd = [
-        "uv", "run", "kodo",
+        "uv",
+        "run",
+        "kodo",
         "--goal",
         prompt,
         "--skip-intake",
@@ -366,7 +428,9 @@ def _run_kodo(
         cmd.extend(["--team", team])
     if orch_model:
         cmd.extend(["--orchestrator", orch_model])
-    return _run_subprocess(cmd, cwd=None, timeout=timeout, keep_api_key=bool(orch_model))
+    return _run_subprocess(
+        cmd, cwd=None, timeout=timeout, keep_api_key=bool(orch_model)
+    )
 
 
 def _run_claude(
@@ -418,7 +482,8 @@ def _run_codex(
         "exec",
         "--full-auto",
         "--json",
-        "-m", model or "gpt-5.4",
+        "-m",
+        model or "gpt-5.4",
     ]
     cmd.append(prompt)
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)
@@ -451,13 +516,20 @@ def _clean_env(*, keep_api_key: bool = False) -> dict[str, str]:
 
 
 def _run_subprocess(
-    cmd: list[str], cwd: Path | None, timeout: int,
-    *, keep_api_key: bool = False,
+    cmd: list[str],
+    cwd: Path | None,
+    timeout: int,
+    *,
+    keep_api_key: bool = False,
 ) -> tuple[dict, str, str, str, str]:
     """Run a subprocess and return (parsed_output, status, error, raw_stdout, raw_stderr)."""
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd,
             env=_clean_env(keep_api_key=keep_api_key),
         )
         output = _parse_json_output(proc.stdout)
@@ -497,11 +569,9 @@ def _save_logs(
         log_dir.mkdir(parents=True, exist_ok=True)
 
         if raw_stdout:
-            (log_dir / "stdout.log.gz").write_bytes(
-                gzip.compress(raw_stdout.encode()))
+            (log_dir / "stdout.log.gz").write_bytes(gzip.compress(raw_stdout.encode()))
         if raw_stderr:
-            (log_dir / "stderr.log.gz").write_bytes(
-                gzip.compress(raw_stderr.encode()))
+            (log_dir / "stderr.log.gz").write_bytes(gzip.compress(raw_stderr.encode()))
 
         # For kodo runs, copy the latest run trace
         base, _ = parse_arm(arm)
@@ -509,11 +579,12 @@ def _save_logs(
             kodo_runs = repo_dir / ".kodo" / "runs"
             if kodo_runs.is_dir():
                 # Find the latest log.jsonl across all run subdirectories
-                traces = sorted(kodo_runs.glob("*/log.jsonl"), key=lambda p: p.stat().st_mtime)
+                traces = sorted(
+                    kodo_runs.glob("*/log.jsonl"), key=lambda p: p.stat().st_mtime
+                )
                 if traces:
                     data = traces[-1].read_bytes()
-                    (log_dir / "kodo_trace.jsonl.gz").write_bytes(
-                        gzip.compress(data))
+                    (log_dir / "kodo_trace.jsonl.gz").write_bytes(gzip.compress(data))
     except Exception:
         pass  # Best-effort: never fail the task over log capture
 
@@ -526,7 +597,9 @@ def _capture_diff(repo_dir: Path, base_commit: str) -> str:
     # Mixed reset to base_commit: collapses any worker commits back to working tree
     subprocess.run(
         ["git", "reset", base_commit],
-        cwd=str(repo_dir), capture_output=True, timeout=30,
+        cwd=str(repo_dir),
+        capture_output=True,
+        timeout=30,
     )
     # Stage everything so we catch new files too
     subprocess.run(
@@ -577,8 +650,9 @@ def _append_result(run_dir: Path, result: TaskResult, *, seed: int = 0) -> None:
             f.flush()
             os.fsync(f.fileno())
     except OSError as exc:
-        log.warning("Failed to write result for %s/%s: %s",
-                    result.instance_id, result.arm, exc)
+        log.warning(
+            "Failed to write result for %s/%s: %s", result.instance_id, result.arm, exc
+        )
 
 
 def _append_prediction(run_dir: Path, result: TaskResult) -> None:
@@ -596,12 +670,18 @@ def _append_prediction(run_dir: Path, result: TaskResult) -> None:
             f.flush()
             os.fsync(f.fileno())
     except OSError as exc:
-        log.warning("Failed to write prediction for %s/%s: %s",
-                    result.instance_id, result.arm, exc)
+        log.warning(
+            "Failed to write prediction for %s/%s: %s",
+            result.instance_id,
+            result.arm,
+            exc,
+        )
 
 
 def _load_global_completed(
-    workspace: Path, exclude_run_dir: Path | None = None, seed: int = 0,
+    workspace: Path,
+    exclude_run_dir: Path | None = None,
+    seed: int = 0,
 ) -> set[tuple[str, str]]:
     """Load completed (instance_id, arm) pairs from all prior runs.
 
@@ -655,12 +735,18 @@ def _load_completed(run_dir: Path) -> set[tuple[str, str]]:
 
 
 def _save_run_meta(
-    run_dir: Path, tasks: list[SWETask], arms: list[str], timeout: int,
-    *, dataset: str = "", seed: int = 0,
+    run_dir: Path,
+    tasks: list[SWETask],
+    arms: list[str],
+    timeout: int,
+    *,
+    dataset: str = "",
+    seed: int = 0,
 ) -> None:
     meta_file = run_dir / "meta.json"
     if not meta_file.exists():
         from kodo import __version__ as kodo_version
+
         meta = {
             "kodo_version": kodo_version,
             "task_count": len(tasks),
@@ -677,7 +763,10 @@ def _save_run_meta(
 
 
 def _upload_task_online(
-    result: TaskResult, run_id: str, dataset: str, workspace: Path,
+    result: TaskResult,
+    run_id: str,
+    dataset: str,
+    workspace: Path,
 ) -> None:
     """Best-effort upload of a single task result to the online store.
 
@@ -710,7 +799,11 @@ _upload_warned = False
 
 
 def _upload_run_online(
-    run_id: str, tasks: list[SWETask], arms: list[str], timeout: int, dataset: str,
+    run_id: str,
+    tasks: list[SWETask],
+    arms: list[str],
+    timeout: int,
+    dataset: str,
 ) -> None:
     """Best-effort registration of a benchmark run.
 
@@ -722,8 +815,10 @@ def _upload_run_online(
 
         if not is_configured():
             if not _upload_warned:
-                log.warning("Online uploads disabled (KODO_BENCH_URL / KODO_BENCH_TOKEN not set). "
-                            "Use --upload-pending later to upload results.")
+                log.warning(
+                    "Online uploads disabled (KODO_BENCH_URL / KODO_BENCH_TOKEN not set). "
+                    "Use --upload-pending later to upload results."
+                )
                 _upload_warned = True
             return
 

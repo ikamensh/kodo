@@ -187,7 +187,11 @@ def test_cycle_aborts_when_all_workers_fatal(tmp_path: Path):
         self.run_sync = fake_run_sync
 
     with (
-        patch("kodo.orchestrators.api.Agent.__init__", autospec=True, side_effect=fake_agent_init),
+        patch(
+            "kodo.orchestrators.api.Agent.__init__",
+            autospec=True,
+            side_effect=fake_agent_init,
+        ),
         patch.object(ApiOrchestrator, "_summarize", return_value="summary"),
     ):
         orch = ApiOrchestrator(model="claude-opus-4-6")

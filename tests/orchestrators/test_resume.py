@@ -200,7 +200,11 @@ class TestInjectResumeSessions:
         inject_resume_sessions(team, None)
         # No exception, no attribute set — just a no-op
 
-    @patch("kodo.sessions.claude.ClaudeSession.__init__", autospec=True, side_effect=lambda self, **kw: None)
+    @patch(
+        "kodo.sessions.claude.ClaudeSession.__init__",
+        autospec=True,
+        side_effect=lambda self, **kw: None,
+    )
     def test_claude_session_sets_resume_session_id(self, _mock_init):
         from kodo.orchestrators.resume import inject_resume_sessions
         from kodo.sessions.claude import ClaudeSession

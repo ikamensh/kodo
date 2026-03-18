@@ -41,7 +41,9 @@ EXIT_PARTIAL = 2
 
 
 def _try_auto_fix_team(
-    team_name: str, project_dir: Path, exc: Exception,
+    team_name: str,
+    project_dir: Path,
+    exc: Exception,
 ) -> tuple[dict, str, dict | None]:
     """Offer to run 'kodo teams auto' when team build fails."""
     print(f"\n  Team {team_name!r} could not be built: {exc}", file=sys.stderr)
@@ -72,6 +74,7 @@ def _try_auto_fix_team(
 
     team = team_preset.build_team()
     return team, team_preset.system_prompt, None
+
 
 def _build_team_from_config(
     team_config: dict | None,
@@ -134,7 +137,7 @@ def _build_advisor(params: dict):
     """Create an Advisor for adaptive planning, or None if no API key."""
     import os
 
-    from kodo.models import GEMINI_API_FLASH, PYDANTIC_MODEL_MAP, resolve_model
+    from kodo.models import GEMINI_API_FLASH, resolve_model
 
     # Prefer Gemini Flash (cheapest)
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
@@ -195,13 +198,25 @@ def _cancel(msg: str = "Cancelled.") -> NoReturn:
     _fail(msg, prefix="")
 
 
-def _emit_json_and_exit(args, result, improve_report: str | None = None) -> None:
+def _emit_json_and_exit(
+    args,
+    result,
+    improve_report: str | None = None,
+    test_report: str | None = None,
+) -> None:
     """If --json, emit result JSON to stdout and exit. Otherwise no-op."""
     if not args.json:
         return
     sys.stdout = _original_stdout
     print(
-        json.dumps(_format_json_output(result, improve_report=improve_report), indent=2),
+        json.dumps(
+            _format_json_output(
+                result,
+                improve_report=improve_report,
+                test_report=test_report,
+            ),
+            indent=2,
+        ),
     )
     sys.exit(EXIT_SUCCESS if result.finished else EXIT_PARTIAL)
 
@@ -210,6 +225,7 @@ def _format_json_output(
     result: RunResult | None = None,
     error: str | None = None,
     improve_report: str | None = None,
+    test_report: str | None = None,
 ) -> dict:
     """Build the structured JSON output dict."""
     if error is not None:
@@ -247,6 +263,9 @@ def _format_json_output(
     if improve_report is not None:
         output["improve_report"] = improve_report
 
+    if test_report is not None:
+        output["test_report"] = test_report
+
     return output
 
 
@@ -272,7 +291,8 @@ def launch_run(
 
     log_path = log.init(run_dir)
     log.emit(
-        "cli_args", **params,
+        "cli_args",
+        **params,
         goal_text=goal_text,
         project_dir=str(run_dir.project_dir),
         has_plan=plan is not None,
@@ -296,7 +316,9 @@ def launch_run(
         team, debug_sessions = build_debug_team(params["team"])
         system_prompt = team_preset.system_prompt
         orchestrator, orch_session = build_mock_orchestrator(
-            orch_letter, team, system_prompt=system_prompt,
+            orch_letter,
+            team,
+            system_prompt=system_prompt,
         )
         debug_sessions["orchestrator"] = orch_session
 
@@ -322,13 +344,17 @@ def launch_run(
         except (ValueError, KeyError, OSError) as exc:
             _fail(f"Invalid team config: {exc}")
         team, system_prompt, verifiers = _build_team_from_config(
-            team_config, team_preset, params["team"], project_dir,
+            team_config,
+            team_preset,
+            params["team"],
+            project_dir,
         )
 
         # Apply effort-level supplement to orchestrator system prompt
         effort = params.get("effort", "standard")
         if effort != "standard":
             from kodo.prompts.roles import build_orchestrator_prompt
+
             system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
 
         # Propagate effort to worker sessions that support it (e.g. Claude SDK)
@@ -481,7 +507,10 @@ def _print_debug_summary(debug_sessions: dict) -> None:
 
 
 def launch_resume(
-    run_dir: RunDir, state: log.RunState, *, team_override: str | None = None,
+    run_dir: RunDir,
+    state: log.RunState,
+    *,
+    team_override: str | None = None,
 ) -> RunResult:
     """Resume an interrupted run from its parsed RunState. Returns the RunResult."""
     log.init_append(state.log_file)
@@ -531,9 +560,7 @@ def launch_resume(
             params["team"],
         )
         if _original_stdout is None:
-            print(
-                f"  Warning: team {params['team']!r} no longer exists, using 'full'."
-            )
+            print(f"  Warning: team {params['team']!r} no longer exists, using 'full'.")
         params["team"] = "full"
         team_preset = get_team("full")
     verifiers = None
@@ -568,13 +595,17 @@ def launch_resume(
             team_config = None
 
     team, system_prompt, verifiers = _build_team_from_config(
-        team_config, team_preset, params["team"], project_dir,
+        team_config,
+        team_preset,
+        params["team"],
+        project_dir,
     )
 
     # Apply effort-level adjustments (same as launch_run)
     effort = params.get("effort", "standard")
     if effort != "standard":
         from kodo.prompts.roles import build_orchestrator_prompt
+
         system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
     _apply_effort_to_team(team, effort)
 
@@ -623,7 +654,9 @@ def launch_resume(
         print(f"Log: {state.log_file}")
         print()
 
-    auto_commit = _resolve_auto_commit(params, project_dir, quiet=_original_stdout is not None)
+    auto_commit = _resolve_auto_commit(
+        params, project_dir, quiet=_original_stdout is not None
+    )
     effort = params.get("effort", "standard")
 
     # Create fresh advisor for adaptive planning on resume

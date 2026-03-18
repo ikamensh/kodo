@@ -149,8 +149,11 @@ class RunStats:
         to avoid ``RuntimeError: dictionary changed size during iteration``.
         """
         with _lock:
-            return copy.deepcopy(self.agents), self.orchestrator_cost_usd, self.orchestrator_bucket
-
+            return (
+                copy.deepcopy(self.agents),
+                self.orchestrator_cost_usd,
+                self.orchestrator_bucket,
+            )
 
 
 _run_stats = RunStats()
@@ -208,7 +211,13 @@ def init(run_dir: RunDir) -> Path:
     Safe to call multiple times for the same run — only resets on the first
     call or when the run_id changes.
     """
-    global _log_file, _run_id, _start_time, _run_stats, _virtual_cost_note_shown, _last_table_time
+    global \
+        _log_file, \
+        _run_id, \
+        _start_time, \
+        _run_stats, \
+        _virtual_cost_note_shown, \
+        _last_table_time
 
     from kodo import __version__
 
@@ -270,7 +279,9 @@ def emit(event: str, **data: Any) -> None:
             pass  # best-effort logging; don't crash on write failure
 
 
-def save_conversation(agent_name: str, query_index: int, messages: list[dict]) -> str | None:
+def save_conversation(
+    agent_name: str, query_index: int, messages: list[dict]
+) -> str | None:
     """Save full conversation messages to a gzip file alongside the run log.
 
     Returns the filename (relative to run dir) or None if logging is not active.

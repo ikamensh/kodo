@@ -86,6 +86,7 @@ class TestApiSessionQuery:
     @patch("kodo.knowledge.sessions.run_in_thread", autospec=True)
     def test_query_unexpected_model_behavior(self, mock_run_in_thread, tmp_path):
         """Test that UnexpectedModelBehavior is treated as partial success."""
+
         # Create exception with UnexpectedModelBehavior in name
         class UnexpectedModelBehavior(Exception):
             pass

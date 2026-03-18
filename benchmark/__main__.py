@@ -14,12 +14,14 @@ from __future__ import annotations
 # Suppress noisy urllib3/chardet version mismatch warning from requests
 # (triggered transitively via datasets/swebench imports).
 import warnings
+
 warnings.filterwarnings(
     "ignore",
     message=r"urllib3.*doesn't match a supported version",
 )
 
 from dotenv import find_dotenv, load_dotenv
+
 load_dotenv(find_dotenv(usecwd=True))
 
 import argparse
@@ -105,7 +107,9 @@ def main() -> int:
         "--parallel", type=int, default=1, help="Concurrent tasks (default: 1)"
     )
     parser.add_argument(
-        "--seed", type=int, default=0,
+        "--seed",
+        type=int,
+        default=0,
         help="Seed for deduplication. Same task+arm+seed won't re-run. "
         "Use different seeds to get multiple runs of the same tasks (default: 0).",
     )
@@ -260,7 +264,7 @@ def main() -> int:
     import json
 
     from benchmark.runner import BenchmarkInterrupted, run_benchmark
-    from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
+    from benchmark.tasks import DATASET_MAP, load_tasks
 
     # Resolve dataset and instance_ids from --subset if provided
     instance_ids = args.instance_ids
@@ -331,8 +335,11 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
         for t in ds_tasks:
             all_tasks[t.instance_id] = t
     total_tasks = sum(len(v) for v in all_datasets.values())
-    log.info("Task pool: %d tasks (%s)",
-             total_tasks, ", ".join(f"{k}: {len(v)}" for k, v in all_datasets.items()))
+    log.info(
+        "Task pool: %d tasks (%s)",
+        total_tasks,
+        ", ".join(f"{k}: {len(v)}" for k, v in all_datasets.items()),
+    )
 
     batch_size = args.limit or 20
     total_completed = 0
@@ -346,8 +353,11 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
                     limit=batch_size,
                 )
             except Exception as exc:
-                log.error("Failed to get assignments from %s: %s",
-                          os.environ.get("KODO_BENCH_URL", "(not set)"), exc)
+                log.error(
+                    "Failed to get assignments from %s: %s",
+                    os.environ.get("KODO_BENCH_URL", "(not set)"),
+                    exc,
+                )
                 return 1 if total_completed == 0 else 0
 
             if not assignments:
@@ -363,8 +373,13 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
             ds_keys = {a.get("dataset", "pro") for a in assignments}
             dataset = DATASET_MAP.get(next(iter(ds_keys)), DATASET_PRO)
             unique_tasks = len({a["instance_id"] for a in assignments})
-            log.info("Received %d tasks x %d agents (%s) from %s",
-                     unique_tasks, len(arms), ", ".join(arms), "/".join(ds_keys))
+            log.info(
+                "Received %d tasks x %d agents (%s) from %s",
+                unique_tasks,
+                len(arms),
+                ", ".join(arms),
+                "/".join(ds_keys),
+            )
 
             run_benchmark(
                 tasks=tasks,
@@ -379,8 +394,9 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
                 assignments=assignments,
             )
             total_completed += len(assignments)
-            log.info("Batch done. %d completed so far, polling for more...",
-                     total_completed)
+            log.info(
+                "Batch done. %d completed so far, polling for more...", total_completed
+            )
     except (KeyboardInterrupt, BenchmarkInterrupted) as exc:
         n = exc.completed_count if isinstance(exc, BenchmarkInterrupted) else 0
         return _print_interrupted(total_completed + n)
@@ -390,7 +406,10 @@ def _print_interrupted(completed: int) -> int:
     """Print a clean summary on Ctrl+C."""
     print()  # newline after ^C
     if completed > 1:
-        log.info("Interrupted. %d tasks completed and uploaded. Thanks for contributing!", completed)
+        log.info(
+            "Interrupted. %d tasks completed and uploaded. Thanks for contributing!",
+            completed,
+        )
     elif completed == 1:
         log.info("Interrupted. 1 task completed and uploaded.")
     else:

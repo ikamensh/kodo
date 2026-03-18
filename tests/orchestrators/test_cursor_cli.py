@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from kodo.orchestrators.cursor_cli import CursorOrchestrator
 
@@ -26,13 +25,25 @@ def _base_patches(done_signal):
 
     with (
         patch(
-            "kodo.orchestrators.cli_base.build_mcp_server", autospec=True, return_value=mock_mcp
+            "kodo.orchestrators.cli_base.build_mcp_server",
+            autospec=True,
+            return_value=mock_mcp,
         ),
         patch(
-            "kodo.orchestrators.cli_base.McpServerContext", autospec=True, return_value=mock_ctx
+            "kodo.orchestrators.cli_base.McpServerContext",
+            autospec=True,
+            return_value=mock_ctx,
         ),
-        patch("kodo.orchestrators.cli_base.build_cycle_prompt", autospec=True, return_value="go"),
-        patch("kodo.orchestrators.cli_base.DoneSignal", autospec=True, return_value=done_signal),
+        patch(
+            "kodo.orchestrators.cli_base.build_cycle_prompt",
+            autospec=True,
+            return_value="go",
+        ),
+        patch(
+            "kodo.orchestrators.cli_base.DoneSignal",
+            autospec=True,
+            return_value=done_signal,
+        ),
         patch("kodo.orchestrators.cli_base.VerificationState", autospec=True),
         patch("kodo.orchestrators.cli_base.log", autospec=True),
         patch("kodo.orchestrators.cursor_cli.log", autospec=True),
@@ -44,8 +55,10 @@ def _make_popen(stdout_lines, returncode=0, stderr_text=""):
     """Build a mock Popen that yields stdout_lines as stream-json."""
     mock_proc = MagicMock()
     mock_proc.stdout = iter(
-        [json.dumps(line) + "\n" if isinstance(line, dict) else line + "\n"
-         for line in stdout_lines]
+        [
+            json.dumps(line) + "\n" if isinstance(line, dict) else line + "\n"
+            for line in stdout_lines
+        ]
     )
     mock_proc.stderr = MagicMock()
     mock_proc.stderr.read.return_value = stderr_text
@@ -65,16 +78,26 @@ def _make_orch():
 class TestCursorStreamParsing:
     def test_tool_use_increments_exchanges(self, tmp_path: Path):
         """Each tool_use message increments exchange counter."""
-        done = MagicMock(called=True, success=True, summary="done", terminal="goal_done")
-        proc = _make_popen([
-            {"type": "tool_use"},
-            {"type": "tool_use"},
-            {"type": "result", "result": "final answer"},
-        ])
+        done = MagicMock(
+            called=True, success=True, summary="done", terminal="goal_done"
+        )
+        proc = _make_popen(
+            [
+                {"type": "tool_use"},
+                {"type": "tool_use"},
+                {"type": "result", "result": "final answer"},
+            ]
+        )
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert result.exchanges >= 2
@@ -82,14 +105,22 @@ class TestCursorStreamParsing:
     def test_result_type_captures_text(self, tmp_path: Path):
         """Result message captures the result text."""
         done = MagicMock(called=False, summary="", terminal=None, success=False)
-        proc = _make_popen([
-            {"type": "tool_use"},
-            {"type": "result", "result": "Here is your answer"},
-        ])
+        proc = _make_popen(
+            [
+                {"type": "tool_use"},
+                {"type": "result", "result": "Here is your answer"},
+            ]
+        )
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert "Here is your answer" in result.summary
@@ -97,14 +128,22 @@ class TestCursorStreamParsing:
     def test_malformed_json_skipped(self, tmp_path: Path):
         """Non-JSON lines are silently skipped."""
         done = MagicMock(called=False, summary="", terminal=None, success=False)
-        proc = _make_popen([
-            "garbage line",
-            {"type": "result", "result": "ok"},
-        ])
+        proc = _make_popen(
+            [
+                "garbage line",
+                {"type": "result", "result": "ok"},
+            ]
+        )
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert "ok" in result.summary
@@ -116,7 +155,9 @@ class TestCursorStreamParsing:
 class TestCursorMcpConfig:
     def test_creates_mcp_config(self, tmp_path: Path):
         """MCP config is written to .cursor/mcp.json before subprocess."""
-        done = MagicMock(called=True, success=True, summary="done", terminal="goal_done")
+        done = MagicMock(
+            called=True, success=True, summary="done", terminal="goal_done"
+        )
         proc = _make_popen([{"type": "result", "result": "ok"}])
         config_path = tmp_path / ".cursor" / "mcp.json"
 
@@ -135,7 +176,10 @@ class TestCursorMcpConfig:
             patch.object(Path, "write_text", capture_write),
         ):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         # At least one write should contain kodo_team
@@ -143,7 +187,9 @@ class TestCursorMcpConfig:
 
     def test_preserves_existing_mcp_config(self, tmp_path: Path):
         """Existing .cursor/mcp.json content is restored after cycle."""
-        done = MagicMock(called=True, success=True, summary="done", terminal="goal_done")
+        done = MagicMock(
+            called=True, success=True, summary="done", terminal="goal_done"
+        )
         proc = _make_popen([{"type": "result", "result": "ok"}])
 
         cursor_dir = tmp_path / ".cursor"
@@ -152,9 +198,15 @@ class TestCursorMcpConfig:
         original = json.dumps({"mcpServers": {"other": {"url": "http://other"}}})
         config_path.write_text(original)
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         # After cycle, original config should be restored
@@ -163,12 +215,20 @@ class TestCursorMcpConfig:
 
     def test_cleans_up_created_config(self, tmp_path: Path):
         """If no .cursor/mcp.json existed, kodo_team entry is removed after."""
-        done = MagicMock(called=True, success=True, summary="done", terminal="goal_done")
+        done = MagicMock(
+            called=True, success=True, summary="done", terminal="goal_done"
+        )
         proc = _make_popen([{"type": "result", "result": "ok"}])
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         config_path = tmp_path / ".cursor" / "mcp.json"
@@ -186,9 +246,15 @@ class TestCursorErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=1, stderr_text="connection refused")
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert "connection refused" in result.summary
@@ -198,9 +264,15 @@ class TestCursorErrors:
         done = MagicMock(called=False, summary="", terminal=None, success=False)
         proc = _make_popen([], returncode=7, stderr_text="")
 
-        with _base_patches(done), patch("subprocess.Popen", autospec=True, return_value=proc):
+        with (
+            _base_patches(done),
+            patch("subprocess.Popen", autospec=True, return_value=proc),
+        ):
             result = _make_orch().cycle(
-                goal="test", project_dir=tmp_path, team=MagicMock(spec=dict), max_exchanges=5,
+                goal="test",
+                project_dir=tmp_path,
+                team=MagicMock(spec=dict),
+                max_exchanges=5,
             )
 
         assert "7" in result.summary
@@ -212,6 +284,7 @@ class TestCursorErrors:
 class TestCursorConstruction:
     def test_default_model(self):
         from kodo.models import CURSOR_COMPOSER
+
         orch = CursorOrchestrator()
         assert orch.model == CURSOR_COMPOSER
         assert orch._orchestrator_name == "cursor"

@@ -95,7 +95,11 @@ class OrchestratorBase:
             result.summary = f"[Cycle ended:{tag} No summary available — check logs.]"
 
     def _cycle_epilogue(
-        self, result: CycleResult, *, cost_bucket: str, context: str = "",
+        self,
+        result: CycleResult,
+        *,
+        cost_bucket: str,
+        context: str = "",
     ) -> CycleResult:
         """Shared cycle teardown: fallback summary, cycle_end log, clear summarizer."""
         from kodo import log
@@ -177,7 +181,9 @@ class OrchestratorBase:
             run_config = config
         else:
             run_config = CycleConfig(
-                verifiers=verifiers, auto_commit=auto_commit, effort=effort,
+                verifiers=verifiers,
+                auto_commit=auto_commit,
+                effort=effort,
             )
 
         _run_error: BaseException | None = None
@@ -232,8 +238,11 @@ class OrchestratorBase:
                 total_exchanges=result.total_exchanges,
                 summary=result.summary,
                 stages_completed=len(result.stage_results),
-                **({"error": f"{type(_run_error).__name__}: {_run_error}"}
-                   if _run_error is not None else {}),
+                **(
+                    {"error": f"{type(_run_error).__name__}: {_run_error}"}
+                    if _run_error is not None
+                    else {}
+                ),
             )
 
             # Best-effort trace upload (gated behind KODO_TRACE_UPLOAD env var)
@@ -241,6 +250,7 @@ class OrchestratorBase:
             if log_file and log_file.exists():
                 try:
                     from kodo.trace_upload import upload_trace
+
                     upload_trace(
                         run_id=log_file.parent.name,
                         run_dir=log_file.parent,
@@ -280,8 +290,10 @@ class OrchestratorBase:
 
         for i in range(start_cycle, max_cycles + 1):
             write_run_status(
-                project_dir, goal,
-                cycle_num=i, max_cycles=max_cycles,
+                project_dir,
+                goal,
+                cycle_num=i,
+                max_cycles=max_cycles,
             )
             if i > 1:
                 print()
@@ -364,9 +376,11 @@ class OrchestratorBase:
             cycles_used += 1
 
             write_run_status(
-                project_dir, stage_goal,
+                project_dir,
+                stage_goal,
                 stage_label=f"{stage.index}/{len(plan.stages)}: {stage.name}",
-                cycle_num=cycles_used, max_cycles=max_cycles_for_stage,
+                cycle_num=cycles_used,
+                max_cycles=max_cycles_for_stage,
             )
 
             print()
@@ -467,7 +481,10 @@ class OrchestratorBase:
         while remaining_cycles > 0 and completed_count < advisor.max_stages:
             try:
                 decision = advisor.assess(
-                    goal, plan, stage_summaries, completed_count,
+                    goal,
+                    plan,
+                    stage_summaries,
+                    completed_count,
                 )
             except Exception as exc:
                 log.tprint(
@@ -685,8 +702,7 @@ class OrchestratorBase:
                 # summaries and waste cycles.
                 if not any(pr.finished for pr in parallel_results):
                     log.tprint(
-                        "[orchestrator] Stopping run — "
-                        "no parallel stages completed",
+                        "[orchestrator] Stopping run — no parallel stages completed",
                     )
                     break
 
@@ -785,9 +801,7 @@ class OrchestratorBase:
                         config=CycleConfig(
                             browser_testing=config.browser_testing,
                             verifiers=config.verifiers,
-                            auto_commit=(
-                                stage.persist_changes and config.auto_commit
-                            ),
+                            auto_commit=(stage.persist_changes and config.auto_commit),
                             verification=config.verification,
                             acceptance_criteria=config.acceptance_criteria,
                             effort=config.effort,
@@ -808,7 +822,11 @@ class OrchestratorBase:
                     result.stage_results.append(stage_res)
         finally:
             cleanup_and_merge_worktrees(
-                group, worktrees, stage_teams, parallel_results, project_dir,
+                group,
+                worktrees,
+                stage_teams,
+                parallel_results,
+                project_dir,
             )
 
         # Sort by stage index for deterministic ordering — both the
@@ -823,7 +841,8 @@ class OrchestratorBase:
             )
         # For parallel work, count the max branch (wall-clock)
         cycles_used = max(
-            (len(r.cycles) for r in parallel_results), default=0,
+            (len(r.cycles) for r in parallel_results),
+            default=0,
         )
 
         log.emit(

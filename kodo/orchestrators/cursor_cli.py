@@ -58,7 +58,8 @@ class CursorOrchestrator(CliOrchestratorBase):
             }
             existing["mcpServers"] = servers
             mcp_config_path.write_text(
-                json.dumps(existing, indent=2), encoding="utf-8",
+                json.dumps(existing, indent=2),
+                encoding="utf-8",
             )
         except OSError as exc:
             raise RuntimeError(f"Failed to write Cursor MCP config: {exc}") from exc
@@ -115,15 +116,16 @@ class CursorOrchestrator(CliOrchestratorBase):
 
             if proc.returncode != 0 and not response_text:
                 response_text = (
-                    stderr_text
-                    or f"cursor-agent exited with code {proc.returncode}"
+                    stderr_text or f"cursor-agent exited with code {proc.returncode}"
                 )
 
             result.exchanges = max(exchanges, 1)
             result.total_cost_usd = 0.0  # subscription-covered
             log.get_run_stats().record_orchestrator(0.0, "cursor_subscription")
 
-            self._apply_result(result, done_signal, response_text, is_error=proc.returncode != 0)
+            self._apply_result(
+                result, done_signal, response_text, is_error=proc.returncode != 0
+            )
 
         finally:
             if proc is not None:
@@ -143,7 +145,8 @@ class CursorOrchestrator(CliOrchestratorBase):
                         if servers:
                             current["mcpServers"] = servers
                             mcp_config_path.write_text(
-                                json.dumps(current, indent=2), encoding="utf-8",
+                                json.dumps(current, indent=2),
+                                encoding="utf-8",
                             )
                         else:
                             mcp_config_path.unlink(missing_ok=True)

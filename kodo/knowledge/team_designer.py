@@ -47,6 +47,7 @@ def design_team(
         prompt_parts.append(f"## Desired output format\n{goal.output_format}")
     if goal.reference_files:
         from pathlib import Path
+
         ref_names = [Path(f).name for f in goal.reference_files]
         prompt_parts.append(
             f"## Reference materials provided\n"

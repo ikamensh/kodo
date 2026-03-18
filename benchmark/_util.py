@@ -38,7 +38,7 @@ def short_iid(instance_id: str) -> str:
     dash_idx = rest.rfind("-")
     if dash_idx > 0:
         repo = rest[:dash_idx].replace("_", "-")
-        issue = rest[dash_idx + 1:]
+        issue = rest[dash_idx + 1 :]
         # Truncate long hashes (e.g. Go SWE-bench commit SHAs)
         if len(issue) > 12:
             issue = issue[:8]
@@ -124,8 +124,9 @@ def ensure_docker_running(timeout: int = 60) -> bool:
     log.info("Docker daemon is not running. Attempting to start...")
 
     if platform.system() != "Darwin":
-        log.warning("Docker is not running. Start it manually:\n"
-                     "  sudo systemctl start docker")
+        log.warning(
+            "Docker is not running. Start it manually:\n  sudo systemctl start docker"
+        )
         return False
 
     if not _start_docker_macos():
@@ -147,7 +148,9 @@ def _docker_is_ready() -> bool:
     """Return True if ``docker info`` succeeds."""
     try:
         result = subprocess.run(
-            ["docker", "info"], capture_output=True, timeout=10,
+            ["docker", "info"],
+            capture_output=True,
+            timeout=10,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
