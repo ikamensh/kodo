@@ -18,6 +18,6 @@ Autonomous code review and refactoring. Parallel read-only analysis feeds into s
 
 ## Test Mode (`--test`)
 
-Autonomous test generation. Discovers coverage gaps, writes tests in parallel, runs full regression.
+User-experience-first testing. Installs the software, exercises every feature end-to-end, probes edge cases, then writes regression tests for confirmed bugs.
 
 ![Test Mode](diagrams/test-mode.svg)

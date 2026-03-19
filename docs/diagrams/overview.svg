@@ -56,17 +56,14 @@
     <rect x="55" y="195" width="230" height="44" rx="12" fill="url(#goalGrad)"/>
     <rect x="55" y="225" width="230" height="14" fill="url(#goalGrad)"/>  <!-- cover bottom radius -->
     <text x="170" y="222" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Goal Mode</text>
-    <text x="170" y="260" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">1. INTAKE</text>
-    <text x="170" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Chat or auto-plan from goal</text>
-    <polygon points="170,284 174,292 166,292" fill="#6366f1"/>
-    <text x="170" y="308" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">2. TEAM ASSEMBLY</text>
-    <text x="170" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Detect backends, assign roles</text>
-    <polygon points="170,332 174,340 166,340" fill="#6366f1"/>
-    <text x="170" y="356" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">3. STAGED EXECUTION</text>
-    <text x="170" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Sequential + parallel stages</text>
-    <polygon points="170,380 174,388 166,388" fill="#6366f1"/>
-    <text x="170" y="404" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">4. ADAPTIVE ADVISOR</text>
-    <text x="170" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">LLM re-assesses after stages</text>
+    <text x="170" y="268" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">1. INTAKE</text>
+    <text x="170" y="284" text-anchor="middle" fill="#94a3b8" font-size="10">Chat or auto-plan from goal</text>
+    <polygon points="170,294 174,302 166,302" fill="#6366f1"/>
+    <text x="170" y="326" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">2. STAGED EXECUTION</text>
+    <text x="170" y="342" text-anchor="middle" fill="#94a3b8" font-size="10">Sequential + parallel stages</text>
+    <polygon points="170,352 174,360 166,360" fill="#6366f1"/>
+    <text x="170" y="384" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600">3. ADAPTIVE ADVISOR</text>
+    <text x="170" y="400" text-anchor="middle" fill="#94a3b8" font-size="10">LLM re-assesses after stages</text>
     <rect x="85" y="440" width="170" height="24" rx="6" fill="#312e81"/>
     <text x="170" y="456" text-anchor="middle" fill="#c7d2fe" font-size="10">Committed code changes</text>
   </g>
@@ -98,22 +95,22 @@
     <rect x="615" y="195" width="230" height="44" rx="12" fill="url(#testGrad)"/>
     <rect x="615" y="225" width="230" height="14" fill="url(#testGrad)"/>
     <text x="730" y="222" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">Test Mode</text>
-    <text x="730" y="260" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">1. DISCOVERY</text>
-    <text x="730" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Plan testing approach</text>
+    <text x="730" y="260" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">1. SETUP &amp; DISCOVERY</text>
+    <text x="730" y="276" text-anchor="middle" fill="#94a3b8" font-size="10">Install, build tools, map features</text>
     <polygon points="730,284 734,292 726,292" fill="#f59e0b"/>
-    <text x="730" y="308" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">2. TOOL FORGE &amp; STORIES</text>
-    <text x="730" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Build tools, map user stories</text>
+    <text x="730" y="308" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">2. FEATURE TESTING</text>
+    <text x="730" y="324" text-anchor="middle" fill="#94a3b8" font-size="10">Walkthroughs | Edge cases (‖)</text>
     <polygon points="730,332 734,340 726,340" fill="#f59e0b"/>
-    <text x="730" y="356" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">3. STORY TESTING</text>
-    <text x="730" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Workflow | Adversarial (parallel)</text>
+    <text x="730" y="356" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">3. TRIAGE &amp; REGRESSION</text>
+    <text x="730" y="372" text-anchor="middle" fill="#94a3b8" font-size="10">Test fails → fix → test passes</text>
     <polygon points="730,380 734,388 726,388" fill="#f59e0b"/>
-    <text x="730" y="404" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">4. REGRESSION &amp; REPORT</text>
-    <text x="730" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">Test fails → fix → test passes</text>
+    <text x="730" y="404" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">4. REPORT</text>
+    <text x="730" y="420" text-anchor="middle" fill="#94a3b8" font-size="10">Findings, coverage, self-critique</text>
     <rect x="645" y="440" width="170" height="24" rx="6" fill="#451a03"/>
     <text x="730" y="456" text-anchor="middle" fill="#fde68a" font-size="10">test-report.md</text>
   </g>
 
   <!-- Bottom engine bar -->
   <rect x="55" y="488" width="790" height="24" rx="6" fill="url(#engineGrad)" stroke="#334155" stroke-width="1"/>
-  <text x="450" y="505" text-anchor="middle" fill="#64748b" font-size="11">Shared Orchestrator Cycle Engine  ·  Gemini Flash orchestrates  ·  Claude / Cursor / Kimi agents execute  ·  Git worktree isolation</text>
+  <text x="450" y="505" text-anchor="middle" fill="#64748b" font-size="11">Shared Orchestrator Engine  ·  Gemini or Claude API orchestrates  ·  Claude / Cursor / Codex / Gemini CLI / Kimi execute  ·  Git worktree isolation</text>
 </svg>

@@ -1,4 +1,4 @@
-"""Test mode prompts — attack surface analysis, fault injection, breakage-oriented testing."""
+"""Test mode prompts — user-experience-first testing with edge case and adversarial probing."""
 
 # ---------------------------------------------------------------------------
 # Report format
@@ -6,22 +6,22 @@
 
 TEST_REPORT_FORMAT = """\
 ```markdown
-# Fault Report
+# Test Report
 
 ## Summary
-- **Attack surfaces probed:** <count>
+- **Features tested:** <count>
 - **Findings:** <count>
 - **Regression tests written:** <count>
 
-## Attack Surface Coverage
-| Surface | Attacks tried | Findings | Residual risk |
-|---------|--------------|----------|---------------|
-| <surface> | <count> | F1,F2 | <what wasn't tested and why> |
+## Feature Coverage
+| Feature / Workflow | Status | Findings | Notes |
+|--------------------|--------|----------|-------|
+| <feature> | pass / fail / partial | F1,F2 | <what wasn't tested and why> |
 
 ## Findings
 - **F<n>:** <title>
-  - **Surface:** <attack surface>
-  - **Category:** crash | data-loss | silent-wrong | hang | race | leak | misleading-output
+  - **Workflow:** <which feature or user workflow>
+  - **Category:** crash | data-loss | silent-wrong | hang | race | leak | misleading-output | install-failure | usability
   - **Repro steps:**
     1. <step>
     2. <what happens vs what should happen>
@@ -32,11 +32,11 @@ TEST_REPORT_FORMAT = """\
 - **F<n>:** <file>:<test_name> — test fails before fix, passes after
 
 ## Self-Critique
-- What did you skip? What assumptions went unchallenged?
+- What features weren't tested? What assumptions went unchallenged?
 - If zero findings: what gives you confidence this is actually correct?
 
-## Unreachable Attack Surfaces
-- <surface> — <why>
+## Blocked Workflows
+- <workflow> — <why it couldn't be tested>
 ```"""
 
 # ---------------------------------------------------------------------------
@@ -44,13 +44,10 @@ TEST_REPORT_FORMAT = """\
 # ---------------------------------------------------------------------------
 
 TEST_GOAL = """\
-Find bugs. Not verify it works — break it.
+Test this software the way a real user would — start to finish.
 
-Assume happy paths work. Hunt for crashes, data corruption, silent wrong \
-answers, and hangs.
-
-Zero findings means your testing failed, not that the software is perfect. \
-If you find nothing, write a self-critique explaining what you tried.
+Install it, try every feature, exercise realistic workflows, then probe \
+edge cases. The goal is to find bugs users would actually hit.
 
 For confirmed bugs, write a regression test that fails, then fix the code.
 
@@ -60,52 +57,51 @@ Report at `{report_path}`.
 """
 
 # ---------------------------------------------------------------------------
-# Attack surface file format (persisted across runs)
+# Feature coverage file format (persisted across runs)
 # ---------------------------------------------------------------------------
 
-ATTACK_SURFACE_FILE = ".kodo/attack-surfaces.md"
+FEATURE_COVERAGE_FILE = ".kodo/test-coverage.md"
 
-ATTACK_SURFACE_FORMAT = """\
-# Attack Surfaces
+FEATURE_COVERAGE_FORMAT = """\
+# Feature Coverage
 
 Tracked across `kodo test` runs.
 
-| Surface | Attacks tried | Findings | Residual risk |
-|---------|--------------|----------|---------------|
+| Feature / Workflow | Last tested | Status | Findings |
+|--------------------|-------------|--------|----------|
 """
+
 
 # ---------------------------------------------------------------------------
 # Guidance
 # ---------------------------------------------------------------------------
 
 TEST_TIME_GUIDANCE = """\
-Time budget: 20% setup and recon, 70%+ attacking, 10% triage. \
-Get a basic tool working fast, then start breaking things."""
+Time budget: 15% setup and discovery, 60% feature walkthroughs and testing, \
+15% edge cases and adversarial probing, 10% triage and regression tests."""
 
 TOOL_FORGE_GUIDANCE = """\
-A CLI wrapper is table stakes — build it fast and move on. Then build \
-whatever you need to attack effectively: scenario generators for edge-case \
-inputs, state manipulators for invalid preconditions, interrupt injectors, \
-concurrency probes.
+Build whatever you need to actually use the software: install scripts, CLI \
+wrappers, test fixtures, sample data. The goal is to interact with it like \
+a real user.
 
 If you need something you can't build (Docker, browser, GPU), say so \
-in the Unreachable Attack Surfaces section."""
+in the Blocked Workflows section."""
 
-ATTACK_SURFACE_MAPPING_GUIDANCE = """\
-Identify the attack surfaces — where can this software break?
+FEATURE_MAPPING_GUIDANCE = """\
+Map all user-facing features and workflows:
 
-Think inputs (malformed, huge, empty), state (corrupt, stale, missing), \
-external dependencies (failing, slow, lying), and unvalidated assumptions.
+Read the README, run --help, check examples and docs. What can a user \
+actually do with this software? What are the documented workflows?
 
-Write attack surfaces to `{surface_file}`:
-{surface_format}"""
+Write feature coverage to `{coverage_file}`:
+{coverage_format}"""
+
 
 TEST_EXPLORATION_GUIDANCE = """\
-Systematically violate assumptions. For each surface, ask what the code \
-assumes and what happens when that assumption is false. Prioritize by \
-damage potential.
-
-Only document breakage. If you can't break something, note what you tried."""
+For each feature, test the happy path first, then probe edges: empty inputs, \
+huge inputs, invalid types, missing files, concurrent usage, interruption \
+mid-operation. Prioritize by what users are most likely to hit."""
 
 # ---------------------------------------------------------------------------
 # Findings format
@@ -113,9 +109,9 @@ Only document breakage. If you can't break something, note what you tried."""
 
 TEST_FINDING_FORMAT = """\
 ### F<n>: <title>
-- **Surface:** <attack surface>
+- **Workflow:** <feature or user workflow>
 - **Severity:** critical | medium | low
-- **Category:** crash | data-loss | silent-wrong | hang | race | leak | misleading-output
+- **Category:** crash | data-loss | silent-wrong | hang | race | leak | misleading-output | install-failure | usability
 - **Repro steps:**
   1. <step>
   2. <what happens vs what should happen>
@@ -126,14 +122,15 @@ TEST_FINDING_FORMAT = """\
 # ---------------------------------------------------------------------------
 
 DISCOVERY_PROMPT = """\
-You're looking for bugs in a software project. Not verifying it works — breaking it.
+You're testing a software project the way a real user would — start to finish.
 
-Assume happy paths work. Hunt for what breaks.
+Your job: install it, exercise every feature, try realistic workflows, then \
+probe edge cases. Find bugs users would actually hit.
 
 ## Tasks
-1. Read the project: README, source structure, tests, config
-2. Identify attack surfaces — where can this break?
-3. Figure out what tools you need to attack it
+1. Read the project: README, source structure, tests, config, examples
+2. Map all user-facing features and workflows
+3. Figure out what tools you need to actually use the software
 4. Write a GoalPlan JSON to `{output_path}`
 
 {methodologies}
@@ -143,24 +140,24 @@ Assume happy paths work. Hunt for what breaks.
 
 ## Plan structure (4-6 stages)
 
-**Stage 1: Attack Surface Analysis** (`persist_changes` true)
+**Stage 1: Setup & Discovery** (`persist_changes` true)
 
 {tool_forge_guidance}
 
-{surface_mapping_guidance}
+{feature_mapping_guidance}
 
-Write attack surfaces to `{surface_file}`.
-Write recon notes to `{run_dir}/test-recon.md`.
+Write feature map to `{coverage_file}`.
+Write discovery notes to `{run_dir}/test-recon.md`.
 
 {time_guidance}
 
 **Middle stages (1-4, parallel where independent):**
 
-Each stage attacks a group of surfaces using tools from Stage 1. \
-Every stage must produce findings or explain what attacks were tried \
-and why they found nothing.
+Each stage tests a group of features or workflows using tools from Stage 1. \
+Start with happy paths, then push into edge cases. \
+Every stage must produce findings or explain what was tested and why it passed.
 
-Update attack surface status in `{surface_file}`.
+Update feature coverage in `{coverage_file}`.
 
 {finding_format}
 
@@ -183,13 +180,13 @@ Commit tests and fixes separately:
 Write valid JSON:
 
 {{
-  "context": "Attack surfaces identified, what's most likely to break",
+  "context": "Features mapped, what's most likely to break for users",
   "stages": [
     {{
       "index": 1,
       "name": "Short label",
-      "description": "What this stage attacks",
-      "acceptance_criteria": "Findings or explanation of attacks tried",
+      "description": "What this stage tests",
+      "acceptance_criteria": "Findings or explanation of what was tested",
       "browser_testing": false,
       "parallel_group": null,
       "persist_changes": true
@@ -205,23 +202,23 @@ Non-interactive — inspect the project and write the plan."""
 # ---------------------------------------------------------------------------
 
 METHODOLOGY_LIBRARY = """\
-## Attack Methodologies
+## Testing Approach
 
-Prioritize by damage potential. The approaches, in rough order:
+Test like a user, then probe like an engineer. In priority order:
 
-**Fault injection** — kill processes mid-write, corrupt configs, send signals \
-at critical moments. What happens when things fail halfway?
+**Setup & install** — follow the documented install steps. Does it actually \
+work? Are dependencies correct? Do the examples run?
 
-**State corruption** — start with invalid state. Does the software detect and \
-recover, or silently produce wrong results?
+**Feature walkthroughs** — exercise every user-facing feature end-to-end. \
+Follow documented workflows. Does the output match what's promised?
 
-**Boundary probing** — empty, massive, and malformed inputs. What happens at \
-the limits?
+**Edge cases & boundaries** — empty, massive, and malformed inputs. Missing \
+files, bad configs, unexpected types. What happens at the limits?
 
-**Assumption hunting** — read the code, find unvalidated assumptions, \
-systematically violate them.
+**Error handling** — trigger every error path. Are error messages helpful? \
+Does the software recover gracefully or corrupt state?
 
-**Concurrency** — race shared resources, interrupt and restart. Data corruption? \
-Deadlocks?
+**Concurrency & interruption** — race shared resources, interrupt mid-operation, \
+restart. Data corruption? Deadlocks? Stale state?
 
 Regression tests come last: reproduce the bug with a failing test, then fix."""

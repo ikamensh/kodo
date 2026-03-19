@@ -1,4 +1,4 @@
-"""Tests for kodo.cli._test — attack surface analysis, fault injection, breakage-oriented testing."""
+"""Tests for kodo.cli._test — user-experience-first testing with edge case probing."""
 
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ class TestSlugify:
 
 class TestStageDetection:
     def test_recon_variants(self):
-        assert _is_recon_stage("Attack Surface Analysis") is True
-        assert _is_recon_stage("Tool Forge & Story Mapping") is True
+        assert _is_recon_stage("Setup & Discovery") is True
+        assert _is_recon_stage("Install & Feature Map") is True
         assert _is_recon_stage("Reconnaissance") is True
-        assert _is_recon_stage("Audit & Baseline") is True
+        assert _is_recon_stage("Tool Forge & Story Mapping") is True
 
     def test_recon_negative(self):
         assert _is_recon_stage("Integration Testing") is False
@@ -63,15 +63,15 @@ class TestRunTestDiscovery:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Attack Surface Analysis",
-                    description="Map attack surfaces",
+                    name="Setup & Discovery",
+                    description="Map features",
                     acceptance_criteria="Done",
                     persist_changes=True,
                 ),
                 GoalStage(
                     index=2,
-                    name="Fault Injection",
-                    description="Inject faults",
+                    name="Feature Walkthroughs",
+                    description="Test features",
                     acceptance_criteria="Findings",
                     parallel_group=1,
                 ),
@@ -129,8 +129,8 @@ class TestRunTestDiscovery:
         assert "src/cli/" in captured["prompt"]
         assert "Target Scope" in captured["prompt"]
 
-    def test_attack_tooling_in_prompt(self, tmp_path):
-        """Discovery prompt must mention attack tooling."""
+    def test_feature_testing_in_prompt(self, tmp_path):
+        """Discovery prompt must mention features and testing."""
         run_dir = RunDir.create(tmp_path, "test")
         captured = {}
 
@@ -143,10 +143,10 @@ class TestRunTestDiscovery:
         ):
             run_test_discovery(run_dir, "/tmp/r.md")
         prompt = captured["prompt"].lower()
-        assert "attack" in prompt or "fault" in prompt or "break" in prompt
+        assert "feature" in prompt or "workflow" in prompt or "install" in prompt
 
-    def test_attack_surface_in_prompt(self, tmp_path):
-        """Discovery prompt must mention attack surfaces."""
+    def test_user_perspective_in_prompt(self, tmp_path):
+        """Discovery prompt must mention real user perspective."""
         run_dir = RunDir.create(tmp_path, "test")
         captured = {}
 
@@ -158,7 +158,7 @@ class TestRunTestDiscovery:
             "kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture
         ):
             run_test_discovery(run_dir, "/tmp/r.md")
-        assert "attack surface" in captured["prompt"].lower()
+        assert "real user" in captured["prompt"].lower() or "user" in captured["prompt"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +182,7 @@ class TestValidateTestPlan:
         result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
         assert any(_is_recon_stage(s.name) for s in result.stages)
 
-    def test_injected_recon_is_attack_surface(self):
+    def test_injected_recon_is_setup(self):
         plan = GoalPlan(
             context="Test",
             stages=[
@@ -196,7 +196,7 @@ class TestValidateTestPlan:
         )
         result = _validate_test_plan(plan, "/tmp/r.md", "/tmp/run")
         recon = [s for s in result.stages if _is_recon_stage(s.name)][0]
-        assert "Attack Surface" in recon.name
+        assert "Setup" in recon.name or "Discovery" in recon.name
 
     def test_adds_missing_report(self):
         plan = GoalPlan(
@@ -204,8 +204,8 @@ class TestValidateTestPlan:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Attack Surface Analysis",
-                    description="Map surfaces",
+                    name="Setup & Discovery",
+                    description="Map features",
                     acceptance_criteria="Done",
                 ),
             ],
@@ -219,8 +219,8 @@ class TestValidateTestPlan:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Attack Surface Analysis",
-                    description="Map surfaces",
+                    name="Setup & Discovery",
+                    description="Map features",
                     acceptance_criteria="Done",
                 ),
             ],
@@ -235,7 +235,7 @@ class TestValidateTestPlan:
             stages=[
                 GoalStage(
                     index=5,
-                    name="Attack Surface Analysis",
+                    name="Setup & Discovery",
                     description="Map",
                     acceptance_criteria="Done",
                 ),
@@ -262,7 +262,7 @@ class TestValidateTestPlan:
             stages=[
                 GoalStage(
                     index=1,
-                    name="Attack Surface Analysis",
+                    name="Setup & Discovery",
                     description="Map",
                     acceptance_criteria="Done",
                     persist_changes=True,
@@ -299,18 +299,20 @@ class TestBuildTestFallbackPlan:
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert len(plan.stages) == 4
 
-    def test_first_stage_is_attack_surface(self):
+    def test_first_stage_is_setup(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert "attack surface" in plan.stages[0].name.lower()
+        name = plan.stages[0].name.lower()
+        assert "setup" in name or "discover" in name
 
-    def test_first_stage_mentions_attack_surfaces(self):
+    def test_first_stage_mentions_install(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert "attack" in plan.stages[0].description.lower()
+        desc = plan.stages[0].description.lower()
+        assert "install" in desc
 
     def test_first_stage_mentions_building_tools(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         desc = plan.stages[0].description.lower()
-        assert "tool" in desc
+        assert "tool" in desc or "build" in desc
 
     def test_last_stage_is_triage(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
@@ -322,22 +324,20 @@ class TestBuildTestFallbackPlan:
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
 
-    def test_middle_stages_are_attack_oriented(self):
-        """Middle stages should be about fault injection and state corruption."""
+    def test_middle_stages_cover_features_and_edges(self):
+        """Middle stages should cover feature walkthroughs and edge cases."""
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        for stage in plan.stages[1:3]:
-            desc = stage.description.lower()
-            name = stage.name.lower()
-            assert (
-                "fault" in desc or "corrupt" in desc or "break" in desc
-                or "fault" in name or "corrupt" in name or "boundar" in name
-            )
+        all_text = " ".join(
+            f"{s.name} {s.description}" for s in plan.stages[1:3]
+        ).lower()
+        assert "feature" in all_text or "workflow" in all_text
+        assert "edge" in all_text or "boundary" in all_text or "invalid" in all_text
 
-    def test_attack_surface_persists(self):
+    def test_setup_persists(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert plan.stages[0].persist_changes is True
 
-    def test_attack_stages_read_only(self):
+    def test_testing_stages_read_only(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert plan.stages[1].persist_changes is False
         assert plan.stages[2].persist_changes is False
@@ -350,10 +350,10 @@ class TestBuildTestFallbackPlan:
         plan = _build_test_fallback_plan("/tmp/run/test-report.md", targets=["src/"])
         assert "src/" in plan.context
 
-    def test_context_emphasizes_breakage(self):
+    def test_context_emphasizes_user_testing(self):
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         ctx = plan.context.lower()
-        assert "bug" in ctx or "break" in ctx or "finding" in ctx
+        assert "user" in ctx or "feature" in ctx or "workflow" in ctx
 
 
 # ---------------------------------------------------------------------------
@@ -375,33 +375,12 @@ class TestExtractTestSection:
 
 
 class TestParseTestReportSummary:
-    def test_full_report_old_format(self):
-        """Backward compat: old report format with separate sections."""
-        report = (
-            "## Summary\n"
-            "- **Findings:** 8 (3/3/2)\n"
-            "- **Bugs confirmed:** 3\n"
-            "- **Usability gaps:** 2\n"
-            "- **Regression tests written:** 4\n\n"
-            "## Critical Findings\n"
-            "- **F1:** bug1\n- **F2:** bug2\n- **F3:** bug3\n\n"
-            "## Regression Tests Added\n"
-            "- tests/a.py:t1 — F1\n- tests/b.py:t2 — F2\n\n"
-            "## Untestable Gaps\n- network — needs infra\n"
-        )
-        r = parse_test_report_summary(report)
-        assert r["findings_count"] == 8
-        assert r["bugs_confirmed"] == 3
-        assert r["critical_count"] == 3
-        assert r["regression_count"] == 2
-        assert r["untestable_count"] == 1
-
-    def test_full_report_new_format(self):
+    def test_full_report(self):
         """New report format with flat Findings section."""
         report = (
             "## Summary\n"
-            "- **Attack surfaces probed:** 5\n"
-            "- **Findings:** 3 (1/0/1/0/1/0/0)\n"
+            "- **Features tested:** 5\n"
+            "- **Findings:** 3\n"
             "- **Regression tests written:** 2\n\n"
             "## Findings\n"
             "- **F1:** crash on empty input\n"
@@ -409,18 +388,18 @@ class TestParseTestReportSummary:
             "- **F3:** misleading error message\n\n"
             "## Regression Tests & Fixes\n"
             "- tests/a.py:t1 — F1\n- tests/b.py:t2 — F2\n\n"
-            "## Unreachable Attack Surfaces\n- Docker testing — needs container\n"
+            "## Blocked Workflows\n- Docker testing — needs container\n"
         )
         r = parse_test_report_summary(report)
         assert r["findings_count"] == 3
         assert r["findings_item_count"] == 3
         assert r["regression_count"] == 2
-        assert r["untestable_count"] == 1
+        assert r["blocked_count"] == 1
 
     def test_empty(self):
         r = parse_test_report_summary("")
-        assert r["critical_count"] == 0
         assert r["findings_item_count"] == 0
+        assert r["blocked_count"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -438,25 +417,7 @@ class TestCollectPriorTestWork:
         prev.mkdir(parents=True)
         (prev / "test-report.md").write_text(
             "## Regression Tests & Fixes\n- tests/a.py:t — F1\n\n"
-            "## Unreachable Attack Surfaces\n- websocket — needs mock\n",
-            encoding="utf-8",
-        )
-        with patch("kodo.log._runs_root", autospec=True, return_value=runs):
-            result = _collect_prior_test_work(run_dir)
-        assert "tests/a.py" in result
-        assert "websocket" in result
-
-    def test_collects_old_format(self, tmp_path):
-        """Backward compat: old section names still collected."""
-        from kodo.cli._test import _collect_prior_test_work
-
-        run_dir = RunDir.create(tmp_path, "current")
-        runs = tmp_path / "runs"
-        prev = runs / "prev"
-        prev.mkdir(parents=True)
-        (prev / "test-report.md").write_text(
-            "## Regression Tests & Fixes\n- tests/a.py:t — F1\n\n"
-            "## Untestable Gaps\n- websocket — needs mock\n",
+            "## Blocked Workflows\n- websocket — needs mock\n",
             encoding="utf-8",
         )
         with patch("kodo.log._runs_root", autospec=True, return_value=runs):
@@ -492,68 +453,73 @@ class TestCollectPriorTestWork:
 
 
 class TestPromptContent:
-    def test_discovery_emphasizes_breakage(self):
+    def test_discovery_mentions_features(self):
         from kodo.prompts.test import DISCOVERY_PROMPT
 
         p = DISCOVERY_PROMPT.lower()
-        assert "break" in p or "bug" in p or "fault" in p
+        assert "feature" in p or "workflow" in p
 
-    def test_discovery_emphasizes_attack_surfaces(self):
+    def test_discovery_mentions_user_perspective(self):
         from kodo.prompts.test import DISCOVERY_PROMPT
 
-        assert "attack surface" in DISCOVERY_PROMPT.lower()
+        assert "real user" in DISCOVERY_PROMPT.lower()
 
-    def test_orchestrator_rejects_zero_findings(self):
+    def test_discovery_mentions_install(self):
+        from kodo.prompts.test import DISCOVERY_PROMPT
+
+        assert "install" in DISCOVERY_PROMPT.lower()
+
+    def test_orchestrator_pushes_for_coverage(self):
         from kodo.prompts.roles import TEST_ORCHESTRATOR_SYSTEM_PROMPT
 
         p = TEST_ORCHESTRATOR_SYSTEM_PROMPT.lower()
         assert "zero findings" in p or "push back" in p
 
-    def test_orchestrator_fault_finding(self):
+    def test_orchestrator_mentions_features(self):
         from kodo.prompts.roles import TEST_ORCHESTRATOR_SYSTEM_PROMPT
 
         p = TEST_ORCHESTRATOR_SYSTEM_PROMPT.lower()
-        assert "fault" in p or "break" in p
+        assert "feature" in p or "workflow" in p
 
-    def test_report_has_attack_surface_table(self):
+    def test_report_has_feature_coverage_table(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
-        assert "Attack Surface Coverage" in TEST_REPORT_FORMAT
+        assert "Feature Coverage" in TEST_REPORT_FORMAT
 
     def test_report_has_self_critique(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
         assert "Self-Critique" in TEST_REPORT_FORMAT
 
-    def test_report_has_unreachable_surfaces(self):
+    def test_report_has_blocked_workflows(self):
         from kodo.prompts.test import TEST_REPORT_FORMAT
 
-        assert "Unreachable Attack Surfaces" in TEST_REPORT_FORMAT
+        assert "Blocked Workflows" in TEST_REPORT_FORMAT
 
-    def test_tool_forge_guidance_lists_attack_tools(self):
+    def test_tool_forge_guidance_mentions_install(self):
         from kodo.prompts.test import TOOL_FORGE_GUIDANCE
 
         g = TOOL_FORGE_GUIDANCE.lower()
-        assert "scenario generator" in g or "state manipulator" in g
-        assert "interrupt" in g or "concurrency" in g
+        assert "install" in g or "build" in g
 
-    def test_attack_surface_file_constant(self):
-        from kodo.prompts.test import ATTACK_SURFACE_FILE
+    def test_feature_coverage_file_constant(self):
+        from kodo.prompts.test import FEATURE_COVERAGE_FILE
 
-        assert ATTACK_SURFACE_FILE == ".kodo/attack-surfaces.md"
+        assert FEATURE_COVERAGE_FILE == ".kodo/test-coverage.md"
 
-    def test_methodology_library_attack_oriented(self):
+    def test_methodology_covers_full_spectrum(self):
         from kodo.prompts.test import METHODOLOGY_LIBRARY
 
         m = METHODOLOGY_LIBRARY.lower()
-        assert "fault injection" in m
-        assert "state corruption" in m
-        assert "boundary" in m
-        assert "assumption" in m
+        assert "install" in m
+        assert "feature" in m or "workflow" in m
+        assert "edge" in m or "boundary" in m
+        assert "error" in m
+        assert "concurrency" in m or "interrupt" in m
 
     def test_time_guidance_has_split(self):
         from kodo.prompts.test import TEST_TIME_GUIDANCE
 
         t = TEST_TIME_GUIDANCE.lower()
-        assert "20%" in t
-        assert "70%" in t
+        assert "15%" in t
+        assert "60%" in t

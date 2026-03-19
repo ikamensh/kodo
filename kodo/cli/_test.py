@@ -1,4 +1,4 @@
-"""Test mode: attack surface analysis, fault injection, breakage-oriented testing."""
+"""Test mode: user-experience-first testing with edge case and adversarial probing."""
 
 import re
 from pathlib import Path
@@ -11,10 +11,10 @@ from kodo.cli._shared import (
 )
 from kodo.orchestrators.base import GoalPlan, GoalStage, QuickCheck
 from kodo.prompts.test import (
-    ATTACK_SURFACE_FILE,
-    ATTACK_SURFACE_FORMAT,
-    ATTACK_SURFACE_MAPPING_GUIDANCE,
     DISCOVERY_PROMPT,
+    FEATURE_COVERAGE_FILE,
+    FEATURE_COVERAGE_FORMAT,
+    FEATURE_MAPPING_GUIDANCE,
     METHODOLOGY_LIBRARY,
     TEST_EXPLORATION_GUIDANCE,
     TEST_FINDING_FORMAT,
@@ -40,7 +40,7 @@ def run_test_discovery(
     targets: list[str] | None = None,
     prior_test_work: str = "",
 ) -> GoalPlan | None:
-    """Run AI discovery to build a dynamic test improvement plan.
+    """Run AI discovery to build a dynamic test plan.
 
     Uses the shared single-turn plan mechanism from intake to inspect the
     project and produce a ``GoalPlan`` tailored to testing.  Falls back
@@ -57,8 +57,8 @@ def run_test_discovery(
     if focus:
         focus_section = (
             f"\n\n## Focus Area\n"
-            f"The user wants you to focus attacks on: **{focus}**\n"
-            f"Prioritize attack surfaces for this area. "
+            f"The user wants you to focus on: **{focus}**\n"
+            f"Prioritize features and workflows for this area. "
             f"Other areas can still be tested but should be secondary."
         )
 
@@ -67,14 +67,14 @@ def run_test_discovery(
         target_list = ", ".join(f"`{t}`" for t in targets)
         target_section = (
             f"\n\n## Target Scope\n"
-            f"Focus attacks on these files/directories: {target_list}\n"
-            f"Attack the workflows and integration points involving these paths."
+            f"Focus testing on these files/directories: {target_list}\n"
+            f"Test the features and workflows involving these paths."
         )
 
-    surface_file = ATTACK_SURFACE_FILE
-    surface_mapping = ATTACK_SURFACE_MAPPING_GUIDANCE.format(
-        surface_file=surface_file,
-        surface_format=ATTACK_SURFACE_FORMAT,
+    coverage_file = FEATURE_COVERAGE_FILE
+    feature_mapping = FEATURE_MAPPING_GUIDANCE.format(
+        coverage_file=coverage_file,
+        coverage_format=FEATURE_COVERAGE_FORMAT,
     )
 
     prompt = (
@@ -89,17 +89,17 @@ def run_test_discovery(
             report_format=TEST_REPORT_FORMAT,
             time_guidance=TEST_TIME_GUIDANCE,
             tool_forge_guidance=TOOL_FORGE_GUIDANCE,
-            surface_mapping_guidance=surface_mapping,
-            surface_file=surface_file,
+            feature_mapping_guidance=feature_mapping,
+            coverage_file=coverage_file,
         )
         + focus_section
         + target_section
         + prior_test_work
     )
 
-    initial_message = "Analyze this project and find bugs. Assume happy paths work — focus on what breaks."
+    initial_message = "Analyze this project and test it like a real user. Exercise every feature, then probe edge cases."
     if focus:
-        initial_message += f" Focus attacks on: {focus}"
+        initial_message += f" Focus on: {focus}"
     if targets:
         initial_message += f" Target: {', '.join(targets)}"
 
@@ -107,7 +107,7 @@ def run_test_discovery(
         run_dir,
         system_prompt=prompt,
         initial_message=initial_message,
-        spinner_text="Planning test attacks",
+        spinner_text="Planning test approach",
     )
 
     if isinstance(plan, GoalPlan) and plan.stages:
@@ -124,10 +124,11 @@ def _is_recon_stage(name: str) -> bool:
     n = name.lower()
     return (
         "recon" in n
-        or "audit" in n
-        or "baseline" in n
+        or "setup" in n
+        or "discover" in n
+        or "install" in n
         or "tool forge" in n
-        or "attack surface" in n
+        or "feature map" in n
     )
 
 
@@ -157,24 +158,24 @@ def _validate_test_plan(
             0,
             GoalStage(
                 index=0,
-                name="Attack Surface Analysis",
+                name="Setup & Discovery",
                 description=(
-                    "Identify attack surfaces — where can this software break? "
-                    "Read the README, run --help, check examples. Run the existing test suite. "
-                    "Map what inputs, state, and dependencies can be attacked.\n\n"
-                    f"Write recon to `{recon_path}`.\n\n"
-                    "Spend no more than 20% of total effort here.\n\n"
+                    "Install the software. Read the README, run --help, check examples. "
+                    "Map all user-facing features and workflows. Run the existing test suite. "
+                    "Build whatever tools you need to interact with the software.\n\n"
+                    f"Write discovery notes to `{recon_path}`.\n\n"
+                    "Spend no more than 15% of total effort here.\n\n"
                     f"{TEST_FINDING_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    f"Recon documented at {recon_path} with attack surfaces and attack plan."
+                    f"Discovery notes at {recon_path} with feature map and test plan."
                 ),
                 persist_changes=False,
                 verification=[
                     QuickCheck(
                         path=recon_path,
-                        description="Recon file exists",
-                        error_message=f"Expected recon at {recon_path}",
+                        description="Discovery notes file exists",
+                        error_message=f"Expected discovery notes at {recon_path}",
                     ),
                 ],
             ),
@@ -232,28 +233,29 @@ def _build_test_fallback_plan(
 ) -> GoalPlan:
     """Build a hardcoded test plan (fallback when discovery fails).
 
-    Attack Surface Analysis → two parallel attack stages → triage & regression.
+    Setup & Discovery → two parallel feature walkthrough stages → triage & regression.
     """
     run_dir = str(Path(report_path).parent)
     focus_ctx = f"\n\n**Focus area:** {focus}" if focus else ""
     target_ctx = ""
     if targets:
         target_list = ", ".join(f"`{t}`" for t in targets)
-        target_ctx = f"\n\n**Target scope:** {target_list} — focus attacks on these files/directories."
+        target_ctx = f"\n\n**Target scope:** {target_list} — focus testing on these files/directories."
     recon_path = f"{run_dir}/test-recon.md"
-    surface_file = ATTACK_SURFACE_FILE
-    findings_injection = f"{run_dir}/findings-fault-injection.md"
-    findings_corruption = f"{run_dir}/findings-state-corruption.md"
+    coverage_file = FEATURE_COVERAGE_FILE
+    findings_workflows = f"{run_dir}/findings-workflows.md"
+    findings_edge_cases = f"{run_dir}/findings-edge-cases.md"
 
-    surface_mapping = ATTACK_SURFACE_MAPPING_GUIDANCE.format(
-        surface_file=surface_file,
-        surface_format=ATTACK_SURFACE_FORMAT,
+    feature_mapping = FEATURE_MAPPING_GUIDANCE.format(
+        coverage_file=coverage_file,
+        coverage_format=FEATURE_COVERAGE_FORMAT,
     )
 
     return GoalPlan(
         context=(
-            "Find bugs. Assume happy paths work. Zero findings means the "
-            "testing approach failed, not that the software is perfect.\n\n"
+            "Test this software like a real user. Install it, exercise every "
+            "feature, try realistic workflows, then probe edge cases. "
+            "Find bugs users would actually hit.\n\n"
             f"{TEST_TIME_GUIDANCE}"
             f"{focus_ctx}"
             f"{target_ctx}"
@@ -262,77 +264,78 @@ def _build_test_fallback_plan(
         stages=[
             GoalStage(
                 index=1,
-                name="Attack Surface Analysis",
+                name="Setup & Discovery",
                 persist_changes=True,
                 description=(
                     f"{TOOL_FORGE_GUIDANCE}\n\n"
-                    f"{surface_mapping}\n\n"
-                    "Write recon notes (attack surfaces, what existing "
+                    f"{feature_mapping}\n\n"
+                    "Install the software following the documented steps. "
+                    "Write discovery notes (features found, what existing "
                     f"tests cover, what's most likely to break) to `{recon_path}`.\n\n"
-                    "Spend no more than 20% of total effort here. Get tools "
-                    "working fast, then move on to attacks."
+                    "Spend no more than 15% of total effort here. Get the "
+                    "software running, then start testing."
                 ),
                 acceptance_criteria=(
-                    "Attack tools built and working. "
-                    f"Attack surfaces in {surface_file}. "
-                    f"Recon at {recon_path}."
+                    "Software installed and running. "
+                    f"Feature map in {coverage_file}. "
+                    f"Discovery notes at {recon_path}."
                 ),
                 verification=[
                     QuickCheck(
                         path=recon_path,
-                        description="Recon file exists",
-                        error_message=f"Expected recon at {recon_path}",
+                        description="Discovery notes file exists",
+                        error_message=f"Expected discovery notes at {recon_path}",
                     ),
                 ],
             ),
             GoalStage(
                 index=2,
-                name="Fault Injection & Error Paths",
+                name="Feature Walkthroughs",
                 persist_changes=False,
                 parallel_group=1,
                 description=(
-                    "Use your tools to inject faults and force error paths. "
-                    "Kill processes mid-operation, remove files during reads, "
-                    "send signals at critical moments, force every error handler. "
-                    f"Document findings with repro steps.\n\n"
-                    f"Write findings to `{findings_injection}`.\n\n"
+                    "Exercise every user-facing feature end-to-end. "
+                    "Follow documented workflows, try the examples from "
+                    "the README, use every CLI command and flag. "
+                    "Test both happy paths and common error cases.\n\n"
+                    f"Write findings to `{findings_workflows}`.\n\n"
                     f"{TEST_FINDING_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    f"Findings with repro steps at {findings_injection}, "
-                    "or detailed explanation of attacks tried and why they found nothing."
+                    f"Findings with repro steps at {findings_workflows}, "
+                    "or detailed explanation of features tested and why they passed."
                 ),
                 verification=[
                     QuickCheck(
-                        path=findings_injection,
-                        description="Fault injection findings file exists",
-                        error_message=f"Expected findings at {findings_injection}",
+                        path=findings_workflows,
+                        description="Workflow findings file exists",
+                        error_message=f"Expected findings at {findings_workflows}",
                     ),
                 ],
             ),
             GoalStage(
                 index=3,
-                name="State Corruption & Boundaries",
+                name="Edge Cases & Error Paths",
                 persist_changes=False,
                 parallel_group=1,
                 description=(
-                    "Use your tools to corrupt state and probe boundaries. "
-                    "Start with invalid state — half-written files, stale locks, "
-                    "empty inputs, massive inputs, unicode edge cases, corrupt configs. "
-                    "Run multiple instances simultaneously. "
-                    f"Document findings with repro steps.\n\n"
-                    f"Write findings to `{findings_corruption}`.\n\n"
+                    "Probe edge cases and error handling across all features. "
+                    "Try empty inputs, huge inputs, invalid types, missing files, "
+                    "bad configs, unicode edge cases, concurrent usage. "
+                    "Test every error path — are messages helpful? Does it recover "
+                    "or corrupt state?\n\n"
+                    f"Write findings to `{findings_edge_cases}`.\n\n"
                     f"{TEST_FINDING_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    f"Findings with repro steps at {findings_corruption}, "
-                    "or detailed explanation of attacks tried and why they found nothing."
+                    f"Findings with repro steps at {findings_edge_cases}, "
+                    "or detailed explanation of edge cases tested and why they passed."
                 ),
                 verification=[
                     QuickCheck(
-                        path=findings_corruption,
-                        description="State corruption findings file exists",
-                        error_message=f"Expected findings at {findings_corruption}",
+                        path=findings_edge_cases,
+                        description="Edge case findings file exists",
+                        error_message=f"Expected findings at {findings_edge_cases}",
                     ),
                 ],
             ),
@@ -342,20 +345,20 @@ def _build_test_fallback_plan(
                 persist_changes=True,
                 description=(
                     "For each confirmed bug from "
-                    f"`{findings_injection}` and `{findings_corruption}`:\n"
+                    f"`{findings_workflows}` and `{findings_edge_cases}`:\n"
                     "1. Write a test that reproduces the bug — verify it fails\n"
                     "2. Fix the code\n"
                     "3. Verify the test now passes\n\n"
                     "Commit test and fix separately:\n"
                     '- "test: add regression test for F<n> (kodo test)"\n'
                     '- "fix: <description> (kodo test)"\n\n'
-                    f"Update attack surface status in `{surface_file}`. "
+                    f"Update feature coverage in `{coverage_file}`. "
                     "Run the full test suite.\n\n"
                     f"Write report to `{report_path}`:\n\n"
                     f"{TEST_REPORT_FORMAT}"
                 ),
                 acceptance_criteria=(
-                    f"Report at {report_path} with findings, attack surface coverage, "
+                    f"Report at {report_path} with findings, feature coverage, "
                     "and self-critique. Regression tests committed. Suite passes."
                 ),
             ),
@@ -374,18 +377,11 @@ def _collect_prior_test_work(current_run_dir: "RunDir") -> str:
         current_run_id=current_run_dir.run_id,
         report_glob="*/test-report.md",
         sections={
-            # New section names first
             "Regression Tests & Fixes": (
                 "\n## Previously Generated Tests\n"
                 "Previous runs already added these. Focus on new gaps:\n\n{items}\n"
             ),
-            "Unreachable Attack Surfaces": (
-                "\n## Prior Remaining Gaps\n"
-                "Previous runs couldn't cover these. Try to address them "
-                "or carry forward:\n\n{items}\n"
-            ),
-            # Old section names for backward compat
-            "Untestable Gaps": (
+            "Blocked Workflows": (
                 "\n## Prior Remaining Gaps\n"
                 "Previous runs couldn't cover these. Try to address them "
                 "or carry forward:\n\n{items}\n"
@@ -397,28 +393,13 @@ def _collect_prior_test_work(current_run_dir: "RunDir") -> str:
 def parse_test_report_summary(report_content: str) -> dict:
     """Parse a test report into structured summary data.
 
-    Returns a dict with keys: findings_count, bugs_confirmed,
-    usability_gaps, regression_tests, critical_count.
+    Returns a dict with keys: findings_count, findings_item_count,
+    regression_tests, regression_count, blocked_count, blocked_details.
     """
     summary = extract_test_section(report_content, "Summary")
-
-    # New format: flat Findings section
     findings = extract_test_section(report_content, "Findings")
-    # Old format: separate sections
-    critical = extract_test_section(report_content, "Critical Findings")
-    integration = extract_test_section(
-        report_content, "Integration & Workflow Findings"
-    )
-    usability = extract_test_section(report_content, "Usability Gaps")
-
     regression = extract_test_section(report_content, "Regression Tests & Fixes")
-    if not regression.strip():
-        regression = extract_test_section(report_content, "Regression Tests Added")
-
-    # New format: Unreachable Attack Surfaces; old: Untestable Gaps
-    unreachable = extract_test_section(report_content, "Unreachable Attack Surfaces")
-    if not unreachable.strip():
-        unreachable = extract_test_section(report_content, "Untestable Gaps")
+    blocked = extract_test_section(report_content, "Blocked Workflows")
 
     result: dict = {}
 
@@ -429,40 +410,16 @@ def parse_test_report_summary(report_content: str) -> dict:
             m = re.search(r"(\d+)", line)
             if m:
                 result["findings_count"] = int(m.group(1))
-        elif "bugs confirmed" in line.lower():
-            m = re.search(r"(\d+)", line)
-            if m:
-                result["bugs_confirmed"] = int(m.group(1))
-        elif "usability" in line.lower():
-            m = re.search(r"(\d+)", line)
-            if m:
-                result["usability_gaps"] = int(m.group(1))
         elif "regression" in line.lower():
             m = re.search(r"(\d+)", line)
             if m:
                 result["regression_tests"] = int(m.group(1))
 
-    # Count items from sections (match "- **F1:" or "**F1:")
-    # New format: flat findings section
     result["findings_item_count"] = len(re.findall(r"\*\*F\d+", findings))
-    # Old format: separate sections
-    result["critical_count"] = len(
-        re.findall(r"\*\*F\d+", critical),
-    )
-    result["integration_count"] = len(
-        re.findall(r"\*\*F\d+", integration),
-    )
-    result["usability_count"] = len(
-        re.findall(r"\*\*F\d+", usability),
-    )
     result["regression_count"] = len(
         re.findall(r"^- .+$", regression, re.MULTILINE),
     )
-    result["untestable_count"] = len(
-        re.findall(r"^- .+$", unreachable, re.MULTILINE),
-    )
 
-    blocked = extract_test_section(report_content, "Blocked Stories")
     blocked_lines = [
         ln.strip() for ln in blocked.strip().splitlines() if ln.strip().startswith("- ")
     ]

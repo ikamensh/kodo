@@ -831,22 +831,13 @@ def _main_inner() -> None:
             print(f"Test report: {report_path}")
             if summary.get("findings_count"):
                 print(f"  Findings:         {summary['findings_count']}")
-            if summary.get("critical_count"):
-                print(f"  Critical:         {summary['critical_count']}")
-            if summary.get("bugs_confirmed"):
-                print(f"  Bugs confirmed:   {summary['bugs_confirmed']}")
-            if summary.get("usability_gaps") or summary.get("usability_count"):
-                count = summary.get("usability_gaps") or summary.get(
-                    "usability_count", 0
-                )
-                print(f"  Usability gaps:   {count}")
             if summary.get("regression_tests") or summary.get("regression_count"):
                 count = summary.get("regression_tests") or summary.get(
                     "regression_count", 0
                 )
                 print(f"  Regression tests: {count}")
             if summary.get("blocked_count"):
-                print(f"  Blocked stories:  {summary['blocked_count']}")
+                print(f"  Blocked:          {summary['blocked_count']}")
                 for detail in summary.get("blocked_details", []):
                     print(f"    {detail}")
 
@@ -854,7 +845,6 @@ def _main_inner() -> None:
             fixable = (
                 summary.get("findings_count", 0)
                 - summary.get("blocked_count", 0)
-                - summary.get("untestable_count", 0)
             )
             if fixable > 0 and not args.json:
                 print(f"\n  To fix these findings:")

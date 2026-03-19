@@ -22,6 +22,14 @@ Autonomous multi-agent coding that runs overnight on your Claude Code Max subscr
 
 On a 100-task head-to-head using the same underlying model (Cursor `composer-1.5`), adding Kodo's orchestration layer solves 24% more real-world GitHub issues. Same model, same prompt, same conditions — the difference is orchestration. [Full methodology and interactive results →](https://kodo-bench-h2h-430011644943.europe-west1.run.app/)
 
+## Overview
+
+<p align="center">
+  <img src="docs/diagrams/overview.svg" width="800" alt="Kodo modes overview — Goal, Improve, and Test">
+</p>
+
+See [detailed mode diagrams](docs/modes_diagram.md) for the full pipeline of each mode.
+
 ## 🎬 How it works in practice
 
 Real run from [blackopt](https://github.com/ikamen/blackopt) — building an auto-solving meta-optimizer with 4 new algorithms, adaptive scheduling, and 73 tests. **3 hours unattended, 2 cycles, succeeded.**
@@ -212,16 +220,16 @@ Output:
 
 > **⚠️ Heads up:** agents run with full permissions (`bypassPermissions` mode). They primarily work in your project directory but **can access any file on your system** (installing dependencies, editing configs, etc.). Make sure you have a git commit or backup before launching.
 
-### `kodo test` — find bugs through realistic interaction
+### `kodo test` — test like a real user
 
-Tests your software the way a real user would — not at the unit test level.
+Tests your software the way a real user would — install it, exercise every feature, then probe edge cases.
 
-1. **Tool Forge**: builds custom testing tools (CLI wrappers, integration harnesses, install scripts) so agents can actually interact with the software
-2. **User Story Mapping**: enumerates every way users interact with your software, tracks which stories are testable vs blocked on tooling
-3. **Integration & Exploratory Testing**: works through stories using the tools, tries to break things with edge cases and adversarial inputs
-4. **Regression Tests & Fixes**: for confirmed bugs, writes a test that fails, fixes the code, verifies the test passes
+1. **Setup & Discovery**: installs the software, builds testing tools (CLI wrappers, fixtures, sample data), maps all user-facing features and workflows
+2. **Feature Walkthroughs**: exercises every feature end-to-end — follows documented workflows, tries every CLI command and flag, tests happy paths and common error cases
+3. **Edge Cases & Error Paths**: probes boundaries — empty inputs, huge inputs, invalid types, missing files, concurrent usage, interruption mid-operation
+4. **Triage & Regression Tests**: for confirmed bugs, writes a test that fails, fixes the code, verifies the test passes
 
-If agents need tools they can't build (Docker, VPS, browser automation), they say so in the **Blocked Stories** section of the report. On repeated runs, previously-tested stories are skipped based on commit tracking in `.kodo/test-stories.md`.
+If agents need tools they can't build (Docker, VPS, browser automation), they say so in the **Blocked Workflows** section of the report. On repeated runs, previously-tested features are skipped based on coverage tracking in `.kodo/test-coverage.md`.
 
 ```bash
 kodo test                                # full test run

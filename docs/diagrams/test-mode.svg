@@ -31,7 +31,7 @@
 
   <!-- Title -->
   <text x="450" y="40" text-anchor="middle" fill="#e2e8f0" font-size="24" font-weight="700">Test Mode</text>
-  <text x="450" y="60" text-anchor="middle" fill="#94a3b8" font-size="13">kodo --test [--focus "payment flow"]</text>
+  <text x="450" y="60" text-anchor="middle" fill="#94a3b8" font-size="13">kodo test [--focus "payment flow"]</text>
 
   <!-- ===== STEP 1: DISCOVERY ===== -->
   <rect x="30" y="78" width="840" height="90" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
@@ -39,13 +39,13 @@
 
   <rect x="60" y="110" width="220" height="44" rx="8" fill="url(#darkAmber)" filter="url(#shadow)"/>
   <text x="170" y="128" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="600">Planning LLM</text>
-  <text x="170" y="144" text-anchor="middle" fill="#64748b" font-size="9">Analyze project for test gaps</text>
+  <text x="170" y="144" text-anchor="middle" fill="#64748b" font-size="9">Analyze project for test plan</text>
 
   <line x1="280" y1="132" x2="330" y2="132" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
 
   <rect x="330" y="110" width="250" height="44" rx="8" fill="url(#darkAmber)" filter="url(#shadow)"/>
   <text x="455" y="128" text-anchor="middle" fill="#fde68a" font-size="11" font-weight="600">Validated Test Plan</text>
-  <text x="455" y="144" text-anchor="middle" fill="#64748b" font-size="9">tool forge + explore stages + regression</text>
+  <text x="455" y="144" text-anchor="middle" fill="#64748b" font-size="9">setup + feature testing + regression</text>
 
   <rect x="620" y="110" width="230" height="44" rx="8" fill="#1f1200" stroke="#78350f" stroke-width="1" stroke-dasharray="4,3"/>
   <text x="735" y="128" text-anchor="middle" fill="#d97706" font-size="11">Optional: --focus "area"</text>
@@ -54,14 +54,14 @@
   <!-- Arrow down -->
   <line x1="450" y1="168" x2="450" y2="190" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ===== STEP 2: TOOL FORGE & STORY MAPPING ===== -->
+  <!-- ===== STEP 2: SETUP & DISCOVERY ===== -->
   <rect x="30" y="190" width="840" height="170" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
-  <text x="50" y="210" fill="#fcd34d" font-size="12" font-weight="700">2  TOOL FORGE &amp; USER STORY MAPPING</text>
-  <text x="380" y="210" fill="#475569" font-size="10">Sequential. persist_changes = true. Build before you test.</text>
+  <text x="50" y="210" fill="#fcd34d" font-size="12" font-weight="700">2  SETUP &amp; FEATURE MAPPING</text>
+  <text x="310" y="210" fill="#475569" font-size="10">Sequential. persist_changes = true. Install and map before you test.</text>
 
-  <!-- Tool Forge -->
+  <!-- Install & Tools -->
   <rect x="60" y="225" width="380" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
-  <text x="250" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">Tool Forge</text>
+  <text x="250" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">Install &amp; Build Tools</text>
   <text x="250" y="268" text-anchor="middle" fill="#94a3b8" font-size="10">How do users interact with this software?</text>
   <line x1="80" y1="278" x2="420" y2="278" stroke="#451a03" stroke-width="1"/>
   <text x="80" y="296" fill="#d4a574" font-size="10">CLI app?</text>
@@ -71,23 +71,23 @@
   <text x="80" y="332" fill="#d4a574" font-size="10">UI / Game?</text>
   <text x="200" y="332" fill="#64748b" font-size="10">screenshot capture + visual inspection</text>
 
-  <!-- User Stories -->
+  <!-- Feature Map -->
   <rect x="460" y="225" width="390" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
-  <text x="655" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">User Story Mapping</text>
-  <text x="655" y="268" text-anchor="middle" fill="#94a3b8" font-size="10">Map the full user lifecycle</text>
+  <text x="655" y="248" text-anchor="middle" fill="#fcd34d" font-size="13" font-weight="700">Feature Mapping</text>
+  <text x="655" y="268" text-anchor="middle" fill="#94a3b8" font-size="10">Map all user-facing features and workflows</text>
   <line x1="480" y1="278" x2="830" y2="278" stroke="#451a03" stroke-width="1"/>
-  <text x="490" y="296" fill="#64748b" font-size="10">Discovery → Install → First use → Core workflows</text>
-  <text x="490" y="314" fill="#64748b" font-size="10">Config → Error recovery → Edge cases → Upgrades</text>
-  <text x="490" y="332" fill="#fde68a" font-size="9" font-family="monospace">→ .kodo/test-stories.md</text>
-  <text x="690" y="332" fill="#475569" font-size="9">+ test-recon.md</text>
+  <text x="490" y="296" fill="#64748b" font-size="10">Install steps, CLI commands, flags, config options</text>
+  <text x="490" y="314" fill="#64748b" font-size="10">Core workflows, documented examples, error paths</text>
+  <text x="490" y="332" fill="#fde68a" font-size="9" font-family="monospace">&#x2192; .kodo/test-coverage.md</text>
+  <text x="710" y="332" fill="#475569" font-size="9">+ test-recon.md</text>
 
   <!-- Arrow down -->
   <line x1="450" y1="360" x2="450" y2="382" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ===== STEP 3: STORY-DRIVEN TESTING ===== -->
+  <!-- ===== STEP 3: FEATURE TESTING ===== -->
   <rect x="30" y="382" width="840" height="190" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
-  <text x="50" y="402" fill="#fcd34d" font-size="12" font-weight="700">3  STORY-DRIVEN TESTING</text>
-  <text x="260" y="402" fill="#475569" font-size="10">Parallel. Use tools from Stage 2. Work through user stories.</text>
+  <text x="50" y="402" fill="#fcd34d" font-size="12" font-weight="700">3  FEATURE TESTING</text>
+  <text x="210" y="402" fill="#475569" font-size="10">Parallel. Use tools from Stage 2. Exercise every feature.</text>
 
   <!-- Parallel group border -->
   <rect x="50" y="415" width="800" height="145" rx="8" fill="none" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="8,4"/>
@@ -95,26 +95,26 @@
 
   <!-- Two test boxes -->
   <rect x="70" y="442" width="370" height="105" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
-  <text x="255" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Integration &amp; Workflow</text>
-  <text x="255" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Test key user stories end-to-end</text>
-  <text x="255" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">Cross-module interactions</text>
-  <text x="255" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">Update story status in test-stories.md</text>
-  <text x="255" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">→ findings-integration.md</text>
+  <text x="255" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Feature Walkthroughs</text>
+  <text x="255" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Exercise every feature end-to-end</text>
+  <text x="255" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">Follow documented workflows, try every command</text>
+  <text x="255" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">Happy paths + common error cases</text>
+  <text x="255" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">&#x2192; findings-workflows.md</text>
 
   <rect x="460" y="442" width="370" height="105" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
-  <text x="645" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Exploratory &amp; Adversarial</text>
-  <text x="645" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Try to break things: invalid inputs,</text>
-  <text x="645" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">missing files, interrupted workflows,</text>
-  <text x="645" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">concurrent usage, corrupt configs</text>
-  <text x="645" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">→ findings-exploratory.md</text>
+  <text x="645" y="464" text-anchor="middle" fill="#fcd34d" font-size="14" font-weight="700">Edge Cases &amp; Error Paths</text>
+  <text x="645" y="484" text-anchor="middle" fill="#94a3b8" font-size="10">Empty, huge, and malformed inputs</text>
+  <text x="645" y="500" text-anchor="middle" fill="#94a3b8" font-size="10">Missing files, bad configs, concurrent usage</text>
+  <text x="645" y="516" text-anchor="middle" fill="#94a3b8" font-size="10">Interruption, error recovery, corrupt state</text>
+  <text x="645" y="538" text-anchor="middle" fill="#475569" font-size="9" font-family="monospace">&#x2192; findings-edge-cases.md</text>
 
   <!-- Arrow down -->
   <line x1="450" y1="572" x2="450" y2="595" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
 
   <!-- ===== STEP 4: REGRESSION, FIXES & REPORT ===== -->
   <rect x="30" y="595" width="840" height="170" rx="10" fill="#2a1000" stroke="#92400e" stroke-width="1" opacity="0.7"/>
-  <text x="50" y="615" fill="#fcd34d" font-size="12" font-weight="700">4  REGRESSION TESTS, FIXES &amp; REPORT</text>
-  <text x="380" y="615" fill="#475569" font-size="10">Sequential. persist_changes = true</text>
+  <text x="50" y="615" fill="#fcd34d" font-size="12" font-weight="700">4  TRIAGE, REGRESSION TESTS &amp; REPORT</text>
+  <text x="400" y="615" fill="#475569" font-size="10">Sequential. persist_changes = true</text>
 
   <!-- Fix cycle -->
   <rect x="60" y="630" width="320" height="120" rx="8" fill="url(#darkAmber)" filter="url(#shadow)" stroke="#f59e0b" stroke-width="1"/>
@@ -125,23 +125,23 @@
   <rect x="80" y="670" width="100" height="28" rx="4" fill="#7c2d12"/>
   <text x="130" y="688" text-anchor="middle" fill="#fde68a" font-size="10" font-weight="600">Write test</text>
 
-  <text x="188" y="688" fill="#475569" font-size="10">→</text>
+  <text x="188" y="688" fill="#475569" font-size="10">&#x2192;</text>
 
   <rect x="200" y="670" width="110" height="28" rx="4" fill="#7f1d1d"/>
   <text x="255" y="688" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="600">Verify fails</text>
 
-  <text x="318" y="688" fill="#475569" font-size="10">→</text>
+  <text x="318" y="688" fill="#475569" font-size="10">&#x2192;</text>
 
   <!-- Second row -->
   <rect x="80" y="706" width="100" height="28" rx="4" fill="#064e3b"/>
   <text x="130" y="724" text-anchor="middle" fill="#a7f3d0" font-size="10" font-weight="600">Fix code</text>
 
-  <text x="188" y="724" fill="#475569" font-size="10">→</text>
+  <text x="188" y="724" fill="#475569" font-size="10">&#x2192;</text>
 
   <rect x="200" y="706" width="110" height="28" rx="4" fill="#065f46"/>
   <text x="255" y="724" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="600">Verify passes</text>
 
-  <text x="318" y="724" fill="#475569" font-size="10">→</text>
+  <text x="318" y="724" fill="#475569" font-size="10">&#x2192;</text>
 
   <text x="345" y="706" fill="#475569" font-size="9">commit separately:</text>
   <text x="345" y="720" fill="#64748b" font-size="8" font-family="monospace">"test: regression for F&lt;n&gt;"</text>
@@ -154,7 +154,7 @@
 
   <!-- Report metrics -->
   <rect x="430" y="678" width="94" height="52" rx="6" fill="#065f46"/>
-  <text x="477" y="698" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="700">Stories</text>
+  <text x="477" y="698" text-anchor="middle" fill="#6ee7b7" font-size="11" font-weight="700">Features</text>
   <text x="477" y="718" text-anchor="middle" fill="#a7f3d0" font-size="9">tested / total</text>
 
   <rect x="534" y="678" width="94" height="52" rx="6" fill="#7c2d12"/>
