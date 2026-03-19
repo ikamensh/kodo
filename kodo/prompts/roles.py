@@ -67,6 +67,8 @@ Each agent maintains .kodo/<role>-notes.md for persistent context across resets.
 
 You decide: priorities, scope, what "done" looks like, when to revert.
 Agents decide: code structure, libraries, patterns, file organization.
+
+Don't accept untested code. New functionality needs tests before it ships.
 """.strip()
 
 # Effort-level supplements — appended to orchestrator system prompt
