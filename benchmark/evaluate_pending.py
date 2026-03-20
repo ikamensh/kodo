@@ -60,6 +60,11 @@ def evaluate_pending(
         log.info("No unevaluated predictions found. Nothing to do.")
         return 0
 
+    # Build a seed lookup: (instance_id, arm) -> seed
+    seed_lookup: dict[tuple[str, str], int] = {}
+    for pred in predictions:
+        seed_lookup[(pred["instance_id"], pred["arm"])] = pred.get("seed", 0)
+
     # Group by arm
     by_arm: dict[str, list[dict]] = {}
     for pred in predictions:
@@ -124,6 +129,7 @@ def evaluate_pending(
         total_evaluated += 1
         if resolved:
             total_resolved += 1
+        seed = seed_lookup.get((instance_id, arm), 0)
         try:
             upload_eval_results(
                 full_dataset,
@@ -131,6 +137,7 @@ def evaluate_pending(
                 resolved=[instance_id] if resolved else [],
                 failed=[] if resolved else [instance_id],
                 error=[],
+                seed=seed,
             )
             status = "resolved" if resolved else "failed"
             log.info(
@@ -165,20 +172,36 @@ def evaluate_pending(
             len(failed),
             len(error),
         )
-        # Bulk upload results that weren't streamed via on_instance
+        # Bulk upload results that weren't streamed via on_instance.
+        # Group by seed since the server accepts one seed per request.
         if resolved or failed or error:
-            try:
-                upload_eval_results(
-                    full_dataset,
-                    arm,
-                    resolved=resolved,
-                    failed=failed,
-                    error=error,
-                )
-                log.info("Bulk-uploaded eval results for %s", arm)
-            except Exception as exc:
-                upload_errors += 1
-                log.warning("Bulk upload failed for %s: %s", arm, exc)
+            by_seed: dict[int, dict[str, list[str]]] = {}
+            for iid in resolved:
+                s = seed_lookup.get((iid, arm), 0)
+                by_seed.setdefault(s, {"resolved": [], "failed": [], "error": []})
+                by_seed[s]["resolved"].append(iid)
+            for iid in failed:
+                s = seed_lookup.get((iid, arm), 0)
+                by_seed.setdefault(s, {"resolved": [], "failed": [], "error": []})
+                by_seed[s]["failed"].append(iid)
+            for iid in error:
+                s = seed_lookup.get((iid, arm), 0)
+                by_seed.setdefault(s, {"resolved": [], "failed": [], "error": []})
+                by_seed[s]["error"].append(iid)
+            for seed, buckets in by_seed.items():
+                try:
+                    upload_eval_results(
+                        full_dataset,
+                        arm,
+                        resolved=buckets["resolved"],
+                        failed=buckets["failed"],
+                        error=buckets["error"],
+                        seed=seed,
+                    )
+                    log.info("Bulk-uploaded eval results for %s seed=%d", arm, seed)
+                except Exception as exc:
+                    upload_errors += 1
+                    log.warning("Bulk upload failed for %s: %s", arm, exc)
 
     log.info("Evaluation complete: %d/%d resolved", total_resolved, total_evaluated)
     return 0 if upload_errors == 0 else 1

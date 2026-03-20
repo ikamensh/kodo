@@ -266,7 +266,14 @@ function displayName(arm) {
     return arm.replace('kodo:', 'Kodo ');
   }
   const m = { claude: 'Claude Code', cursor: 'Cursor', codex: 'Codex', gemini: 'Gemini CLI' };
-  return m[arm] || arm;
+  for (const [k, v] of Object.entries(m)) {
+    if (arm === k) return v;
+    if (arm.startsWith(k + ':')) {
+      const model = arm.slice(k.length + 1);
+      return `${v} ${model}`;
+    }
+  }
+  return arm;
 }
 
 function viewMode(data) {
@@ -296,7 +303,11 @@ function armStats(data, arm) {
         s.resolved++;
         if (r.elapsed_s > 0) s.resolveTimes.push(r.elapsed_s);
       } else s.failed++;
-    } else if (r.status === 'ok' || r.status === 'partial') {
+    }
+    // Use per-seed pending count when available (handles partially-evaluated multi-seed arms)
+    if (r.n_pending != null) {
+      s.pending += r.n_pending;
+    } else if (!r.eval_status && (r.status === 'ok' || r.status === 'partial')) {
       s.pending++;
     }
     if (r.status === 'error') s.error++;
@@ -414,7 +425,8 @@ function defaultMapArms(data) {
   const best = getBestKodo(data);
   const arms = [];
   if (best) arms.push(best);
-  if ((data.arms || []).includes('cursor')) arms.push('cursor');
+  const cursor = (data.arms || []).find(a => a.startsWith('cursor'));
+  if (cursor) arms.push(cursor);
   return arms.length ? arms : (data.arms || []).slice(0, 2);
 }
 
@@ -865,7 +877,7 @@ function applyFilters(data) {
         if (status === 'resolved') return r?.resolved;
         if (status === 'failed') return r?.eval_status && !r?.resolved;
         if (status === 'error') return r?.status === 'error';
-        if (status === 'pending') return r && !r.eval_status && (r.status === 'ok' || r.status === 'partial');
+        if (status === 'pending') return r && (r.n_pending > 0 || (!r.eval_status && (r.status === 'ok' || r.status === 'partial')));
         return false;
       });
       if (!match) show = false;

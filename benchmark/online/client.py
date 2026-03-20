@@ -38,6 +38,7 @@ def upload_task_result(
     run_id: str,
     dataset: str,
     agent_output: dict | list | str | None = None,
+    seed: int = 0,
 ) -> None:
     """Upload a single task result + patch to the online store."""
     ds = dataset_key(dataset)
@@ -66,6 +67,7 @@ def upload_task_result(
             "run_id": run_id,
             "instance_id": instance_id,
             "arm": arm,
+            "seed": seed,
             "status": status,
             "elapsed_s": round(elapsed_s, 1),
             "patch_len": len(patch),
@@ -110,8 +112,9 @@ def upload_eval_results(
     resolved: list[str] | None = None,
     failed: list[str] | None = None,
     error: list[str] | None = None,
+    seed: int = 0,
 ) -> None:
-    """Upload evaluation results for an arm."""
+    """Upload evaluation results for an arm+seed."""
     ds = dataset_key(dataset)
     if not ds:
         return
@@ -120,6 +123,7 @@ def upload_eval_results(
         {
             "dataset": ds,
             "arm": arm,
+            "seed": seed,
             "resolved": resolved or [],
             "failed": failed or [],
             "error": error or [],
@@ -191,6 +195,7 @@ def maybe_upload_task_result(
     run_id: str,
     dataset: str,
     agent_output: dict | list | str | None = None,
+    seed: int = 0,
 ) -> bool:
     """Best-effort upload. No-op if unconfigured, swallows all errors.
 
@@ -209,6 +214,7 @@ def maybe_upload_task_result(
             run_id=run_id,
             dataset=dataset,
             agent_output=agent_output,
+            seed=seed,
         )
         return True
     except Exception as exc:

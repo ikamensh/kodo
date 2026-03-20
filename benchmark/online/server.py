@@ -106,6 +106,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif p == "/api/next-tasks":
             if self._check_api_token():
                 self._handle_next_tasks()
+        elif p == "/api/rename-arm":
+            if self._check_api_token():
+                self._handle_rename_arm()
         elif p == "/api/register":
             self._handle_register()
         else:
@@ -248,11 +251,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json_ok({"ok": True, "skipped": True, "reason": reason})
             return
 
+        seed = body.get("seed", 0)
         try:
-            db.save_task_result(dataset, iid, arm, result_data)
+            db.save_task_result(dataset, iid, arm, result_data, seed=seed)
             patch = body.get("patch", "")
             if patch:
-                db.save_patch(dataset, iid, arm, patch)
+                db.save_patch(dataset, iid, arm, patch, seed=seed)
         except Exception as e:
             self.send_error(500, str(e))
             return
@@ -303,6 +307,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not dataset or not arm:
             self.send_error(400, "Missing dataset or arm")
             return
+        from benchmark.online.validation import _is_bare_arm
+
+        if _is_bare_arm(arm):
+            self.send_error(400, f"Arm {arm!r} requires a model qualifier (e.g. {arm}:model)")
+            return
+        seed = body.get("seed", 0)
         try:
             db.save_eval_results(
                 dataset,
@@ -310,6 +320,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resolved=body.get("resolved", []),
                 failed=body.get("failed", []),
                 error=body.get("error", []),
+                seed=seed,
             )
         except Exception as e:
             self.send_error(500, str(e))
@@ -329,6 +340,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         dataset = body.get("dataset", "")
         arm = body.get("arm", "")
         instance_ids = body.get("instance_ids", [])
+        seed = body.get("seed", 0)
         if not dataset or not arm or not instance_ids:
             self.send_error(400, "Missing dataset, arm, or instance_ids")
             return
@@ -340,12 +352,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             .document(dataset)
             .collection("results")
         )
+        seed_key = str(seed)
         resolved_ids = []
         for iid in instance_ids:
             doc = coll.document(iid).get()
             if doc.exists:
                 arm_data = (doc.to_dict() or {}).get("arms", {}).get(arm, {})
-                if arm_data.get("resolved") is True:
+                runs = db._unpack_arm_runs(arm_data)
+                run_data = runs.get(seed_key, {})
+                if run_data.get("resolved") is True:
                     resolved_ids.append(iid)
         if resolved_ids:
             self.send_error(
@@ -355,7 +370,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             )
             return
 
-        rows = [(iid, arm) for iid in instance_ids]
+        rows = [(iid, arm, seed) for iid in instance_ids]
         try:
             db.clear_eval_status_batch(dataset, rows)
         except Exception as e:
@@ -363,6 +378,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         _cache.pop(f"index:{dataset}", None)
         self._json_ok({"ok": True, "cleared": len(rows)})
+
+    def _handle_rename_arm(self):
+        """POST /api/rename-arm — rename an arm across all instances."""
+        body = self._read_json()
+        if body is None:
+            return
+        dataset = body.get("dataset", "")
+        old_arm = body.get("old_arm", "")
+        new_arm = body.get("new_arm", "")
+        dry_run = body.get("dry_run", False)
+        if not dataset or not old_arm or not new_arm:
+            self.send_error(400, "Missing dataset, old_arm, or new_arm")
+            return
+        try:
+            from benchmark.online.rename_arm import rename_arm
+
+            n = rename_arm(dataset, old_arm, new_arm, dry_run=dry_run)
+        except Exception as e:
+            self.send_error(500, str(e))
+            return
+        _cache.pop(f"index:{dataset}", None)
+        self._json_ok({"ok": True, "renamed": n, "dry_run": dry_run})
 
     def _handle_next_tasks(self):
         """Distribute tasks: return prioritized assignments for a contributor."""

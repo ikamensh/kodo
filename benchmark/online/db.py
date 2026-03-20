@@ -6,8 +6,24 @@ Firestore collections:
     datasets/{dataset}                         — dirty flag + last_materialized
     tokens/{token_hash}                        — API token registry
 
+Each result document stores multiple runs per arm, keyed by seed::
+
+    {
+        "arms": {
+            "cursor:composer-2": {
+                "runs": {
+                    "0": {"status": "ok", "elapsed_s": 42, ...},
+                    "1": {"status": "ok", "elapsed_s": 38, ...},
+                },
+            },
+        },
+    }
+
+Legacy documents that store flat arm data (no ``runs`` sub-map) are
+transparently upgraded on read via :func:`_unpack_arm_runs`.
+
 GCS layout:
-    gs://{bucket}/patches/{dataset}/{instance_id}/{arm}.diff
+    gs://{bucket}/patches/{dataset}/{instance_id}/{arm}/{seed}.diff
     gs://{bucket}/data/{dataset}/index.json    — materialized index (rebuilt on demand)
 """
 
@@ -52,6 +68,46 @@ def _bucket():
     return _gcs_bucket_obj
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+
+def _unpack_arm_runs(arm_data: dict) -> dict[str, dict]:
+    """Return ``{seed: run_data}`` from either new or legacy arm layout.
+
+    New layout: ``arm_data["runs"]`` is already the map.
+    Legacy layout: ``arm_data`` *is* the run data (treated as seed "0").
+    """
+    if "runs" in arm_data and isinstance(arm_data["runs"], dict):
+        return arm_data["runs"]
+    # Legacy flat format — treat as a single run with seed "0"
+    return {"0": {k: v for k, v in arm_data.items() if k != "runs"}}
+
+
+def _aggregate_arm(runs: dict[str, dict]) -> dict:
+    """Compute summary fields from individual runs for the index."""
+    n_runs = len(runs)
+    n_evaluated = sum(1 for r in runs.values() if r.get("eval_status"))
+    n_resolved = sum(1 for r in runs.values() if r.get("resolved"))
+    n_pending = sum(
+        1
+        for r in runs.values()
+        if not r.get("eval_status") and r.get("status") in ("ok", "partial")
+    )
+    resolve_rate = n_resolved / n_evaluated if n_evaluated else None
+    # Pick "best" status: ok > partial > error > timeout
+    _rank = {"ok": 0, "partial": 1, "error": 2, "timeout": 3}
+    best_run = min(runs.values(), key=lambda r: _rank.get(r.get("status", ""), 99))
+    return {
+        **best_run,
+        "n_runs": n_runs,
+        "n_evaluated": n_evaluated,
+        "n_pending": n_pending,
+        "resolve_rate": resolve_rate,
+        "resolved": n_resolved > 0 if n_evaluated else best_run.get("resolved"),
+        "eval_status": n_evaluated > 0 or best_run.get("eval_status"),
+    }
+
+
 # ── Write operations ─────────────────────────────────────────────────────
 
 
@@ -60,8 +116,10 @@ def save_task_result(
     instance_id: str,
     arm: str,
     data: dict,
+    *,
+    seed: int = 0,
 ) -> None:
-    """Upsert a single task result. Merges into the arms map."""
+    """Upsert a single task result under ``arms.{arm}.runs.{seed}``."""
     from google.cloud import firestore
 
     doc_ref = (
@@ -71,26 +129,31 @@ def save_task_result(
         .collection("results")
         .document(instance_id)
     )
-    arm_data = {**data, "updated_at": firestore.SERVER_TIMESTAMP}
-    doc_ref.set({"arms": {arm: arm_data}}, merge=True)
+    run_data = {**data, "updated_at": firestore.SERVER_TIMESTAMP}
+    doc_ref.set(
+        {"arms": {arm: {"runs": {str(seed): run_data}}}},
+        merge=True,
+    )
     _mark_dirty(dataset)
 
 
 def iter_task_results(dataset: str) -> list[dict]:
-    """Return flattened task-result rows for a dataset."""
+    """Return flattened task-result rows for a dataset (one per run)."""
     coll = _db().collection("datasets").document(dataset).collection("results")
     rows: list[dict] = []
     for doc in coll.stream():
         data = doc.to_dict() or {}
         for arm, arm_data in (data.get("arms") or {}).items():
-            rows.append(
-                {
-                    "dataset": dataset,
-                    "instance_id": doc.id,
-                    "arm": arm,
-                    **arm_data,
-                }
-            )
+            for seed, run_data in _unpack_arm_runs(arm_data).items():
+                rows.append(
+                    {
+                        "dataset": dataset,
+                        "instance_id": doc.id,
+                        "arm": arm,
+                        "seed": int(seed),
+                        **run_data,
+                    }
+                )
     return rows
 
 
@@ -99,9 +162,14 @@ def delete_task_result(
     instance_id: str,
     arm: str,
     *,
+    seed: int | None = None,
     delete_patch_blob: bool = True,
 ) -> None:
-    """Delete a single task result and, optionally, its stored patch."""
+    """Delete a task result and, optionally, its stored patch.
+
+    If *seed* is ``None``, delete the entire arm (all runs).
+    If *seed* is given, delete only that run.
+    """
     from google.cloud import firestore
 
     doc_ref = (
@@ -111,18 +179,29 @@ def delete_task_result(
         .collection("results")
         .document(instance_id)
     )
-    doc_ref.update({f"arms.{arm}": firestore.DELETE_FIELD})
+    if seed is None:
+        doc_ref.update({f"arms.{arm}": firestore.DELETE_FIELD})
+    else:
+        doc_ref.update({f"arms.{arm}.runs.{seed}": firestore.DELETE_FIELD})
     snapshot = doc_ref.get()
     data = snapshot.to_dict() or {} if snapshot.exists else {}
+    # Clean up empty arm / empty doc
+    arm_data = (data.get("arms") or {}).get(arm, {})
+    if seed is not None and not (arm_data.get("runs") or {}):
+        doc_ref.update({f"arms.{arm}": firestore.DELETE_FIELD})
+        data = doc_ref.get().to_dict() or {}
     if not (data.get("arms") or {}):
         doc_ref.delete()
     if delete_patch_blob:
-        delete_patch(dataset, instance_id, arm)
+        if seed is None:
+            delete_patch(dataset, instance_id, arm)
+        else:
+            delete_patch(dataset, instance_id, arm, seed=seed)
     _mark_dirty(dataset)
 
 
 def delete_task_results_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
-    """Delete many task-result arms in Firestore batches."""
+    """Delete many task-result arms (all seeds) in Firestore batches."""
     from google.cloud import firestore
 
     coll = _db().collection("datasets").document(dataset).collection("results")
@@ -150,20 +229,26 @@ def delete_empty_result_docs(dataset: str) -> int:
     return deleted
 
 
-def clear_eval_status_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
-    """Remove eval_status and resolved fields so instances can be re-evaluated."""
+def clear_eval_status_batch(
+    dataset: str, rows: list[tuple[str, str, int]]
+) -> None:
+    """Remove eval_status and resolved fields so runs can be re-evaluated.
+
+    Each element is ``(instance_id, arm, seed)``.
+    """
     from google.cloud import firestore
 
     coll = _db().collection("datasets").document(dataset).collection("results")
     for i in range(0, len(rows), 500):
         batch = _db().batch()
-        for instance_id, arm in rows[i : i + 500]:
+        for instance_id, arm, seed in rows[i : i + 500]:
             doc_ref = coll.document(instance_id)
+            prefix = f"arms.{arm}.runs.{seed}"
             batch.update(
                 doc_ref,
                 {
-                    f"arms.{arm}.eval_status": firestore.DELETE_FIELD,
-                    f"arms.{arm}.resolved": firestore.DELETE_FIELD,
+                    f"{prefix}.eval_status": firestore.DELETE_FIELD,
+                    f"{prefix}.resolved": firestore.DELETE_FIELD,
                 },
             )
         batch.commit()
@@ -171,18 +256,51 @@ def clear_eval_status_batch(dataset: str, rows: list[tuple[str, str]]) -> None:
         _mark_dirty(dataset)
 
 
-def save_patch(dataset: str, instance_id: str, arm: str, patch: str) -> None:
+def _patch_blob_path(
+    dataset: str, instance_id: str, arm: str, seed: int = 0
+) -> str:
+    return f"patches/{dataset}/{instance_id}/{arm}/{seed}.diff"
+
+
+def _legacy_patch_blob_path(dataset: str, instance_id: str, arm: str) -> str:
+    return f"patches/{dataset}/{instance_id}/{arm}.diff"
+
+
+def save_patch(
+    dataset: str, instance_id: str, arm: str, patch: str, *, seed: int = 0
+) -> None:
     """Upload patch text to GCS."""
     if not patch:
         return
-    blob = _bucket().blob(f"patches/{dataset}/{instance_id}/{arm}.diff")
+    blob = _bucket().blob(_patch_blob_path(dataset, instance_id, arm, seed))
     blob.upload_from_string(patch, content_type="text/plain")
 
 
-def delete_patch(dataset: str, instance_id: str, arm: str) -> None:
-    """Delete a stored patch if it exists."""
+def delete_patch(
+    dataset: str, instance_id: str, arm: str, *, seed: int | None = None
+) -> None:
+    """Delete stored patch(es).
+
+    If *seed* is ``None``, delete patches for all seeds (and legacy path).
+    If *seed* is given, delete only that seed's patch.
+    """
     try:
-        blob = _bucket().blob(f"patches/{dataset}/{instance_id}/{arm}.diff")
+        if seed is not None:
+            blob = _bucket().blob(
+                _patch_blob_path(dataset, instance_id, arm, seed)
+            )
+            if blob.exists():
+                blob.delete()
+        else:
+            # Delete all seed patches + legacy path
+            prefix = f"patches/{dataset}/{instance_id}/{arm}/"
+            for blob in _bucket().list_blobs(prefix=prefix):
+                blob.delete()
+            legacy = _bucket().blob(
+                _legacy_patch_blob_path(dataset, instance_id, arm)
+            )
+            if legacy.exists():
+                legacy.delete()
     except ImportError:
         log.warning(
             "Skipping patch deletion for %s/%s in %s: google-cloud-storage is not installed",
@@ -190,9 +308,6 @@ def delete_patch(dataset: str, instance_id: str, arm: str) -> None:
             arm,
             dataset,
         )
-        return
-    if blob.exists():
-        blob.delete()
 
 
 def save_run(run_id: str, meta: dict) -> None:
@@ -210,8 +325,10 @@ def save_eval_results(
     resolved: list[str],
     failed: list[str],
     error: list[str],
+    *,
+    seed: int = 0,
 ) -> None:
-    """Batch-update eval results for an arm across many instance_ids."""
+    """Batch-update eval results for an arm+seed across many instance_ids."""
     from google.cloud import firestore
 
     coll = _db().collection("datasets").document(dataset).collection("results")
@@ -227,6 +344,7 @@ def save_eval_results(
     if error:
         log.info("Skipping %d eval errors for %s (will be retried)", len(error), arm)
 
+    seed_key = str(seed)
     for i in range(0, len(updates), 500):
         batch = _db().batch()
         for iid, eval_data in updates[i : i + 500]:
@@ -235,7 +353,14 @@ def save_eval_results(
                 doc_ref,
                 {
                     "arms": {
-                        arm: {**eval_data, "updated_at": firestore.SERVER_TIMESTAMP}
+                        arm: {
+                            "runs": {
+                                seed_key: {
+                                    **eval_data,
+                                    "updated_at": firestore.SERVER_TIMESTAMP,
+                                }
+                            }
+                        }
                     }
                 },
                 merge=True,
@@ -453,8 +578,19 @@ def _materialize_index(dataset: str, blob=None) -> None:
     )
 
 
+def _clean_value(v: object) -> object:
+    """Convert Firestore-specific types for JSON serialisation."""
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return v
+
+
 def _build_index_from_firestore(dataset: str) -> dict:
-    """Query all results from Firestore and build the index structure."""
+    """Query all results from Firestore and build the index structure.
+
+    Each arm's runs are aggregated into a single summary dict via
+    :func:`_aggregate_arm`, so the index shape is unchanged for the frontend.
+    """
     coll = _db().collection("datasets").document(dataset).collection("results")
 
     tasks = []
@@ -469,15 +605,17 @@ def _build_index_from_firestore(dataset: str) -> dict:
         results[iid] = {}
         for arm_name, arm_data in arms.items():
             all_arms.add(arm_name)
-            clean = {}
-            for k, v in arm_data.items():
-                if k == "updated_at":
-                    continue
-                if hasattr(v, "isoformat"):
-                    clean[k] = v.isoformat()
-                else:
-                    clean[k] = v
-            results[iid][arm_name] = clean
+            runs = _unpack_arm_runs(arm_data)
+            # Clean each run's values for JSON
+            clean_runs = {}
+            for seed_key, run_data in runs.items():
+                clean_runs[seed_key] = {
+                    k: _clean_value(v)
+                    for k, v in run_data.items()
+                    if k != "updated_at"
+                }
+            agg = _aggregate_arm(clean_runs)
+            results[iid][arm_name] = agg
 
     total_evaluated = sum(
         1
@@ -502,57 +640,25 @@ def _build_index_from_firestore(dataset: str) -> dict:
 
 
 def get_dataset_index(dataset: str) -> dict:
-    """Build the index.json structure the viewer expects from Firestore."""
-    coll = _db().collection("datasets").document(dataset).collection("results")
-    docs = coll.stream()
+    """Build the index.json structure the viewer expects from Firestore.
 
-    tasks = []
-    results = {}
-    all_arms: set[str] = set()
-
-    for doc in docs:
-        iid = doc.id
-        data = doc.to_dict() or {}
-        tasks.append({"instance_id": iid})
-        arms = data.get("arms", {})
-        results[iid] = {}
-        for arm_name, arm_data in arms.items():
-            all_arms.add(arm_name)
-            # Convert Firestore timestamps to strings for JSON
-            clean = {}
-            for k, v in arm_data.items():
-                if k == "updated_at":
-                    continue  # drop internal timestamp
-                if hasattr(v, "isoformat"):
-                    clean[k] = v.isoformat()
-                else:
-                    clean[k] = v
-            results[iid][arm_name] = clean
-
-    total_evaluated = sum(
-        1
-        for iid_results in results.values()
-        if any(r.get("eval_status") for r in iid_results.values())
-    )
-
-    return {
-        "tasks": sorted(tasks, key=lambda t: t["instance_id"]),
-        "arms": sorted(all_arms),
-        "results": results,
-        "meta": {
-            "dataset": dataset,
-            "total_tasks": len(tasks),
-            "total_evaluated": total_evaluated,
-            "last_updated": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+    Delegates to :func:`_build_index_from_firestore` which handles the
+    new multi-run layout and aggregation.
+    """
+    return _build_index_from_firestore(dataset)
 
 
-def get_patch(dataset: str, instance_id: str, arm: str) -> str | None:
-    """Read a single patch from GCS."""
-    blob = _bucket().blob(f"patches/{dataset}/{instance_id}/{arm}.diff")
+def get_patch(
+    dataset: str, instance_id: str, arm: str, *, seed: int = 0
+) -> str | None:
+    """Read a single patch from GCS, falling back to legacy path."""
+    blob = _bucket().blob(_patch_blob_path(dataset, instance_id, arm, seed))
     if blob.exists():
         return blob.download_as_text()
+    # Fallback: legacy flat path (pre-multi-run)
+    legacy = _bucket().blob(_legacy_patch_blob_path(dataset, instance_id, arm))
+    if legacy.exists():
+        return legacy.download_as_text()
     return None
 
 
@@ -583,28 +689,40 @@ def save_snapshot_patch(
 def get_all_patches(dataset: str) -> dict[str, str]:
     """Read all patches for a dataset. Used for patches.json backward compat.
 
-    Returns dict like {"instance_id/arm": "diff text", ...}.
+    Returns dict like ``{"instance_id/arm": "diff text", ...}``.
+    For multi-run patches only seed 0 is returned (backward compat key).
     """
     patches: dict[str, str] = {}
     prefix = f"patches/{dataset}/"
     for blob in _bucket().list_blobs(prefix=prefix):
-        # blob.name = "patches/verified/instance_id/arm.diff"
         relative = blob.name[len(prefix) :]
-        parts = relative.rsplit("/", 1)
-        if len(parts) == 2:
+        parts = relative.split("/")
+        if len(parts) == 3:
+            # New layout: instance_id/arm/seed.diff
+            iid, arm, seed_file = parts
+            seed = seed_file.removesuffix(".diff")
+            if seed == "0":
+                try:
+                    patches[f"{iid}/{arm}"] = blob.download_as_text()
+                except Exception:
+                    log.warning("Failed to download patch %s", blob.name)
+        elif len(parts) == 2:
+            # Legacy layout: instance_id/arm.diff
             iid, arm_file = parts
             arm = arm_file.removesuffix(".diff")
-            try:
-                patches[f"{iid}/{arm}"] = blob.download_as_text()
-            except Exception:
-                log.warning("Failed to download patch %s", blob.name)
+            key = f"{iid}/{arm}"
+            if key not in patches:  # don't overwrite new-format entry
+                try:
+                    patches[key] = blob.download_as_text()
+                except Exception:
+                    log.warning("Failed to download patch %s", blob.name)
     return patches
 
 
 def get_unevaluated(dataset: str) -> list[dict]:
-    """Find task results that have not been evaluated yet.
+    """Find task runs that have not been evaluated yet.
 
-    Scans all result docs for the dataset and returns arms where
+    Scans all result docs for the dataset and returns runs where
     ``status`` is present (task ran) but ``eval_status`` is absent.
     Fetches the corresponding patch from GCS for each entry.
 
@@ -613,26 +731,29 @@ def get_unevaluated(dataset: str) -> list[dict]:
     """
     coll = _db().collection("datasets").document(dataset).collection("results")
 
-    pending: list[tuple[str, str]] = []  # (instance_id, arm)
+    pending: list[tuple[str, str, int]] = []  # (instance_id, arm, seed)
     for doc in coll.stream():
         iid = doc.id
         data = doc.to_dict() or {}
         for arm_name, arm_data in data.get("arms", {}).items():
-            if not arm_data.get("status"):
-                continue
-            if arm_data.get("eval_status"):
-                continue  # already evaluated
-            if arm_data["status"] not in ("ok", "partial"):
-                continue  # no useful patch
-            pending.append((iid, arm_name))
+            for seed_str, run_data in _unpack_arm_runs(arm_data).items():
+                if not run_data.get("status"):
+                    continue
+                if run_data.get("eval_status"):
+                    continue  # already evaluated
+                if run_data["status"] not in ("ok", "partial"):
+                    continue  # no useful patch
+                pending.append((iid, arm_name, int(seed_str)))
 
     # Fetch patches from GCS
     results: list[dict] = []
-    for iid, arm in pending:
-        patch = get_patch(dataset, iid, arm)
+    for iid, arm, seed in pending:
+        patch = get_patch(dataset, iid, arm, seed=seed)
         if not patch:
             continue
-        results.append({"instance_id": iid, "arm": arm, "patch": patch})
+        results.append(
+            {"instance_id": iid, "arm": arm, "seed": seed, "patch": patch}
+        )
 
     log.info("Found %d unevaluated predictions for dataset %s", len(results), dataset)
     return results

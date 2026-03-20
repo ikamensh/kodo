@@ -12,6 +12,10 @@ failed internally.
     'kodo_worker_broken'
     >>> suspicious_upload_reason(status="ok", elapsed_s=42, patch_len=12, agent_output={"status": "ok"}) is None
     True
+    >>> suspicious_upload_reason(arm="cursor", status="ok", elapsed_s=42, patch_len=12, agent_output={"status": "ok"})
+    'bare_arm_missing_model'
+    >>> suspicious_upload_reason(arm="cursor:composer-2", status="ok", elapsed_s=42, patch_len=12, agent_output={"status": "ok"}) is None
+    True
 """
 
 from __future__ import annotations
@@ -41,6 +45,10 @@ _KODO_WORKER_FAILURE_MARKERS = (
     "raise_issue",
 )
 
+# Backends that require a model qualifier (e.g. "cursor:composer-2", not bare "cursor").
+# Bare arms are ambiguous when the default model changes between kodo versions.
+_ARMS_REQUIRING_MODEL = frozenset({"cursor", "claude", "codex", "kodo"})
+
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
@@ -55,6 +63,9 @@ def suspicious_upload_reason(
     agent_output: dict | list | str | None = None,
 ) -> str | None:
     """Return a stable reason string when a result should not be uploaded."""
+    if _is_bare_arm(arm):
+        return "bare_arm_missing_model"
+
     effective_patch_len = patch_len if patch_len is not None else len(patch)
     texts = list(_iter_strings(agent_output))
     joined_text = _normalized_text("\n".join([error, *texts]))
@@ -77,6 +88,12 @@ def suspicious_upload_reason(
         return "backend_failure"
 
     return None
+
+
+def _is_bare_arm(arm: str) -> bool:
+    """Return True when the arm lacks a required model qualifier."""
+    base = arm.split(":", 1)[0] if arm else ""
+    return base in _ARMS_REQUIRING_MODEL and ":" not in arm
 
 
 def _is_empty_agent_output(agent_output: object) -> bool:

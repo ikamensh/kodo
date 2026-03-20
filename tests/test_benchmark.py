@@ -1209,11 +1209,17 @@ class TestLoadUploaded:
     def test_no_file(self, tmp_path):
         assert load_uploaded(tmp_path) == set()
 
-    def test_loads_pairs(self, tmp_path):
+    def test_loads_triples(self, tmp_path):
         mark_uploaded(tmp_path, "id1", "claude", "run1")
         mark_uploaded(tmp_path, "id2", "kodo:solo", "run2")
         uploaded = load_uploaded(tmp_path)
-        assert uploaded == {("id1", "claude"), ("id2", "kodo:solo")}
+        assert uploaded == {("id1", "claude", 0), ("id2", "kodo:solo", 0)}
+
+    def test_loads_with_seed(self, tmp_path):
+        mark_uploaded(tmp_path, "id1", "claude", "run1", seed=0)
+        mark_uploaded(tmp_path, "id1", "claude", "run2", seed=1)
+        uploaded = load_uploaded(tmp_path)
+        assert uploaded == {("id1", "claude", 0), ("id1", "claude", 1)}
 
     def test_skips_bad_lines(self, tmp_path):
         f = tmp_path / "uploaded.jsonl"
@@ -1222,7 +1228,7 @@ class TestLoadUploaded:
             "bad json\n"
             '{"instance_id":"id2","arm":"kodo","run_id":"r2"}\n'
         )
-        assert load_uploaded(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
+        assert load_uploaded(tmp_path) == {("id1", "claude", 0), ("id2", "kodo", 0)}
 
 
 class TestOnlineValidation:
@@ -1269,6 +1275,93 @@ class TestOnlineValidation:
         )
 
         assert reason == "kodo_worker_broken"
+
+    @pytest.mark.parametrize("arm", ["cursor", "claude", "codex", "kodo"])
+    def test_rejects_bare_arm_without_model(self, arm):
+        reason = suspicious_upload_reason(
+            arm=arm,
+            status="ok",
+            elapsed_s=42.0,
+            patch_len=100,
+            agent_output={"status": "ok"},
+        )
+
+        assert reason == "bare_arm_missing_model"
+
+    @pytest.mark.parametrize(
+        "arm",
+        ["cursor:composer-2", "claude:opus", "codex:gpt-5.4", "kodo:solo", "gemini"],
+    )
+    def test_accepts_arm_with_model(self, arm):
+        reason = suspicious_upload_reason(
+            arm=arm,
+            status="ok",
+            elapsed_s=42.0,
+            patch_len=100,
+            agent_output={"status": "ok"},
+        )
+
+        assert reason is None
+
+
+class TestMultiRunAggregation:
+    def test_unpack_legacy_arm(self):
+        from benchmark.online.db import _unpack_arm_runs
+
+        arm_data = {"status": "ok", "elapsed_s": 42, "eval_status": True, "resolved": True}
+        runs = _unpack_arm_runs(arm_data)
+        assert runs == {"0": arm_data}
+
+    def test_unpack_new_format(self):
+        from benchmark.online.db import _unpack_arm_runs
+
+        arm_data = {
+            "runs": {
+                "0": {"status": "ok", "resolved": True, "eval_status": True},
+                "1": {"status": "ok", "resolved": False, "eval_status": True},
+            }
+        }
+        runs = _unpack_arm_runs(arm_data)
+        assert len(runs) == 2
+        assert runs["0"]["resolved"] is True
+        assert runs["1"]["resolved"] is False
+
+    def test_aggregate_single_run(self):
+        from benchmark.online.db import _aggregate_arm
+
+        runs = {"0": {"status": "ok", "elapsed_s": 42, "eval_status": True, "resolved": True}}
+        agg = _aggregate_arm(runs)
+        assert agg["n_runs"] == 1
+        assert agg["n_evaluated"] == 1
+        assert agg["resolve_rate"] == 1.0
+        assert agg["resolved"] is True
+
+    def test_aggregate_multiple_runs(self):
+        from benchmark.online.db import _aggregate_arm
+
+        runs = {
+            "0": {"status": "ok", "eval_status": True, "resolved": True},
+            "1": {"status": "ok", "eval_status": True, "resolved": False},
+            "2": {"status": "ok", "eval_status": True, "resolved": True},
+        }
+        agg = _aggregate_arm(runs)
+        assert agg["n_runs"] == 3
+        assert agg["n_evaluated"] == 3
+        assert agg["resolve_rate"] == pytest.approx(2 / 3)
+        assert agg["resolved"] is True  # at least one resolved
+
+    def test_aggregate_partial_eval(self):
+        from benchmark.online.db import _aggregate_arm
+
+        runs = {
+            "0": {"status": "ok", "eval_status": True, "resolved": False},
+            "1": {"status": "ok"},  # not yet evaluated
+        }
+        agg = _aggregate_arm(runs)
+        assert agg["n_runs"] == 2
+        assert agg["n_evaluated"] == 1
+        assert agg["resolve_rate"] == 0.0
+        assert agg["resolved"] is False
 
 
 class TestFlushPendingUploads:
@@ -1336,8 +1429,8 @@ class TestFlushPendingUploads:
         call_kwargs = mock_upload.call_args[1]
         assert call_kwargs["instance_id"] == "id1"
         assert call_kwargs["patch"] == "diff"
-        # Should be marked as uploaded
-        assert ("id1", "claude") in load_uploaded(tmp_path)
+        # Should be marked as uploaded (with default seed=0)
+        assert ("id1", "claude", 0) in load_uploaded(tmp_path)
 
     def test_skips_already_uploaded(self, tmp_path):
         self._setup_run(
@@ -1421,7 +1514,7 @@ class TestFlushPendingUploads:
 
         assert ret == 0
         mock_post.assert_not_called()
-        assert ("id1", "codex") in load_uploaded(tmp_path)
+        assert ("id1", "codex", 0) in load_uploaded(tmp_path)
 
 
 # ── upload (publish) ──────────────────────────────────────────────────────
@@ -2667,7 +2760,7 @@ class TestCleanupDummyResults:
         rows = [
             {
                 "instance_id": "id1",
-                "arm": "codex",
+                "arm": "codex:gpt-5.4",
                 "status": "ok",
                 "elapsed_s": 1.0,
                 "patch_len": 0,
@@ -2676,7 +2769,7 @@ class TestCleanupDummyResults:
             },
             {
                 "instance_id": "id2",
-                "arm": "claude",
+                "arm": "claude:opus",
                 "status": "ok",
                 "elapsed_s": 120.0,
                 "patch_len": 42,
@@ -2695,7 +2788,7 @@ class TestCleanupDummyResults:
         assert result == [
             {
                 "instance_id": "id1",
-                "arm": "codex",
+                "arm": "codex:gpt-5.4",
                 "status": "ok",
                 "elapsed_s": 1.0,
                 "patch_len": 0,
@@ -2954,9 +3047,9 @@ class TestEvaluatePending:
 
         upload_calls = []
 
-        def fake_upload(dataset, arm, *, resolved=None, failed=None, error=None):
+        def fake_upload(dataset, arm, *, resolved=None, failed=None, error=None, seed=0):
             upload_calls.append(
-                {"dataset": dataset, "arm": arm, "resolved": resolved, "failed": failed}
+                {"dataset": dataset, "arm": arm, "resolved": resolved, "failed": failed, "seed": seed}
             )
 
         with (

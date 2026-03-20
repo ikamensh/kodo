@@ -16,9 +16,11 @@ from benchmark._util import load_json, load_jsonl, log
 UPLOADED_FILE = "uploaded.jsonl"
 
 
-def mark_uploaded(workspace: Path, instance_id: str, arm: str, run_id: str) -> None:
+def mark_uploaded(
+    workspace: Path, instance_id: str, arm: str, run_id: str, *, seed: int = 0
+) -> None:
     """Record a successful upload."""
-    entry = {"instance_id": instance_id, "arm": arm, "run_id": run_id}
+    entry = {"instance_id": instance_id, "arm": arm, "run_id": run_id, "seed": seed}
     path = workspace / UPLOADED_FILE
     with open(path, "a") as f:
         f.write(json.dumps(entry, separators=(",", ":")) + "\n")
@@ -26,9 +28,9 @@ def mark_uploaded(workspace: Path, instance_id: str, arm: str, run_id: str) -> N
         os.fsync(f.fileno())
 
 
-def load_uploaded(workspace: Path) -> set[tuple[str, str]]:
-    """Load set of (instance_id, arm) pairs that have been uploaded."""
-    uploaded: set[tuple[str, str]] = set()
+def load_uploaded(workspace: Path) -> set[tuple[str, str, int]]:
+    """Load set of (instance_id, arm, seed) triples that have been uploaded."""
+    uploaded: set[tuple[str, str, int]] = set()
     path = workspace / UPLOADED_FILE
     if not path.exists():
         return uploaded
@@ -37,7 +39,9 @@ def load_uploaded(workspace: Path) -> set[tuple[str, str]]:
             continue
         try:
             entry = json.loads(line)
-            uploaded.add((entry["instance_id"], entry["arm"]))
+            uploaded.add(
+                (entry["instance_id"], entry["arm"], entry.get("seed", 0))
+            )
         except (json.JSONDecodeError, KeyError):
             continue
     return uploaded
@@ -80,9 +84,10 @@ def flush_pending_uploads(workspace: Path) -> int:
         for r in results:
             iid = r.get("instance_id", "")
             arm = r.get("arm", "")
+            seed = r.get("seed", 0)
             if not iid or not arm:
                 continue
-            if (iid, arm) in uploaded:
+            if (iid, arm, seed) in uploaded:
                 continue
 
             pending += 1
@@ -98,10 +103,11 @@ def flush_pending_uploads(workspace: Path) -> int:
                     run_id=run_dir.name,
                     dataset=dataset,
                     agent_output=r.get("agent_output"),
+                    seed=seed,
                 )
-                mark_uploaded(workspace, iid, arm, run_dir.name)
+                mark_uploaded(workspace, iid, arm, run_dir.name, seed=seed)
                 success += 1
-                uploaded.add((iid, arm))
+                uploaded.add((iid, arm, seed))
             except Exception as exc:
                 log.warning("Upload failed for %s/%s: %s", iid, arm, exc)
                 failed += 1

@@ -202,7 +202,9 @@ def _run_sequential(
                 result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
-                _upload_task_online(result, run_dir.name, dataset, workspace)
+                _upload_task_online(
+                    result, run_dir.name, dataset, workspace, seed=seed
+                )
                 completed.add((task.instance_id, arm))
                 newly_completed += 1
                 log.info(
@@ -261,7 +263,9 @@ def _run_parallel(
                 result = future.result()
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
-                _upload_task_online(result, run_dir.name, dataset, workspace)
+                _upload_task_online(
+                    result, run_dir.name, dataset, workspace, seed=seed
+                )
                 newly_completed += 1
                 log.info(
                     "[%d/%d] %s | %s | %s (%s, %s patch)",
@@ -795,6 +799,8 @@ def _upload_task_online(
     run_id: str,
     dataset: str,
     workspace: Path,
+    *,
+    seed: int = 0,
 ) -> None:
     """Best-effort upload of a single task result to the online store.
 
@@ -814,11 +820,12 @@ def _upload_task_online(
             run_id=run_id,
             dataset=dataset,
             agent_output=result.agent_output,
+            seed=seed,
         )
         if ok:
             from benchmark.online.upload_tracker import mark_uploaded
 
-            mark_uploaded(workspace, result.instance_id, result.arm, run_id)
+            mark_uploaded(workspace, result.instance_id, result.arm, run_id, seed=seed)
     except Exception:
         pass
 
