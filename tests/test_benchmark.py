@@ -834,11 +834,12 @@ class TestRunBenchmark:
         """Tasks completed in prior runs are not re-executed."""
         task = SWETask("id1", "o/r", "abc", "problem", [], [])
 
-        # Create a prior run with this task completed
+        # Create a prior run with this task completed.
+        # Use the normalized arm name (bare "claude" expands to "claude:opus").
         prior = tmp_path / "runs" / "prior"
         prior.mkdir(parents=True)
         (prior / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
+            '{"instance_id":"id1","arm":"claude:opus","status":"ok"}\n'
         )
 
         with (
@@ -2132,8 +2133,9 @@ class TestRunBenchmarkDistributed:
                 ],
             )
 
-        # Should have run exactly the assigned pairs, not all 4 combinations
-        assert set(call_log) == {("id1", "claude"), ("id2", "kodo:solo")}
+        # Should have run exactly the assigned pairs, not all 4 combinations.
+        # Bare "claude" is normalized to "claude:opus" by run_benchmark.
+        assert set(call_log) == {("id1", "claude:opus"), ("id2", "kodo:solo")}
 
     def test_none_assignments_runs_everything(self, tmp_path):
         """assignments=None means normal mode (all tasks x arms)."""
@@ -2158,17 +2160,18 @@ class TestRunBenchmarkDistributed:
                 assignments=None,
             )
 
-        assert set(call_log) == {("id1", "claude"), ("id1", "kodo:solo")}
+        assert set(call_log) == {("id1", "claude:opus"), ("id1", "kodo:solo")}
 
     def test_crash_recovery_in_distributed_mode(self, tmp_path):
         """Locally completed tasks within distributed mode are skipped."""
         t1 = SWETask("id1", "o/r", "abc", "problem", [], [])
 
-        # Pre-populate local results (simulating crash recovery)
+        # Pre-populate local results (simulating crash recovery).
+        # Use normalized arm name since run_benchmark normalizes arms.
         run_dir = tmp_path / "runs" / "test"
         run_dir.mkdir(parents=True)
         (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
+            '{"instance_id":"id1","arm":"claude:opus","status":"ok"}\n'
         )
 
         call_log = []
@@ -2193,7 +2196,7 @@ class TestRunBenchmarkDistributed:
                 ],
             )
 
-        # claude should be skipped (already in local results), kodo:solo should run
+        # claude:opus should be skipped (already in local results), kodo:solo should run
         assert call_log == [("id1", "kodo:solo")]
 
 
@@ -2274,8 +2277,8 @@ class TestMainDistribute:
             ret = main()
         assert ret == 1
 
-    def test_distribute_sends_both_datasets(self, tmp_path):
-        """Sends both pro and verified instance_ids to server."""
+    def test_distribute_sends_only_requested_dataset(self, tmp_path):
+        """Sends only the --dataset dataset to server (default: pro)."""
         with (
             patch("sys.argv", ["benchmark", "--workspace", str(tmp_path)]),
             self._mock_load_tasks(),
@@ -2293,9 +2296,32 @@ class TestMainDistribute:
         ):
             main()
         call_kwargs = mock_fetch.call_args[1]
-        assert "pro" in call_kwargs["datasets"]
-        assert "verified" in call_kwargs["datasets"]
+        assert list(call_kwargs["datasets"].keys()) == ["pro"]
         assert "pro1" in call_kwargs["datasets"]["pro"]
+
+    def test_distribute_respects_dataset_verified(self, tmp_path):
+        """--dataset verified sends only verified tasks to server."""
+        with (
+            patch(
+                "sys.argv",
+                ["benchmark", "--workspace", str(tmp_path), "--dataset", "verified"],
+            ),
+            self._mock_load_tasks(),
+            patch(
+                "benchmark.online.client.is_configured",
+                autospec=True,
+                return_value=True,
+            ),
+            patch(
+                "benchmark.online.client.fetch_assignments",
+                autospec=True,
+                return_value=[],
+            ) as mock_fetch,
+            patch("benchmark._util.shutil.which", autospec=True, return_value=None),
+        ):
+            main()
+        call_kwargs = mock_fetch.call_args[1]
+        assert list(call_kwargs["datasets"].keys()) == ["verified"]
         assert "ver1" in call_kwargs["datasets"]["verified"]
 
     def test_distribute_auto_detects_backends(self, tmp_path):

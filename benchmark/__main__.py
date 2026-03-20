@@ -315,7 +315,7 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
     """Poll central server for task assignments and run them in batches."""
     from benchmark.online.client import fetch_assignments
     from benchmark.runner import BenchmarkInterrupted, run_benchmark
-    from benchmark.tasks import DATASET_MAP, DATASET_PRO, DATASET_VERIFIED, load_tasks
+    from benchmark.tasks import DATASET_MAP, DATASET_PRO, load_tasks
 
     # Backends: explicit --backends > explicit --arm > auto-detect
     if args.backends:
@@ -326,14 +326,15 @@ def _run_distributed(args: argparse.Namespace, workspace: Path, run_id: str) -> 
         backends = detect_backends()
         log.info("Detected agents: %s", ", ".join(backends))
 
-    # Load tasks from all datasets so server can pick across them
+    # Load only the requested dataset
     all_datasets: dict[str, list[str]] = {}
     all_tasks: dict[str, list] = {}  # instance_id -> task
-    for ds_key, ds_name in [("pro", DATASET_PRO), ("verified", DATASET_VERIFIED)]:
-        ds_tasks = load_tasks(dataset=ds_name)
-        all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
-        for t in ds_tasks:
-            all_tasks[t.instance_id] = t
+    ds_key = args.dataset
+    ds_name = DATASET_MAP[ds_key]
+    ds_tasks = load_tasks(dataset=ds_name)
+    all_datasets[ds_key] = [t.instance_id for t in ds_tasks]
+    for t in ds_tasks:
+        all_tasks[t.instance_id] = t
     total_tasks = sum(len(v) for v in all_datasets.values())
     log.info(
         "Task pool: %d tasks (%s)",

@@ -47,6 +47,26 @@ def parse_arm(arm: str) -> tuple[str, str | None]:
     return arm, None
 
 
+def normalize_arm(arm: str) -> str:
+    """Expand bare backend arms to include their default model.
+
+    ``"cursor"`` → ``"cursor:composer-2"``, ``"claude"`` → ``"claude:opus"``, etc.
+    This ensures benchmark results are never silently mixed when a default changes.
+    Arms that already carry a model/team suffix are left unchanged.
+    """
+    from kodo.models import CURSOR_COMPOSER
+
+    _defaults: dict[str, str] = {
+        "claude": "opus",
+        "cursor": CURSOR_COMPOSER,
+        "codex": "gpt-5.4",
+    }
+    base, team = parse_arm(arm)
+    if team is None and base in _defaults:
+        return f"{base}:{_defaults[base]}"
+    return arm
+
+
 def _timeout_for_arm(arm: str, timeout: int, timeout_kodo: int) -> int:
     """Return the appropriate timeout for an arm."""
     base, _ = parse_arm(arm)
@@ -76,6 +96,12 @@ def run_benchmark(
     (instance_id, arm) pairs are executed. Local crash-recovery dedup still
     applies but global dedup is skipped (the server already handled it).
     """
+    arms = [normalize_arm(a) for a in arms]
+    if assignments is not None:
+        assignments = [
+            {**a, "arm": normalize_arm(a["arm"])} for a in assignments
+        ]
+
     run_dir = workspace / RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
