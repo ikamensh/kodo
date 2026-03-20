@@ -8,7 +8,7 @@
   "agents": {
     "worker_fast": {
       "backend": "cursor",
-      "model": "composer-1.5",
+      "model": "composer-2",
       "description": "Fast coding agent — use for straightforward tasks where speed matters.\nDirective: 1-3 sentences describing desired BEHAVIOR, not implementation.\nIf stuck, set new_conversation=true with a fresh directive.\nEach task: ONE independently testable feature or change.",
       "max_turns": 30,
       "timeout_s": 1800
@@ -23,14 +23,14 @@
     },
     "tester": {
       "backend": "cursor",
-      "model": "composer-1.5",
+      "model": "composer-2",
       "description": "Verifies features end-to-end. Give it a user-experience description to check.\nReports what works and what's broken. Does not fix anything.",
       "max_turns": 20,
       "timeout_s": 1800
     },
     "tester_browser": {
       "backend": "cursor",
-      "model": "composer-1.5",
+      "model": "composer-2",
       "description": "Tester with real browser access — use for web UI verification.\nReports issues but does not fix anything.",
       "max_turns": 20,
       "timeout_s": 1800,

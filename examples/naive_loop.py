@@ -73,7 +73,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.model is None:
-        args.model = "sonnet" if args.backend == "claude" else "composer-1.5"
+        args.model = "sonnet" if args.backend == "claude" else "composer-2"
 
     goal_text = Path(args.goal).read_text()
     project_dir = Path(args.project_dir)

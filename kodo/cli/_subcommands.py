@@ -722,7 +722,7 @@ def _ask_agent_fields(
     # Suggest common models for the chosen backend
     _BACKEND_MODELS: dict[str, list[str]] = {
         "claude": ["sonnet", "opus"],
-        "cursor": ["composer-1.5"],
+        "cursor": ["composer-2", "composer-2-fast"],
         "codex": ["gpt-5.4", "gpt-5.3-codex", "o3"],
         "gemini-cli": ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-pro"],
     }

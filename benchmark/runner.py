@@ -294,7 +294,7 @@ def _run_single_task(
         )
     elif base == "cursor":
         agent_output, status, error, raw_stdout, raw_stderr = _run_cursor(
-            task, repo_dir, timeout
+            task, repo_dir, timeout, model=team
         )
     elif base == "codex":
         agent_output, status, error, raw_stdout, raw_stderr = _run_codex(
@@ -455,9 +455,11 @@ def _run_claude(
 
 
 def _run_cursor(
-    task: SWETask, repo_dir: Path, timeout: int
+    task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
 ) -> tuple[dict, str, str, str, str]:
     """Run Cursor agent CLI in print mode."""
+    from kodo.models import CURSOR_COMPOSER
+
     prompt = _build_prompt(task)
     cmd = [
         "cursor-agent",
@@ -466,7 +468,7 @@ def _run_cursor(
         "--output-format",
         "json",
         "--model",
-        "composer-1.5",
+        model or CURSOR_COMPOSER,
         prompt,
     ]
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)

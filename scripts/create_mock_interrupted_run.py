@@ -58,7 +58,7 @@ def main() -> None:
             "max_exchanges": 30,
             "max_cycles": 5,
             "team": {
-                "worker_fast": {"backend": "CursorSession", "model": "composer-1.5"},
+                "worker_fast": {"backend": "CursorSession", "model": "composer-2"},
                 "worker_smart": {"backend": "ClaudeSession", "model": "opus"},
             },
             "resumed": False,
