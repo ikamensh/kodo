@@ -127,6 +127,22 @@ def upload_eval_results(
     )
 
 
+def clear_eval_results(
+    dataset: str,
+    arm: str,
+    instance_ids: list[str],
+) -> None:
+    """Clear eval_status for instances so they can be re-evaluated."""
+    ds = dataset_key(dataset)
+    if not ds or not instance_ids:
+        return
+    _request(
+        "DELETE",
+        "/api/eval-results",
+        {"dataset": ds, "arm": arm, "instance_ids": instance_ids},
+    )
+
+
 # ── Internals ────────────────────────────────────────────────────────
 
 

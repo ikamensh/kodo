@@ -3,7 +3,8 @@
 Write endpoints (require Bearer token from Firestore token registry):
     POST /api/task-result   — upload one task result + patch
     POST /api/run           — register a new benchmark run
-    POST /api/eval-results  — upload evaluation results
+    POST   /api/eval-results  — upload evaluation results
+    DELETE /api/eval-results  — clear eval status (allow re-evaluation)
 
 Admin endpoints (require admin token from KODO_BENCH_ADMIN_TOKEN env var):
     POST   /admin/tokens    — create a new token {name, issued_to, notes}
@@ -114,6 +115,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         p = self._strip_base()
         if p.startswith("/admin/tokens/"):
             self._handle_revoke_token()
+        elif p == "/api/eval-results":
+            if self._check_api_token():
+                self._handle_clear_eval_results()
         else:
             self.send_error(404)
 
@@ -312,6 +316,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         _cache.pop(f"index:{dataset}", None)
         self._json_ok({"ok": True})
+
+    def _handle_clear_eval_results(self):
+        """DELETE /api/eval-results — clear eval_status so instances can be re-evaluated."""
+        body = self._read_json()
+        if body is None:
+            return
+        dataset = body.get("dataset", "")
+        arm = body.get("arm", "")
+        instance_ids = body.get("instance_ids", [])
+        if not dataset or not arm or not instance_ids:
+            self.send_error(400, "Missing dataset, arm, or instance_ids")
+            return
+        rows = [(iid, arm) for iid in instance_ids]
+        try:
+            db.clear_eval_status_batch(dataset, rows)
+        except Exception as e:
+            self.send_error(500, str(e))
+            return
+        _cache.pop(f"index:{dataset}", None)
+        self._json_ok({"ok": True, "cleared": len(rows)})
 
     def _handle_next_tasks(self):
         """Distribute tasks: return prioritized assignments for a contributor."""
