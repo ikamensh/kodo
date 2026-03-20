@@ -28,17 +28,3 @@ Why orchestration should bring benefits over a single unattended agent, and wher
 
 1. **Models not finetuned for roles** — we are in OOD (out-of-distribution) generalization space. Performance penalty from using general models in specialized interaction patterns they weren't trained for.
 2. **Time and token costs go up** — orchestration overhead in latency and tokens compared to a single agent session.
-
-## A/B testing findings (2026-03-19)
-
-Tested prompt-level changes against these tenets across 10+ real kodo runs on 5 different tasks (calculator, bug fix, todo feature, weather chart, Deno URL shortener).
-
-**What worked:**
-- "Don't accept untested code. New functionality needs tests before it ships." — 3/3 tasks got tests vs 2/3 baseline. Shipped to dev.
-
-**What didn't work:**
-- Verbose authority instruction ("you have permission to create files, install deps...") — produced fewer tests, lazier structure. Agents already take bold actions when needed (installed Deno runtime unprompted).
-- Architecture value statement ("separate concerns, keep modules focused") — no measurable effect.
-- Bundling multiple prompt additions together — caused regression (1/3 tests vs 2/3 baseline). More prompt text = more noise.
-
-**Key insight:** Short, concrete, checkable value statements work. Abstract encouragement and detailed methodology don't. The model is smart enough — it needs clear standards, not instructions on how to think.
