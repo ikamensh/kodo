@@ -773,6 +773,16 @@ def _make_pro_result_watcher(
                     for iid, resolved in results.items():
                         if iid not in seen:
                             seen.add(iid)
+                            # Skip infrastructure failures (no report.json
+                            # means the eval harness itself crashed).
+                            if not resolved:
+                                report_file = eval_dir / iid / "report.json"
+                                if not report_file.exists():
+                                    log.debug(
+                                        "Pro watcher: skipping %s (no report.json)",
+                                        iid,
+                                    )
+                                    continue
                             try:
                                 callback(iid, bool(resolved))
                             except Exception as exc:
@@ -1124,19 +1134,39 @@ def _build_arm_name_map(run_dir: Path) -> dict[str, str]:
 
 
 def _parse_pro_results(eval_dir: Path) -> dict:
-    """Parse Scale's eval_results.json into our standard format."""
+    """Parse Scale's eval_results.json into our standard format.
+
+    When an instance reports ``False`` but has no ``report.json``, the
+    evaluation infrastructure itself failed (e.g. entryscript crash on an
+    unsupported platform).  These instances are classified as ``error``
+    rather than ``failed`` so they are **not** marked as evaluated on the
+    server and can be retried later.
+    """
     results_file = eval_dir / "eval_results.json"
     if not results_file.exists():
         return {"resolved": [], "failed": [], "error": [], "resolve_rate": 0.0}
 
     results = json.loads(results_file.read_text())
-    resolved = [iid for iid, passed in results.items() if passed]
-    failed = [iid for iid, passed in results.items() if not passed]
-    total = len(resolved) + len(failed)
+    resolved = []
+    failed = []
+    errored = []
+    for iid, passed in results.items():
+        if passed:
+            resolved.append(iid)
+        else:
+            # Distinguish a genuine test failure from an infrastructure error:
+            # if the instance directory has no report.json the eval harness
+            # never ran the tests successfully.
+            report_file = eval_dir / iid / "report.json"
+            if report_file.exists():
+                failed.append(iid)
+            else:
+                errored.append(iid)
+    total = len(resolved) + len(failed) + len(errored)
     return {
         "resolved": sorted(resolved),
         "failed": sorted(failed),
-        "error": [],
+        "error": sorted(errored),
         "resolve_rate": len(resolved) / max(total, 1),
     }
 

@@ -1040,10 +1040,26 @@ class TestParseProResults:
     def test_with_results(self, tmp_path):
         data = {"id1": True, "id2": False, "id3": True}
         (tmp_path / "eval_results.json").write_text(json.dumps(data))
+        # id2 has a report.json → genuine failure
+        inst_dir = tmp_path / "id2"
+        inst_dir.mkdir()
+        (inst_dir / "report.json").write_text(json.dumps({"id2": {"resolved": False}}))
         result = _parse_pro_results(tmp_path)
         assert sorted(result["resolved"]) == ["id1", "id3"]
         assert result["failed"] == ["id2"]
+        assert result["error"] == []
         assert result["resolve_rate"] == pytest.approx(2 / 3)
+
+    def test_infra_failure_classified_as_error(self, tmp_path):
+        """When entryscript crashes (no report.json), mark as error not failed."""
+        data = {"id1": True, "id2": False}
+        (tmp_path / "eval_results.json").write_text(json.dumps(data))
+        # id2 has NO report.json → infrastructure failure
+        result = _parse_pro_results(tmp_path)
+        assert result["resolved"] == ["id1"]
+        assert result["failed"] == []
+        assert result["error"] == ["id2"]
+        assert result["resolve_rate"] == pytest.approx(1 / 2)
 
     def test_empty_results(self, tmp_path):
         (tmp_path / "eval_results.json").write_text("{}")
