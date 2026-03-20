@@ -318,7 +318,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json_ok({"ok": True})
 
     def _handle_clear_eval_results(self):
-        """DELETE /api/eval-results — clear eval_status so instances can be re-evaluated."""
+        """DELETE /api/eval-results — clear eval_status for broken evaluations only.
+
+        Refuses to clear instances where resolved=True (legitimate passes).
+        Only instances that were marked evaluated but not resolved can be cleared.
+        """
         body = self._read_json()
         if body is None:
             return
@@ -328,6 +332,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not dataset or not arm or not instance_ids:
             self.send_error(400, "Missing dataset, arm, or instance_ids")
             return
+
+        # Verify none of the requested instances have resolved=True
+        coll = (
+            db._db()
+            .collection("datasets")
+            .document(dataset)
+            .collection("results")
+        )
+        resolved_ids = []
+        for iid in instance_ids:
+            doc = coll.document(iid).get()
+            if doc.exists:
+                arm_data = (doc.to_dict() or {}).get("arms", {}).get(arm, {})
+                if arm_data.get("resolved") is True:
+                    resolved_ids.append(iid)
+        if resolved_ids:
+            self.send_error(
+                403,
+                f"Refusing to clear {len(resolved_ids)} resolved evaluation(s): "
+                f"{resolved_ids[:5]}{'...' if len(resolved_ids) > 5 else ''}",
+            )
+            return
+
         rows = [(iid, arm) for iid in instance_ids]
         try:
             db.clear_eval_status_batch(dataset, rows)
