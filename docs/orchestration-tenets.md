@@ -26,5 +26,5 @@ Why orchestration should bring benefits over a single unattended agent, and wher
 
 ## Technical drawbacks
 
-1. **Models not finetuned for roles** — we are in OOD (out-of-distribution) generalization space. Performance penalty from using general models in specialized interaction patterns they weren't trained for.
+1. **Models not finetuned for roles** — we are in OOD (out-of-distribution) generalization space. Performance penalty from using general models in specialized interaction patterns they weren't trained for (compared to claude code that is fine-tuned to expect the kind of plans it creates itself, kind of context it gets from its tools, etc).
 2. **Time and token costs go up** — orchestration overhead in latency and tokens compared to a single agent session.
