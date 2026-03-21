@@ -19,9 +19,6 @@ Each result document stores multiple runs per arm, keyed by seed::
         },
     }
 
-Legacy documents that store flat arm data (no ``runs`` sub-map) are
-transparently upgraded on read via :func:`_unpack_arm_runs`.
-
 GCS layout:
     gs://{bucket}/patches/{dataset}/{instance_id}/{arm}/{seed}.diff
     gs://{bucket}/data/{dataset}/index.json    — materialized index (rebuilt on demand)
@@ -262,9 +259,6 @@ def _patch_blob_path(
     return f"patches/{dataset}/{instance_id}/{arm}/{seed}.diff"
 
 
-def _legacy_patch_blob_path(dataset: str, instance_id: str, arm: str) -> str:
-    return f"patches/{dataset}/{instance_id}/{arm}.diff"
-
 
 def save_patch(
     dataset: str, instance_id: str, arm: str, patch: str, *, seed: int = 0
@@ -292,15 +286,10 @@ def delete_patch(
             if blob.exists():
                 blob.delete()
         else:
-            # Delete all seed patches + legacy path
+            # Delete all seed patches
             prefix = f"patches/{dataset}/{instance_id}/{arm}/"
             for blob in _bucket().list_blobs(prefix=prefix):
                 blob.delete()
-            legacy = _bucket().blob(
-                _legacy_patch_blob_path(dataset, instance_id, arm)
-            )
-            if legacy.exists():
-                legacy.delete()
     except ImportError:
         log.warning(
             "Skipping patch deletion for %s/%s in %s: google-cloud-storage is not installed",
@@ -651,14 +640,10 @@ def get_dataset_index(dataset: str) -> dict:
 def get_patch(
     dataset: str, instance_id: str, arm: str, *, seed: int = 0
 ) -> str | None:
-    """Read a single patch from GCS, falling back to legacy path."""
+    """Read a single patch from GCS."""
     blob = _bucket().blob(_patch_blob_path(dataset, instance_id, arm, seed))
     if blob.exists():
         return blob.download_as_text()
-    # Fallback: legacy flat path (pre-multi-run)
-    legacy = _bucket().blob(_legacy_patch_blob_path(dataset, instance_id, arm))
-    if legacy.exists():
-        return legacy.download_as_text()
     return None
 
 
@@ -697,25 +682,15 @@ def get_all_patches(dataset: str) -> dict[str, str]:
     for blob in _bucket().list_blobs(prefix=prefix):
         relative = blob.name[len(prefix) :]
         parts = relative.split("/")
-        if len(parts) == 3:
-            # New layout: instance_id/arm/seed.diff
-            iid, arm, seed_file = parts
-            seed = seed_file.removesuffix(".diff")
-            if seed == "0":
-                try:
-                    patches[f"{iid}/{arm}"] = blob.download_as_text()
-                except Exception:
-                    log.warning("Failed to download patch %s", blob.name)
-        elif len(parts) == 2:
-            # Legacy layout: instance_id/arm.diff
-            iid, arm_file = parts
-            arm = arm_file.removesuffix(".diff")
-            key = f"{iid}/{arm}"
-            if key not in patches:  # don't overwrite new-format entry
-                try:
-                    patches[key] = blob.download_as_text()
-                except Exception:
-                    log.warning("Failed to download patch %s", blob.name)
+        if len(parts) != 3:
+            continue
+        iid, arm, seed_file = parts
+        seed = seed_file.removesuffix(".diff")
+        if seed == "0":
+            try:
+                patches[f"{iid}/{arm}"] = blob.download_as_text()
+            except Exception:
+                log.warning("Failed to download patch %s", blob.name)
     return patches
 
 

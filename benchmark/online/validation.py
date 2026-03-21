@@ -4,10 +4,12 @@ The online viewer should exclude obviously broken rows such as empty uploads,
 no-op results, and Kodo runs where the orchestrator completed but a worker
 failed internally.
 
-    >>> suspicious_upload_reason(status="ok", elapsed_s=42, patch_len=12, agent_output={})
-    'empty_agent_output'
+    >>> suspicious_upload_reason(status="ok", elapsed_s=42, patch_len=12, agent_output={}) is None
+    True
     >>> suspicious_upload_reason(status="ok", elapsed_s=1.2, patch_len=0, agent_output={"status": "ok"})
     'no_patch'
+    >>> suspicious_upload_reason(status="ok", elapsed_s=1.2, patch_len=0, agent_output={})
+    'empty_agent_output'
     >>> suspicious_upload_reason(status="error", elapsed_s=42, patch_len=12, arm="kodo:solo", agent_output={"status": "error"})
     'kodo_worker_broken'
     >>> suspicious_upload_reason(status="ok", elapsed_s=42, patch_len=12, agent_output={"status": "ok"}) is None
@@ -75,10 +77,9 @@ def suspicious_upload_reason(
     ):
         return "kodo_worker_broken"
 
-    if _is_empty_agent_output(agent_output):
-        return "empty_agent_output"
-
     if effective_patch_len == 0:
+        if _is_empty_agent_output(agent_output):
+            return "empty_agent_output"
         return "no_patch"
 
     if _contains_error_type(agent_output):

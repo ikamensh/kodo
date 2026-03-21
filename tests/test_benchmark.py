@@ -1232,11 +1232,22 @@ class TestLoadUploaded:
 
 
 class TestOnlineValidation:
-    def test_flags_empty_agent_output(self):
+    def test_accepts_empty_agent_output_with_patch(self):
+        """A result with a real patch is useful even without agent_output (e.g. cursor)."""
         reason = suspicious_upload_reason(
             status="ok",
             elapsed_s=42.0,
             patch_len=100,
+            agent_output={},
+        )
+
+        assert reason is None
+
+    def test_flags_empty_agent_output_when_no_patch(self):
+        reason = suspicious_upload_reason(
+            status="ok",
+            elapsed_s=42.0,
+            patch_len=0,
             agent_output={},
         )
 

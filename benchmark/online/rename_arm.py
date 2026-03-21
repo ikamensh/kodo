@@ -72,9 +72,12 @@ def rename_arm(dataset: str, old_arm: str, new_arm: str, *, apply: bool = False)
     copied = 0
     for row in rows:
         iid = row["instance_id"]
-        old_blob = bucket.blob(f"patches/{dataset}/{iid}/{old_arm}.diff")
+        seed = row.get("seed", 0)
+        old_path = db._patch_blob_path(dataset, iid, old_arm, seed)
+        old_blob = bucket.blob(old_path)
         if old_blob.exists():
-            new_blob = bucket.blob(f"patches/{dataset}/{iid}/{new_arm}.diff")
+            new_path = db._patch_blob_path(dataset, iid, new_arm, seed)
+            new_blob = bucket.blob(new_path)
             new_blob.upload_from_string(
                 old_blob.download_as_text(), content_type="text/plain"
             )
