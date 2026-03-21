@@ -127,6 +127,22 @@ def _looks_staged(goal_text: str) -> bool:
     return len(numbered) >= 2
 
 
+def _coerce_parallel_group(value, seen: dict[str, int]) -> int:
+    """Convert a parallel_group value to int, accepting letters like 'A', 'B'."""
+    if isinstance(value, int):
+        return value
+    s = str(value).strip()
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    # Map letter labels to stable integers (A->1, B->2, ...)
+    key = s.upper()
+    if key not in seen:
+        seen[key] = len(seen) + 1
+    return seen[key]
+
+
 def _parse_goal_plan(raw: dict) -> GoalPlan:
     """Convert a raw dict (from JSON) into a GoalPlan dataclass.
 
@@ -138,6 +154,7 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         return GoalPlan(context="", stages=[])  # malformed input, return empty
     stages = []
     seen_indices: set[int] = set()
+    seen_groups: dict[str, int] = {}
     for s in raw.get("stages", []):
         if not isinstance(s, dict):
             continue
@@ -171,12 +188,7 @@ def _parse_goal_plan(raw: dict) -> GoalPlan:
         pg_raw = s.get("parallel_group")
         pg: int | None = None
         if pg_raw is not None:
-            try:
-                pg = int(pg_raw)
-            except (TypeError, ValueError) as err:
-                raise ValueError(
-                    f"parallel_group must be integer, got {pg_raw!r}",
-                ) from err
+            pg = _coerce_parallel_group(pg_raw, seen_groups)
 
         stages.append(
             GoalStage(

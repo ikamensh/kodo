@@ -338,21 +338,37 @@ class TestParseGoalPlan:
         plan = _parse_goal_plan(raw)
         assert plan.stages[0].parallel_group == 2
 
-    def test_invalid_parallel_group_raises(self):
+    def test_letter_parallel_group_coerced(self):
+        """Letter parallel_group values like 'A', 'B' are coerced to ints."""
         raw = {
             "context": "Test",
             "stages": [
                 {
                     "index": 1,
-                    "name": "S",
+                    "name": "S1",
                     "description": "D",
                     "acceptance_criteria": "C",
-                    "parallel_group": "abc",
+                    "parallel_group": "A",
+                },
+                {
+                    "index": 2,
+                    "name": "S2",
+                    "description": "D",
+                    "acceptance_criteria": "C",
+                    "parallel_group": "B",
+                },
+                {
+                    "index": 3,
+                    "name": "S3",
+                    "description": "D",
+                    "acceptance_criteria": "C",
+                    "parallel_group": "A",
                 },
             ],
         }
-        with pytest.raises(ValueError, match="parallel_group"):
-            _parse_goal_plan(raw)
+        plan = _parse_goal_plan(raw)
+        assert plan.stages[0].parallel_group == plan.stages[2].parallel_group
+        assert plan.stages[0].parallel_group != plan.stages[1].parallel_group
 
     def test_parallel_group_string_coerced_to_int(self):
         """parallel_group string "1" is coerced to int."""

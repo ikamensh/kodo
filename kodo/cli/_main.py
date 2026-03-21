@@ -504,6 +504,8 @@ def _main_inner() -> None:
 
     # 3. Create run directory
     run_dir = RunDir.create(project_dir)
+    if not args.json:
+        print(f"  Run dir: {run_dir.root}")
 
     # Construct --improve goal and staged plan now that we have a run_dir
     # 4. Intake / goal plan
