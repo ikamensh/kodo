@@ -622,6 +622,8 @@ class TestImproveFocusWiring:
                 return_value="claude-code",
             ),
             patch("kodo.cli._params.check_api_key", autospec=True, return_value=None),
+            patch("kodo.cli._main.build_launch_assets", autospec=True),
+            patch("kodo.cli._main.print_launch_identity", autospec=True),
         ):
             yield
 
