@@ -55,7 +55,7 @@ def _try_auto_fix_team(
     )
     try:
         answer = input("\n  Run 'kodo teams auto' to generate a working config? [Y/n] ")
-    except (EOFError, KeyboardInterrupt):
+    except (EOFError, KeyboardInterrupt, OSError):
         answer = "n"
     if answer.strip().lower() not in ("", "y"):
         _fail(f"Team {team_name!r} could not be built: {exc}")
