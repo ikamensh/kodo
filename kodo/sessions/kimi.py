@@ -315,6 +315,7 @@ class KimiSession:
 
                 assert self._session is not None
                 async for wire_msg in self._session.prompt(prompt):
+                    self._stats.touch()
                     if isinstance(wire_msg, TextPart):
                         text_parts.append(wire_msg.text)
                     elif isinstance(wire_msg, TokenUsage):

@@ -397,6 +397,7 @@ class ClaudeSession:
                 nonlocal result
                 assert self._client is not None
                 async for message in self._client.receive_response():
+                    self._stats.touch()
                     if isinstance(message, AssistantMessage):
                         # Build full message record for conversation log
                         blocks: list[dict[str, Any]] = []

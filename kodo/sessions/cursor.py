@@ -93,9 +93,12 @@ class CursorSession(SubprocessSession):
                 try:
                     msg = json.loads(line)
                 except json.JSONDecodeError:
+                    raw_messages.append({"type": "raw_text", "text": line})
+                    self._stats.touch()
                     continue
 
                 raw_messages.append(msg)
+                self._stats.touch()
 
                 if msg.get("type") == "result":
                     r = msg.get("result", "")

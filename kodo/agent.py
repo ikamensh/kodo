@@ -180,12 +180,28 @@ class Agent:
             session_queries=self.session.stats.queries,
         )
 
+    # Adaptive timeout: if no output, time out quickly (idle_timeout_s).
+    # Each time the session produces output, extend the deadline by up to
+    # idle_timeout_s more seconds, never exceeding max_timeout_s total.
+    _IDLE_TIMEOUT_S: float = 300  # 5 min of silence → timeout
+    _MAX_TIMEOUT_S: float = 4500  # 75 min hard cap
+    _POLL_INTERVAL_S: float = 5  # check activity every 5s
+
     def _run_timed(self, goal: str, project_dir: Path, label: str) -> QueryResult:
-        """Execute a query with a timeout.
+        """Execute a query with an adaptive timeout.
 
         Uses a daemon thread so that even if session.terminate() fails to
         unblock the worker, the thread won't prevent process exit.
+
+        The timeout extends automatically when the session produces output:
+        - If the session is idle for ``_IDLE_TIMEOUT_S`` (5 min), it times out.
+        - If the session keeps producing output, it can run up to
+          ``_MAX_TIMEOUT_S`` (75 min) total.
+        - The configured ``timeout_s`` acts as the initial idle timeout
+          (overrides ``_IDLE_TIMEOUT_S`` if set).
         """
+        import time
+
         future: Future[QueryResult] = Future()
 
         def worker() -> None:
@@ -199,35 +215,76 @@ class Agent:
             except BaseException as e:
                 future.set_exception(e)
 
+        idle_timeout = self.timeout_s or self._IDLE_TIMEOUT_S
+        max_timeout = max(self._MAX_TIMEOUT_S, idle_timeout)
+        poll_interval = min(self._POLL_INTERVAL_S, idle_timeout / 2)
+        start = time.monotonic()
+
         t = threading.Thread(target=worker, daemon=True)
         t.start()
-        try:
-            return future.result(timeout=self.timeout_s)
-        except FuturesTimeoutError:
-            log.emit("agent_timeout", agent=label, timeout_s=self.timeout_s)
-            self.session.terminate()
+
+        # Poll until the future completes, idle timeout fires, or hard cap.
+        last_seen_activity = self.session.stats.last_activity
+        while True:
             try:
-                future.result(timeout=0.5)
+                return future.result(timeout=poll_interval)
             except FuturesTimeoutError:
+                pass  # not done yet — check activity
+
+            now = time.monotonic()
+            elapsed = now - start
+            current_activity = self.session.stats.last_activity
+
+            # Activity detected — reset idle clock
+            if current_activity > last_seen_activity:
+                last_seen_activity = current_activity
+
+            idle_s = now - last_seen_activity
+
+            if elapsed >= max_timeout:
                 log.emit(
-                    "agent_timeout_worker_stuck",
+                    "agent_timeout",
                     agent=label,
-                    message="Worker thread did not exit after terminate()",
+                    timeout_s=max_timeout,
+                    reason="max_timeout",
+                    elapsed_s=elapsed,
                 )
-            except Exception:
-                # Worker finished with an error during grace period
-                # (e.g. ConnectionError). Swallow it — the timeout result
-                # below is the correct response for the caller.
-                pass
-            self.session.reset()
-            return QueryResult(
-                text=(
-                    f"Agent timed out after {self.timeout_s}s. "
-                    "Hint: increase timeout_s in Agent or TeamConfig."
-                ),
-                elapsed_s=self.timeout_s or 0.0,
-                is_error=True,
+                break
+            if idle_s >= idle_timeout:
+                log.emit(
+                    "agent_timeout",
+                    agent=label,
+                    timeout_s=idle_timeout,
+                    reason="idle",
+                    idle_s=idle_s,
+                    elapsed_s=elapsed,
+                )
+                break
+
+        elapsed = time.monotonic() - start
+        self.session.terminate()
+        try:
+            future.result(timeout=0.5)
+        except FuturesTimeoutError:
+            log.emit(
+                "agent_timeout_worker_stuck",
+                agent=label,
+                message="Worker thread did not exit after terminate()",
             )
+        except Exception:
+            # Worker finished with an error during grace period
+            # (e.g. ConnectionError). Swallow it — the timeout result
+            # below is the correct response for the caller.
+            pass
+        self.session.reset()
+        return QueryResult(
+            text=(
+                f"Agent timed out after {elapsed:.0f}s. "
+                "Hint: increase timeout_s in Agent or TeamConfig."
+            ),
+            elapsed_s=elapsed,
+            is_error=True,
+        )
 
     def clone(self) -> "Agent":
         """Create a new Agent with a fresh session copy (no shared state)."""

@@ -95,6 +95,7 @@ class GeminiCliSession(SubprocessSession):
             output_tokens = 0
 
             if stdout_text.strip():
+                self._stats.touch()
                 try:
                     data = json.loads(stdout_text)
                     parsed_data = data

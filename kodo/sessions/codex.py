@@ -94,9 +94,12 @@ class CodexSession(SubprocessSession):
                 try:
                     msg = json.loads(line)
                 except json.JSONDecodeError:
+                    raw_messages.append({"type": "raw_text", "text": line})
+                    self._stats.touch()
                     continue
 
                 raw_messages.append(msg)
+                self._stats.touch()
 
                 # Codex emits two shapes:
                 #   top-level: {"type": "...", ...}

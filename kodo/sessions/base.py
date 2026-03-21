@@ -34,6 +34,15 @@ class SessionStats:
     total_output_tokens: int = 0
     total_cost_usd: float = 0.0
     queries: int = 0
+    last_activity: float = 0.0  # monotonic timestamp of last output from session
+
+    def __post_init__(self) -> None:
+        if self.last_activity == 0.0:
+            self.last_activity = time.monotonic()
+
+    def touch(self) -> None:
+        """Mark that the session produced output just now."""
+        self.last_activity = time.monotonic()
 
     @property
     def total_tokens(self) -> int:
