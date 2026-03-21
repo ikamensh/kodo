@@ -18,6 +18,9 @@
 # 3. PR + Tests FAIL → sends "pr_ci_failure" to the CI assistant
 #    Claude posts a review comment noting the test failure + reviews the PR.
 #
+# 4. Comment "@@fix" on any issue → sends "issue_fix" to the CI assistant
+#    Claude reads the issue, fixes it, and pushes (or opens a PR).
+#
 # Secrets required: CI_ASSISTANT_URL, CI_ASSISTANT_SECRET
 
 name: CI Assistant
@@ -27,7 +30,50 @@ on:
     workflows: ["Tests"]
     types: [completed]
 
+  issue_comment:
+    types: [created]
+
 jobs:
+  fix-on-comment:
+    if: >-
+      github.event_name == 'issue_comment'
+      && contains(github.event.comment.body, '@@fix')
+      && (github.event.comment.author_association == 'OWNER'
+       || github.event.comment.author_association == 'MEMBER'
+       || github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify CI Assistant
+        run: |
+          # Determine if this is a PR comment or issue comment
+          if [ -n "${{ github.event.issue.pull_request.url }}" ]; then
+            EVENT="pr_ci_failure"
+            PR_NUMBER=${{ github.event.issue.number }}
+            ISSUE_NUMBER=null
+            REF=$(gh pr view $PR_NUMBER --repo ${{ github.repository }} --json headRefName --jq '.headRefName')
+          else
+            EVENT="issue_fix"
+            PR_NUMBER=null
+            ISSUE_NUMBER=${{ github.event.issue.number }}
+            REF=$(gh repo view ${{ github.repository }} --json defaultBranchRef --jq '.defaultBranchRef.name')
+          fi
+          jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg ref "$REF" \
+            --arg event "$EVENT" \
+            --argjson pr_number "$PR_NUMBER" \
+            --argjson issue_number "$ISSUE_NUMBER" \
+            --arg details "${{ github.event.issue.title }}" \
+            '{repo: $repo, ref: $ref, event: $event, pr_number: $pr_number, issue_number: $issue_number, details: $details}' \
+            > /tmp/payload.json
+          curl -s -X POST "${{ secrets.CI_ASSISTANT_URL }}/webhook" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CI_ASSISTANT_SECRET }}" \
+            -d @/tmp/payload.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
   on-failure:
     if: >-
       github.event.workflow_run.conclusion == 'failure'
