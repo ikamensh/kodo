@@ -158,7 +158,10 @@ class TestRunTestDiscovery:
             "kodo.cli._intake.run_single_turn_plan", autospec=True, side_effect=capture
         ):
             run_test_discovery(run_dir, "/tmp/r.md")
-        assert "real user" in captured["prompt"].lower() or "user" in captured["prompt"].lower()
+        assert (
+            "real user" in captured["prompt"].lower()
+            or "user" in captured["prompt"].lower()
+        )
 
 
 # ---------------------------------------------------------------------------

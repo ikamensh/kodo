@@ -36,7 +36,6 @@ def migrate_firestore(dataset: str, *, apply: bool = False) -> int:
     interpreting dots in arm names (e.g. ``cursor:composer-1.5``) as field
     path separators.
     """
-    from google.cloud import firestore
 
     coll = db._db().collection("datasets").document(dataset).collection("results")
     migrated = 0
@@ -100,7 +99,7 @@ def migrate_gcs(dataset: str, *, apply: bool = False) -> int:
     migrated = 0
 
     for blob in bucket.list_blobs(prefix=prefix):
-        relative = blob.name[len(prefix):]
+        relative = blob.name[len(prefix) :]
         parts = relative.split("/")
 
         # Legacy layout: instance_id/arm.diff (2 parts)

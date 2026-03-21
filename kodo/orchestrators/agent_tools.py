@@ -44,7 +44,9 @@ def handle_agent_call(
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
     new_tag = " 🔄" if new_conversation else ""
-    log.tprint(f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}{new_tag}: {task[:100]}...")
+    log.tprint(
+        f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}{new_tag}: {task[:100]}..."
+    )
 
     if cycle_log is not None:
         cycle_log.append(f"→ {agent_name}: {task[:200]}")

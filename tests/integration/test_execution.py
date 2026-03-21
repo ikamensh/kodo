@@ -16,7 +16,9 @@ class TestJsonOutput:
     """JSON output contract tests."""
 
     def test_json_output_has_required_fields(self) -> None:
-        result = run_kodo("--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT)
+        result = run_kodo(
+            "--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT
+        )
         assert result.success()
         data = json.loads(result.stdout)
         assert data["status"] == "completed"
@@ -27,27 +29,37 @@ class TestJsonOutput:
         assert "summary" in data
 
     def test_json_debug_cost_is_zero(self) -> None:
-        result = run_kodo("--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT)
+        result = run_kodo(
+            "--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT
+        )
         assert result.success()
         data = json.loads(result.stdout)
         assert data["cost_usd"] == 0.0
 
     def test_json_progress_goes_to_stderr(self) -> None:
-        result = run_kodo("--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT)
+        result = run_kodo(
+            "--debug", "--goal", "test goal", "--yes", "--json", timeout=EXEC_TIMEOUT
+        )
         assert result.success()
         # stdout should be pure JSON
         json.loads(result.stdout)
         # stderr should have the progress output
-        assert "orchestrator" in result.stderr.lower() or "cycle" in result.stderr.lower()
+        assert (
+            "orchestrator" in result.stderr.lower() or "cycle" in result.stderr.lower()
+        )
 
     def test_json_error_output(self) -> None:
-        result = run_kodo("--debug", "--goal", "", "--yes", "--json", timeout=EXEC_TIMEOUT)
+        result = run_kodo(
+            "--debug", "--goal", "", "--yes", "--json", timeout=EXEC_TIMEOUT
+        )
         assert result.exit_code != 0
         try:
             data = json.loads(result.stdout)
             assert data["status"] == "error"
         except json.JSONDecodeError:
-            assert "empty" in result.output().lower() or "error" in result.output().lower()
+            assert (
+                "empty" in result.output().lower() or "error" in result.output().lower()
+            )
 
 
 class TestErrorHandling:
@@ -62,7 +74,15 @@ class TestErrorHandling:
         assert result.exit_code != 0
 
     def test_invalid_team_rejected(self) -> None:
-        result = run_kodo("--debug", "--goal", "test", "--yes", "--team", "nonexistent_team_xyz", timeout=EXEC_TIMEOUT)
+        result = run_kodo(
+            "--debug",
+            "--goal",
+            "test",
+            "--yes",
+            "--team",
+            "nonexistent_team_xyz",
+            timeout=EXEC_TIMEOUT,
+        )
         assert result.exit_code != 0
 
     def test_resume_nonexistent_run(self) -> None:

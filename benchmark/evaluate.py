@@ -773,16 +773,6 @@ def _make_pro_result_watcher(
                     for iid, resolved in results.items():
                         if iid not in seen:
                             seen.add(iid)
-                            # Skip infrastructure failures (no report.json
-                            # means the eval harness itself crashed).
-                            if not resolved:
-                                report_file = eval_dir / iid / "report.json"
-                                if not report_file.exists():
-                                    log.debug(
-                                        "Pro watcher: skipping %s (no report.json)",
-                                        iid,
-                                    )
-                                    continue
                             try:
                                 callback(iid, bool(resolved))
                             except Exception as exc:

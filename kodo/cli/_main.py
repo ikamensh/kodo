@@ -373,7 +373,9 @@ def _main_inner() -> None:
     skip_prompts = non_interactive or args.yes
 
     if non_interactive and args.resume is not None:
-        _fail("--resume cannot be used with --goal/--goal-file/--improve/--test/--fix-from")
+        _fail(
+            "--resume cannot be used with --goal/--goal-file/--improve/--test/--fix-from"
+        )
 
     project_dir = Path(args.project).resolve()
 
@@ -865,7 +867,7 @@ def _main_inner() -> None:
             print(f"  Needs decision: {needs_decision}")
 
             if needs_decision > 0 and not args.json:
-                print(f"\n  To fix 'needs decision' items:")
+                print("\n  To fix 'needs decision' items:")
                 print(f"    kodo --fix-from {run_dir.run_id}")
 
             if args.json:
@@ -895,12 +897,9 @@ def _main_inner() -> None:
                     print(f"    {detail}")
 
             # Suggest fix command if there are fixable findings
-            fixable = (
-                summary.get("findings_count", 0)
-                - summary.get("blocked_count", 0)
-            )
+            fixable = summary.get("findings_count", 0) - summary.get("blocked_count", 0)
             if fixable > 0 and not args.json:
-                print(f"\n  To fix these findings:")
+                print("\n  To fix these findings:")
                 print(f"    kodo --fix-from {run_dir.run_id}")
 
             if args.json:

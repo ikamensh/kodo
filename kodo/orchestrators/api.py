@@ -117,9 +117,7 @@ class ApiOrchestrator(OrchestratorBase):
         #
         # By running all run_sync() calls in the same thread, get_event_loop()
         # always returns the same loop, and httpx primitives stay bound to it.
-        self._task_queue: queue.Queue[
-            tuple[callable, Future] | None
-        ] = queue.Queue()
+        self._task_queue: queue.Queue[tuple[callable, Future] | None] = queue.Queue()
         self._worker_thread = threading.Thread(
             target=self._run_loop_worker, daemon=True
         )

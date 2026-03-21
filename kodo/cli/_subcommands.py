@@ -441,7 +441,11 @@ def _print_team_blocks(
                 except KeyError:
                     model = "default"
             raw_desc = acfg.get("description", "").split("\n")[0].strip()
-            adesc = f"  {DIM}{_truncate_word(raw_desc, desc_width)}{RESET}" if raw_desc else ""
+            adesc = (
+                f"  {DIM}{_truncate_word(raw_desc, desc_width)}{RESET}"
+                if raw_desc
+                else ""
+            )
             backend_key = _BACKEND_MAP.get(backend, "")
             ok = backends.get(backend_key, False)
             if ok:
@@ -465,14 +469,14 @@ def _cmd_teams() -> None:
 
     subcmd = args[0]
     if subcmd in ("--help", "-h"):
-        print(
-            "Usage: kodo teams [add <name> | edit <name> | delete | auto [mode]]"
-        )
+        print("Usage: kodo teams [add <name> | edit <name> | delete | auto [mode]]")
         print()
         print("  (no args)       List all available teams")
         print("  add <name>      Create a new team configuration")
         print("  edit <name>     Edit an existing team configuration")
-        print("  delete          Interactively remove ~/.kodo/teams/*.json (built-ins unchanged)")
+        print(
+            "  delete          Interactively remove ~/.kodo/teams/*.json (built-ins unchanged)"
+        )
         print("  remove          Same as delete")
         print("  auto            Generate teams adapted to installed backends")
         return

@@ -461,7 +461,9 @@ def launch_run(
         assets = prepared
 
     if not json_mode and not skip_identity_print:
-        print_launch_identity(assets, params, log_path, json_mode=json_mode, debug=debug)
+        print_launch_identity(
+            assets, params, log_path, json_mode=json_mode, debug=debug
+        )
 
     team = assets.team
     orchestrator = assets.orchestrator
@@ -638,11 +640,15 @@ def launch_resume(
             inferred = implied_orchestrator_from_model(orch_model)
             params["orchestrator"] = inferred or "api"
             params["orchestrator_model"] = orch_model
-        overrides["orchestrator"] = f"{params['orchestrator']}:{params['orchestrator_model']}"
+        overrides["orchestrator"] = (
+            f"{params['orchestrator']}:{params['orchestrator_model']}"
+        )
         if not debug:
             from kodo.factory import check_api_key
 
-            key_err = check_api_key(params["orchestrator"], params["orchestrator_model"])
+            key_err = check_api_key(
+                params["orchestrator"], params["orchestrator_model"]
+            )
             if key_err:
                 _fail(key_err)
     if exchanges_override is not None and exchanges_override > 0:

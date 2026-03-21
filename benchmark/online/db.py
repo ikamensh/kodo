@@ -226,9 +226,7 @@ def delete_empty_result_docs(dataset: str) -> int:
     return deleted
 
 
-def clear_eval_status_batch(
-    dataset: str, rows: list[tuple[str, str, int]]
-) -> None:
+def clear_eval_status_batch(dataset: str, rows: list[tuple[str, str, int]]) -> None:
     """Remove eval_status and resolved fields so runs can be re-evaluated.
 
     Each element is ``(instance_id, arm, seed)``.
@@ -253,11 +251,8 @@ def clear_eval_status_batch(
         _mark_dirty(dataset)
 
 
-def _patch_blob_path(
-    dataset: str, instance_id: str, arm: str, seed: int = 0
-) -> str:
+def _patch_blob_path(dataset: str, instance_id: str, arm: str, seed: int = 0) -> str:
     return f"patches/{dataset}/{instance_id}/{arm}/{seed}.diff"
-
 
 
 def save_patch(
@@ -280,9 +275,7 @@ def delete_patch(
     """
     try:
         if seed is not None:
-            blob = _bucket().blob(
-                _patch_blob_path(dataset, instance_id, arm, seed)
-            )
+            blob = _bucket().blob(_patch_blob_path(dataset, instance_id, arm, seed))
             if blob.exists():
                 blob.delete()
         else:
@@ -599,9 +592,7 @@ def _build_index_from_firestore(dataset: str) -> dict:
             clean_runs = {}
             for seed_key, run_data in runs.items():
                 clean_runs[seed_key] = {
-                    k: _clean_value(v)
-                    for k, v in run_data.items()
-                    if k != "updated_at"
+                    k: _clean_value(v) for k, v in run_data.items() if k != "updated_at"
                 }
             agg = _aggregate_arm(clean_runs)
             results[iid][arm_name] = agg
@@ -637,9 +628,7 @@ def get_dataset_index(dataset: str) -> dict:
     return _build_index_from_firestore(dataset)
 
 
-def get_patch(
-    dataset: str, instance_id: str, arm: str, *, seed: int = 0
-) -> str | None:
+def get_patch(dataset: str, instance_id: str, arm: str, *, seed: int = 0) -> str | None:
     """Read a single patch from GCS."""
     blob = _bucket().blob(_patch_blob_path(dataset, instance_id, arm, seed))
     if blob.exists():
@@ -726,9 +715,7 @@ def get_unevaluated(dataset: str) -> list[dict]:
         patch = get_patch(dataset, iid, arm, seed=seed)
         if not patch:
             continue
-        results.append(
-            {"instance_id": iid, "arm": arm, "seed": seed, "patch": patch}
-        )
+        results.append({"instance_id": iid, "arm": arm, "seed": seed, "patch": patch})
 
     log.info("Found %d unevaluated predictions for dataset %s", len(results), dataset)
     return results

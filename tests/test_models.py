@@ -82,6 +82,7 @@ class TestMakeFreshModel:
         """anthropic: prefix creates an AnthropicModel instance."""
         result = make_fresh_model("anthropic:claude-opus-4-6")
         from pydantic_ai.models.anthropic import AnthropicModel
+
         assert isinstance(result, AnthropicModel)
 
     def test_no_colon_returns_string(self):

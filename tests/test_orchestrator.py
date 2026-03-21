@@ -338,8 +338,12 @@ class TestAutoCommit:
         """worker_fast is preferred over worker_smart."""
         fast_session = MagicMock()
         fast_session.cost_bucket = "test"
+        fast_session.stats.queries = 0
+        fast_session.stats.total_tokens = 0
         smart_session = MagicMock()
         smart_session.cost_bucket = "test"
+        smart_session.stats.queries = 0
+        smart_session.stats.total_tokens = 0
         team = {
             "worker_fast": Agent(fast_session, "fast"),
             "worker_smart": Agent(smart_session, "smart"),

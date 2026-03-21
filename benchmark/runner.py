@@ -98,9 +98,7 @@ def run_benchmark(
     """
     arms = [normalize_arm(a) for a in arms]
     if assignments is not None:
-        assignments = [
-            {**a, "arm": normalize_arm(a["arm"])} for a in assignments
-        ]
+        assignments = [{**a, "arm": normalize_arm(a["arm"])} for a in assignments]
 
     run_dir = workspace / RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -202,9 +200,7 @@ def _run_sequential(
                 result = _safe_run(task, arm, workspace, t, run_dir=run_dir)
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
-                _upload_task_online(
-                    result, run_dir.name, dataset, workspace, seed=seed
-                )
+                _upload_task_online(result, run_dir.name, dataset, workspace, seed=seed)
                 completed.add((task.instance_id, arm))
                 newly_completed += 1
                 log.info(
@@ -263,9 +259,7 @@ def _run_parallel(
                 result = future.result()
                 _append_result(run_dir, result, seed=seed)
                 _append_prediction(run_dir, result)
-                _upload_task_online(
-                    result, run_dir.name, dataset, workspace, seed=seed
-                )
+                _upload_task_online(result, run_dir.name, dataset, workspace, seed=seed)
                 newly_completed += 1
                 log.info(
                     "[%d/%d] %s | %s | %s (%s, %s patch)",

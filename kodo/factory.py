@@ -5,7 +5,6 @@ Centralises the duplicated team-building logic from main.py and cli.py.
 
 from __future__ import annotations
 
-import logging
 import shutil
 import subprocess
 from dataclasses import dataclass

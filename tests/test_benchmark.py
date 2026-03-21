@@ -1319,7 +1319,12 @@ class TestMultiRunAggregation:
     def test_unpack_legacy_arm(self):
         from benchmark.online.db import _unpack_arm_runs
 
-        arm_data = {"status": "ok", "elapsed_s": 42, "eval_status": True, "resolved": True}
+        arm_data = {
+            "status": "ok",
+            "elapsed_s": 42,
+            "eval_status": True,
+            "resolved": True,
+        }
         runs = _unpack_arm_runs(arm_data)
         assert runs == {"0": arm_data}
 
@@ -1340,7 +1345,14 @@ class TestMultiRunAggregation:
     def test_aggregate_single_run(self):
         from benchmark.online.db import _aggregate_arm
 
-        runs = {"0": {"status": "ok", "elapsed_s": 42, "eval_status": True, "resolved": True}}
+        runs = {
+            "0": {
+                "status": "ok",
+                "elapsed_s": 42,
+                "eval_status": True,
+                "resolved": True,
+            }
+        }
         agg = _aggregate_arm(runs)
         assert agg["n_runs"] == 1
         assert agg["n_evaluated"] == 1
@@ -3058,9 +3070,17 @@ class TestEvaluatePending:
 
         upload_calls = []
 
-        def fake_upload(dataset, arm, *, resolved=None, failed=None, error=None, seed=0):
+        def fake_upload(
+            dataset, arm, *, resolved=None, failed=None, error=None, seed=0
+        ):
             upload_calls.append(
-                {"dataset": dataset, "arm": arm, "resolved": resolved, "failed": failed, "seed": seed}
+                {
+                    "dataset": dataset,
+                    "arm": arm,
+                    "resolved": resolved,
+                    "failed": failed,
+                    "seed": seed,
+                }
             )
 
         with (

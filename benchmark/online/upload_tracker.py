@@ -39,9 +39,7 @@ def load_uploaded(workspace: Path) -> set[tuple[str, str, int]]:
             continue
         try:
             entry = json.loads(line)
-            uploaded.add(
-                (entry["instance_id"], entry["arm"], entry.get("seed", 0))
-            )
+            uploaded.add((entry["instance_id"], entry["arm"], entry.get("seed", 0)))
         except (json.JSONDecodeError, KeyError):
             continue
     return uploaded

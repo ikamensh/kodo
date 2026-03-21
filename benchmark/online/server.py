@@ -310,7 +310,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         from benchmark.online.validation import _is_bare_arm
 
         if _is_bare_arm(arm):
-            self.send_error(400, f"Arm {arm!r} requires a model qualifier (e.g. {arm}:model)")
+            self.send_error(
+                400, f"Arm {arm!r} requires a model qualifier (e.g. {arm}:model)"
+            )
             return
         seed = body.get("seed", 0)
         try:
@@ -346,12 +348,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Verify none of the requested instances have resolved=True
-        coll = (
-            db._db()
-            .collection("datasets")
-            .document(dataset)
-            .collection("results")
-        )
+        coll = db._db().collection("datasets").document(dataset).collection("results")
         seed_key = str(seed)
         resolved_ids = []
         for iid in instance_ids:

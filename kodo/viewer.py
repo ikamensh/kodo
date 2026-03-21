@@ -61,7 +61,9 @@ def _build_html(
     if include_index:
         index = _build_run_index()
         cwd = str(project_dir.resolve()) if project_dir else str(Path.cwd().resolve())
-        idx_js = f"EMBEDDED_INDEX = {json.dumps(index)};\nEMBEDDED_CWD = {json.dumps(cwd)};"
+        idx_js = (
+            f"EMBEDDED_INDEX = {json.dumps(index)};\nEMBEDDED_CWD = {json.dumps(cwd)};"
+        )
         idx_js = idx_js.replace("</script>", "<\\/script>")
         template = template.replace(_INDEX_MARKER, idx_js)
     else:

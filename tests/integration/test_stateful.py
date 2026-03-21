@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.integration.cli_wrapper import run_kodo
 
 pytestmark = pytest.mark.integration
 

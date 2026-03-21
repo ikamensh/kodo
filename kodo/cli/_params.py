@@ -382,9 +382,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
                 # Priority: gpt-5.4 → gemini-flash → claude-haiku
                 _API_MODEL_PRIORITY = ("gpt-5.4", "gemini-flash", "haiku")
                 providers = _available_model_providers()
-                available_aliases = {
-                    m.alias for p in providers for m in p.models
-                }
+                available_aliases = {m.alias for p in providers for m in p.models}
                 orch_model = next(
                     (a for a in _API_MODEL_PRIORITY if a in available_aliases),
                     GEMINI_API_FLASH,  # ultimate fallback
@@ -403,9 +401,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         "max_exchanges": args.exchanges
         if args.exchanges and args.exchanges > 0
         else DEFAULT_MAX_EXCHANGES,
-        "max_cycles": args.cycles
-        if cycles_explicit
-        else DEFAULT_MAX_CYCLES,
+        "max_cycles": args.cycles if cycles_explicit else DEFAULT_MAX_CYCLES,
     }
 
     # Auto-commit: on by default, disabled with --no-auto-commit or user config

@@ -83,6 +83,16 @@ def make_session(
 
 __all__ = [
     "__version__",
+    "cli",
     "log",
     "make_session",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy ``kodo.cli`` so ``patch('kodo.cli._params.…')`` resolves after ``import kodo`` only."""
+    if name == "cli":
+        import importlib
+
+        return importlib.import_module("kodo.cli")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

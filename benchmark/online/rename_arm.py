@@ -65,7 +65,9 @@ def rename_arm(dataset: str, old_arm: str, new_arm: str, *, apply: bool = False)
             batch.set(doc_ref, {"arms": {new_arm: arm_data}}, merge=True)
             batch.update(doc_ref, {f"arms.{old_arm}": firestore.DELETE_FIELD})
         batch.commit()
-        print(f"  Firestore batch {i // batch_size + 1}: {min(batch_size, len(rows) - i)} rows")
+        print(
+            f"  Firestore batch {i // batch_size + 1}: {min(batch_size, len(rows) - i)} rows"
+        )
 
     # ── GCS: copy patch blobs to new arm path, delete old ───────────────
     bucket = db._bucket()
@@ -93,18 +95,24 @@ def rename_arm(dataset: str, old_arm: str, new_arm: str, *, apply: bool = False)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Rename a benchmark arm in online storage")
+    parser = argparse.ArgumentParser(
+        description="Rename a benchmark arm in online storage"
+    )
     parser.add_argument("--dataset", required=True, help="Dataset key, e.g. pro")
     parser.add_argument("--old", required=True, help="Current arm name to rename")
     parser.add_argument("--new", required=True, help="New arm name")
-    parser.add_argument("--apply", action="store_true", help="Actually rename (default: dry-run)")
+    parser.add_argument(
+        "--apply", action="store_true", help="Actually rename (default: dry-run)"
+    )
     args = parser.parse_args(argv)
 
     from benchmark.online.config import dataset_key
 
     dataset = dataset_key(args.dataset) or args.dataset
 
-    print(f"Rename arm: {args.old!r} → {args.new!r}  dataset={dataset}  apply={args.apply}")
+    print(
+        f"Rename arm: {args.old!r} → {args.new!r}  dataset={dataset}  apply={args.apply}"
+    )
 
     if args.old == args.new:
         print("  old and new are the same, nothing to do")
