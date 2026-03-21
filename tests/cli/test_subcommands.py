@@ -17,6 +17,7 @@ from kodo.cli._subcommands import (
     _cmd_teams,
     _cmd_teams_add,
     _cmd_teams_auto,
+    _cmd_teams_delete,
     _cmd_teams_edit,
     _save_team,
     _teams_dir,
@@ -885,6 +886,20 @@ class TestCmdTeams:
         ):
             _cmd_teams()
 
+    def test_delete_extra_args_exits(self):
+        with (
+            patch("sys.argv", ["kodo", "teams", "delete", "nope"]),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            _cmd_teams()
+
+    def test_teams_help_lists_delete(self, capsys):
+        with patch("sys.argv", ["kodo", "teams", "--help"]):
+            _cmd_teams()
+        out = capsys.readouterr().out
+        assert "delete" in out
+        assert "remove" in out
+
     def test_auto_no_backends_exits(self, capsys):
         with (
             patch("sys.argv", ["kodo", "teams", "auto"]),
@@ -1435,6 +1450,30 @@ class TestCmdTeamsDispatch:
 
         mock_edit.assert_called_once_with("myteam")
 
+    def test_dispatch_to_delete(self):
+        """'kodo teams delete' should dispatch to _cmd_teams_delete."""
+        with (
+            patch("sys.argv", ["kodo", "teams", "delete"]),
+            patch(
+                "kodo.cli._subcommands._cmd_teams_delete", autospec=True
+            ) as mock_delete,
+        ):
+            _cmd_teams()
+
+        mock_delete.assert_called_once_with()
+
+    def test_dispatch_remove_alias(self):
+        """'kodo teams remove' is an alias for delete."""
+        with (
+            patch("sys.argv", ["kodo", "teams", "remove"]),
+            patch(
+                "kodo.cli._subcommands._cmd_teams_delete", autospec=True
+            ) as mock_delete,
+        ):
+            _cmd_teams()
+
+        mock_delete.assert_called_once_with()
+
     def test_dispatch_to_auto_with_name(self):
         """'kodo teams auto full' should dispatch to _cmd_teams_auto('full')."""
         with (
@@ -1444,6 +1483,184 @@ class TestCmdTeamsDispatch:
             _cmd_teams()
 
         mock_auto.assert_called_once_with("full")
+
+
+class TestCmdTeamsDelete:
+    """Tests for _cmd_teams_delete interactive flow."""
+
+    def test_removes_selected_files(self, tmp_path, capsys):
+        teams_dir = tmp_path / ".kodo" / "teams"
+        teams_dir.mkdir(parents=True)
+        team_file = teams_dir / "mine.json"
+        team_file.write_text("{}\n")
+        cfg = {
+            "description": "d",
+            "agents": {"w": {"backend": "claude", "model": "sonnet"}},
+            "verifiers": {},
+        }
+        user_row = ("mine", "user", cfg, team_file)
+
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with (
+                patch(
+                    "kodo.team_config.list_available_teams",
+                    autospec=True,
+                    return_value=[user_row],
+                ),
+                patch(
+                    "kodo.factory.available_backends",
+                    autospec=True,
+                    return_value=_CLAUDE_ONLY,
+                ),
+                patch(
+                    "kodo.cli._subcommands._ask_teams_delete_checkbox",
+                    autospec=True,
+                ) as mock_cb,
+                patch("questionary.confirm", autospec=True) as mock_cf,
+            ):
+                mock_cb.return_value = ["mine"]
+                mock_cf.return_value.ask.return_value = True
+                _cmd_teams_delete()
+
+        assert not team_file.exists()
+        out = capsys.readouterr().out
+        assert "mine" in out
+        assert "Removed user team" in out
+
+    def test_no_user_teams_message(self, tmp_path, capsys):
+        built_in = (
+            "full",
+            "built-in",
+            {"description": "x", "agents": {}, "verifiers": {}},
+            Path("/pkg/team-full.json"),
+        )
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with patch(
+                "kodo.team_config.list_available_teams",
+                autospec=True,
+                return_value=[built_in],
+            ):
+                _cmd_teams_delete()
+
+        out = capsys.readouterr().out
+        assert "No user-defined teams" in out
+        assert "Built-in teams are omitted" in out
+
+    def test_no_teams_at_all(self, tmp_path, capsys):
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with patch(
+                "kodo.team_config.list_available_teams",
+                autospec=True,
+                return_value=[],
+            ):
+                _cmd_teams_delete()
+
+        assert "No user-defined teams" in capsys.readouterr().out
+
+    def test_confirm_no_keeps_files(self, tmp_path, capsys):
+        teams_dir = tmp_path / ".kodo" / "teams"
+        teams_dir.mkdir(parents=True)
+        team_file = teams_dir / "keep.json"
+        team_file.write_text("{}\n")
+        cfg = {
+            "description": "",
+            "agents": {"w": {"backend": "claude", "model": "sonnet"}},
+            "verifiers": {},
+        }
+        user_row = ("keep", "user", cfg, team_file)
+
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with (
+                patch(
+                    "kodo.team_config.list_available_teams",
+                    autospec=True,
+                    return_value=[user_row],
+                ),
+                patch(
+                    "kodo.factory.available_backends",
+                    autospec=True,
+                    return_value=_CLAUDE_ONLY,
+                ),
+                patch(
+                    "kodo.cli._subcommands._ask_teams_delete_checkbox",
+                    autospec=True,
+                ) as mock_cb,
+                patch("questionary.confirm", autospec=True) as mock_cf,
+            ):
+                mock_cb.return_value = ["keep"]
+                mock_cf.return_value.ask.return_value = False
+                _cmd_teams_delete()
+
+        assert team_file.exists()
+        assert "Cancelled" in capsys.readouterr().err
+
+    def test_empty_selection_prints_message(self, tmp_path, capsys):
+        teams_dir = tmp_path / ".kodo" / "teams"
+        teams_dir.mkdir(parents=True)
+        team_file = teams_dir / "x.json"
+        team_file.write_text("{}\n")
+        cfg = {
+            "description": "",
+            "agents": {"w": {"backend": "claude", "model": "sonnet"}},
+            "verifiers": {},
+        }
+        user_row = ("x", "user", cfg, team_file)
+
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with (
+                patch(
+                    "kodo.team_config.list_available_teams",
+                    autospec=True,
+                    return_value=[user_row],
+                ),
+                patch(
+                    "kodo.factory.available_backends",
+                    autospec=True,
+                    return_value=_CLAUDE_ONLY,
+                ),
+                patch(
+                    "kodo.cli._subcommands._ask_teams_delete_checkbox",
+                    autospec=True,
+                ) as mock_cb,
+            ):
+                mock_cb.return_value = []
+                _cmd_teams_delete()
+
+        assert team_file.exists()
+        assert "No teams selected" in capsys.readouterr().out
+
+    def test_checkbox_cancel_exits(self, tmp_path):
+        teams_dir = tmp_path / ".kodo" / "teams"
+        teams_dir.mkdir(parents=True)
+        team_file = teams_dir / "x.json"
+        team_file.write_text("{}\n")
+        cfg = {
+            "description": "",
+            "agents": {"w": {"backend": "claude", "model": "sonnet"}},
+            "verifiers": {},
+        }
+        user_row = ("x", "user", cfg, team_file)
+
+        with patch.dict(os.environ, {"HOME": str(tmp_path)}):
+            with (
+                patch(
+                    "kodo.team_config.list_available_teams",
+                    autospec=True,
+                    return_value=[user_row],
+                ),
+                patch(
+                    "kodo.factory.available_backends",
+                    autospec=True,
+                    return_value=_CLAUDE_ONLY,
+                ),
+                patch(
+                    "kodo.cli._subcommands._ask_teams_delete_checkbox",
+                    autospec=True,
+                ) as mock_cb,
+                pytest.raises(SystemExit, match="1"),
+            ):
+                mock_cb.return_value = None
+                _cmd_teams_delete()
 
 
 class TestCmdTeamsListMissingHint:

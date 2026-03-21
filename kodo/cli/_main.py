@@ -130,7 +130,7 @@ def _main_inner() -> None:
 
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, or edit team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, edit, or delete team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")

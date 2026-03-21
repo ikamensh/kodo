@@ -15,7 +15,7 @@ import questionary
 
 from kodo import __version__, log
 from kodo.cli._launch import _cancel, _fail
-from kodo.cli._ui import _plural
+from kodo.cli._teams_delete_pick import _ask_teams_delete_checkbox
 from kodo.formatting import BOLD, CYAN, DIM, GREEN, RED, RESET
 from kodo.models import (
     CLAUDE_OPUS,
@@ -403,81 +403,18 @@ def _cmd_backends() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _cmd_teams() -> None:
-    """Dispatch `kodo teams [add|edit] [name]`."""
-    args = sys.argv[2:]
-
-    if not args:
-        _cmd_teams_list()
-        return
-
-    subcmd = args[0]
-    if subcmd in ("--help", "-h"):
-        print("Usage: kodo teams [add <name> | edit <name> | auto [mode]]")
-        print()
-        print("  (no args)   List all available teams")
-        print("  add <name>  Create a new team configuration")
-        print("  edit <name> Edit an existing team configuration")
-        print("  auto        Generate teams adapted to installed backends")
-        return
-    if subcmd == "add":
-        if len(args) < 2:
-            _fail("Usage: kodo teams add <name>")
-        try:
-            from kodo.tips import record_subcommand
-
-            record_subcommand("teams_add")
-        except Exception:
-            pass
-        _cmd_teams_add(args[1])
-    elif subcmd == "edit":
-        if len(args) < 2:
-            _fail("Usage: kodo teams edit <name>")
-        try:
-            from kodo.tips import record_subcommand
-
-            record_subcommand("teams_edit")
-        except Exception:
-            pass
-        _cmd_teams_edit(args[1])
-    elif subcmd == "auto":
-        try:
-            from kodo.tips import record_subcommand
-
-            record_subcommand("teams_auto")
-        except Exception:
-            pass
-        mode_name = args[1] if len(args) >= 2 else None
-        if mode_name:
-            _cmd_teams_auto(mode_name)
-        else:
-            _cmd_teams_auto_all()
-    else:
-        _fail(
-            f"Unknown teams subcommand: {subcmd}\n"
-            "Usage: kodo teams [add <name> | edit <name> | auto [mode]]"
-        )
-
-
-def _cmd_teams_list() -> None:
-    """List all available teams (built-in and user-defined)."""
-    from kodo.factory import available_backends, smart_model_for_backend
-    from kodo.team_config import _BACKEND_MAP, list_available_teams
-
-    available_backends.cache_clear()
-    backends = available_backends()
-
-    teams = list_available_teams()
-    if not teams:
-        print("No teams found.")
-        return
+def _print_team_blocks(
+    teams: list[tuple[str, str, dict[str, Any], Path]],
+    backends: dict[str, bool],
+) -> bool:
+    """Print the same team cards as ``kodo teams``. Returns True if any backend is missing."""
+    from kodo.factory import smart_model_for_backend
+    from kodo.team_config import _BACKEND_MAP
 
     try:
         term_width = os.get_terminal_size().columns
     except (OSError, ValueError):
         term_width = 120
-    # Fixed prefix: 4 indent + 20 key + 2 + 12 backend + 2 + 20 model + 2 + [ok/missing] + 2
-    # [ok] = 4, [missing] = 9 — use 9 as max
     _PREFIX_WIDTH = 4 + 20 + 2 + 12 + 2 + 20 + 2 + 9 + 2
     desc_width = max(term_width - _PREFIX_WIDTH, 10)
 
@@ -514,6 +451,94 @@ def _cmd_teams_list() -> None:
                 has_missing = True
             print(f"    {akey:<20}  {backend:<12}  {model:<20}  [{status}]{adesc}")
         print()
+
+    return has_missing
+
+
+def _cmd_teams() -> None:
+    """Dispatch `kodo teams [add|edit|delete|auto] ...`."""
+    args = sys.argv[2:]
+
+    if not args:
+        _cmd_teams_list()
+        return
+
+    subcmd = args[0]
+    if subcmd in ("--help", "-h"):
+        print(
+            "Usage: kodo teams [add <name> | edit <name> | delete | auto [mode]]"
+        )
+        print()
+        print("  (no args)       List all available teams")
+        print("  add <name>      Create a new team configuration")
+        print("  edit <name>     Edit an existing team configuration")
+        print("  delete          Interactively remove ~/.kodo/teams/*.json (built-ins unchanged)")
+        print("  remove          Same as delete")
+        print("  auto            Generate teams adapted to installed backends")
+        return
+    if subcmd == "add":
+        if len(args) < 2:
+            _fail("Usage: kodo teams add <name>")
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_add")
+        except Exception:
+            pass
+        _cmd_teams_add(args[1])
+    elif subcmd == "edit":
+        if len(args) < 2:
+            _fail("Usage: kodo teams edit <name>")
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_edit")
+        except Exception:
+            pass
+        _cmd_teams_edit(args[1])
+    elif subcmd in ("delete", "remove"):
+        if len(args) > 1:
+            _fail("Usage: kodo teams delete")
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_delete")
+        except Exception:
+            pass
+        _cmd_teams_delete()
+    elif subcmd == "auto":
+        try:
+            from kodo.tips import record_subcommand
+
+            record_subcommand("teams_auto")
+        except Exception:
+            pass
+        mode_name = args[1] if len(args) >= 2 else None
+        if mode_name:
+            _cmd_teams_auto(mode_name)
+        else:
+            _cmd_teams_auto_all()
+    else:
+        _fail(
+            f"Unknown teams subcommand: {subcmd}\n"
+            "Usage: kodo teams [add <name> | edit <name> | delete | auto [mode]]"
+        )
+
+
+def _cmd_teams_list() -> None:
+    """List all available teams (built-in and user-defined)."""
+    from kodo.factory import available_backends
+    from kodo.team_config import list_available_teams
+
+    available_backends.cache_clear()
+    backends = available_backends()
+
+    teams = list_available_teams()
+    if not teams:
+        print("No teams found.")
+        return
+
+    has_missing = _print_team_blocks(teams, backends)
 
     # Hint if any agents have missing backends
     if has_missing:
@@ -1055,3 +1080,65 @@ def _cmd_teams_edit(name: str) -> None:
             config["verifiers"] = verifiers
             _save_team(name, config)
             return
+
+
+def _cmd_teams_delete() -> None:
+    """List user teams like ``kodo teams``, then multi-select and confirm removal."""
+    from kodo.factory import available_backends
+    from kodo.team_config import list_available_teams
+
+    available_backends.cache_clear()
+    backends = available_backends()
+
+    all_teams = list_available_teams()
+    user_teams = sorted(
+        (row for row in all_teams if row[1] == "user"),
+        key=lambda row: row[0],
+    )
+
+    if not user_teams:
+        print("No user-defined teams in ~/.kodo/teams/ to remove.")
+        if all_teams:
+            print(
+                f"{DIM}Built-in teams are omitted here; they are not deleted from disk.{RESET}"
+            )
+        return
+
+    has_missing = _print_team_blocks(user_teams, backends)
+    if has_missing:
+        print(
+            "Hint: Run 'kodo teams auto' to generate teams adapted to your installed backends.",
+        )
+        print()
+
+    print(
+        f"{DIM}Select team files to remove "
+        f"(↑↓ or j/k, space toggles ●/○ only on the current line, Enter confirms).{RESET}\n"
+    )
+
+    names = [n for n, *_ in user_teams]
+    name_to_path = {n: p for n, _, _, p in user_teams}
+
+    selected = _ask_teams_delete_checkbox("Teams to delete:", names)
+    if selected is None:
+        _cancel()
+
+    if not selected:
+        print("No teams selected.")
+        return
+
+    label = ", ".join(selected)
+    ok = questionary.confirm(
+        f"Permanently delete {len(selected)} file(s) from ~/.kodo/teams/: {label}?",
+        default=False,
+    ).ask()
+    if ok is None:
+        _cancel()
+    if not ok:
+        print("Cancelled.", file=sys.stderr)
+        return
+
+    for n in selected:
+        path = name_to_path[n]
+        path.unlink()
+        print(f"Removed user team {n!r} ({path})")

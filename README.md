@@ -263,6 +263,7 @@ kodo backends                 # show available backends, models, API key status
 kodo teams                    # list available teams
 kodo teams add my-team        # interactively create a custom team
 kodo teams edit my-team       # edit an existing team
+kodo teams delete             # pick user team files to remove (same listing style as `kodo teams`)
 ```
 
 ```

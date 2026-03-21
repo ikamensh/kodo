@@ -658,15 +658,6 @@ def get_team(name: str) -> TeamPreset:
     ``build_team_from_json`` instead.
     """
     if name in TEAMS:
-        # Warn if a user JSON team shadows this built-in preset
-        user_json = Path.home() / ".kodo" / "teams" / f"{name}.json"
-        if user_json.is_file():
-            logging.warning(
-                "User team %r in %s shadows built-in preset; "
-                "using built-in. Rename the file to use the custom version.",
-                name,
-                user_json,
-            )
         return TEAMS[name]
 
     # Check if a user JSON team exists for this name

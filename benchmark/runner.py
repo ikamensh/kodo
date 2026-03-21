@@ -345,6 +345,9 @@ def _run_single_task(
 
     patch = _capture_diff(repo_dir, task.base_commit)
 
+    # Clean up working clone — diff captured, no longer needed
+    shutil.rmtree(repo_dir, ignore_errors=True)
+
     return TaskResult(
         instance_id=task.instance_id,
         arm=arm,
