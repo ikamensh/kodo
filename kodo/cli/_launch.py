@@ -7,6 +7,7 @@ import json
 import logging
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 
@@ -271,6 +272,152 @@ def _format_json_output(
 
 
 # ---------------------------------------------------------------------------
+# Team / orchestrator (shared: pre-discovery for test|improve, or launch_run)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LaunchAssets:
+    """Resolved team + orchestrator after preflight (no run yet)."""
+
+    team_preset: object
+    team: dict
+    orchestrator: object
+    verifiers: dict | None
+    debug_sessions: dict | None = None
+    debug_letter_assignments: list[tuple[str, str]] | None = None
+
+
+def build_launch_assets(
+    run_dir: RunDir,
+    params: dict,
+    goal_text: str,
+    *,
+    json_mode: bool,
+    debug: bool,
+) -> LaunchAssets:
+    """Build team, orchestrator, run preflight, snapshot team file (same as launch_run)."""
+    project_dir = run_dir.project_dir
+    team_preset = get_team(params["team"])
+    verifiers = None
+    team_config = None
+
+    if debug:
+        from kodo.debug import build_debug_team, build_mock_orchestrator, _allocator
+
+        _allocator.reset()
+        orch_letter = _allocator.next("orchestrator")
+        team, debug_sessions = build_debug_team(params["team"])
+        system_prompt = team_preset.system_prompt
+        orchestrator, orch_session = build_mock_orchestrator(
+            orch_letter,
+            team,
+            system_prompt=system_prompt,
+        )
+        debug_sessions["orchestrator"] = orch_session
+
+        log.emit(
+            "debug_run_start",
+            mode="debug",
+            goal=goal_text,
+            letter_assignments=_allocator.assignments,
+        )
+
+        return LaunchAssets(
+            team_preset=team_preset,
+            team=team,
+            orchestrator=orchestrator,
+            verifiers=verifiers,
+            debug_sessions=debug_sessions,
+            debug_letter_assignments=list(_allocator.assignments),
+        )
+
+    try:
+        team_config = load_team_config(params["team"], project_dir)
+    except (ValueError, KeyError, OSError) as exc:
+        _fail(f"Invalid team config: {exc}")
+    team, system_prompt, verifiers = _build_team_from_config(
+        team_config,
+        team_preset,
+        params["team"],
+        project_dir,
+    )
+
+    effort = params.get("effort", "standard")
+    if effort != "standard":
+        from kodo.prompts.roles import build_orchestrator_prompt
+
+        system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
+
+    _apply_effort_to_team(team, effort)
+
+    if team_config:
+        _atomic_write(run_dir.team_file, json.dumps(team_config, indent=2))
+    else:
+        snapshot = team_to_json(
+            team,
+            orchestrator_prompt=system_prompt,
+            verifiers=verifiers,
+        )
+        _atomic_write(run_dir.team_file, json.dumps(snapshot, indent=2))
+
+    orchestrator = build_orchestrator(
+        params["orchestrator"],
+        params["orchestrator_model"],
+        system_prompt=system_prompt,
+    )
+
+    preflight_warnings = preflight_check_backends(team)
+    if preflight_warnings:
+        if len(preflight_warnings) == len(team):
+            _fail(
+                "All backends failed preflight checks:\n"
+                + "\n".join(preflight_warnings)
+                + "\nFix the issues above or install a working backend.",
+            )
+        if not json_mode:
+            print("\n  Backend preflight warnings:")
+            for w in preflight_warnings:
+                print(w)
+            print("  (Continuing — some backends may fail at runtime)\n")
+        log.emit("preflight_warnings", warnings=preflight_warnings)
+
+    return LaunchAssets(
+        team_preset=team_preset,
+        team=team,
+        orchestrator=orchestrator,
+        verifiers=verifiers,
+        debug_sessions=None,
+        debug_letter_assignments=None,
+    )
+
+
+def print_launch_identity(
+    assets: LaunchAssets,
+    params: dict,
+    log_path: Path,
+    *,
+    json_mode: bool,
+    debug: bool,
+) -> None:
+    """Human-readable Team / Orchestrator / Agents / Log (same lines as launch_run)."""
+    if json_mode:
+        return
+    if debug:
+        print("\n  [DEBUG MODE — mocked backends]")
+        print("  Letter assignments:")
+        for letter, role in assets.debug_letter_assignments or ():
+            print(f"    {letter} = {role}")
+    print(f"  Team: {assets.team_preset.name}")
+    print(f"  Orchestrator: {params['orchestrator']} ({assets.orchestrator.model})")
+    print("  Agents:")
+    for k, a in assets.team.items():
+        print(f"    {k} ({_backend_label(a)} / {a.session.model})")
+    print(f"  Log: {log_path}")
+    print()
+
+
+# ---------------------------------------------------------------------------
 # Launch
 # ---------------------------------------------------------------------------
 
@@ -283,6 +430,8 @@ def launch_run(
     json_mode: bool = False,
     debug: bool = False,
     intake_session=None,
+    prepared: LaunchAssets | None = None,
+    skip_identity_print: bool = False,
 ):
     """Build team + orchestrator and run. Returns the RunResult."""
     # Snapshot config and goal into the run directory
@@ -304,105 +453,20 @@ def launch_run(
     max_exchanges = params["max_exchanges"]
     max_cycles = params["max_cycles"]
 
-    team_preset = get_team(params["team"])
-    verifiers = None
-    team_config = None
-
-    if debug:
-        # --- Debug mode: mock everything ---
-        from kodo.debug import build_debug_team, build_mock_orchestrator, _allocator
-
-        _allocator.reset()
-        orch_letter = _allocator.next("orchestrator")
-        team, debug_sessions = build_debug_team(params["team"])
-        system_prompt = team_preset.system_prompt
-        orchestrator, orch_session = build_mock_orchestrator(
-            orch_letter,
-            team,
-            system_prompt=system_prompt,
+    if prepared is None:
+        assets = build_launch_assets(
+            run_dir, params, goal_text, json_mode=json_mode, debug=debug
         )
-        debug_sessions["orchestrator"] = orch_session
-
-        log.emit(
-            "debug_run_start",
-            mode="debug",
-            goal=goal_text,
-            letter_assignments=_allocator.assignments,
-        )
-
-        if not json_mode:
-            print("\n  [DEBUG MODE — mocked backends]")
-            print("  Letter assignments:")
-            for letter, role in _allocator.assignments:
-                print(f"    {letter} = {role}")
     else:
-        # --- Normal mode: real backends ---
-        debug_sessions = None
+        assets = prepared
 
-        # Try loading a team JSON config; fall back to built-in preset
-        try:
-            team_config = load_team_config(params["team"], project_dir)
-        except (ValueError, KeyError, OSError) as exc:
-            _fail(f"Invalid team config: {exc}")
-        team, system_prompt, verifiers = _build_team_from_config(
-            team_config,
-            team_preset,
-            params["team"],
-            project_dir,
-        )
+    if not json_mode and not skip_identity_print:
+        print_launch_identity(assets, params, log_path, json_mode=json_mode, debug=debug)
 
-        # Apply effort-level supplement to orchestrator system prompt
-        effort = params.get("effort", "standard")
-        if effort != "standard":
-            from kodo.prompts.roles import build_orchestrator_prompt
-
-            system_prompt = build_orchestrator_prompt(system_prompt, effort=effort)
-
-        # Propagate effort to worker sessions that support it (e.g. Claude SDK)
-        _apply_effort_to_team(team, effort)
-
-        # Snapshot resolved team config for deterministic resume
-        if team_config:
-            _atomic_write(run_dir.team_file, json.dumps(team_config, indent=2))
-        else:
-            snapshot = team_to_json(
-                team,
-                orchestrator_prompt=system_prompt,
-                verifiers=verifiers,
-            )
-            _atomic_write(run_dir.team_file, json.dumps(snapshot, indent=2))
-
-        orchestrator = build_orchestrator(
-            params["orchestrator"],
-            params["orchestrator_model"],
-            system_prompt=system_prompt,
-        )
-
-        # Preflight: smoke-test backends before committing to a long run
-        preflight_warnings = preflight_check_backends(team)
-        if preflight_warnings:
-            if len(preflight_warnings) == len(team):
-                # ALL backends failed — abort
-                _fail(
-                    "All backends failed preflight checks:\n"
-                    + "\n".join(preflight_warnings)
-                    + "\nFix the issues above or install a working backend.",
-                )
-            if not json_mode:
-                print("\n  Backend preflight warnings:")
-                for w in preflight_warnings:
-                    print(w)
-                print("  (Continuing — some backends may fail at runtime)\n")
-            log.emit("preflight_warnings", warnings=preflight_warnings)
-
-    if not json_mode:
-        print(f"  Team: {team_preset.name}")
-        print(f"  Orchestrator: {params['orchestrator']} ({orchestrator.model})")
-        print("  Agents:")
-        for k, a in team.items():
-            print(f"    {k} ({_backend_label(a)} / {a.session.model})")
-        print(f"  Log: {log_path}")
-        print()
+    team = assets.team
+    orchestrator = assets.orchestrator
+    verifiers = assets.verifiers
+    debug_sessions = assets.debug_sessions
 
     auto_commit = (
         False if debug else _resolve_auto_commit(params, project_dir, quiet=json_mode)
@@ -512,6 +576,10 @@ def launch_resume(
     state: log.RunState,
     *,
     team_override: str | None = None,
+    orchestrator_override: str | None = None,
+    exchanges_override: int | None = None,
+    cycles_override: int | None = None,
+    effort_override: str | None = None,
     debug: bool = False,
 ) -> RunResult:
     """Resume an interrupted run from its parsed RunState. Returns the RunResult."""
@@ -553,6 +621,39 @@ def launch_resume(
             "max_exchanges": state.max_exchanges,
             "max_cycles": state.max_cycles,
         }
+
+    # Apply CLI overrides on top of saved config
+    overrides: dict[str, str] = {}
+    if orchestrator_override:
+        from kodo.cli._params import _parse_orchestrator_flag
+
+        explicit_backend, orch_model = _parse_orchestrator_flag(orchestrator_override)
+        if explicit_backend:
+            params["orchestrator"] = explicit_backend
+            if orch_model:
+                params["orchestrator_model"] = orch_model
+        elif orch_model:
+            from kodo.models import implied_orchestrator_from_model
+
+            inferred = implied_orchestrator_from_model(orch_model)
+            params["orchestrator"] = inferred or "api"
+            params["orchestrator_model"] = orch_model
+        overrides["orchestrator"] = f"{params['orchestrator']}:{params['orchestrator_model']}"
+        if not debug:
+            from kodo.factory import check_api_key
+
+            key_err = check_api_key(params["orchestrator"], params["orchestrator_model"])
+            if key_err:
+                _fail(key_err)
+    if exchanges_override is not None and exchanges_override > 0:
+        params["max_exchanges"] = exchanges_override
+        overrides["max_exchanges"] = str(exchanges_override)
+    if cycles_override is not None and cycles_override > 0:
+        params["max_cycles"] = cycles_override
+        overrides["max_cycles"] = str(cycles_override)
+    if effort_override:
+        params["effort"] = effort_override
+        overrides["effort"] = effort_override
 
     try:
         team_preset = get_team(params["team"])
@@ -652,8 +753,13 @@ def launch_resume(
         if plan is None:
             _fail("Cannot resume: staged run but goal-plan.json not found or invalid.")
 
+    if overrides:
+        log.emit("resume_overrides", **overrides)
+
     if _original_stdout is None:
         print(f"\nResuming run: {state.run_id}")
+        if overrides:
+            print(f"Overrides: {', '.join(f'{k}={v}' for k, v in overrides.items())}")
         print(f"Team: {team_preset.name}")
         print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
         print("Team:")

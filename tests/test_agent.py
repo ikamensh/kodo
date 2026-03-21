@@ -21,9 +21,19 @@ def test_agent_new_conversation_clears_stats(tmp_project: Path) -> None:
     assert agent.session.stats.queries == 1
 
 
-def test_agent_context_reset_flag(tmp_project: Path) -> None:
+def test_agent_context_reset_flag_fresh_session(tmp_project: Path) -> None:
+    """new_conversation on a fresh session should NOT flag context_reset."""
     agent = make_agent("ok")
     result = agent.run("task", tmp_project, new_conversation=True, agent_name="test")
+    assert result.context_reset is False
+    assert result.context_reset_reason == ""
+
+
+def test_agent_context_reset_flag_after_prior_query(tmp_project: Path) -> None:
+    """new_conversation after a prior query SHOULD flag context_reset."""
+    agent = make_agent("ok")
+    agent.run("task1", tmp_project, agent_name="test")
+    result = agent.run("task2", tmp_project, new_conversation=True, agent_name="test")
     assert result.context_reset is True
     assert "new conversation" in result.context_reset_reason
 

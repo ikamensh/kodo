@@ -126,10 +126,12 @@ class Agent:
 
         # Explicit reset requested by orchestrator
         if new_conversation:
+            had_context = self.session.stats.queries > 0
             self.session.reset()
-            context_reset = True
-            context_reset_reason = "orchestrator requested new conversation"
-            log.emit("agent_session_reset", agent=label, reason=context_reset_reason)
+            if had_context:
+                context_reset = True
+                context_reset_reason = "orchestrator requested new conversation"
+                log.emit("agent_session_reset", agent=label, reason=context_reset_reason)
 
         log.emit("agent_query", agent=label, prompt=goal)
 

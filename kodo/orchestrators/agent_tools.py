@@ -43,9 +43,8 @@ def handle_agent_call(
 
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
-    log.tprint(f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}: {task[:100]}...")
-    if new_conversation:
-        log.tprint("   (new conversation)")
+    new_tag = " 🔄" if new_conversation else ""
+    log.tprint(f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}{new_tag}: {task[:100]}...")
 
     if cycle_log is not None:
         cycle_log.append(f"→ {agent_name}: {task[:200]}")
@@ -102,11 +101,6 @@ def handle_agent_call(
                 raise FatalAgentError(
                     f"All workers failed: {', '.join(sorted(dead_workers))}"
                 )
-    if agent_result.context_reset:
-        log.tprint(
-            f"🔄 [{_CYAN}{agent_name}{_RESET}] context reset: {agent_result.context_reset_reason}",
-        )
-
     log.print_stats_table()
 
     if cycle_log is not None:

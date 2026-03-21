@@ -37,11 +37,14 @@ from kodo.cli._intake import (  # noqa: E402
 )
 from kodo.cli._launch import (  # noqa: E402
     EXIT_ERROR,
+    LaunchAssets,
     _emit_json_and_exit,
     _fail,
+    build_launch_assets,
     json_output_redirect,
     launch_resume,
     launch_run,
+    print_launch_identity,
 )
 from kodo.cli._params import (  # noqa: E402
     _build_params_from_flags,
@@ -423,7 +426,14 @@ def _main_inner() -> None:
                 pass
         try:
             result = launch_resume(
-                run_dir, state, team_override=args.team, debug=args.debug
+                run_dir,
+                state,
+                team_override=args.team,
+                orchestrator_override=getattr(args, "orchestrator", None),
+                exchanges_override=getattr(args, "exchanges", None),
+                cycles_override=getattr(args, "cycles", None),
+                effort_override=getattr(args, "effort", None),
+                debug=args.debug,
             )
         except Exception as exc:
             _fail(str(exc) or type(exc).__name__)
@@ -520,6 +530,8 @@ def _main_inner() -> None:
     # 4. Intake / goal plan
     plan: GoalPlan | None = None
     intake_session = None  # live session for SessionAdvisor reuse
+    launch_prepared: LaunchAssets | None = None
+    skip_launch_identity = False
 
     if args.improve:
         report_path = run_dir.root / "improve-report.md"
@@ -542,6 +554,22 @@ def _main_inner() -> None:
                 print("  Debug mode; using default improve plan.")
             plan = _build_fallback_plan(str(report_path), prior, focus=focus)
         else:
+            if not args.json:
+                launch_prepared = build_launch_assets(
+                    run_dir,
+                    params,
+                    goal_text,
+                    json_mode=args.json,
+                    debug=False,
+                )
+                print_launch_identity(
+                    launch_prepared,
+                    params,
+                    log.init(run_dir),
+                    json_mode=args.json,
+                    debug=False,
+                )
+                skip_launch_identity = True
             if not args.json:
                 print("  Running improve discovery...")
             plan = run_improve_discovery(run_dir, str(report_path), prior, focus=focus)
@@ -581,6 +609,22 @@ def _main_inner() -> None:
                 prior_test_work=prior_test_work,
             )
         else:
+            if not args.json:
+                launch_prepared = build_launch_assets(
+                    run_dir,
+                    params,
+                    goal_text,
+                    json_mode=args.json,
+                    debug=False,
+                )
+                print_launch_identity(
+                    launch_prepared,
+                    params,
+                    log.init(run_dir),
+                    json_mode=args.json,
+                    debug=False,
+                )
+                skip_launch_identity = True
             if not args.json:
                 print("  Running test discovery...")
             plan = run_test_discovery(
@@ -787,6 +831,8 @@ def _main_inner() -> None:
             json_mode=args.json,
             debug=args.debug,
             intake_session=intake_session,
+            prepared=launch_prepared,
+            skip_identity_print=skip_launch_identity,
         )
     except Exception as exc:
         _fail(str(exc) or type(exc).__name__)

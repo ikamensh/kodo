@@ -1178,6 +1178,212 @@ class TestLaunchResume:
         call_args = mock_orch.return_value.run.call_args[0]
         assert call_args[0] == "Specific saved goal text"
 
+    def test_resume_orchestrator_override(self, tmp_path):
+        """--orchestrator override should change the model passed to build_orchestrator."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params(orchestrator="api", orchestrator_model="gemini-flash")
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+            patch("kodo.factory.check_api_key", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "opus"
+            launch_resume(run_dir, state, orchestrator_override="opus")
+
+        # build_orchestrator should have been called with the overridden model
+        call_kwargs = mock_orch.call_args
+        assert call_kwargs[0][1] == "opus"  # model arg
+        assert call_kwargs[0][0] == "api"  # backend arg
+
+    def test_resume_cycles_override(self, tmp_path):
+        """--cycles override should change max_cycles passed to orchestrator.run()."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params(max_cycles=5)
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state, cycles_override=20)
+
+        call_kwargs = mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["max_cycles"] == 20
+
+    def test_resume_exchanges_override(self, tmp_path):
+        """--exchanges override should change max_exchanges passed to orchestrator.run()."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params(max_exchanges=30)
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state, exchanges_override=50)
+
+        call_kwargs = mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["max_exchanges"] == 50
+
+    def test_resume_effort_override(self, tmp_path):
+        """--effort override should change effort passed to orchestrator.run()."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params(effort="standard")
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state, effort_override="max")
+
+        call_kwargs = mock_orch.return_value.run.call_args[1]
+        assert call_kwargs["effort"] == "max"
+
+    def test_resume_cli_backend_override(self, tmp_path):
+        """--orchestrator claude-code:opus should set both backend and model."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params(orchestrator="api", orchestrator_model="gemini-flash")
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+            patch("kodo.factory.check_api_key", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "opus"
+            launch_resume(run_dir, state, orchestrator_override="claude-code:opus")
+
+        call_args = mock_orch.call_args[0]
+        assert call_args[0] == "claude-code"  # backend
+        assert call_args[1] == "opus"  # model
+
+    def test_resume_overrides_banner(self, tmp_path, capsys):
+        """Resume with overrides should show them in the banner."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params()
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+            patch("kodo.cli._launch._original_stdout", new=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state, cycles_override=20, effort_override="high")
+
+        out = capsys.readouterr().out
+        assert "Overrides:" in out
+        assert "max_cycles=20" in out
+        assert "effort=high" in out
+
 
 # ---------------------------------------------------------------------------
 # _print_debug_summary

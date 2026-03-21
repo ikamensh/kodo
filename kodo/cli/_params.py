@@ -378,12 +378,17 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
             if orchestrator in _ORCH_DEFAULT_MODELS:
                 orch_model = _ORCH_DEFAULT_MODELS[orchestrator]
             else:
-                # API orchestrator: pick first model from first available provider
+                # API orchestrator: pick cheapest available model
+                # Priority: gpt-5.4 → gemini-flash → claude-haiku
+                _API_MODEL_PRIORITY = ("gpt-5.4", "gemini-flash", "haiku")
                 providers = _available_model_providers()
-                if providers and providers[0].models:
-                    orch_model = providers[0].models[0].alias
-                else:
-                    orch_model = GEMINI_API_FLASH
+                available_aliases = {
+                    m.alias for p in providers for m in p.models
+                }
+                orch_model = next(
+                    (a for a in _API_MODEL_PRIORITY if a in available_aliases),
+                    GEMINI_API_FLASH,  # ultimate fallback
+                )
 
     if not debug:
         key_err = check_api_key(orchestrator, orch_model)
