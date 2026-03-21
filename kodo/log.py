@@ -576,6 +576,14 @@ def parse_run(log_file: Path) -> RunState | None:
     else:
         goal = cli_args.get("goal_text", "")
         if not goal:
+            # Pre-launch crash: goal_text not yet known — try goal.md in run dir
+            goal_file = log_file.parent / "goal.md"
+            if goal_file.exists():
+                try:
+                    goal = goal_file.read_text(encoding="utf-8").strip()
+                except OSError:
+                    pass
+        if not goal:
             return None
         orchestrator = cli_args.get("orchestrator", "unknown")
         model = cli_args.get("orchestrator_model", "unknown")

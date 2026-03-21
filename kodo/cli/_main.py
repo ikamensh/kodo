@@ -502,8 +502,17 @@ def _main_inner() -> None:
     else:
         params = _load_or_select_params(project_dir)
 
-    # 3. Create run directory
+    # 3. Create run directory and initialize log early so pre-launch crashes
+    #    (e.g. during intake/discovery) produce a resumable run.
+    #    log.init + cli_args emit are idempotent — launch_run re-emits cli_args
+    #    with the full goal_text once it's known.
     run_dir = RunDir.create(project_dir)
+    log.init(run_dir)
+    log.emit(
+        "cli_args",
+        **params,
+        project_dir=str(project_dir),
+    )
     if not args.json:
         print(f"  Run dir: {run_dir.root}")
 
@@ -524,11 +533,10 @@ def _main_inner() -> None:
             )
             + focus_line
         )
+        run_dir.goal_file.write_text(goal_text, encoding="utf-8")
         if not args.json:
             if prior:
                 print("  Carrying forward prior 'Needs decision' items.")
-            if focus:
-                print(f"  Focus: {focus}")
         if args.debug:
             if not args.json:
                 print("  Debug mode; using default improve plan.")
@@ -559,13 +567,10 @@ def _main_inner() -> None:
             + focus_line
             + target_line
         )
+        run_dir.goal_file.write_text(goal_text, encoding="utf-8")
         if not args.json:
             if prior_test_work:
                 print("  Carrying forward context from prior test runs.")
-            if focus:
-                print(f"  Focus: {focus}")
-            if targets:
-                print(f"  Targets: {', '.join(targets)}")
         if args.debug:
             if not args.json:
                 print("  Debug mode; using default test plan.")
