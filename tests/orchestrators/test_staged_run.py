@@ -161,6 +161,7 @@ class FakeOrchestrator(OrchestratorBase):
         max_exchanges: int = 30,
         prior_summary: str = "",
         config=None,
+        **kwargs,
     ) -> CycleResult:
         self._cycle_calls.append(
             {
@@ -758,6 +759,7 @@ def test_parallel_stages_disable_auto_commit(mock_viewer, tmp_project, mock_work
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             auto_commit_per_call.append(config.auto_commit if config else False)
             return super().cycle(
@@ -946,6 +948,7 @@ def test_parallel_stages_use_worktrees(mock_viewer, git_project, tmp_path):
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
@@ -1006,6 +1009,7 @@ def test_parallel_falls_back_without_git(mock_viewer, tmp_path):
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             project_dirs_seen.append(str(project_dir))
             return super().cycle(
@@ -1454,6 +1458,7 @@ def test_persist_changes_enables_auto_commit(mock_viewer, tmp_project):
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             auto_commit_per_call.append(config.auto_commit if config else False)
             return super().cycle(
@@ -1503,6 +1508,7 @@ def test_done_mode_propagates_to_stage_config(mock_viewer, tmp_project):
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             done_modes_seen.append(config.done_mode if config else "unknown")
             return super().cycle(
@@ -1553,6 +1559,7 @@ def test_done_mode_default_is_new(mock_viewer, tmp_project):
             max_exchanges=30,
             prior_summary="",
             config=None,
+            **kwargs,
         ):
             done_modes_seen.append(config.done_mode if config else "unknown")
             return super().cycle(

@@ -57,6 +57,8 @@ class CliOrchestratorBase(OrchestratorBase):
         max_exchanges: int = 30,
         prior_summary: str = "",
         config: CycleConfig | None = None,
+        advisory_queue=None,
+        observer=None,
     ) -> CycleResult:
         if config is None:
             config = CycleConfig()
@@ -83,10 +85,14 @@ class CliOrchestratorBase(OrchestratorBase):
             orchestrator_tag=self._orchestrator_name,
             verification_state=verification_state,
             config=config,
+            advisory_queue=advisory_queue,
+            observer=observer,
         )
 
         result = CycleResult()
-        prompt = build_cycle_prompt(goal, project_dir, prior_summary)
+        prompt = build_cycle_prompt(
+            goal, project_dir, prior_summary, advisory_queue=advisory_queue
+        )
         full_prompt = f"{self._system_prompt}\n\n{prompt}"
 
         with McpServerContext(mcp) as ctx:

@@ -32,6 +32,7 @@ class FakeOrchestrator(OrchestratorBase):
         max_exchanges: int = 30,
         prior_summary: str = "",
         config=None,
+        **kwargs,
     ) -> CycleResult:
         self._cycle_calls.append(
             {

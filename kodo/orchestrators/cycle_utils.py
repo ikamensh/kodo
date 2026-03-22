@@ -35,7 +35,12 @@ def apply_done_signal(result: CycleResult, done_signal: DoneSignal) -> None:
         result.success = done_signal.success
 
 
-def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") -> str:
+def build_cycle_prompt(
+    goal: str,
+    project_dir: Path,
+    prior_summary: str = "",
+    advisory_queue=None,
+) -> str:
     """Build the user-turn prompt sent to the orchestrator each cycle."""
     from kodo.orchestrators.run_status import read_run_status
 
@@ -50,4 +55,13 @@ def build_cycle_prompt(goal: str, project_dir: Path, prior_summary: str = "") ->
             f"\n\n# Previous progress\n\n{prior_summary}"
             "\n\nContinue working toward the goal."
         )
+
+    # Inject strategic-level advisories between cycles
+    if advisory_queue is not None and advisory_queue.pending_count > 0:
+        from kodo.advisory import format_advisories_for_prompt
+
+        advisories = advisory_queue.drain()
+        if advisories:
+            prompt += f"\n\n{format_advisories_for_prompt(advisories)}"
+
     return prompt

@@ -227,6 +227,7 @@ class _FakeOrchestrator(OrchestratorBase):
         max_exchanges=30,
         prior_summary="",
         config=None,
+        **kwargs,
     ):
         self._cycle_count += 1
         return CycleResult(

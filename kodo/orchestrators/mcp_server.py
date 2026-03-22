@@ -26,6 +26,8 @@ def build_mcp_server(
     orchestrator_tag: str = "unknown",
     verification_state: "VerificationState | None" = None,
     config: "CycleConfig | None" = None,
+    advisory_queue=None,
+    observer=None,
 ):
     """Build a FastMCP server exposing each team agent as a tool.
 
@@ -46,6 +48,8 @@ def build_mcp_server(
         orchestrator_tag=orchestrator_tag,
         verification_state=verification_state,
         config=config,
+        advisory_queue=advisory_queue,
+        observer=observer,
     )
     return mcp
 

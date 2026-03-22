@@ -57,7 +57,9 @@ from kodo.orchestrators.parallel import (  # noqa: F401
 )
 
 if TYPE_CHECKING:
-    from kodo.advisor import Advisor
+    from kodo.advisory import AdvisoryQueue
+    from kodo.observer import Observer
+    from kodo.orchestrators.advisor import Advisor
 
 
 class OrchestratorBase:
@@ -80,6 +82,8 @@ class OrchestratorBase:
         max_exchanges: int = 30,
         prior_summary: str = "",
         config: CycleConfig | None = None,
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> CycleResult:
         raise NotImplementedError
 
@@ -148,6 +152,9 @@ class OrchestratorBase:
         effort: str = "standard",
         advisor: "Advisor | None" = None,
         config: CycleConfig | None = None,
+        enable_observer: bool = False,
+        observer_model: str | None = None,
+        advisory_queue: "AdvisoryQueue | None" = None,
     ) -> RunResult:
         from kodo import log
 
@@ -175,6 +182,7 @@ class OrchestratorBase:
             resume_from_cycle=start_cycle if resume else None,
             has_stages=plan is not None and len(plan.stages) > 0,
             num_stages=len(plan.stages) if plan else 0,
+            observer_enabled=enable_observer,
         )
         result = RunResult()
         if config is not None:
@@ -185,6 +193,24 @@ class OrchestratorBase:
                 auto_commit=auto_commit,
                 effort=effort,
             )
+
+        # Set up observer and advisory queue
+        observer: "Observer | None" = None
+        if advisory_queue is None and enable_observer:
+            from kodo.advisory import AdvisoryQueue as _AQ
+
+            advisory_queue = _AQ()
+
+        if enable_observer and advisory_queue is not None:
+            from kodo.observer import Observer as _Obs
+
+            observer = _Obs(
+                advisory_queue,
+                goal,
+                project_dir,
+                model=observer_model,
+            )
+            observer.start()
 
         _run_error: BaseException | None = None
         try:
@@ -206,6 +232,8 @@ class OrchestratorBase:
                     resume=resume,
                     config=run_config,
                     advisor=advisor,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
             else:
                 self._run_single(
@@ -218,11 +246,17 @@ class OrchestratorBase:
                     start_cycle=start_cycle,
                     prior_summary=prior_summary,
                     config=run_config,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
         except BaseException as exc:
             _run_error = exc
             raise
         finally:
+            # Stop observer
+            if observer is not None:
+                observer.stop()
+
             self._summarizer.shutdown()
 
             # Clean up agent sessions
@@ -283,6 +317,8 @@ class OrchestratorBase:
         start_cycle: int,
         prior_summary: str,
         config: CycleConfig,
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> None:
         """Original single-goal execution loop."""
         from kodo import log
@@ -314,6 +350,8 @@ class OrchestratorBase:
                     max_exchanges=max_exchanges,
                     prior_summary=prior_summary,
                     config=config,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
             except Exception as exc:
                 log.emit(
@@ -598,6 +636,8 @@ class OrchestratorBase:
         resume: ResumeState | None = None,
         config: CycleConfig,
         advisor: "Advisor | None" = None,
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> None:
         """Staged execution: iterate over plan stages with a shared cycle limit.
 

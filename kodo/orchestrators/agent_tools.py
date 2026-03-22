@@ -11,6 +11,8 @@ from kodo.orchestrators.types import FatalAgentError
 
 if TYPE_CHECKING:
     from kodo.agent import Agent
+    from kodo.advisory import AdvisoryQueue
+    from kodo.observer import Observer
 
 # Patterns that indicate unrecoverable errors — retrying won't help.
 _FATAL_ERROR_PATTERNS = re.compile(
@@ -32,6 +34,8 @@ def handle_agent_call(
     orchestrator_tag: str | None = None,
     dead_workers: set[str] | None = None,
     total_workers: int = 0,
+    advisory_queue: "AdvisoryQueue | None" = None,
+    observer: "Observer | None" = None,
 ) -> str:
     """Run an agent and return its report (or error string on crash).
 
@@ -58,6 +62,10 @@ def handle_agent_call(
         task=task,
         new_conversation=new_conversation,
     )
+
+    # Notify observer of dispatch
+    if observer is not None:
+        observer.record_dispatch(agent_name, task)
 
     try:
         agent_result = agent_obj.run(
@@ -108,5 +116,18 @@ def handle_agent_call(
     if cycle_log is not None:
         cycle_log.append(f"← {agent_name}: {report[:500]}")
 
+    # Notify observer of result
+    if observer is not None:
+        observer.record_result(agent_name, task, agent_result.is_error)
+
     summarizer.summarize(agent_name, task, report)
+
+    # Piggyback pending advisories onto the tool return
+    if advisory_queue is not None and advisory_queue.pending_count > 0:
+        from kodo.advisory import format_advisories
+
+        advisories = advisory_queue.drain()
+        if advisories:
+            report += format_advisories(advisories)
+
     return report

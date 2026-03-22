@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
+    from kodo.advisory import AdvisoryQueue
+    from kodo.observer import Observer
     from kodo.orchestrators.base import (
         CycleConfig,
         DoneSignal,
@@ -37,6 +39,8 @@ def _make_agent_handler(
     dead_workers: set[str],
     total_workers: int,
     orchestrator_tag: str | None = None,
+    advisory_queue: "AdvisoryQueue | None" = None,
+    observer: "Observer | None" = None,
 ) -> tuple[Callable, str]:
     """Return (handler_fn, description) for one ask_<name> tool."""
     from kodo.orchestrators.base import handle_agent_call
@@ -52,12 +56,43 @@ def _make_agent_handler(
             orchestrator_tag=orchestrator_tag,
             dead_workers=dead_workers,
             total_workers=total_workers,
+            advisory_queue=advisory_queue,
+            observer=observer,
         )
 
     desc = (
         f"Delegate a task to the {agent_name} agent.\n{agent_obj.description.strip()}"
     )
     return handler, desc
+
+
+# ---------------------------------------------------------------------------
+# Reply to advisor tool
+# ---------------------------------------------------------------------------
+
+
+def _make_reply_to_advisor(
+    advisory_queue: "AdvisoryQueue",
+) -> Callable:
+    """Return a ``reply_to_advisor`` handler."""
+    from kodo import log
+
+    def reply_to_advisor(advisory_id: str, message: str) -> str:
+        """Reply to an advisory from the observer or human advisor.
+        One reply per advisory. Use this to push back on bad advice or acknowledge feedback."""
+        found = advisory_queue.record_reply(advisory_id, message)
+        if not found:
+            return f"Advisory {advisory_id} not found."
+
+        log.tprint(f"💬 [orchestrator → advisor] re {advisory_id}: {message[:200]}")
+        log.emit(
+            "advisor_reply",
+            advisory_id=advisory_id,
+            message=message[:500],
+        )
+        return f"Reply recorded for {advisory_id}."
+
+    return reply_to_advisor
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +207,8 @@ def build_pydantic_tools(
     goal: str,
     verification_state: VerificationState | None = None,
     config: CycleConfig | None = None,
+    advisory_queue: "AdvisoryQueue | None" = None,
+    observer: "Observer | None" = None,
 ) -> list:
     """Build pydantic-ai ``Tool`` objects for the API orchestrator."""
     from pydantic_ai import Tool
@@ -194,6 +231,8 @@ def build_pydantic_tools(
             summarizer,
             dead_workers=dead_workers,
             total_workers=total_workers,
+            advisory_queue=advisory_queue,
+            observer=observer,
         )
         tools.append(
             Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False)
@@ -221,6 +260,20 @@ def build_pydantic_tools(
         tools.append(Tool(ec, takes_ctx=False))
         tools.append(Tool(ri, takes_ctx=False))
 
+    # Reply to advisor tool (only when advisory system is active)
+    if advisory_queue is not None:
+        reply_fn = _make_reply_to_advisor(advisory_queue)
+        tools.append(
+            Tool(
+                reply_fn,
+                takes_ctx=False,
+                description=(
+                    "Reply to an advisory from the observer or human advisor. "
+                    "One reply per advisory — use to push back or acknowledge."
+                ),
+            )
+        )
+
     return tools
 
 
@@ -239,6 +292,8 @@ def add_tools_to_mcp(
     orchestrator_tag: str = "unknown",
     verification_state: VerificationState | None = None,
     config: CycleConfig | None = None,
+    advisory_queue: "AdvisoryQueue | None" = None,
+    observer: "Observer | None" = None,
 ) -> None:
     """Populate a FastMCP instance with agent delegation and done tools."""
     from kodo.orchestrators.base import CycleConfig as _CycleConfig
@@ -259,6 +314,8 @@ def add_tools_to_mcp(
             dead_workers=dead_workers,
             total_workers=total_workers,
             orchestrator_tag=orchestrator_tag,
+            advisory_queue=advisory_queue,
+            observer=observer,
         )
         handler.__name__ = f"ask_{name}"
         handler.__doc__ = desc
@@ -287,3 +344,13 @@ def add_tools_to_mcp(
         mcp.add_tool(gd)
         mcp.add_tool(ec)
         mcp.add_tool(ri)
+
+    # Reply to advisor tool (only when advisory system is active)
+    if advisory_queue is not None:
+        reply_fn = _make_reply_to_advisor(advisory_queue)
+        reply_fn.__name__ = "reply_to_advisor"
+        reply_fn.__doc__ = (
+            "Reply to an advisory from the observer or human advisor. "
+            "One reply per advisory — use to push back or acknowledge."
+        )
+        mcp.add_tool(reply_fn, name="reply_to_advisor")
