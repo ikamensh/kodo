@@ -709,13 +709,21 @@ def get_unevaluated(dataset: str) -> list[dict]:
                     continue  # no useful patch
                 pending.append((iid, arm_name, int(seed_str)))
 
-    # Fetch patches from GCS
-    results: list[dict] = []
-    for iid, arm, seed in pending:
+    # Fetch patches from GCS in parallel
+    import concurrent.futures
+
+    def _fetch(entry: tuple[str, str, int]) -> dict | None:
+        iid, arm, seed = entry
         patch = get_patch(dataset, iid, arm, seed=seed)
         if not patch:
-            continue
-        results.append({"instance_id": iid, "arm": arm, "seed": seed, "patch": patch})
+            return None
+        return {"instance_id": iid, "arm": arm, "seed": seed, "patch": patch}
+
+    results: list[dict] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=32) as pool:
+        for result in pool.map(_fetch, pending):
+            if result is not None:
+                results.append(result)
 
     log.info("Found %d unevaluated predictions for dataset %s", len(results), dataset)
     return results
