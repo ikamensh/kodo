@@ -306,6 +306,8 @@ def _cmd_update() -> None:
 def _cmd_backends() -> None:
     """List available backends (CLI agents and API orchestrator models)."""
     import os
+    import sys
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from kodo.factory import (
         available_backends,
@@ -317,11 +319,7 @@ def _cmd_backends() -> None:
         RESET as _RST,
         YELLOW as _YLW,
     )
-    from kodo.models import (
-        OLLAMA_LOCAL,
-        PROVIDER_REGISTRY,
-        list_ollama_models,
-    )
+    from kodo.models import PROVIDER_REGISTRY
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -335,6 +333,28 @@ def _cmd_backends() -> None:
     }
 
     # --- CLI backends (agents) ---
+    installed = [name for name, present in backends.items() if present]
+    missing = [name for name, present in backends.items() if not present]
+
+    is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+    # Show a spinner line while checking installed backends in parallel
+    if installed and is_tty:
+        print(f"  checking {len(installed)} backends...", end="\r", flush=True)
+
+    # Check all installed backends in parallel
+    status_results: dict[str, tuple[str, str | None]] = {}
+    with ThreadPoolExecutor(max_workers=len(installed) or 1) as pool:
+        futures = {
+            pool.submit(check_backend_status, name): name for name in installed
+        }
+        for future in as_completed(futures):
+            status_results[futures[future]] = future.result()
+
+    # Clear the spinner line
+    if installed and is_tty:
+        print(" " * 40, end="\r", flush=True)
+
     print("CLI backends (agents):")
     for name, present in backends.items():
         if not present:
@@ -342,37 +362,13 @@ def _cmd_backends() -> None:
             print(f"  {_DIM}{name:<12}  not found  {link}{_RST}")
             continue
 
-        version, warning = check_backend_status(name)
+        version, warning = status_results[name]
 
         if warning:
             print(f"  {_YLW}{name:<12}  {version}{_RST}")
             print(f"  {_YLW}{'':14}{warning}{_RST}")
         else:
             print(f"  {_GRN}{name:<12}{_RST}  {version}")
-
-    # --- API orchestrator models (from provider registry) ---
-    print("\nOrchestrator models (API):")
-    for provider in PROVIDER_REGISTRY:
-        has_key = any(os.environ.get(v) for v in provider.env_vars)
-        for m in provider.models:
-            if has_key:
-                print(
-                    f"  {_GRN}{m.alias:<28}{_RST}  {m.full_model_id:<35}  {provider.name:<12}  ready"
-                )
-            else:
-                print(
-                    f"  {_DIM}{m.alias:<28}  {m.full_model_id:<35}  {provider.name:<12}  no key{_RST}"
-                )
-
-    ollama_models = list_ollama_models()
-    if ollama_models:
-        print(
-            f"  {_GRN}{OLLAMA_LOCAL:<28}{_RST}  "
-            f"{f'ollama:{ollama_models[0]}':<35}  Ollama       first local model",
-        )
-        for model in ollama_models:
-            explicit = f"ollama:{model}"
-            print(f"  {_GRN}{explicit:<28}{_RST}  {explicit:<35}  Ollama       ready")
 
     # --- API key status ---
     print("\nAPI keys:")

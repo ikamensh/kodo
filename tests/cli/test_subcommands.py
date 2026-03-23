@@ -484,7 +484,6 @@ class TestCmdBackends:
 
         out = capsys.readouterr().out
         assert "CLI backends (agents):" in out
-        assert "Orchestrator models (API):" in out
         assert "API keys:" in out
 
     def test_missing_backend_shows_not_found(self, capsys):
@@ -659,47 +658,6 @@ class TestCmdBackends:
         out = capsys.readouterr().out
         assert "\033[32m" in out  # GREEN escape code
         assert "1.0.0" in out
-
-    def test_orchestrator_models_listed(self, capsys):
-        """Orchestrator model aliases and their full IDs should appear in output."""
-        with (
-            patch("kodo.factory.check_api_key", return_value="no key"),  # noqa: autospec
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        # At least one model alias should be listed with its status
-        assert "no key" in out
-        # Verify at least one provider label appears
-        assert "Gemini" in out or "Anthropic" in out
-
-    def test_orchestrator_model_ready_status(self, capsys):
-        """When API key is set, orchestrator models should show 'ready'."""
-        with (
-            patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "ready" in out
-
-    def test_ollama_local_model_listed_when_detected(self, capsys):
-        with (
-            patch(
-                "kodo.models.list_ollama_models",
-                autospec=True,
-                return_value=["qwen2.5-coder:14b", "llama3.2"],
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "ollama-local" in out
-        assert "ollama:qwen2.5-coder:14b" in out
-        assert "ollama:llama3.2" in out
 
     def test_gemini_key_shown_when_set(self, capsys):
         """When GEMINI_API_KEY is set, output should show masked Gemini key."""
