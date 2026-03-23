@@ -414,6 +414,12 @@ def print_launch_identity(
     for k, a in assets.team.items():
         print(f"    {k} ({_backend_label(a)} / {a.session.model})")
     print(f"  Log: {log_path}")
+    from kodo.cli._interactive import is_interactive
+
+    if is_interactive(json_mode):
+        from kodo.formatting import DIM, RESET
+
+        print(f"  {DIM}Type feedback anytime. /stop to end gracefully.{RESET}")
     print()
 
 
@@ -492,19 +498,30 @@ def launch_run(
         if advisor and max_cycles == DEFAULT_MAX_CYCLES:
             max_cycles = max(max_cycles, 50)
 
+    from kodo.advisory import AdvisoryQueue
+    from kodo.cli._interactive import is_interactive, run_with_interactive_input
+
+    advisory_queue = AdvisoryQueue()
+    run_args = (goal_text, project_dir, team)
+    run_kwargs = dict(
+        max_exchanges=max_exchanges,
+        max_cycles=max_cycles,
+        plan=plan,
+        verifiers=verifiers,
+        auto_commit=auto_commit,
+        effort=effort,
+        advisor=advisor,
+    )
+
     try:
-        result = orchestrator.run(
-            goal_text,
-            project_dir,
-            team,
-            max_exchanges=max_exchanges,
-            max_cycles=max_cycles,
-            plan=plan,
-            verifiers=verifiers,
-            auto_commit=auto_commit,
-            effort=effort,
-            advisor=advisor,
-        )
+        if is_interactive(json_mode):
+            result = run_with_interactive_input(
+                orchestrator, run_args, run_kwargs, advisory_queue
+            )
+        else:
+            result = orchestrator.run(
+                *run_args, **run_kwargs, advisory_queue=advisory_queue
+            )
     finally:
         if advisor is not None:
             advisor.close()
@@ -798,10 +815,13 @@ def launch_resume(
         if advisor and max_cycles == DEFAULT_MAX_CYCLES:
             max_cycles = max(max_cycles, 50)
 
-    result = orchestrator.run(
-        state.goal,
-        Path(state.project_dir),
-        team,
+    from kodo.advisory import AdvisoryQueue
+    from kodo.cli._interactive import is_interactive, run_with_interactive_input
+
+    advisory_queue = AdvisoryQueue()
+    json_mode = _original_stdout is not None
+    run_args = (state.goal, Path(state.project_dir), team)
+    run_kwargs = dict(
         max_exchanges=max_exchanges,
         max_cycles=max_cycles,
         resume=resume,
@@ -812,7 +832,16 @@ def launch_resume(
         advisor=advisor,
     )
 
-    if _original_stdout is None:
+    if is_interactive(json_mode):
+        result = run_with_interactive_input(
+            orchestrator, run_args, run_kwargs, advisory_queue
+        )
+    else:
+        result = orchestrator.run(
+            *run_args, **run_kwargs, advisory_queue=advisory_queue
+        )
+
+    if not json_mode:
         log.print_stats_table(final=True)
         total_cycles = state.completed_cycles + len(result.cycles)
         _print_run_summary(result, total_cycles=total_cycles)
