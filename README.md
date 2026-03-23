@@ -122,14 +122,14 @@ uv tool install --with 'kodo[benchmark]' git+https://github.com/ikamensh/kodo
 
 You need **at least one** agent backend installed:
 
-| Backend | Role | Install |
-|---------|------|---------|
-| 🤖 [Claude Code](docs/providers.md#claude-code-smart-workers--architect) | Smart workers + architect | `npm install -g @anthropic-ai/claude-code` |
-| ⚡ [Cursor](docs/providers.md#cursor-fast-workers--testers) | Fast workers + testers | Comes with Cursor; enable `cursor-agent` in settings |
-| 🟢 [OpenAI Codex](docs/providers.md#openai-codex-fast-workers) | Fast workers (alternative to Cursor) | `npm install -g @openai/codex` |
-| 💎 [Gemini CLI](docs/providers.md#gemini-cli-fast-workers) | Fast workers (free tier available) | `npm install -g @google/gemini-cli` |
-| 🌙 [Kimi](docs/providers.md#kimi-smart-workers) | Smart workers (Moonshot AI) | `pip install kimi-agent-sdk` + `KIMI_API_KEY` |
-| 🟡 [Kiro](docs/providers.md#kiro-workers) | Workers (Amazon/AWS) | `curl -fsSL https://cli.kiro.dev/install \| bash` + `kiro-cli login` |
+| Backend | Role | Setup |
+|---------|------|-------|
+| 🤖 [Claude Code](https://code.claude.com/docs/en/setup) | Smart workers + architect | [kodo notes](docs/providers.md#claude-code-smart-workers--architect) |
+| ⚡ [Cursor](https://cursor.com/docs/cli/installation) | Fast workers + testers | [kodo notes](docs/providers.md#cursor-fast-workers--testers) |
+| 🟢 [OpenAI Codex](https://github.com/openai/codex/blob/main/docs/install.md) | Fast workers | [kodo notes](docs/providers.md#openai-codex-fast-workers) |
+| 💎 [Gemini CLI](https://geminicli.com/docs/get-started/installation/) | Fast workers (free tier) | [kodo notes](docs/providers.md#gemini-cli-fast-workers) |
+| 🌙 [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | Smart workers | [kodo notes](docs/providers.md#kimi-smart-workers) |
+| 🟡 [Kiro](https://kiro.dev/docs/cli/installation/) | Workers | [kodo notes](docs/providers.md#kiro-workers) |
 
 Claude Code + one fast backend (Cursor, Codex, or Gemini CLI) is recommended. See [docs/providers.md](docs/providers.md) for detailed setup instructions, authentication, and troubleshooting.
 

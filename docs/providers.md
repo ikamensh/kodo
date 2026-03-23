@@ -6,7 +6,7 @@ kodo delegates coding work to agent backends. You need **at least one** installe
 
 Claude Code handles complex reasoning, architecture review, and deep debugging. Used for `worker_smart` and `architect` roles.
 
-**Install and authenticate:** [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code)
+**Install and authenticate:** [Claude Code setup](https://code.claude.com/docs/en/setup)
 
 **Requires:** [Claude Max](https://claude.ai) or Pro subscription.
 
@@ -22,7 +22,7 @@ Claude Code handles complex reasoning, architecture review, and deep debugging. 
 
 Cursor handles fast iteration, testing, and browser-based verification. Used for `worker_fast`, `tester`, and `tester_browser` roles.
 
-**Install and authenticate:** [Cursor](https://cursor.com)
+**Install and authenticate:** [Cursor CLI installation](https://cursor.com/docs/cli/installation)
 
 **Requires:** Cursor subscription. Enable the CLI agent: Cursor Settings > Features > enable **cursor-agent**.
 
@@ -38,7 +38,7 @@ Cursor handles fast iteration, testing, and browser-based verification. Used for
 
 OpenAI's Codex CLI is an alternative fast worker backend. If Cursor is not available but Codex is, kodo uses it for the `worker_fast` role.
 
-**Install and authenticate:** [Codex CLI docs](https://github.com/openai/codex)
+**Install and authenticate:** [Codex CLI install](https://github.com/openai/codex/blob/main/docs/install.md)
 
 **Requires:** [ChatGPT Plus/Pro](https://chatgpt.com) subscription or OpenAI API key.
 
@@ -54,7 +54,7 @@ OpenAI's Codex CLI is an alternative fast worker backend. If Cursor is not avail
 
 Google's open-source Gemini CLI. Used for the `worker_fast` role when Cursor and Codex are unavailable.
 
-**Install and authenticate:** [Gemini CLI docs](https://github.com/google-gemini/gemini-cli)
+**Install and authenticate:** [Gemini CLI installation](https://geminicli.com/docs/get-started/installation/)
 
 **Requires:** Google account (free tier) or [Gemini API key](https://aistudio.google.com/) (paid tier).
 
@@ -70,7 +70,7 @@ Google's open-source Gemini CLI. Used for the `worker_fast` role when Cursor and
 
 Moonshot AI's Kimi agent SDK. Used as a smart worker alternative.
 
-**Install and authenticate:** [Kimi CLI docs](https://github.com/nicepkg/kimi-cli)
+**Install and authenticate:** [Kimi CLI getting started](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html)
 
 **Requires:** `KIMI_API_KEY` environment variable.
 
@@ -80,7 +80,7 @@ Moonshot AI's Kimi agent SDK. Used as a smart worker alternative.
 
 Amazon's AI coding CLI. Used as a general-purpose worker.
 
-**Install and authenticate:** [Kiro CLI docs](https://kiro.dev/docs/cli/)
+**Install and authenticate:** [Kiro CLI installation](https://kiro.dev/docs/cli/installation/)
 
 **Requires:** AWS Builder ID (free) or AWS Pro subscription.
 
