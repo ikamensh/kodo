@@ -124,6 +124,8 @@ def run_group_sequentially(
     per_stage_cycles: int,
     initial_prior: str,
     config: CycleConfig,
+    advisory_queue=None,
+    observer=None,
 ) -> tuple[list[StageResult], int]:
     """Fallback: run parallel stages sequentially when worktree creation fails.
 
@@ -172,6 +174,8 @@ def run_group_sequentially(
             max_cycles_for_stage=per_stage_cycles,
             initial_prior_summary=initial_prior,
             config=stage_config,
+            advisory_queue=advisory_queue,
+            observer=observer,
         )
         parallel_results.append(stage_res)
         result.cycles.extend(stage_res.cycles)

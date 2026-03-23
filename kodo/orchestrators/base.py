@@ -387,6 +387,8 @@ class OrchestratorBase:
         max_cycles_for_stage: int,
         initial_prior_summary: str = "",
         config: CycleConfig,
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> StageResult:
         """Run a single stage through its cycle loop. Returns the StageResult.
 
@@ -458,6 +460,8 @@ class OrchestratorBase:
                 max_exchanges=max_exchanges,
                 prior_summary=prior_summary,
                 config=stage_config,
+                advisory_queue=advisory_queue,
+                observer=observer,
             )
             cycle_result.stage_index = stage.index
             stage_res.cycles.append(cycle_result)
@@ -514,6 +518,8 @@ class OrchestratorBase:
         start_stage_idx: int,
         config: CycleConfig,
         advisor: "Advisor",
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> None:
         """Adaptive execution: advisor generates stages one at a time."""
         from kodo import log
@@ -595,6 +601,8 @@ class OrchestratorBase:
                     max_exchanges=max_exchanges,
                     max_cycles_for_stage=remaining_cycles,
                     config=config,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
             except Exception as exc:
                 stage_res = _handle_stage_crash(stage, exc)
@@ -678,6 +686,8 @@ class OrchestratorBase:
                 start_stage_idx=start_stage_idx,
                 config=config,
                 advisor=advisor,
+                advisory_queue=advisory_queue,
+                observer=observer,
             )
             return
 
@@ -726,6 +736,8 @@ class OrchestratorBase:
                         max_cycles_for_stage=remaining_cycles,
                         initial_prior_summary=initial_prior,
                         config=config,
+                        advisory_queue=advisory_queue,
+                        observer=observer,
                     )
                 except Exception as exc:
                     stage_res = _handle_stage_crash(stage, exc)
@@ -763,6 +775,8 @@ class OrchestratorBase:
                         else ""
                     ),
                     config=config,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
                 remaining_cycles -= cycles_used
 
@@ -798,6 +812,8 @@ class OrchestratorBase:
         per_stage_cycles: int,
         initial_prior: str,
         config: CycleConfig,
+        advisory_queue: "AdvisoryQueue | None" = None,
+        observer: "Observer | None" = None,
     ) -> tuple[list[StageResult], int]:
         """Run a parallel group of stages concurrently.
 
@@ -852,6 +868,8 @@ class OrchestratorBase:
                     per_stage_cycles=per_stage_cycles,
                     initial_prior=initial_prior,
                     config=config,
+                    advisory_queue=advisory_queue,
+                    observer=observer,
                 )
             max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
             workers = min(len(group), max_parallel)
@@ -882,6 +900,8 @@ class OrchestratorBase:
                             effort=config.effort,
                             done_mode=config.done_mode,
                         ),
+                        advisory_queue=advisory_queue,
+                        observer=observer,
                     )
                     futures_map[future] = stage
 

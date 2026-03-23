@@ -47,6 +47,8 @@ def handle_agent_call(
 
     tag = {"orchestrator": orchestrator_tag} if orchestrator_tag else {}
 
+    log.get_run_progress().update(active_agent=agent_name)
+
     new_tag = " 🔄" if new_conversation else ""
     log.tprint(
         f"🔧 [orchestrator] → {_CYAN}{agent_name}{_RESET}{new_tag}: {task[:100]}..."
@@ -83,16 +85,6 @@ def handle_agent_call(
         return error_msg
 
     report = agent_result.format_report()[:10000]
-    log.emit(
-        "orchestrator_tool_result",
-        **tag,
-        agent=agent_name,
-        elapsed_s=agent_result.elapsed_s,
-        is_error=agent_result.is_error,
-        context_reset=agent_result.context_reset,
-        session_tokens=agent_result.session_tokens,
-        report=report,
-    )
 
     icon = "⚠️" if agent_result.is_error else "✅"
     done_msg = (
@@ -111,7 +103,7 @@ def handle_agent_call(
                 raise FatalAgentError(
                     f"All workers failed: {', '.join(sorted(dead_workers))}"
                 )
-    log.print_stats_table()
+    log.get_run_progress().update(active_agent="")
 
     if cycle_log is not None:
         cycle_log.append(f"← {agent_name}: {report[:500]}")
@@ -123,11 +115,24 @@ def handle_agent_call(
     summarizer.summarize(agent_name, task, report)
 
     # Piggyback pending advisories onto the tool return
-    if advisory_queue is not None and advisory_queue.pending_count > 0:
-        from kodo.advisory import format_advisories
+    if advisory_queue is not None:
+        pending = advisory_queue.pending_count
+        if pending > 0:
+            from kodo.advisory import format_advisories
 
-        advisories = advisory_queue.drain()
-        if advisories:
-            report += format_advisories(advisories)
+            advisories = advisory_queue.drain()
+            if advisories:
+                report += format_advisories(advisories)
+
+    log.emit(
+        "orchestrator_tool_result",
+        **tag,
+        agent=agent_name,
+        elapsed_s=agent_result.elapsed_s,
+        is_error=agent_result.is_error,
+        context_reset=agent_result.context_reset,
+        session_tokens=agent_result.session_tokens,
+        report=report,
+    )
 
     return report

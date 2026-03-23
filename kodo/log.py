@@ -164,6 +164,56 @@ _run_stats = RunStats()
 
 
 # ---------------------------------------------------------------------------
+# Live progress state (read by the interactive toolbar)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class RunProgress:
+    """Lightweight snapshot of orchestrator progress for the status bar.
+
+    Updated by the orchestrator; read by the interactive toolbar.
+    All access goes through the module-level ``_lock``.
+    """
+
+    cycle: int = 0
+    max_cycles: int = 0
+    stage_label: str = ""
+    active_agent: str = ""
+
+    def update(
+        self,
+        *,
+        cycle: int | None = None,
+        max_cycles: int | None = None,
+        stage_label: str | None = None,
+        active_agent: str | None = None,
+    ) -> None:
+        with _lock:
+            if cycle is not None:
+                self.cycle = cycle
+            if max_cycles is not None:
+                self.max_cycles = max_cycles
+            if stage_label is not None:
+                self.stage_label = stage_label
+            if active_agent is not None:
+                self.active_agent = active_agent
+
+    def snapshot(self) -> tuple[int, int, str, str]:
+        """Return (cycle, max_cycles, stage_label, active_agent) under lock."""
+        with _lock:
+            return self.cycle, self.max_cycles, self.stage_label, self.active_agent
+
+
+_run_progress = RunProgress()
+
+
+def get_run_progress() -> RunProgress:
+    """Return the live run progress state."""
+    return _run_progress
+
+
+# ---------------------------------------------------------------------------
 # Test helpers — used by conftest.py to avoid coupling to private vars
 # ---------------------------------------------------------------------------
 
@@ -220,6 +270,7 @@ def init(run_dir: RunDir) -> Path:
         _run_id, \
         _start_time, \
         _run_stats, \
+        _run_progress, \
         _virtual_cost_note_shown, \
         _last_table_time
 
@@ -232,6 +283,7 @@ def init(run_dir: RunDir) -> Path:
         _run_id = run_dir.run_id
         _start_time = time.monotonic()
         _run_stats = RunStats()
+        _run_progress = RunProgress()
         _virtual_cost_note_shown = False
         _last_table_time = 0.0
 

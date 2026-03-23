@@ -35,6 +35,13 @@ def write_run_status(
     max_cycles: int = 0,
 ) -> str:
     """Write .kodo/run-status.md with structured run progress. Returns content."""
+    # Update the live progress state for the interactive toolbar
+    log.get_run_progress().update(
+        cycle=cycle_num,
+        max_cycles=max_cycles,
+        stage_label=stage_label,
+    )
+
     lines: list[str] = ["# Run Status", ""]
 
     # Goal (truncated)
