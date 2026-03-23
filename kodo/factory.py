@@ -30,6 +30,7 @@ from kodo.models import (
     GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
     KIMI_K2_5,
+    KIRO_DEFAULT,
     all_aliases,
     check_api_key_for_model,
     is_ollama_model,
@@ -63,6 +64,7 @@ def available_backends() -> dict[str, bool]:
         "cursor": shutil.which("cursor-agent") is not None,
         "gemini-cli": shutil.which("gemini") is not None,
         "kimi": shutil.which("kimi") is not None,
+        "kiro": shutil.which("kiro-cli") is not None,
     }
 
 
@@ -95,6 +97,10 @@ def has_kimi() -> bool:
     return available_backends()["kimi"]
 
 
+def has_kiro() -> bool:
+    return available_backends()["kiro"]
+
+
 def _gemini_only() -> bool:
     """True when gemini-cli is the only available backend."""
     return (
@@ -103,13 +109,14 @@ def _gemini_only() -> bool:
         and not has_cursor()
         and not has_codex()
         and not has_kimi()
+        and not has_kiro()
     )
 
 
 # Central backend preference order for "pick the best available".
 # Used for intake, auto-refine, and any other "give me a backend" logic.
 # Ordering rationale: claude (strongest reasoning) > cursor > kimi > codex > gemini-cli.
-_BACKEND_PREFERENCE: list[str] = ["claude", "cursor", "kimi", "codex", "gemini-cli"]
+_BACKEND_PREFERENCE: list[str] = ["claude", "cursor", "kimi", "codex", "kiro", "gemini-cli"]
 
 
 def preferred_backend() -> str | None:
@@ -127,6 +134,7 @@ def available_backend_names() -> list[str]:
         "cursor": "Cursor",
         "kimi": "Kimi",
         "codex": "Codex",
+        "kiro": "Kiro",
         "gemini-cli": "Gemini CLI",
     }
     return [_DISPLAY_NAMES[b] for b in _BACKEND_PREFERENCE if _is_available(b)]
@@ -138,6 +146,7 @@ _BACKEND_SMART_MODEL: dict[str, str] = {
     "cursor": CURSOR_COMPOSER,
     "kimi": KIMI_K2_5,
     "codex": CODEX_WORKER,
+    "kiro": KIRO_DEFAULT,
     "gemini-cli": GEMINI_CLI_FLASH_V3,
 }
 
@@ -153,6 +162,7 @@ _BACKEND_TO_ORCHESTRATOR: dict[str, str] = {
     "cursor": "cursor",
     "kimi": "kimi-code",
     "codex": "codex",
+    "kiro": "kiro-cli",
     "gemini-cli": "gemini-cli",
 }
 
@@ -169,7 +179,7 @@ def preferred_orchestrator() -> str:
 
 
 # CLI-based orchestrators that don't need API keys
-_CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor", "kimi-code"}
+_CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor", "kimi-code", "kiro-cli"}
 
 
 def check_api_key(orchestrator: str, model: str) -> str | None:
@@ -191,6 +201,7 @@ _PREFLIGHT_CMDS: dict[str, list[str]] = {
     "codex": ["codex", "--version"],
     "gemini-cli": ["gemini", "--version"],
     "kimi": ["kimi", "--version"],
+    "kiro": ["kiro-cli", "--version"],
 }
 
 # Session class → backend key for preflight
@@ -200,6 +211,7 @@ _SESSION_BACKEND_MAP: dict[str, str] = {
     "CodexSession": "codex",
     "GeminiCliSession": "gemini-cli",
     "KimiSession": "kimi",
+    "KiroSession": "kiro",
 }
 
 
@@ -400,12 +412,14 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
         _BackendOption("cursor", CURSOR_COMPOSER),
         _BackendOption("kimi", KIMI_K2_5),
         _BackendOption("codex", CODEX_WORKER),
+        _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
         _BackendOption("claude", CLAUDE_SONNET),
     ],
     "worker_smart": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
         _BackendOption("codex", CODEX_WORKER),
         _BackendOption("cursor", CURSOR_COMPOSER),
@@ -413,11 +427,13 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "architect": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
     ],
     "tester": [
         _BackendOption("cursor", CURSOR_COMPOSER),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
         _BackendOption("claude", CLAUDE_SONNET),
         _BackendOption("codex", CODEX_WORKER),
@@ -445,6 +461,7 @@ def _is_available(backend: str) -> bool:
         "cursor": has_cursor,
         "gemini-cli": has_gemini_cli,
         "kimi": has_kimi,
+        "kiro": has_kiro,
     }[backend]()
 
 
@@ -583,6 +600,8 @@ def _describe_backends() -> str:
         parts.append("Kimi")
     if has_codex():
         parts.append("Codex")
+    if has_kiro():
+        parts.append("Kiro")
     if has_gemini_cli():
         parts.append("Gemini CLI")
     if has_claude():
