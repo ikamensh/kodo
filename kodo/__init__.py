@@ -60,6 +60,14 @@ def make_session(
             system_prompt=system_prompt,
             timeout_s=session_timeout_s,
         )
+    if backend == "opencode":
+        from kodo.sessions.opencode import OpenCodeSession
+
+        return OpenCodeSession(
+            model=model,
+            system_prompt=system_prompt,
+            timeout_s=session_timeout_s,
+        )
     if backend == "gemini-cli":
         return GeminiCliSession(
             model=model,

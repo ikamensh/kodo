@@ -108,9 +108,9 @@ def handle_agent_call(
     if cycle_log is not None:
         cycle_log.append(f"← {agent_name}: {report[:500]}")
 
-    # Notify coach of result
+    # Notify coach of result (include report so coach sees what orchestrator sees)
     if coach is not None:
-        coach.record_result(agent_name, task, agent_result.is_error)
+        coach.record_result(agent_name, task, agent_result.is_error, report=report)
 
     summarizer.summarize(agent_name, task, report)
 

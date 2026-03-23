@@ -218,7 +218,7 @@ def _main_inner() -> None:
         help=(
             "Orchestrator model. Examples: opus, gpt-5.4, openai:gpt-5.4-mini, "
             "deepseek, ollama:qwen2.5-coder:14b. "
-            "For CLI backends: claude-code:opus, cursor:sonnet-4, gemini-cli:gemini-3-flash."
+            "For CLI backends: claude-code:opus, cursor:sonnet-4-6, gemini-cli:gemini-3-flash."
         ),
     )
     parser.add_argument(
@@ -520,6 +520,14 @@ def _main_inner() -> None:
         params = _build_params_from_flags(args, project_dir)
     else:
         params = _load_or_select_params(project_dir)
+
+    # Determine run mode for mode-specific behavior (e.g. coach tenets)
+    if args.test:
+        params["mode"] = "test"
+    elif args.improve:
+        params["mode"] = "improve"
+    elif args.fix_from:
+        params["mode"] = "fix"
 
     # 3. Create run directory and initialize log early so pre-launch crashes
     #    (e.g. during intake/discovery) produce a resumable run.

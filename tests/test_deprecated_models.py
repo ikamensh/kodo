@@ -40,6 +40,7 @@ DEPRECATED_PATTERNS: list[tuple[str, str]] = [
     (r"claude-instant", "claude-instant is long deprecated"),
     (r"claude-2[\.\b]", "Claude 2.x is deprecated"),
     (r"claude-3-", "Claude 3/3.5 are retired; use claude-*-4-5 or claude-*-4-6"),
+    (r"sonnet-4\b(?!-[56])", "Claude Sonnet 4.0 is outdated; use sonnet-4-6"),
 
     # ---- xAI Grok ---- pre-4.1
     (r"grok-[23]\b", "Grok 2/3 are superseded; use grok-4.1"),

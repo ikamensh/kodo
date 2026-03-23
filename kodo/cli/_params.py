@@ -158,7 +158,7 @@ def select_params() -> dict:
     elif orchestrator == "cursor":
         orch_model = _select_one(
             "Orchestrator model:",
-            [CURSOR_COMPOSER, "sonnet-4-thinking", "gpt-5"],
+            [CURSOR_COMPOSER, "sonnet-4-6-thinking", "gpt-5"],
         )
     elif orchestrator == "api":
         # Build model list from available providers, grouped by provider
@@ -321,7 +321,7 @@ def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]
         "opus"                  → (None, "opus")           — API model
         "openai:gpt-5.4"       → (None, "openai:gpt-5.4") — API model with provider
         "claude-code:opus"      → ("claude-code", "opus")  — CLI backend + model
-        "cursor:sonnet-4"       → ("cursor", "sonnet-4")
+        "cursor:sonnet-4-6"     → ("cursor", "sonnet-4-6")
         "gemini-cli:gemini-3-flash" → ("gemini-cli", "gemini-3-flash")
         "codex:gpt-5.4"        → ("codex", "gpt-5.4")
     """

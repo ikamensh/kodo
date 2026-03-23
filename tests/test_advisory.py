@@ -335,20 +335,17 @@ class TestCoach:
         drained = queue.drain()
         assert drained[0].message == "second message"
 
-    def test_build_assess_prompt(self):
+    def test_build_event_message(self):
         from kodo.coach import Coach
 
         queue = AdvisoryQueue()
         obs = Coach(queue, "implement auth", Path("/tmp"), assess_every_n=100)
         obs.record_dispatch("worker", "add login endpoint")
-        obs.record_dispatch("worker", "add login endpoint")
-        obs.record_dispatch("worker", "fix test")
+        obs.record_result("worker", "add login endpoint", False, report="endpoint added")
 
-        prompt = obs._build_assess_prompt()
-        assert "implement auth" in prompt
-        assert "add login endpoint" in prompt
-        assert "REPEATED TASKS" in prompt
-        assert "2x" in prompt
+        msg = obs._build_event_message()
+        assert "add login endpoint" in msg
+        assert "endpoint added" in msg
 
     def test_start_stop(self):
         from kodo.coach import Coach
@@ -361,6 +358,33 @@ class TestCoach:
         obs._thread.join(timeout=1)
         obs.stop()
         # Should not raise
+
+    def test_mode_specific_tenets(self):
+        from kodo.coach import Coach, _DEFAULT_TENETS, _TEST_TENETS, _IMPROVE_TENETS
+
+        queue = AdvisoryQueue()
+
+        # No mode → default tenets
+        c1 = Coach(queue, "goal", Path("/tmp"))
+        assert c1._tenets == _DEFAULT_TENETS
+
+        # Test mode → test tenets
+        c2 = Coach(queue, "goal", Path("/tmp"), mode="test")
+        assert c2._tenets == _TEST_TENETS
+        assert "TEST" in c2._tenets
+
+        # Improve mode → improve tenets
+        c3 = Coach(queue, "goal", Path("/tmp"), mode="improve")
+        assert c3._tenets == _IMPROVE_TENETS
+        assert "IMPROVE" in c3._tenets
+
+        # Explicit tenets override mode
+        c4 = Coach(queue, "goal", Path("/tmp"), mode="test", tenets="custom tenets")
+        assert c4._tenets == "custom tenets"
+
+        # Unknown mode → default tenets
+        c5 = Coach(queue, "goal", Path("/tmp"), mode="goal")
+        assert c5._tenets == _DEFAULT_TENETS
 
 
 # ---------------------------------------------------------------------------

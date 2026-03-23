@@ -19,6 +19,7 @@ _BACKEND_MAP = {
     "claude": "claude",
     "cursor": "cursor",
     "codex": "codex",
+    "opencode": "opencode",
     "kiro": "kiro",
     "gemini-cli": "gemini-cli",
 }

@@ -514,6 +514,7 @@ def launch_run(
         effort=effort,
         advisor=advisor,
         enable_coach=params.get("enable_coach", False),
+        mode=params.get("mode"),
     )
 
     try:
@@ -836,6 +837,7 @@ def launch_resume(
         effort=effort,
         advisor=advisor,
         enable_coach=params.get("enable_coach", False),
+        mode=params.get("mode"),
     )
 
     if is_interactive(json_mode):

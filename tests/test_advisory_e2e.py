@@ -475,24 +475,17 @@ class TestAICoachTenetViolation:
 # ---------------------------------------------------------------------------
 
 
-class TestCoachSeesReplies:
-    """Verify the coach's assessment prompt includes orchestrator replies
-    to prior advisories, so it can evaluate whether pushback was valid."""
+class TestCoachEventMessage:
+    """Verify the coach's event message includes dispatch/result info."""
 
-    def test_assess_prompt_includes_prior_replies(self, tmp_path):
+    def test_event_message_includes_result_details(self, tmp_path):
         queue = AdvisoryQueue()
         obs = Coach(queue, "fix auth", tmp_path, assess_every_n=100)
 
-        # Push and drain an advisory, then record a reply
-        adv = queue.push("you're going in circles", source="coach", priority="warning")
-        queue.drain()
-        queue.record_reply(adv.id, "No, this is prerequisite work")
-
-        # Record some dispatches so prompt has content
         obs.record_dispatch("worker", "refactor auth module")
+        obs.record_result("worker", "refactor auth module", False, report="refactored successfully")
 
-        prompt = obs._build_assess_prompt()
-        assert "Coach said:" in prompt
-        assert "you're going in circles" in prompt
-        assert "Orchestrator replied:" in prompt
-        assert "prerequisite work" in prompt
+        msg = obs._build_event_message()
+        assert "refactor auth module" in msg
+        assert "refactored successfully" in msg
+        assert "ok" in msg

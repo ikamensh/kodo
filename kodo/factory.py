@@ -31,6 +31,7 @@ from kodo.models import (
     GEMINI_CLI_PRO,
     KIMI_K2_5,
     KIRO_DEFAULT,
+    OPENCODE_DEFAULT,
     all_aliases,
     check_api_key_for_model,
     is_ollama_model,
@@ -65,6 +66,7 @@ def available_backends() -> dict[str, bool]:
         "gemini-cli": shutil.which("gemini") is not None,
         "kimi": shutil.which("kimi") is not None,
         "kiro": shutil.which("kiro-cli") is not None,
+        "opencode": shutil.which("opencode") is not None,
     }
 
 
@@ -101,6 +103,10 @@ def has_kiro() -> bool:
     return available_backends()["kiro"]
 
 
+def has_opencode() -> bool:
+    return available_backends()["opencode"]
+
+
 def _gemini_only() -> bool:
     """True when gemini-cli is the only available backend."""
     return (
@@ -110,13 +116,14 @@ def _gemini_only() -> bool:
         and not has_codex()
         and not has_kimi()
         and not has_kiro()
+        and not has_opencode()
     )
 
 
 # Central backend preference order for "pick the best available".
 # Used for intake, auto-refine, and any other "give me a backend" logic.
 # Ordering rationale: claude (strongest reasoning) > cursor > kimi > codex > gemini-cli.
-_BACKEND_PREFERENCE: list[str] = ["claude", "cursor", "kimi", "codex", "kiro", "gemini-cli"]
+_BACKEND_PREFERENCE: list[str] = ["claude", "cursor", "kimi", "codex", "opencode", "kiro", "gemini-cli"]
 
 
 def preferred_backend() -> str | None:
@@ -134,6 +141,7 @@ def available_backend_names() -> list[str]:
         "cursor": "Cursor",
         "kimi": "Kimi",
         "codex": "Codex",
+        "opencode": "OpenCode",
         "kiro": "Kiro",
         "gemini-cli": "Gemini CLI",
     }
@@ -147,6 +155,7 @@ _BACKEND_SMART_MODEL: dict[str, str] = {
     "kimi": KIMI_K2_5,
     "codex": CODEX_WORKER,
     "kiro": KIRO_DEFAULT,
+    "opencode": OPENCODE_DEFAULT,
     "gemini-cli": GEMINI_CLI_FLASH_V3,
 }
 
@@ -202,6 +211,7 @@ _PREFLIGHT_CMDS: dict[str, list[str]] = {
     "gemini-cli": ["gemini", "--version"],
     "kimi": ["kimi", "--version"],
     "kiro": ["kiro-cli", "--version"],
+    "opencode": ["opencode", "--version"],
 }
 
 # Session class → backend key for preflight
@@ -212,6 +222,7 @@ _SESSION_BACKEND_MAP: dict[str, str] = {
     "GeminiCliSession": "gemini-cli",
     "KimiSession": "kimi",
     "KiroSession": "kiro",
+    "OpenCodeSession": "opencode",
 }
 
 
@@ -412,6 +423,7 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
         _BackendOption("cursor", CURSOR_COMPOSER),
         _BackendOption("kimi", KIMI_K2_5),
         _BackendOption("codex", CODEX_WORKER),
+        _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
         _BackendOption("claude", CLAUDE_SONNET),
@@ -419,6 +431,7 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "worker_smart": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
         _BackendOption("codex", CODEX_WORKER),
@@ -427,12 +440,14 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "architect": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
     ],
     "tester": [
         _BackendOption("cursor", CURSOR_COMPOSER),
         _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
         _BackendOption("claude", CLAUDE_SONNET),
@@ -462,6 +477,7 @@ def _is_available(backend: str) -> bool:
         "gemini-cli": has_gemini_cli,
         "kimi": has_kimi,
         "kiro": has_kiro,
+        "opencode": has_opencode,
     }[backend]()
 
 
@@ -490,11 +506,11 @@ def _build_team_core(
     Roles without a description (architect, tester, tester_browser) are skipped.
     """
     if not any(
-        _is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli", "kimi")
+        _is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli", "kimi", "opencode")
     ):
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
-            "claude, cursor, kimi, codex, or gemini-cli.",
+            "claude, cursor, kimi, codex, opencode, or gemini-cli.",
         )
 
     # Map role name → (description, timeout)
@@ -600,6 +616,8 @@ def _describe_backends() -> str:
         parts.append("Kimi")
     if has_codex():
         parts.append("Codex")
+    if has_opencode():
+        parts.append("OpenCode")
     if has_kiro():
         parts.append("Kiro")
     if has_gemini_cli():

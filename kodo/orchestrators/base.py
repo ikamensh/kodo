@@ -155,6 +155,7 @@ class OrchestratorBase:
         enable_coach: bool = False,
         coach_model: str | None = None,
         advisory_queue: "AdvisoryQueue | None" = None,
+        mode: str | None = None,
     ) -> RunResult:
         from kodo import log
 
@@ -204,11 +205,17 @@ class OrchestratorBase:
         if enable_coach and advisory_queue is not None:
             from kodo.coach import Coach as _Coach
 
+            # Load custom tenets from project if available
+            tenets_file = project_dir / ".kodo" / "tenets.md"
+            tenets = tenets_file.read_text().strip() if tenets_file.is_file() else None
+
             coach = _Coach(
                 advisory_queue,
                 goal,
                 project_dir,
                 model=coach_model,
+                tenets=tenets,
+                mode=mode,
             )
             coach.start()
 

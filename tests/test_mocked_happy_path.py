@@ -81,6 +81,7 @@ def _fake_build_orchestrator(*args, **kwargs):
         advisor=None,
         advisory_queue=None,
         enable_coach=False,
+        mode=None,
     ):
         log.emit(
             "run_start",

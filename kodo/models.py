@@ -145,6 +145,11 @@ KIMI_K2_5 = "kimi-k2.5"
 # ---------------------------------------------------------------------------
 KIRO_DEFAULT = "default"
 
+# ---------------------------------------------------------------------------
+# OpenCode
+# ---------------------------------------------------------------------------
+OPENCODE_DEFAULT = "default"
+
 
 # ---------------------------------------------------------------------------
 # Backend / orchestrator emoji (for terminal output)
@@ -158,6 +163,7 @@ BACKEND_EMOJI: dict[str, str] = {
     "kimi": "🌙",
     "kimi-code": "🌙",
     "kiro": "👻",
+    "opencode": "🔑",
     "api": "🔮",  # default for API orchestrator
 }
 
@@ -375,6 +381,20 @@ def _build_registry() -> tuple[Provider, ...]:
                     "openrouter:openrouter/auto",
                     "openrouter/auto",
                     "OpenRouter Auto",
+                    (0.0, 0.0),
+                ),
+                ModelInfo(
+                    "nemotron",
+                    "openrouter:nvidia/nemotron-3-super-120b-a12b",
+                    "nvidia/nemotron-3-super-120b-a12b",
+                    "Nemotron 3 Super",
+                    (0.12, 0.30),
+                ),
+                ModelInfo(
+                    "nemotron-free",
+                    "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
+                    "nvidia/nemotron-3-super-120b-a12b:free",
+                    "Nemotron 3 Super (free)",
                     (0.0, 0.0),
                 ),
             ),
@@ -647,6 +667,22 @@ def make_fresh_model(model_str: str):
         )
         provider = AnthropicProvider(http_client=fresh_client)
         return AnthropicModel(model_name, provider=provider)
+
+    if provider_name == "openrouter":
+        import os as _os
+
+        from pydantic_ai.providers.openai import OpenAIProvider
+        from pydantic_ai.models.openai import OpenAIChatModel
+
+        fresh_client = _httpx.AsyncClient(
+            timeout=_httpx.Timeout(timeout=600, connect=5),
+        )
+        provider = OpenAIProvider(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=_os.environ.get("OPENROUTER_API_KEY", ""),
+            http_client=fresh_client,
+        )
+        return OpenAIChatModel(model_name, provider=provider)
 
     if provider_name == "openai":
         from pydantic_ai.providers.openai import OpenAIProvider
