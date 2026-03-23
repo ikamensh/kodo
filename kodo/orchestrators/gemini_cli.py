@@ -21,6 +21,7 @@ class GeminiCliOrchestrator(CliOrchestratorBase):
 
     _orchestrator_name = "gemini-cli"
     _cost_bucket = "gemini_cli"
+    _emoji = "💎"
 
     def __init__(
         self,
@@ -68,7 +69,7 @@ class GeminiCliOrchestrator(CliOrchestratorBase):
             ) from exc
 
         try:
-            log.tprint("🚀 [orchestrator] starting gemini-cli cycle...")
+            log.tprint(f"{self._emoji} [orchestrator] starting gemini-cli cycle...")
 
             cmd = [
                 "gemini",

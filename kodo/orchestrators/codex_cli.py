@@ -21,6 +21,7 @@ class CodexOrchestrator(CliOrchestratorBase):
 
     _orchestrator_name = "codex"
     _cost_bucket = "codex_subscription"
+    _emoji = "🌀"
 
     def __init__(self, model: str = CODEX_DEFAULT, system_prompt: str | None = None):
         super().__init__(model, system_prompt)
@@ -34,7 +35,7 @@ class CodexOrchestrator(CliOrchestratorBase):
         result: CycleResult,
         done_signal: DoneSignal,
     ) -> None:
-        log.tprint("🚀 [orchestrator] starting codex cycle...")
+        log.tprint(f"{self._emoji} [orchestrator] starting codex cycle...")
 
         # Codex only supports stdio MCP; use a bridge command
         bridge_cmd = ctx.stdio_bridge_cmd

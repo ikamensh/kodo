@@ -58,7 +58,7 @@ from kodo.orchestrators.parallel import (  # noqa: F401
 
 if TYPE_CHECKING:
     from kodo.advisory import AdvisoryQueue
-    from kodo.observer import Observer
+    from kodo.coach import Coach
     from kodo.orchestrators.advisor import Advisor
 
 
@@ -83,7 +83,7 @@ class OrchestratorBase:
         prior_summary: str = "",
         config: CycleConfig | None = None,
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> CycleResult:
         raise NotImplementedError
 
@@ -152,8 +152,8 @@ class OrchestratorBase:
         effort: str = "standard",
         advisor: "Advisor | None" = None,
         config: CycleConfig | None = None,
-        enable_observer: bool = False,
-        observer_model: str | None = None,
+        enable_coach: bool = False,
+        coach_model: str | None = None,
         advisory_queue: "AdvisoryQueue | None" = None,
     ) -> RunResult:
         from kodo import log
@@ -182,7 +182,7 @@ class OrchestratorBase:
             resume_from_cycle=start_cycle if resume else None,
             has_stages=plan is not None and len(plan.stages) > 0,
             num_stages=len(plan.stages) if plan else 0,
-            observer_enabled=enable_observer,
+            coach_enabled=enable_coach,
         )
         result = RunResult()
         if config is not None:
@@ -194,23 +194,23 @@ class OrchestratorBase:
                 effort=effort,
             )
 
-        # Set up observer and advisory queue
-        observer: "Observer | None" = None
-        if advisory_queue is None and enable_observer:
+        # Set up coach and advisory queue
+        coach: "Coach | None" = None
+        if advisory_queue is None and enable_coach:
             from kodo.advisory import AdvisoryQueue as _AQ
 
             advisory_queue = _AQ()
 
-        if enable_observer and advisory_queue is not None:
-            from kodo.observer import Observer as _Obs
+        if enable_coach and advisory_queue is not None:
+            from kodo.coach import Coach as _Coach
 
-            observer = _Obs(
+            coach = _Coach(
                 advisory_queue,
                 goal,
                 project_dir,
-                model=observer_model,
+                model=coach_model,
             )
-            observer.start()
+            coach.start()
 
         _run_error: BaseException | None = None
         try:
@@ -233,7 +233,7 @@ class OrchestratorBase:
                     config=run_config,
                     advisor=advisor,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
             else:
                 self._run_single(
@@ -247,15 +247,15 @@ class OrchestratorBase:
                     prior_summary=prior_summary,
                     config=run_config,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
         except BaseException as exc:
             _run_error = exc
             raise
         finally:
-            # Stop observer
-            if observer is not None:
-                observer.stop()
+            # Stop coach
+            if coach is not None:
+                coach.stop()
 
             self._summarizer.shutdown()
 
@@ -318,7 +318,7 @@ class OrchestratorBase:
         prior_summary: str,
         config: CycleConfig,
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> None:
         """Original single-goal execution loop."""
         from kodo import log
@@ -334,7 +334,9 @@ class OrchestratorBase:
             if i > 1:
                 print()
                 log.tprint(f"{'─' * 40}")
-                log.tprint(f"{_BOLD}CYCLE {i}/{max_cycles}{_RESET}")
+                _emo = getattr(self, "_emoji", "")
+                _emo_prefix = f"{_emo} " if _emo else ""
+                log.tprint(f"{_BOLD}{_emo_prefix}CYCLE {i}/{max_cycles}{_RESET}")
             log.emit(
                 "run_cycle",
                 orchestrator=self._orchestrator_name,
@@ -351,7 +353,7 @@ class OrchestratorBase:
                     prior_summary=prior_summary,
                     config=config,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
             except Exception as exc:
                 log.emit(
@@ -388,7 +390,7 @@ class OrchestratorBase:
         initial_prior_summary: str = "",
         config: CycleConfig,
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> StageResult:
         """Run a single stage through its cycle loop. Returns the StageResult.
 
@@ -461,7 +463,7 @@ class OrchestratorBase:
                 prior_summary=prior_summary,
                 config=stage_config,
                 advisory_queue=advisory_queue,
-                observer=observer,
+                coach=coach,
             )
             cycle_result.stage_index = stage.index
             stage_res.cycles.append(cycle_result)
@@ -519,7 +521,7 @@ class OrchestratorBase:
         config: CycleConfig,
         advisor: "Advisor",
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> None:
         """Adaptive execution: advisor generates stages one at a time."""
         from kodo import log
@@ -602,7 +604,7 @@ class OrchestratorBase:
                     max_cycles_for_stage=remaining_cycles,
                     config=config,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
             except Exception as exc:
                 stage_res = _handle_stage_crash(stage, exc)
@@ -645,7 +647,7 @@ class OrchestratorBase:
         config: CycleConfig,
         advisor: "Advisor | None" = None,
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> None:
         """Staged execution: iterate over plan stages with a shared cycle limit.
 
@@ -687,7 +689,7 @@ class OrchestratorBase:
                 config=config,
                 advisor=advisor,
                 advisory_queue=advisory_queue,
-                observer=observer,
+                coach=coach,
             )
             return
 
@@ -737,7 +739,7 @@ class OrchestratorBase:
                         initial_prior_summary=initial_prior,
                         config=config,
                         advisory_queue=advisory_queue,
-                        observer=observer,
+                        coach=coach,
                     )
                 except Exception as exc:
                     stage_res = _handle_stage_crash(stage, exc)
@@ -776,7 +778,7 @@ class OrchestratorBase:
                     ),
                     config=config,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
                 remaining_cycles -= cycles_used
 
@@ -813,7 +815,7 @@ class OrchestratorBase:
         initial_prior: str,
         config: CycleConfig,
         advisory_queue: "AdvisoryQueue | None" = None,
-        observer: "Observer | None" = None,
+        coach: "Coach | None" = None,
     ) -> tuple[list[StageResult], int]:
         """Run a parallel group of stages concurrently.
 
@@ -869,7 +871,7 @@ class OrchestratorBase:
                     initial_prior=initial_prior,
                     config=config,
                     advisory_queue=advisory_queue,
-                    observer=observer,
+                    coach=coach,
                 )
             max_parallel = int(os.environ.get("KODO_MAX_PARALLEL", "2"))
             workers = min(len(group), max_parallel)
@@ -901,7 +903,7 @@ class OrchestratorBase:
                             done_mode=config.done_mode,
                         ),
                         advisory_queue=advisory_queue,
-                        observer=observer,
+                        coach=coach,
                     )
                     futures_map[future] = stage
 

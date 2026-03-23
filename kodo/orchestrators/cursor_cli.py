@@ -21,6 +21,7 @@ class CursorOrchestrator(CliOrchestratorBase):
 
     _orchestrator_name = "cursor"
     _cost_bucket = "cursor_subscription"
+    _emoji = "⚡"
 
     def __init__(self, model: str = CURSOR_COMPOSER, system_prompt: str | None = None):
         super().__init__(model, system_prompt)
@@ -66,7 +67,7 @@ class CursorOrchestrator(CliOrchestratorBase):
 
         proc = None
         try:
-            log.tprint("🚀 [orchestrator] starting cursor cycle...")
+            log.tprint(f"{self._emoji} [orchestrator] starting cursor cycle...")
 
             cmd = [
                 "cursor-agent",

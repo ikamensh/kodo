@@ -409,7 +409,9 @@ def print_launch_identity(
         for letter, role in assets.debug_letter_assignments or ():
             print(f"    {letter} = {role}")
     print(f"  Team: {assets.team_preset.name}")
-    print(f"  Orchestrator: {params['orchestrator']} ({assets.orchestrator.model})")
+    _emo = getattr(assets.orchestrator, "_emoji", "")
+    _emo_s = f"{_emo} " if _emo else ""
+    print(f"  Orchestrator: {_emo_s}{params['orchestrator']} ({assets.orchestrator.model})")
     print("  Agents:")
     for k, a in assets.team.items():
         print(f"    {k} ({_backend_label(a)} / {a.session.model})")
@@ -511,6 +513,7 @@ def launch_run(
         auto_commit=auto_commit,
         effort=effort,
         advisor=advisor,
+        enable_coach=params.get("enable_coach", False),
     )
 
     try:
@@ -784,7 +787,9 @@ def launch_resume(
         if overrides:
             print(f"Overrides: {', '.join(f'{k}={v}' for k, v in overrides.items())}")
         print(f"Team: {team_preset.name}")
-        print(f"Orchestrator: {params['orchestrator']} ({orchestrator.model})")
+        _emo = getattr(orchestrator, "_emoji", "")
+        _emo_s = f"{_emo} " if _emo else ""
+        print(f"Orchestrator: {_emo_s}{params['orchestrator']} ({orchestrator.model})")
         print("Team:")
         for k, a in team.items():
             print(f"  {k} ({_backend_label(a)} / {a.session.model})")
@@ -830,6 +835,7 @@ def launch_resume(
         auto_commit=auto_commit,
         effort=effort,
         advisor=advisor,
+        enable_coach=params.get("enable_coach", False),
     )
 
     if is_interactive(json_mode):

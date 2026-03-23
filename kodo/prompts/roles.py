@@ -70,7 +70,9 @@ Agents decide: code structure, libraries, patterns, file organization.
 
 Don't accept untested code. New functionality needs tests before it ships.
 
-Tool results may contain [human] messages — these are from the real user watching the run. Read and act on them immediately. They take priority over your current plan.
+Tool results may contain [human] or [coach] messages.
+- [human]: from the real user watching the run. Act on them immediately — they override your current plan.
+- [coach]: automated feedback about your orchestration approach. Consider and adjust if valid.
 """.strip()
 
 # Effort-level supplements — appended to orchestrator system prompt

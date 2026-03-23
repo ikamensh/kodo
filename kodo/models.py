@@ -115,7 +115,7 @@ CODEX_WORKER = "gpt-5.4"
 # ---------------------------------------------------------------------------
 # Gemini CLI (agent backend)
 # ---------------------------------------------------------------------------
-GEMINI_CLI_FLASH = "gemini-2.5-flash"
+GEMINI_CLI_FLASH = "gemini-3-flash"
 GEMINI_CLI_FLASH_V3 = "gemini-3-flash"
 GEMINI_CLI_PRO = "gemini-3-pro"
 
@@ -127,13 +127,13 @@ GEMINI_ALIAS_PRO = "gemini-pro"
 GEMINI_ALIAS_FLASH = "gemini-flash"
 
 GEMINI_API_PRO = "gemini-3.1-pro-preview"
-GEMINI_API_PRO_V3 = "gemini-3-pro-preview"
+GEMINI_API_PRO_V3 = "gemini-3.1-pro-preview"
 GEMINI_API_FLASH = "gemini-3-flash-preview"
 
 # ---------------------------------------------------------------------------
 # Gemini API (summarizer — lightweight, direct REST)
 # ---------------------------------------------------------------------------
-GEMINI_SUMMARIZER = "gemini-2.5-flash-lite"
+GEMINI_SUMMARIZER = "gemini-3.1-flash-lite-preview"
 
 # ---------------------------------------------------------------------------
 # Kimi (Moonshot AI)
@@ -144,6 +144,51 @@ KIMI_K2_5 = "kimi-k2.5"
 # Kiro (Amazon)
 # ---------------------------------------------------------------------------
 KIRO_DEFAULT = "default"
+
+
+# ---------------------------------------------------------------------------
+# Backend / orchestrator emoji (for terminal output)
+# ---------------------------------------------------------------------------
+BACKEND_EMOJI: dict[str, str] = {
+    "claude": "🤖",
+    "claude_code": "🤖",
+    "cursor": "⚡",
+    "codex": "🌀",
+    "gemini-cli": "💎",
+    "kimi": "🌙",
+    "kimi-code": "🌙",
+    "kiro": "👻",
+    "api": "🔮",  # default for API orchestrator
+}
+
+# Provider-specific emoji for API orchestrator model prefixes
+_PROVIDER_EMOJI: dict[str, str] = {
+    "anthropic": "🤖",
+    "google-gla": "💎",
+    "google-vertex": "💎",
+    "openai": "🌀",
+    "deepseek": "🐋",
+    "groq": "⚡",
+    "openrouter": "🔀",
+    "mistral": "🌊",
+    "xai": "𝕏",
+    "ollama": "🦙",
+}
+
+
+def orchestrator_emoji(orchestrator_name: str, model: str | None = None) -> str:
+    """Return the emoji for an orchestrator backend.
+
+    For 'api' orchestrators, infers from the model provider prefix.
+    """
+    if orchestrator_name == "api" and model:
+        # Try resolving alias to pydantic ID first
+        resolved = resolve_model(model)
+        if ":" in resolved:
+            prefix = resolved.split(":", 1)[0]
+            if prefix in _PROVIDER_EMOJI:
+                return _PROVIDER_EMOJI[prefix]
+    return BACKEND_EMOJI.get(orchestrator_name, "")
 
 
 # ---------------------------------------------------------------------------
@@ -341,8 +386,8 @@ def _build_registry() -> tuple[Provider, ...]:
             models=(
                 ModelInfo(
                     "codestral",
-                    "mistral:codestral-2508",
-                    "codestral-2508",
+                    "mistral:codestral-latest",
+                    "codestral-latest",
                     "Codestral",
                     (0.30, 0.90),
                 ),
@@ -360,7 +405,7 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("XAI_API_KEY",),
             pydantic_prefix="xai",
             models=(
-                ModelInfo("grok-3", "xai:grok-3", "grok-3", "Grok 3", (3.0, 15.0)),
+                ModelInfo("grok-4.1", "xai:grok-4.1", "grok-4.1", "Grok 4.1", (3.0, 15.0)),
             ),
         ),
     )

@@ -29,6 +29,7 @@ class KimiCodeOrchestrator(OrchestratorBase):
     def __init__(self, model: str = KIMI_K2_5, system_prompt: str | None = None):
         self.model = model
         self._orchestrator_name = "kimi-code"
+        self._emoji = "🌙"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
         self._summarizer = Summarizer()
 
@@ -95,7 +96,7 @@ class KimiCodeOrchestrator(OrchestratorBase):
                 )
 
                 try:
-                    log.tprint("🚀 [orchestrator] starting kimi-code cycle...")
+                    log.tprint(f"{self._emoji} [orchestrator] starting kimi-code cycle...")
 
                     async def _stream_prompt(p: str) -> str:
                         """Stream a prompt, aggregate text, update result stats."""

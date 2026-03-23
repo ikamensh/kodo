@@ -31,6 +31,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
     def __init__(self, model: str = CLAUDE_OPUS, system_prompt: str | None = None):
         self.model = model
         self._orchestrator_name = "claude_code"
+        self._emoji = "🤖"
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
         self._summarizer = Summarizer()
 
@@ -109,7 +110,7 @@ class ClaudeCodeOrchestrator(OrchestratorBase):
                 client = ClaudeSDKClient(options=options)
             try:
                 await client.connect()
-                log.tprint("🚀 [orchestrator] starting cycle...")
+                log.tprint(f"{self._emoji} [orchestrator] starting cycle...")
                 await client.query(prompt)
 
                 nudges = 0

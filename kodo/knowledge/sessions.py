@@ -28,9 +28,9 @@ if TYPE_CHECKING:
 # Map model_preference to actual pydantic-ai model strings.
 # Falls back gracefully: prefers Anthropic when available, Gemini otherwise.
 _PREFERENCE_MAP: dict[str, str] = {
-    "best": "google-gla:gemini-2.5-pro",
-    "fast": "google-gla:gemini-2.5-flash",
-    "reasoning": "google-gla:gemini-2.5-pro",
+    "best": "google-gla:gemini-3.1-pro-preview",
+    "fast": "google-gla:gemini-3-flash-preview",
+    "reasoning": "google-gla:gemini-3.1-pro-preview",
     # "search" and "compute" use "best" model but get extra tools
 }
 

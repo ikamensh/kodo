@@ -89,8 +89,11 @@ class ApiOrchestrator(OrchestratorBase):
         system_prompt: str | None = None,
         fallback_model: str | None = None,
     ):
+        from kodo.models import orchestrator_emoji
+
         self.model = model
         self._orchestrator_name = "api"
+        self._emoji = orchestrator_emoji("api", model)
         self.max_context_tokens = max_context_tokens
         self._system_prompt = system_prompt or ORCHESTRATOR_SYSTEM_PROMPT
         if is_ollama_model(model):
@@ -185,7 +188,7 @@ class ApiOrchestrator(OrchestratorBase):
         prior_summary: str = "",
         config: CycleConfig | None = None,
         advisory_queue=None,
-        observer=None,
+        coach=None,
     ) -> CycleResult:
         if config is None:
             config = CycleConfig()
@@ -200,7 +203,7 @@ class ApiOrchestrator(OrchestratorBase):
             verification_state=verification_state,
             config=config,
             advisory_queue=advisory_queue,
-            observer=observer,
+            coach=coach,
         )
         result = CycleResult()
 
@@ -241,7 +244,7 @@ class ApiOrchestrator(OrchestratorBase):
         )
 
         log.tprint(
-            f"\n🚀 [orchestrator] starting cycle (max {max_exchanges} requests)...",
+            f"\n{self._emoji} [orchestrator] starting cycle (max {max_exchanges} requests)...",
         )
 
         max_retries = 3

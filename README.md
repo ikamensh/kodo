@@ -10,7 +10,7 @@
   <a href="https://github.com/openai/codex"><img src="https://img.shields.io/badge/Codex-supported-green?logo=openai&logoColor=white" alt="OpenAI Codex"></a>
   <a href="https://github.com/google-gemini/gemini-cli"><img src="https://img.shields.io/badge/Gemini_CLI-supported-blue?logo=google&logoColor=white" alt="Gemini CLI"></a>
   <a href="https://github.com/nicepkg/kimi-cli"><img src="https://img.shields.io/badge/%F0%9F%8C%99_Kimi-supported-red" alt="Kimi"></a>
-  <a href="https://kiro.dev/cli/"><img src="https://img.shields.io/badge/Kiro-supported-yellow?logo=amazonaws&logoColor=white" alt="Kiro"></a>
+  <a href="https://kiro.dev/cli/"><img src="https://img.shields.io/badge/👻_Kiro-supported-yellow?logo=amazonaws&logoColor=white" alt="Kiro"></a>
 </p>
 
 ---
@@ -124,12 +124,12 @@ You need **at least one** agent backend installed:
 
 | Backend | Role | Setup |
 |---------|------|-------|
-| 🤖 [Claude Code](https://code.claude.com/docs/en/setup) | Smart workers + architect | [kodo notes](docs/providers.md#claude-code-smart-workers--architect) |
-| ⚡ [Cursor](https://cursor.com/docs/cli/installation) | Fast workers + testers | [kodo notes](docs/providers.md#cursor-fast-workers--testers) |
-| 🟢 [OpenAI Codex](https://github.com/openai/codex/blob/main/docs/install.md) | Fast workers | [kodo notes](docs/providers.md#openai-codex-fast-workers) |
-| 💎 [Gemini CLI](https://geminicli.com/docs/get-started/installation/) | Fast workers (free tier) | [kodo notes](docs/providers.md#gemini-cli-fast-workers) |
-| 🌙 [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | Smart workers | [kodo notes](docs/providers.md#kimi-smart-workers) |
-| 🟡 [Kiro](https://kiro.dev/docs/cli/installation/) | Workers | [kodo notes](docs/providers.md#kiro-workers) |
+| 🤖 [Claude Code](https://code.claude.com/docs/en/setup) | Smart workers + architect | [instructions](docs/providers.md#claude-code-smart-workers--architect) |
+| ⚡ [Cursor](https://cursor.com/docs/cli/installation) | Fast workers + testers | [instructions](docs/providers.md#cursor-fast-workers--testers) |
+| 🌀 [OpenAI Codex](https://github.com/openai/codex/blob/main/docs/install.md) | Fast workers | [instructions](docs/providers.md#openai-codex-fast-workers) |
+| 💎 [Gemini CLI](https://geminicli.com/docs/get-started/installation/) | Fast workers (free tier) | [instructions](docs/providers.md#gemini-cli-fast-workers) |
+| 🌙 [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | Smart workers | [instructions](docs/providers.md#kimi-smart-workers) |
+| 👻 [Kiro](https://kiro.dev/docs/cli/installation/) | Workers | [instructions](docs/providers.md#kiro-workers) |
 
 Claude Code + one fast backend (Cursor, Codex, or Gemini CLI) is recommended. See [docs/providers.md](docs/providers.md) for detailed setup instructions, authentication, and troubleshooting.
 

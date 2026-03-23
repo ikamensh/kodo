@@ -325,12 +325,14 @@ def _cmd_backends() -> None:
     backends = available_backends()
 
     _INSTALL_LINKS: dict[str, str] = {
-        "claude": "https://docs.anthropic.com/en/docs/claude-code",
-        "codex": "https://github.com/openai/codex",
-        "cursor": "https://docs.cursor.com/agent",
-        "gemini-cli": "https://github.com/google-gemini/gemini-cli",
-        "kimi": "https://platform.moonshot.cn",
+        "claude": "https://code.claude.com/docs/en/setup",
+        "codex": "https://github.com/openai/codex/blob/main/docs/install.md",
+        "cursor": "https://cursor.com/docs/cli/installation",
+        "gemini-cli": "https://geminicli.com/docs/get-started/installation/",
+        "kimi": "https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html#installation",
+        "kiro": "https://kiro.dev/docs/cli/installation/",
     }
+    _README_URL = "https://github.com/ikamensh/kodo#prerequisites"
 
     # --- CLI backends (agents) ---
     installed = [name for name, present in backends.items() if present]
@@ -356,10 +358,17 @@ def _cmd_backends() -> None:
         print(" " * 40, end="\r", flush=True)
 
     print("CLI backends (agents):")
+    # Decide link style: no backends → full install links; some missing → readme link
+    show_install_links = not installed
+    show_readme_link = bool(installed) and bool(missing)
+
     for name, present in backends.items():
         if not present:
-            link = _INSTALL_LINKS.get(name, "")
-            print(f"  {_DIM}{name:<12}  not found  {link}{_RST}")
+            if show_install_links:
+                link = _INSTALL_LINKS.get(name, "")
+                print(f"  {_DIM}{name:<12}  not found  {link}{_RST}")
+            else:
+                print(f"  {_DIM}{name:<12}  not found{_RST}")
             continue
 
         version, warning = status_results[name]
@@ -369,6 +378,9 @@ def _cmd_backends() -> None:
             print(f"  {_YLW}{'':14}{warning}{_RST}")
         else:
             print(f"  {_GRN}{name:<12}{_RST}  {version}")
+
+    if show_readme_link:
+        print(f"\n  {_DIM}setup guide: {_README_URL}{_RST}")
 
     # --- API key status ---
     print("\nAPI keys:")
@@ -748,8 +760,8 @@ def _ask_agent_fields(
     _BACKEND_MODELS: dict[str, list[str]] = {
         "claude": ["sonnet", "opus"],
         "cursor": ["composer-2", "composer-2-fast"],
-        "codex": ["gpt-5.4", "gpt-5.3-codex", "o3"],
-        "gemini-cli": ["gemini-2.5-flash", "gemini-3-flash", "gemini-3-pro"],
+        "codex": ["gpt-5.4", "gpt-5.3-codex"],
+        "gemini-cli": ["gemini-3-flash", "gemini-3-pro"],
     }
     model_suggestions = _BACKEND_MODELS.get(backend, [])
     prev_model = d.get("model", "")

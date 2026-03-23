@@ -12,7 +12,7 @@ from kodo.orchestrators.types import FatalAgentError
 if TYPE_CHECKING:
     from kodo.agent import Agent
     from kodo.advisory import AdvisoryQueue
-    from kodo.observer import Observer
+    from kodo.coach import Coach
 
 # Patterns that indicate unrecoverable errors — retrying won't help.
 _FATAL_ERROR_PATTERNS = re.compile(
@@ -35,7 +35,7 @@ def handle_agent_call(
     dead_workers: set[str] | None = None,
     total_workers: int = 0,
     advisory_queue: "AdvisoryQueue | None" = None,
-    observer: "Observer | None" = None,
+    coach: "Coach | None" = None,
 ) -> str:
     """Run an agent and return its report (or error string on crash).
 
@@ -65,9 +65,9 @@ def handle_agent_call(
         new_conversation=new_conversation,
     )
 
-    # Notify observer of dispatch
-    if observer is not None:
-        observer.record_dispatch(agent_name, task)
+    # Notify coach of dispatch
+    if coach is not None:
+        coach.record_dispatch(agent_name, task)
 
     try:
         agent_result = agent_obj.run(
@@ -108,9 +108,9 @@ def handle_agent_call(
     if cycle_log is not None:
         cycle_log.append(f"← {agent_name}: {report[:500]}")
 
-    # Notify observer of result
-    if observer is not None:
-        observer.record_result(agent_name, task, agent_result.is_error)
+    # Notify coach of result
+    if coach is not None:
+        coach.record_result(agent_name, task, agent_result.is_error)
 
     summarizer.summarize(agent_name, task, report)
 

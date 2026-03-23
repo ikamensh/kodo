@@ -322,7 +322,7 @@ def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]
         "openai:gpt-5.4"       → (None, "openai:gpt-5.4") — API model with provider
         "claude-code:opus"      → ("claude-code", "opus")  — CLI backend + model
         "cursor:sonnet-4"       → ("cursor", "sonnet-4")
-        "gemini-cli:gemini-2.5" → ("gemini-cli", "gemini-2.5")
+        "gemini-cli:gemini-3-flash" → ("gemini-cli", "gemini-3-flash")
         "codex:gpt-5.4"        → ("codex", "gpt-5.4")
     """
     if value is None:
@@ -414,6 +414,9 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     effort = getattr(args, "effort", None)
     if effort:
         params["effort"] = effort
+
+    if getattr(args, "coach", False):
+        params["enable_coach"] = True
 
     try:
         _save_config(project_dir, params)

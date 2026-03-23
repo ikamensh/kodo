@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from kodo.advisory import AdvisoryQueue
-    from kodo.observer import Observer
+    from kodo.coach import Coach
     from kodo.orchestrators.base import (
         CycleConfig,
         DoneSignal,
@@ -40,7 +40,7 @@ def _make_agent_handler(
     total_workers: int,
     orchestrator_tag: str | None = None,
     advisory_queue: "AdvisoryQueue | None" = None,
-    observer: "Observer | None" = None,
+    coach: "Coach | None" = None,
 ) -> tuple[Callable, str]:
     """Return (handler_fn, description) for one ask_<name> tool."""
     from kodo.orchestrators.base import handle_agent_call
@@ -57,7 +57,7 @@ def _make_agent_handler(
             dead_workers=dead_workers,
             total_workers=total_workers,
             advisory_queue=advisory_queue,
-            observer=observer,
+            coach=coach,
         )
 
     desc = (
@@ -78,7 +78,7 @@ def _make_reply_to_advisor(
     from kodo import log
 
     def reply_to_advisor(advisory_id: str, message: str) -> str:
-        """Reply to an advisory from the observer or human advisor.
+        """Reply to an advisory from the coach or human advisor.
         One reply per advisory. Use this to push back on bad advice or acknowledge feedback."""
         found = advisory_queue.record_reply(advisory_id, message)
         if not found:
@@ -208,7 +208,7 @@ def build_pydantic_tools(
     verification_state: VerificationState | None = None,
     config: CycleConfig | None = None,
     advisory_queue: "AdvisoryQueue | None" = None,
-    observer: "Observer | None" = None,
+    coach: "Coach | None" = None,
 ) -> list:
     """Build pydantic-ai ``Tool`` objects for the API orchestrator."""
     from pydantic_ai import Tool
@@ -232,7 +232,7 @@ def build_pydantic_tools(
             dead_workers=dead_workers,
             total_workers=total_workers,
             advisory_queue=advisory_queue,
-            observer=observer,
+            coach=coach,
         )
         tools.append(
             Tool(handler, name=f"ask_{name}", description=desc, takes_ctx=False)
@@ -268,7 +268,7 @@ def build_pydantic_tools(
                 reply_fn,
                 takes_ctx=False,
                 description=(
-                    "Reply to an advisory from the observer or human advisor. "
+                    "Reply to an advisory from the coach or human advisor. "
                     "One reply per advisory — use to push back or acknowledge."
                 ),
             )
@@ -293,7 +293,7 @@ def add_tools_to_mcp(
     verification_state: VerificationState | None = None,
     config: CycleConfig | None = None,
     advisory_queue: "AdvisoryQueue | None" = None,
-    observer: "Observer | None" = None,
+    coach: "Coach | None" = None,
 ) -> None:
     """Populate a FastMCP instance with agent delegation and done tools."""
     from kodo.orchestrators.base import CycleConfig as _CycleConfig
@@ -315,7 +315,7 @@ def add_tools_to_mcp(
             total_workers=total_workers,
             orchestrator_tag=orchestrator_tag,
             advisory_queue=advisory_queue,
-            observer=observer,
+            coach=coach,
         )
         handler.__name__ = f"ask_{name}"
         handler.__doc__ = desc
@@ -350,7 +350,7 @@ def add_tools_to_mcp(
         reply_fn = _make_reply_to_advisor(advisory_queue)
         reply_fn.__name__ = "reply_to_advisor"
         reply_fn.__doc__ = (
-            "Reply to an advisory from the observer or human advisor. "
+            "Reply to an advisory from the coach or human advisor. "
             "One reply per advisory — use to push back or acknowledge."
         )
         mcp.add_tool(reply_fn, name="reply_to_advisor")

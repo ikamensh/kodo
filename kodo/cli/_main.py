@@ -218,7 +218,7 @@ def _main_inner() -> None:
         help=(
             "Orchestrator model. Examples: opus, gpt-5.4, openai:gpt-5.4-mini, "
             "deepseek, ollama:qwen2.5-coder:14b. "
-            "For CLI backends: claude-code:opus, cursor:sonnet-4, gemini-cli:gemini-2.5-flash."
+            "For CLI backends: claude-code:opus, cursor:sonnet-4, gemini-cli:gemini-3-flash."
         ),
     )
     parser.add_argument(
@@ -260,6 +260,13 @@ def _main_inner() -> None:
         action="store_true",
         default=False,
         help="Disable auto-commit after completed stages/goals.",
+    )
+    parser.add_argument(
+        "--coach",
+        action="store_true",
+        default=False,
+        help="Enable AI coach that monitors orchestration patterns and flags "
+        "issues (circles, drift, over-decomposition). Requires GEMINI_API_KEY.",
     )
     parser.add_argument(
         "--debug",
@@ -779,8 +786,12 @@ def _main_inner() -> None:
         if len(team_text) > 42:
             team_text = team_text[:41] + "…"
         _box_line(f"Team:         {team_text}")
+        from kodo.models import orchestrator_emoji as _orch_emoji
+
+        _emo = _orch_emoji(params["orchestrator"], params.get("orchestrator_model"))
+        _emo_s = f"{_emo} " if _emo else ""
         _box_line(
-            f"Orchestrator: {params['orchestrator']} ({params['orchestrator_model']})",
+            f"Orchestrator: {_emo_s}{params['orchestrator']} ({params['orchestrator_model']})",
         )
         _box_line(
             f"Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",

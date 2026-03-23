@@ -58,7 +58,7 @@ class CliOrchestratorBase(OrchestratorBase):
         prior_summary: str = "",
         config: CycleConfig | None = None,
         advisory_queue=None,
-        observer=None,
+        coach=None,
     ) -> CycleResult:
         if config is None:
             config = CycleConfig()
@@ -86,7 +86,7 @@ class CliOrchestratorBase(OrchestratorBase):
             verification_state=verification_state,
             config=config,
             advisory_queue=advisory_queue,
-            observer=observer,
+            coach=coach,
         )
 
         result = CycleResult()

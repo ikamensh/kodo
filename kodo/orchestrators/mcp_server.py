@@ -27,7 +27,7 @@ def build_mcp_server(
     verification_state: "VerificationState | None" = None,
     config: "CycleConfig | None" = None,
     advisory_queue=None,
-    observer=None,
+    coach=None,
 ):
     """Build a FastMCP server exposing each team agent as a tool.
 
@@ -49,7 +49,7 @@ def build_mcp_server(
         verification_state=verification_state,
         config=config,
         advisory_queue=advisory_queue,
-        observer=observer,
+        coach=coach,
     )
     return mcp
 
