@@ -456,7 +456,7 @@ def _run_kodo(
     if orch_model:
         cmd.extend(["--orchestrator", orch_model])
     return _run_subprocess(
-        cmd, cwd=None, timeout=timeout, keep_api_key=bool(orch_model)
+        cmd, cwd=None, timeout=timeout, keep_api_key=True
     )
 
 

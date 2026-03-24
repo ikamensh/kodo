@@ -639,7 +639,7 @@ def launch_resume(
     if not params:
         params = {
             "team": state.team_preset or "full",
-            "orchestrator": "api" if state.orchestrator == "api" else "claude-code",
+            "orchestrator": state.orchestrator or "api",
             "orchestrator_model": state.model,
             "max_exchanges": state.max_exchanges,
             "max_cycles": state.max_cycles,

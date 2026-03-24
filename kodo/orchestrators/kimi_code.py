@@ -42,6 +42,8 @@ class KimiCodeOrchestrator(OrchestratorBase):
         max_exchanges: int = 30,
         prior_summary: str = "",
         config: CycleConfig | None = None,
+        advisory_queue=None,
+        observer=None,
     ) -> CycleResult:
         if config is None:
             config = CycleConfig()

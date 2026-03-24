@@ -745,6 +745,22 @@ _MODEL_ALIASES.update(
 )
 
 
+def _best_available_api_model() -> str:
+    """Pick the best API orchestrator model based on available API keys.
+
+    Preference: OpenAI gpt-5.4 > Gemini Flash > Claude Opus.
+    Claude Code subscription should be used via 'claude-code' orchestrator,
+    not the API orchestrator — so Claude is the last resort here.
+    """
+    import os
+
+    if os.environ.get("OPENAI_API_KEY"):
+        return CODEX_DEFAULT  # gpt-5.4
+    if os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"):
+        return GEMINI_API_FLASH
+    return CLAUDE_OPUS_FULL
+
+
 def build_orchestrator(
     name: str,
     model: str | None = None,
@@ -761,7 +777,7 @@ def build_orchestrator(
     if name == "api":
         from kodo.orchestrators.api import ApiOrchestrator
 
-        orch_model = model or CLAUDE_OPUS_FULL
+        orch_model = model or _best_available_api_model()
         if is_ollama_model(orch_model):
             orch_model = normalize_ollama_model(orch_model)
         fb_model = fallback_model
