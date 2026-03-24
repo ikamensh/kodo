@@ -28,19 +28,21 @@ DEPRECATED_PATTERNS: list[tuple[str, str]] = [
     (r"gemini-[012]\.", "Gemini 2.x and older are deprecated; use gemini-3.x+"),
     (r"gemini-3-pro-preview", "gemini-3-pro-preview shut down 2026-03-09; use gemini-3.1-pro-preview"),
 
-    # ---- OpenAI ---- GPT-4 family and legacy reasoning models
+    # ---- OpenAI ---- GPT-4 family, legacy reasoning models, stale GPT-5.x
     (r"gpt-3\.5", "GPT-3.5 is long deprecated"),
     (r"gpt-4", "GPT-4/4o/4.1 family is retired; use gpt-5.x"),
+    (r"gpt-5\.[0-3]", "GPT-5.0–5.3 are outdated; use gpt-5.4"),
     (r'["\']o3["\']', "o3 is deprecated; use current OpenAI models"),
     (r"\bo3-", "o3-mini/o3-pro are deprecated"),
     (r"\bo1[\"'\s,\-]", "o1/o1-mini/o1-preview are deprecated"),
     (r"\bo4-mini\b", "o4-mini is retired"),
 
-    # ---- Anthropic Claude ---- 3.x and older
+    # ---- Anthropic Claude ---- 3.x and older, plus stale 4.x
     (r"claude-instant", "claude-instant is long deprecated"),
     (r"claude-2[\.\b]", "Claude 2.x is deprecated"),
     (r"claude-3-", "Claude 3/3.5 are retired; use claude-*-4-5 or claude-*-4-6"),
-    (r"sonnet-4\b(?!-[56])", "Claude Sonnet 4.0 is outdated; use sonnet-4-6"),
+    (r"(?:sonnet|opus|haiku)-4-0\b", "Claude 4.0 is outdated; use 4-5 or 4-6"),
+    (r"(?:sonnet|opus)-4-5\b", "Claude Sonnet/Opus 4.5 is outdated; use 4-6"),
 
     # ---- xAI Grok ---- pre-4.1
     (r"grok-[23]\b", "Grok 2/3 are superseded; use grok-4.1"),

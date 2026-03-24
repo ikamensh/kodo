@@ -203,13 +203,13 @@ class OrchestratorBase:
             advisory_queue = _AQ()
 
         if enable_coach and advisory_queue is not None:
-            from kodo.coach import Coach as _Coach
+            from kodo.coach import Coach as _Coach, DualCoach as _DualCoach
 
             # Load custom tenets from project if available
             tenets_file = project_dir / ".kodo" / "tenets.md"
             tenets = tenets_file.read_text().strip() if tenets_file.is_file() else None
 
-            coach = _Coach(
+            coach = _DualCoach(
                 advisory_queue,
                 goal,
                 project_dir,

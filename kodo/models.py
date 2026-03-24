@@ -99,7 +99,7 @@ def api_orchestrator_model_options() -> list[str]:
 CLAUDE_OPUS = "opus"
 CLAUDE_SONNET = "sonnet"
 CLAUDE_OPUS_FULL = "claude-opus-4-6"
-CLAUDE_SONNET_FULL = "claude-sonnet-4-5-20250929"
+CLAUDE_SONNET_FULL = "claude-sonnet-4-6"
 
 # ---------------------------------------------------------------------------
 # Cursor

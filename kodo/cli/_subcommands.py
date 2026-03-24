@@ -760,7 +760,7 @@ def _ask_agent_fields(
     _BACKEND_MODELS: dict[str, list[str]] = {
         "claude": ["sonnet", "opus"],
         "cursor": ["composer-2", "composer-2-fast"],
-        "codex": ["gpt-5.4", "gpt-5.3-codex"],
+        "codex": ["gpt-5.4", "gpt-5.4-codex"],
         "gemini-cli": ["gemini-3-flash", "gemini-3-pro"],
     }
     model_suggestions = _BACKEND_MODELS.get(backend, [])

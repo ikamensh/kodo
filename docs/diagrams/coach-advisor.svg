@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 750" font-family="Inter, -apple-system, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a3e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="purple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1" /><stop offset="100%" style="stop-color:#4f46e5" />
+    </linearGradient>
+    <linearGradient id="darkPurple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#312e81" /><stop offset="100%" style="stop-color:#1e1b4b" />
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4" /><stop offset="100%" style="stop-color:#0891b2" />
+    </linearGradient>
+    <linearGradient id="orange" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f97316" /><stop offset="100%" style="stop-color:#ea580c" />
+    </linearGradient>
+    <linearGradient id="green" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981" /><stop offset="100%" style="stop-color:#059669" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#6366f1">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#475569">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#06b6d4">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#f97316">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#10b981">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+    <marker id="arrowRose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" fill="#f43f5e">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+  </defs>
+
+  <rect width="960" height="750" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="480" y="38" text-anchor="middle" fill="#e2e8f0" font-size="24" font-weight="700">Coach, Orchestrator &amp; Advisor</text>
+  <text x="480" y="58" text-anchor="middle" fill="#94a3b8" font-size="13">Feedback loops during a staged run</text>
+
+  <!-- ===== ORCHESTRATOR (top center) ===== -->
+  <rect x="200" y="80" width="440" height="250" rx="10" fill="#1e1b4b" stroke="#4338ca" stroke-width="1" opacity="0.6"/>
+  <text x="220" y="100" fill="#a5b4fc" font-size="12" font-weight="700">ORCHESTRATOR THREAD</text>
+  <text x="470" y="100" fill="#64748b" font-size="10">Gemini Flash</text>
+
+  <!-- Orchestrator LLM box -->
+  <rect x="250" y="113" width="200" height="55" rx="8" fill="url(#purple)" filter="url(#shadow)"/>
+  <text x="350" y="136" text-anchor="middle" fill="#fff" font-size="12" font-weight="600">Orchestrator LLM</text>
+  <text x="350" y="153" text-anchor="middle" fill="#ddd6fe" font-size="10">thinks, delegates, iterates</text>
+
+  <!-- build_cycle_prompt box -->
+  <rect x="475" y="113" width="145" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="547" y="130" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">build_cycle_prompt</text>
+  <text x="547" y="145" text-anchor="middle" fill="#64748b" font-size="9">drains queue &#x2192; prompt</text>
+  <line x1="475" y1="133" x2="450" y2="133" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+
+  <!-- Agent dispatch arrow -->
+  <line x1="350" y1="168" x2="350" y2="195" stroke="#6366f1" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- handle_agent_call box -->
+  <rect x="230" y="195" width="240" height="50" rx="8" fill="url(#darkPurple)" filter="url(#shadow)"/>
+  <text x="350" y="216" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="600">handle_agent_call()</text>
+  <text x="350" y="233" text-anchor="middle" fill="#818cf8" font-size="9">dispatch agent, collect report</text>
+
+  <!-- Agent boxes -->
+  <rect x="220" y="260" width="130" height="35" rx="6" fill="#1e293b" stroke="#818cf8" stroke-width="1"/>
+  <text x="285" y="282" text-anchor="middle" fill="#c7d2fe" font-size="10">Claude Code</text>
+
+  <rect x="365" y="260" width="130" height="35" rx="6" fill="#1e293b" stroke="#818cf8" stroke-width="1"/>
+  <text x="430" y="282" text-anchor="middle" fill="#c7d2fe" font-size="10">Cursor / Kimi / ...</text>
+
+  <line x1="310" y1="245" x2="285" y2="260" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="390" y1="245" x2="430" y2="260" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== COACH (bottom left) ===== -->
+  <rect x="30" y="430" width="280" height="165" rx="10" fill="#1e1b4b" stroke="#f97316" stroke-width="1" opacity="0.6"/>
+  <text x="50" y="450" fill="#fdba74" font-size="12" font-weight="700">COACH (background thread)</text>
+  <text x="255" y="450" fill="#64748b" font-size="10">DualCoach</text>
+
+  <!-- Two model boxes -->
+  <rect x="50" y="465" width="115" height="50" rx="6" fill="url(#orange)" filter="url(#shadow)"/>
+  <text x="107" y="486" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Gemini Pro</text>
+  <text x="107" y="501" text-anchor="middle" fill="#fff3e0" font-size="9">primary</text>
+
+  <rect x="180" y="465" width="115" height="50" rx="6" fill="url(#orange)" filter="url(#shadow)"/>
+  <text x="237" y="486" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">Claude Haiku</text>
+  <text x="237" y="501" text-anchor="middle" fill="#fff3e0" font-size="9">secondary</text>
+
+  <text x="170" y="530" text-anchor="middle" fill="#64748b" font-size="9">assess in parallel, cross-veto</text>
+
+  <!-- Coach logic -->
+  <rect x="50" y="542" width="245" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+  <text x="172" y="558" text-anchor="middle" fill="#fdba74" font-size="10" font-weight="600">_maybe_assess() on every dispatch</text>
+  <text x="172" y="571" text-anchor="middle" fill="#64748b" font-size="9">flags drift, circles, wrong approach</text>
+
+  <!-- ===== HUMAN FEEDBACK (standalone, below coach) ===== -->
+  <rect x="30" y="618" width="280" height="40" rx="8" fill="#1e293b" stroke="#f43f5e" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="170" y="635" text-anchor="middle" fill="#fda4af" font-size="10" font-weight="600">human_feedback.txt</text>
+  <text x="170" y="650" text-anchor="middle" fill="#64748b" font-size="9">user writes directly &#x2014; priority prefixes supported</text>
+
+  <!-- Coach observation: orchestrator -> coach -->
+  <path d="M 230 220 Q 60 220 60 430" stroke="#f97316" stroke-width="1.5" fill="none" marker-end="url(#arrowOrange)"/>
+  <text x="68" y="335" fill="#f97316" font-size="9">record_dispatch()</text>
+  <text x="68" y="348" fill="#f97316" font-size="9">record_result()</text>
+
+  <!-- ===== ADVISORY QUEUE (bottom center) ===== -->
+  <rect x="340" y="500" width="260" height="50" rx="8" fill="url(#cyan)" filter="url(#shadow)"/>
+  <text x="470" y="521" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">AdvisoryQueue</text>
+  <text x="470" y="535" text-anchor="middle" fill="#cffafe" font-size="10">thread-safe message buffer</text>
+
+  <!-- Queue drain: up to handle_agent_call (within-cycle) -->
+  <path d="M 430 500 L 430 245" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowCyan)"/>
+  <text x="438" y="400" fill="#06b6d4" font-size="9">drain()</text>
+  <text x="438" y="413" fill="#06b6d4" font-size="9">append to</text>
+  <text x="438" y="426" fill="#06b6d4" font-size="9">agent report</text>
+
+  <!-- Queue drain: up to build_cycle_prompt (between-cycle) -->
+  <path d="M 510 500 L 510 380 Q 510 360 530 360 L 547 360 Q 560 360 560 340 L 560 153" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowCyan)"/>
+  <text x="518" y="420" fill="#06b6d4" font-size="9">drain()</text>
+  <text x="518" y="433" fill="#06b6d4" font-size="9">inject in</text>
+  <text x="518" y="446" fill="#06b6d4" font-size="9">cycle prompt</text>
+
+  <!-- Coach push to queue -->
+  <line x1="310" y1="510" x2="340" y2="510" stroke="#f97316" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="325" y="503" fill="#f97316" font-size="9" text-anchor="middle">push()</text>
+
+  <!-- Human feedback direct to queue -->
+  <line x1="310" y1="638" x2="370" y2="550" stroke="#f43f5e" stroke-width="1.5" marker-end="url(#arrowRose)"/>
+  <text x="355" y="610" fill="#f43f5e" font-size="9">push(human)</text>
+
+  <!-- ===== ADVISOR (bottom right) ===== -->
+  <rect x="660" y="430" width="270" height="195" rx="10" fill="#1e1b4b" stroke="#10b981" stroke-width="1" opacity="0.6"/>
+  <text x="680" y="450" fill="#86efac" font-size="12" font-weight="700">ADVISOR</text>
+  <text x="835" y="450" fill="#64748b" font-size="10">adaptive mode only</text>
+
+  <rect x="680" y="465" width="230" height="50" rx="8" fill="url(#green)" filter="url(#shadow)"/>
+  <text x="795" y="486" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">Advisor LLM</text>
+  <text x="795" y="501" text-anchor="middle" fill="#d1fae5" font-size="9">goal + plan + completed summaries</text>
+
+  <!-- Advisor outputs -->
+  <rect x="680" y="530" width="105" height="28" rx="6" fill="#14532d" stroke="#10b981" stroke-width="1"/>
+  <text x="732" y="548" text-anchor="middle" fill="#86efac" font-size="10" font-weight="600">&#x2192; next_stage</text>
+
+  <rect x="800" y="530" width="105" height="28" rx="6" fill="#14532d" stroke="#10b981" stroke-width="1"/>
+  <text x="852" y="548" text-anchor="middle" fill="#86efac" font-size="10" font-weight="600">&#x2192; done</text>
+
+  <line x1="755" y1="515" x2="732" y2="530" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+  <line x1="835" y1="515" x2="852" y2="530" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrowGreen)"/>
+
+  <!-- Advisor note -->
+  <text x="795" y="584" text-anchor="middle" fill="#64748b" font-size="9">called by orchestrator after each</text>
+  <text x="795" y="597" text-anchor="middle" fill="#64748b" font-size="9">stage completes — decides what's next</text>
+  <text x="795" y="616" text-anchor="middle" fill="#475569" font-size="9">safety limit: max 20 stages</text>
+
+  <!-- Orchestrator to Advisor: stage done -> assess() -->
+  <!-- Goes down the right side of the orchestrator, then across to advisor -->
+  <path d="M 640 270 Q 640 350 795 350 Q 930 350 930 465 L 930 490 Q 930 490 910 490" stroke="#10b981" stroke-width="1.5" fill="none" marker-end="url(#arrowGreen)"/>
+  <text x="720" y="342" fill="#10b981" font-size="9">stage done &#x2192; assess()</text>
+
+  <!-- Advisor back to Orchestrator: new stage -> run -->
+  <!-- Goes up the far right, then across to orchestrator top -->
+  <path d="M 732 530 Q 732 570 660 570 Q 645 570 645 400 Q 645 133 620 133" stroke="#10b981" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrowGreen)"/>
+  <text x="652" y="480" fill="#10b981" font-size="9" transform="rotate(-90 652 480)">new stage &#x2192; run again</text>
+
+  <!-- ===== LEGEND ===== -->
+  <rect x="30" y="670" width="900" height="65" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <text x="50" y="690" fill="#94a3b8" font-size="11" font-weight="700">SUMMARY</text>
+
+  <line x1="50" y1="707" x2="70" y2="707" stroke="#6366f1" stroke-width="2"/>
+  <text x="75" y="711" fill="#a5b4fc" font-size="10">Orchestrator delegates to agents each cycle</text>
+
+  <line x1="340" y1="707" x2="360" y2="707" stroke="#f97316" stroke-width="2"/>
+  <text x="365" y="711" fill="#fdba74" font-size="10">Coach observes dispatches, pushes corrections</text>
+
+  <line x1="660" y1="707" x2="680" y2="707" stroke="#10b981" stroke-width="2"/>
+  <text x="685" y="711" fill="#86efac" font-size="10">Advisor decides next stage or done</text>
+
+  <line x1="50" y1="723" x2="70" y2="723" stroke="#06b6d4" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="75" y="727" fill="#67e8f9" font-size="10">Advisories drained into agent reports (within-cycle) and prompts (between-cycle)</text>
+
+  <line x1="660" y1="723" x2="680" y2="723" stroke="#f43f5e" stroke-width="1.5"/>
+  <text x="685" y="727" fill="#fda4af" font-size="10">Human writes to feedback file &#x2192; pushed directly to queue</text>
+</svg>
