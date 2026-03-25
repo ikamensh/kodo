@@ -52,6 +52,7 @@ from kodo.cli._params import (  # noqa: E402
 )
 from kodo.cli._subcommands import (  # noqa: E402
     _cmd_backends,
+    _cmd_dashboard,
     _cmd_issue,
     _cmd_logs,
     _cmd_runs,
@@ -112,6 +113,7 @@ def _main_inner() -> None:
         "teams": _cmd_teams,
         "log": _cmd_logs,
         "logs": _cmd_logs,
+        "dashboard": _cmd_dashboard,
         "issue": _cmd_issue,
         "issues": _cmd_issue,
         "update": _cmd_update,
@@ -133,7 +135,7 @@ def _main_inner() -> None:
 
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, edit, or delete team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo dashboard Live web dashboard for monitoring runs\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, edit, or delete team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")

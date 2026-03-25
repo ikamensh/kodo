@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kodo dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0d1117; --bg-surface: #161b22; --bg-inset: #0d1117;
+  --border: #30363d; --border-subtle: #21262d;
+  --fg: #c9d1d9; --fg-heading: #e6edf3; --fg-muted: #8b949e; --fg-faint: #484f58;
+  --accent: #58a6ff; --green: #3fb950; --yellow: #d29922; --red: #f85149;
+  --purple: #d2a8ff; --orange: #f0883e;
+  --hover: #1c2128;
+  --green-bg: rgba(63,185,80,0.08); --green-border: rgba(63,185,80,0.2);
+  --red-bg: rgba(248,81,73,0.08); --red-border: rgba(248,81,73,0.2);
+  --accent-bg: rgba(88,166,255,0.05); --accent-border: rgba(88,166,255,0.15);
+}
+:root.light {
+  --bg: #ffffff; --bg-surface: #f6f8fa; --bg-inset: #ffffff;
+  --border: #d0d7de; --border-subtle: #d8dee4;
+  --fg: #1f2328; --fg-heading: #1f2328; --fg-muted: #656d76; --fg-faint: #8b949e;
+  --accent: #0969da; --green: #1a7f37; --yellow: #9a6700; --red: #cf222e;
+  --purple: #8250df; --orange: #bc4c00;
+  --hover: #f3f4f6;
+  --green-bg: rgba(26,127,55,0.08); --green-border: rgba(26,127,55,0.2);
+  --red-bg: rgba(207,34,46,0.08); --red-border: rgba(207,34,46,0.2);
+  --accent-bg: rgba(9,105,218,0.05); --accent-border: rgba(9,105,218,0.15);
+}
+
+body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: var(--bg); color: var(--fg); min-height: 100vh; font-size: 13px; }
+
+/* Header bar */
+.header { display: flex; align-items: center; gap: 16px; padding: 10px 20px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+.header .logo { font-weight: 700; color: var(--accent); font-size: 15px; }
+.header select { background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; font-family: inherit; font-size: 12px; max-width: 400px; }
+.header .spacer { flex: 1; }
+.header button { background: var(--bg); color: var(--fg-muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.header button:hover { background: var(--hover); color: var(--fg); }
+
+/* Playback bar */
+.playback-bar { display: flex; align-items: center; gap: 10px; padding: 8px 20px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+.playback-bar.hidden { display: none; }
+.playback-bar button { background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 12px; min-width: 32px; }
+.playback-bar button:hover { background: var(--hover); }
+.playback-bar button.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.playback-bar .scrub { flex: 1; accent-color: var(--accent); }
+.playback-bar .time-label { color: var(--fg-muted); font-size: 11px; min-width: 60px; }
+.playback-bar select { background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 6px; font-family: inherit; font-size: 12px; }
+
+/* Live indicator */
+.live-indicator { display: none; align-items: center; gap: 6px; padding: 8px 20px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+.live-indicator.visible { display: flex; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+  animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-indicator span { color: var(--green); font-weight: 600; font-size: 12px; }
+
+/* Main content */
+.main { max-width: 1200px; margin: 0 auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Panels */
+.panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.panel-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  cursor: pointer; user-select: none; }
+.panel-header:hover { background: var(--hover); }
+.panel-header .toggle { color: var(--fg-muted); font-size: 10px; width: 12px; transition: transform 0.15s; }
+.panel-header.open .toggle { transform: rotate(90deg); }
+.panel-header .title { font-size: 13px; font-weight: 600; color: var(--fg-heading); }
+.panel-header .badge { font-size: 11px; color: var(--fg-muted); margin-left: auto; }
+.panel-body { display: none; padding: 12px 14px; border-top: 1px solid var(--border); }
+.panel-body.open { display: block; }
+
+/* Overview panel */
+.overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.overview-stat { display: flex; flex-direction: column; gap: 2px; }
+.overview-stat .label { font-size: 10px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.overview-stat .value { font-size: 15px; font-weight: 600; color: var(--fg-heading); }
+.overview-goal { margin-top: 10px; padding: 8px 10px; background: var(--bg-inset);
+  border-radius: 6px; font-size: 12px; color: var(--fg); white-space: pre-wrap; word-break: break-word;
+  max-height: 100px; overflow-y: auto; }
+.progress-bar { margin-top: 8px; height: 6px; background: var(--border-subtle); border-radius: 3px; overflow: hidden; }
+.progress-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+
+/* Agent cards */
+.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.agent-card { padding: 10px; border: 1px solid var(--border-subtle); border-radius: 8px;
+  background: var(--bg-inset); }
+.agent-card.active { border-color: var(--green-border); background: var(--green-bg); }
+.agent-card .agent-name { font-weight: 600; font-size: 12px; color: var(--fg-heading);
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.agent-card .agent-name .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-faint); }
+.agent-card.active .agent-name .dot { background: var(--green); animation: pulse 1.5s infinite; }
+.agent-card .agent-stat { display: flex; justify-content: space-between; font-size: 11px;
+  color: var(--fg-muted); padding: 1px 0; }
+.agent-card .agent-stat .val { color: var(--fg); }
+.agent-card .agent-stat.error .val { color: var(--red); font-weight: 600; }
+
+/* Stage pipeline */
+.stage-pipeline { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.stage-node { display: flex; align-items: center; gap: 4px; padding: 4px 8px;
+  border-radius: 6px; font-size: 11px; border: 1px solid var(--border-subtle);
+  cursor: pointer; transition: background 0.15s; }
+.stage-node:hover { background: var(--hover); }
+.stage-node.done { border-color: var(--green-border); color: var(--green); }
+.stage-node.active { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg); }
+.stage-node.pending { color: var(--fg-faint); }
+.stage-arrow { color: var(--fg-faint); font-size: 10px; }
+.stage-detail { margin-top: 8px; padding: 8px 10px; background: var(--bg-inset);
+  border-radius: 6px; font-size: 12px; color: var(--fg-muted); }
+.stage-detail .stage-detail-name { font-weight: 600; color: var(--fg-heading); margin-bottom: 4px; }
+
+/* Event timeline */
+.timeline-controls { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.timeline-controls select, .timeline-controls input { background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-family: inherit; font-size: 11px; }
+.timeline-controls input { flex: 1; min-width: 100px; }
+.event-list { max-height: 500px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.event-row { display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px;
+  font-size: 11px; cursor: pointer; align-items: flex-start; }
+.event-row:hover { background: var(--hover); }
+.event-row .evt-time { color: var(--fg-faint); min-width: 55px; flex-shrink: 0; }
+.event-row .evt-type { min-width: 140px; flex-shrink: 0; font-weight: 500; }
+.event-row .evt-type.agent { color: var(--green); }
+.event-row .evt-type.orchestrator { color: var(--purple); }
+.event-row .evt-type.cycle { color: var(--accent); }
+.event-row .evt-type.stage { color: var(--yellow); }
+.event-row .evt-type.error { color: var(--red); }
+.event-row .evt-type.session { color: var(--fg-muted); }
+.event-row .evt-type.coach { color: var(--orange); }
+.event-row .evt-detail { color: var(--fg-muted); flex: 1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.event-row .evt-detail .highlight { color: var(--fg); }
+.event-expanded { padding: 6px 12px; margin: 2px 0 2px 55px; background: var(--bg-inset);
+  border-radius: 6px; font-size: 11px; white-space: pre-wrap; word-break: break-all;
+  color: var(--fg-muted); max-height: 300px; overflow-y: auto; display: none; }
+.event-expanded.visible { display: block; }
+
+/* Config viewer */
+.config-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.config-tabs button { background: var(--bg); color: var(--fg-muted); border: 1px solid var(--border);
+  border-radius: 6px 6px 0 0; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 11px; }
+.config-tabs button.active { background: var(--bg-surface); color: var(--fg-heading); border-bottom-color: var(--bg-surface); }
+.config-content { padding: 8px; background: var(--bg-inset); border-radius: 0 6px 6px 6px;
+  font-size: 11px; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto;
+  color: var(--fg); border: 1px solid var(--border-subtle); }
+
+/* Empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; color: var(--fg-muted); }
+.empty-state h2 { color: var(--accent); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <span class="logo">kodo</span>
+  <select id="run-selector"><option value="">Select a run...</option></select>
+  <span class="spacer"></span>
+  <button id="theme-toggle" title="Toggle theme">light</button>
+</div>
+
+<!-- Playback bar (for completed runs) -->
+<div class="playback-bar hidden" id="playback-bar">
+  <button id="pb-play" title="Play">&#9654;</button>
+  <button id="pb-pause" title="Pause">&#9646;&#9646;</button>
+  <input type="range" class="scrub" id="pb-scrub" min="0" max="100" value="100">
+  <span class="time-label" id="pb-time">0s / 0s</span>
+  <select id="pb-speed">
+    <option value="1">1x</option>
+    <option value="2">2x</option>
+    <option value="5" selected>5x</option>
+    <option value="10">10x</option>
+    <option value="50">50x</option>
+    <option value="0">max</option>
+  </select>
+  <button id="pb-end" title="Jump to end">&#9197; End</button>
+</div>
+
+<!-- Live indicator -->
+<div class="live-indicator" id="live-indicator">
+  <span class="live-dot"></span>
+  <span>LIVE</span>
+</div>
+
+<!-- Main content -->
+<div class="main" id="main-content">
+  <div class="empty-state" id="empty-state">
+    <h2>kodo dashboard</h2>
+    <p>Select a run from the dropdown above</p>
+  </div>
+</div>
+
+<!-- Panel templates (hidden, cloned when a run is loaded) -->
+<template id="panels-template">
+  <!-- Overview -->
+  <div class="panel" id="panel-overview">
+    <div class="panel-header open" data-panel="overview">
+      <span class="toggle">&#9654;</span>
+      <span class="title">Run Overview</span>
+      <span class="badge" id="overview-badge"></span>
+    </div>
+    <div class="panel-body open" id="body-overview">
+      <div class="overview-grid" id="overview-grid"></div>
+      <div class="overview-goal" id="overview-goal"></div>
+      <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- Agents -->
+  <div class="panel" id="panel-agents">
+    <div class="panel-header open" data-panel="agents">
+      <span class="toggle">&#9654;</span>
+      <span class="title">Agents</span>
+      <span class="badge" id="agents-badge"></span>
+    </div>
+    <div class="panel-body open" id="body-agents">
+      <div class="agents-grid" id="agents-grid"></div>
+    </div>
+  </div>
+
+  <!-- Stage Progress -->
+  <div class="panel" id="panel-stages">
+    <div class="panel-header open" data-panel="stages">
+      <span class="toggle">&#9654;</span>
+      <span class="title">Stage Progress</span>
+      <span class="badge" id="stages-badge"></span>
+    </div>
+    <div class="panel-body open" id="body-stages">
+      <div class="stage-pipeline" id="stage-pipeline"></div>
+      <div class="stage-detail" id="stage-detail" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Event Timeline -->
+  <div class="panel" id="panel-timeline">
+    <div class="panel-header open" data-panel="timeline">
+      <span class="toggle">&#9654;</span>
+      <span class="title">Event Timeline</span>
+      <span class="badge" id="timeline-badge"></span>
+    </div>
+    <div class="panel-body open" id="body-timeline">
+      <div class="timeline-controls">
+        <select id="event-filter">
+          <option value="all">all</option>
+          <option value="agent">agent</option>
+          <option value="orchestrator">orchestrator</option>
+          <option value="cycle">cycle/stage</option>
+          <option value="coach">coach/advisor</option>
+          <option value="error">errors</option>
+        </select>
+        <input type="text" id="event-search" placeholder="search events...">
+      </div>
+      <div class="event-list" id="event-list"></div>
+    </div>
+  </div>
+
+  <!-- Run Config -->
+  <div class="panel" id="panel-config">
+    <div class="panel-header" data-panel="config">
+      <span class="toggle">&#9654;</span>
+      <span class="title">Run Config</span>
+    </div>
+    <div class="panel-body" id="body-config">
+      <div class="config-tabs" id="config-tabs"></div>
+      <div class="config-content" id="config-content"></div>
+    </div>
+  </div>
+</template>
+
+<script>
+// ============================================================
+// DashboardState — accumulates from events
+// ============================================================
+class DashboardState {
+  constructor() { this.reset(); }
+
+  reset() {
+    this.events = [];
+    this.agents = {};           // name → {calls, cost_usd, input_tokens, output_tokens, elapsed_s, errors, cost_bucket, active}
+    this.activeAgent = '';
+    this.cycle = 0;
+    this.maxCycles = 0;
+    this.stageLabel = '';
+    this.goal = '';
+    this.projectDir = '';
+    this.projectName = '';
+    this.orchestrator = '';
+    this.model = '';
+    this.totalCost = 0;
+    this.orchestratorCost = 0;
+    this.elapsed = 0;           // last known t value
+    this.maxT = 0;              // max t across all events
+    this.finished = false;
+    this.stages = [];           // [{index, name, description, acceptance_criteria, status: 'pending'|'active'|'done'}]
+    this.currentStage = null;
+    this.team = {};             // from run_start
+    this.config = {};           // loaded separately
+    this.hasStages = false;
+    this.completedStages = 0;
+    this.numStages = 0;
+  }
+}
+
+// ============================================================
+// processEvent — updates state from a single event
+// ============================================================
+function processEvent(state, evt) {
+  state.events.push(evt);
+  const t = evt.t || 0;
+  state.elapsed = t;
+  if (t > state.maxT) state.maxT = t;
+
+  switch (evt.event) {
+    case 'run_init':
+      state.projectDir = evt.project_dir || '';
+      state.projectName = state.projectDir.split('/').pop() || '?';
+      break;
+
+    case 'cli_args':
+      if (evt.goal_text) state.goal = evt.goal_text;
+      if (evt.max_cycles) state.maxCycles = evt.max_cycles;
+      if (evt.orchestrator) state.orchestrator = evt.orchestrator;
+      if (evt.orchestrator_model) state.model = evt.orchestrator_model;
+      break;
+
+    case 'run_start':
+      state.goal = evt.goal || state.goal;
+      state.orchestrator = evt.orchestrator || '';
+      state.model = evt.model || '';
+      state.maxCycles = evt.max_cycles || state.maxCycles;
+      state.team = evt.team || {};
+      state.hasStages = evt.has_stages || false;
+      state.numStages = evt.num_stages || 0;
+      // Initialize agents from team
+      for (const [name, info] of Object.entries(state.team)) {
+        if (!state.agents[name]) {
+          state.agents[name] = {calls: 0, cost_usd: 0, input_tokens: 0, output_tokens: 0,
+            elapsed_s: 0, errors: 0, cost_bucket: '', active: false, backend: info.backend, model: info.model};
+        }
+      }
+      break;
+
+    case 'run_cycle':
+    case 'cycle_start':
+      state.cycle = evt.cycle || state.cycle + 1;
+      break;
+
+    case 'cycle_end':
+      state.orchestratorCost += evt.cost_usd || 0;
+      break;
+
+    case 'stage_start':
+      state.currentStage = evt.stage_index;
+      state.stageLabel = evt.stage_name || '';
+      // Create stage entry if it doesn't exist yet (stages may not be in goal-plan.json)
+      if (!state.stages.find(s => s.index === evt.stage_index)) {
+        state.stages.push({
+          index: evt.stage_index, name: evt.stage_name || `Stage ${evt.stage_index}`,
+          description: '', acceptance_criteria: '', status: 'active'
+        });
+        state.stages.sort((a, b) => a.index - b.index);
+        state.numStages = Math.max(state.numStages, state.stages.length);
+        state.hasStages = true;
+      } else {
+        state.stages.find(s => s.index === evt.stage_index).status = 'active';
+      }
+      break;
+
+    case 'stage_end':
+      const endStage = state.stages.find(s => s.index === evt.stage_index);
+      if (endStage && evt.finished) {
+        endStage.status = 'done';
+        state.completedStages++;
+      }
+      state.currentStage = null;
+      break;
+
+    case 'orchestrator_tool_call':
+      state.activeAgent = evt.agent || '';
+      // Mark active
+      for (const [name, a] of Object.entries(state.agents)) {
+        a.active = (name === state.activeAgent);
+      }
+      break;
+
+    case 'agent_run_start':
+      const aName = evt.agent || '';
+      if (aName && !state.agents[aName]) {
+        state.agents[aName] = {calls: 0, cost_usd: 0, input_tokens: 0, output_tokens: 0,
+          elapsed_s: 0, errors: 0, cost_bucket: '', active: true};
+      }
+      if (aName && state.agents[aName]) state.agents[aName].active = true;
+      break;
+
+    case 'agent_run_end': {
+      const name = evt.agent || '';
+      if (name && state.agents[name]) {
+        const a = state.agents[name];
+        a.calls++;
+        a.cost_usd += evt.cost_usd || 0;
+        a.input_tokens += evt.input_tokens || 0;
+        a.output_tokens += evt.output_tokens || 0;
+        a.elapsed_s += evt.elapsed_s || 0;
+        if (evt.is_error) a.errors++;
+        if (evt.cost_bucket) a.cost_bucket = evt.cost_bucket;
+        a.active = false;
+      }
+      state.totalCost += evt.cost_usd || 0;
+      break;
+    }
+
+    case 'agent_timeout': {
+      const tName = evt.agent || '';
+      if (tName && state.agents[tName]) {
+        state.agents[tName].errors++;
+        state.agents[tName].active = false;
+      }
+      break;
+    }
+
+    case 'run_end':
+      state.finished = true;
+      for (const a of Object.values(state.agents)) a.active = false;
+      state.activeAgent = '';
+      break;
+
+    case 'orchestrator_done_accepted':
+      state.totalCost += evt.cost_usd || 0;
+      break;
+  }
+}
+
+// ============================================================
+// Rendering
+// ============================================================
+function fmtTime(s) {
+  if (s == null) return '-';
+  s = Math.round(s);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  if (m < 60) return m + 'm' + String(sec).padStart(2, '0') + 's';
+  return Math.floor(m/60) + 'h' + String(m%60).padStart(2,'0') + 'm';
+}
+
+function fmtTokens(n) {
+  if (n == null) return '-';
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1000) return Math.round(n/1000) + 'k';
+  return String(n);
+}
+
+function fmtCost(c) {
+  if (c == null || c < 0.005) return '-';
+  return '$' + c.toFixed(2);
+}
+
+function eventCategory(type) {
+  if (type.startsWith('agent')) return 'agent';
+  if (type.startsWith('orchestrator')) return 'orchestrator';
+  if (type.startsWith('cycle') || type.startsWith('stage') || type.startsWith('run_cycle')) return 'cycle';
+  if (type.startsWith('coach') || type.startsWith('advisor') || type.startsWith('advisory')) return 'coach';
+  if (type.includes('error') || type.includes('timeout')) return 'error';
+  if (type.startsWith('session')) return 'session';
+  return 'session';
+}
+
+function eventDetail(evt) {
+  const e = evt.event;
+  if (e === 'agent_run_end') {
+    const cost = evt.cost_usd ? fmtCost(evt.cost_usd) : '';
+    const time = evt.elapsed_s ? fmtTime(evt.elapsed_s) : '';
+    const err = evt.is_error ? ' ERROR' : '';
+    return `<span class="highlight">${evt.agent || '?'}</span> ${time} ${cost}${err}`;
+  }
+  if (e === 'agent_run_start') return `<span class="highlight">${evt.agent || '?'}</span> started`;
+  if (e === 'agent_query') return `<span class="highlight">${evt.agent || '?'}</span> ${(evt.prompt || '').substring(0, 80)}`;
+  if (e === 'agent_timeout') return `<span class="highlight">${evt.agent || '?'}</span> timeout (${evt.reason || '?'})`;
+  if (e === 'orchestrator_tool_call') return `&rarr; <span class="highlight">${evt.agent || '?'}</span>`;
+  if (e === 'orchestrator_done_accepted') return `done: ${(evt.summary || '').substring(0, 80)}`;
+  if (e === 'cycle_end') return `cycle done — ${(evt.summary || '').substring(0, 80)}`;
+  if (e === 'stage_start') return `<span class="highlight">#${evt.stage_index}: ${evt.stage_name || ''}</span>`;
+  if (e === 'stage_end') return `#${evt.stage_index} ${evt.finished ? 'done' : 'incomplete'}: ${(evt.summary || '').substring(0, 60)}`;
+  if (e === 'run_start') return `${evt.orchestrator}/${evt.model} — ${(evt.goal || '').substring(0, 60)}`;
+  if (e === 'run_end') return `finished=${evt.finished} cycles=${evt.total_cycles} cost=${fmtCost(evt.total_cost_usd)}`;
+  if (e === 'auto_commit_done') return `committed`;
+  if (e === 'advisor_assess_end') return (evt.assessment || '').substring(0, 100);
+  if (e === 'coach_assess_ok' || e === 'coach_filtered') return evt.reason || '';
+  if (e === 'session_query_start') return `${evt.session || '?'} model=${evt.model || '?'}`;
+  if (e === 'session_query_end') return `${evt.session || '?'} ${fmtTime(evt.elapsed_s)} turns=${evt.turns || '?'}`;
+  return '';
+}
+
+let expandedEvent = null;
+
+function renderOverview(state) {
+  const grid = document.getElementById('overview-grid');
+  if (!grid) return;
+  const totalAgentCost = Object.values(state.agents).reduce((s, a) => s + a.cost_usd, 0);
+  const totalCost = totalAgentCost + state.orchestratorCost;
+  const stageText = state.hasStages ? `${state.completedStages}/${state.numStages}` : '-';
+  const stats = [
+    {label: 'Project', value: state.projectName || '-'},
+    {label: 'Orchestrator', value: `${state.orchestrator}/${state.model}` || '-'},
+    {label: 'Cycle', value: `${state.cycle}/${state.maxCycles}` || '-'},
+    {label: 'Stages', value: stageText},
+    {label: 'Elapsed', value: fmtTime(state.elapsed)},
+    {label: 'Cost', value: fmtCost(totalCost)},
+  ];
+  grid.innerHTML = stats.map(s =>
+    `<div class="overview-stat"><div class="label">${s.label}</div><div class="value">${s.value}</div></div>`
+  ).join('');
+
+  const goalEl = document.getElementById('overview-goal');
+  if (goalEl) goalEl.textContent = state.goal || '(no goal)';
+
+  // Progress bar
+  const fill = document.getElementById('progress-fill');
+  if (fill && state.hasStages && state.numStages > 0) {
+    fill.style.width = Math.round(state.completedStages / state.numStages * 100) + '%';
+  } else if (fill && state.maxCycles > 0) {
+    fill.style.width = Math.round(state.cycle / state.maxCycles * 100) + '%';
+  }
+
+  // Badge
+  const badge = document.getElementById('overview-badge');
+  if (badge) {
+    if (state.finished) badge.textContent = 'finished';
+    else if (state.activeAgent) badge.textContent = `active: ${state.activeAgent}`;
+    else badge.textContent = '';
+  }
+}
+
+function renderAgents(state) {
+  const grid = document.getElementById('agents-grid');
+  if (!grid) return;
+  const names = Object.keys(state.agents);
+  if (!names.length) { grid.innerHTML = '<div style="color:var(--fg-muted)">No agents yet</div>'; return; }
+  grid.innerHTML = names.map(name => {
+    const a = state.agents[name];
+    const cls = a.active ? 'agent-card active' : 'agent-card';
+    const errCls = a.errors > 0 ? 'agent-stat error' : 'agent-stat';
+    return `<div class="${cls}">
+      <div class="agent-name"><span class="dot"></span>${name}</div>
+      <div class="agent-stat"><span>Calls</span><span class="val">${a.calls}</span></div>
+      <div class="agent-stat"><span>In</span><span class="val">${fmtTokens(a.input_tokens)}</span></div>
+      <div class="agent-stat"><span>Out</span><span class="val">${fmtTokens(a.output_tokens)}</span></div>
+      <div class="agent-stat"><span>Cost</span><span class="val">${fmtCost(a.cost_usd)}</span></div>
+      <div class="agent-stat"><span>Time</span><span class="val">${fmtTime(a.elapsed_s)}</span></div>
+      <div class="${errCls}"><span>Errors</span><span class="val">${a.errors}</span></div>
+    </div>`;
+  }).join('');
+
+  const badge = document.getElementById('agents-badge');
+  if (badge) badge.textContent = `${names.length} agents`;
+}
+
+function renderStages(state) {
+  const pipeline = document.getElementById('stage-pipeline');
+  if (!pipeline) return;
+  if (!state.stages.length) {
+    pipeline.innerHTML = '<span style="color:var(--fg-muted)">No stages</span>';
+    document.getElementById('panel-stages').style.display = state.hasStages ? '' : 'none';
+    return;
+  }
+  document.getElementById('panel-stages').style.display = '';
+  pipeline.innerHTML = state.stages.map((s, i) => {
+    const icon = s.status === 'done' ? '&#10003;' : s.status === 'active' ? '&#9679;' : '&#9675;';
+    const cls = `stage-node ${s.status}`;
+    const arrow = i < state.stages.length - 1 ? '<span class="stage-arrow">&rarr;</span>' : '';
+    return `<span class="${cls}" data-stage="${s.index}" title="${s.name}">${icon} ${s.name}</span>${arrow}`;
+  }).join('');
+
+  // Click handler for stage details
+  pipeline.querySelectorAll('.stage-node').forEach(node => {
+    node.addEventListener('click', () => {
+      const idx = parseInt(node.dataset.stage);
+      const stage = state.stages.find(s => s.index === idx);
+      const detail = document.getElementById('stage-detail');
+      if (!detail || !stage) return;
+      if (detail.style.display !== 'none' && detail.dataset.stage == idx) {
+        detail.style.display = 'none';
+        return;
+      }
+      detail.dataset.stage = idx;
+      detail.style.display = '';
+      detail.innerHTML = `<div class="stage-detail-name">${stage.index}. ${stage.name}</div>` +
+        (stage.description ? `<div>${stage.description}</div>` : '') +
+        (stage.acceptance_criteria ? `<div style="margin-top:4px;color:var(--green)">Done when: ${stage.acceptance_criteria}</div>` : '');
+    });
+  });
+
+  const badge = document.getElementById('stages-badge');
+  if (badge) badge.textContent = `${state.completedStages}/${state.numStages}`;
+}
+
+let currentFilter = 'all';
+let currentSearch = '';
+
+function renderTimeline(state) {
+  const list = document.getElementById('event-list');
+  if (!list) return;
+
+  // Filter events (skip low-signal ones by default)
+  const skipTypes = new Set(['run_init', 'session_reset', 'agent_session_reset', 'session_query_start']);
+  let events = state.events.filter(e => !skipTypes.has(e.event));
+
+  if (currentFilter !== 'all') {
+    events = events.filter(e => eventCategory(e.event) === currentFilter);
+  }
+  if (currentSearch) {
+    const q = currentSearch.toLowerCase();
+    events = events.filter(e => JSON.stringify(e).toLowerCase().includes(q));
+  }
+
+  // Show newest first, limit to last 200
+  const visible = events.slice(-200).reverse();
+
+  list.innerHTML = visible.map((evt, i) => {
+    const cat = eventCategory(evt.event);
+    const time = evt.t != null ? fmtTime(evt.t) : '';
+    return `<div>
+      <div class="event-row" data-idx="${events.length - 1 - i}">
+        <span class="evt-time">${time}</span>
+        <span class="evt-type ${cat}">${evt.event}</span>
+        <span class="evt-detail">${eventDetail(evt)}</span>
+      </div>
+      <div class="event-expanded" id="evt-exp-${events.length - 1 - i}">${JSON.stringify(evt, null, 2)}</div>
+    </div>`;
+  }).join('');
+
+  // Expand/collapse
+  list.querySelectorAll('.event-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const idx = row.dataset.idx;
+      const exp = document.getElementById('evt-exp-' + idx);
+      if (!exp) return;
+      if (exp.classList.contains('visible')) {
+        exp.classList.remove('visible');
+      } else {
+        // Close others
+        list.querySelectorAll('.event-expanded.visible').forEach(e => e.classList.remove('visible'));
+        exp.classList.add('visible');
+      }
+    });
+  });
+
+  const badge = document.getElementById('timeline-badge');
+  if (badge) badge.textContent = `${state.events.length} events`;
+}
+
+function renderConfig(state) {
+  const tabs = document.getElementById('config-tabs');
+  const content = document.getElementById('config-content');
+  if (!tabs || !content) return;
+
+  const files = state.config || {};
+  const names = Object.keys(files).filter(k => files[k] != null);
+  if (!names.length) {
+    tabs.innerHTML = '';
+    content.textContent = 'No config files available';
+    return;
+  }
+
+  const activeTab = tabs.dataset.active || names[0];
+  tabs.innerHTML = names.map(n => {
+    const cls = n === activeTab ? 'active' : '';
+    return `<button class="${cls}" data-tab="${n}">${n}</button>`;
+  }).join('');
+
+  // Show active tab content
+  const fileContent = files[activeTab] || '';
+  try {
+    // Pretty-print JSON files
+    if (activeTab.endsWith('.json')) {
+      content.textContent = JSON.stringify(JSON.parse(fileContent), null, 2);
+    } else {
+      content.textContent = fileContent;
+    }
+  } catch { content.textContent = fileContent; }
+
+  tabs.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.dataset.active = btn.dataset.tab;
+      renderConfig(state);
+    });
+  });
+}
+
+function render(state) {
+  renderOverview(state);
+  renderAgents(state);
+  renderStages(state);
+  renderTimeline(state);
+  renderConfig(state);
+}
+
+// ============================================================
+// Playback engine
+// ============================================================
+class PlaybackEngine {
+  constructor(events, onEvent, onComplete) {
+    this.allEvents = events;
+    this.onEvent = onEvent;
+    this.onComplete = onComplete;
+    this.index = 0;
+    this.speed = 5;
+    this.playing = false;
+    this._timer = null;
+  }
+
+  get progress() { return this.allEvents.length ? this.index / this.allEvents.length : 0; }
+  get currentT() { return this.index > 0 ? (this.allEvents[this.index - 1].t || 0) : 0; }
+  get totalT() { return this.allEvents.length ? (this.allEvents[this.allEvents.length - 1].t || 0) : 0; }
+
+  play() {
+    if (this.index >= this.allEvents.length) return;
+    this.playing = true;
+    this._scheduleNext();
+  }
+
+  pause() {
+    this.playing = false;
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+  }
+
+  setSpeed(s) { this.speed = s; }
+
+  seekTo(fraction) {
+    // Replay from scratch to reach the target index
+    const targetIdx = Math.round(fraction * this.allEvents.length);
+    this.index = 0;
+    // Reset state will be handled by the caller
+    return targetIdx;
+  }
+
+  jumpToEnd() {
+    this.pause();
+    // Process all remaining events
+    while (this.index < this.allEvents.length) {
+      this.onEvent(this.allEvents[this.index]);
+      this.index++;
+    }
+    this.onComplete();
+  }
+
+  _scheduleNext() {
+    if (!this.playing || this.index >= this.allEvents.length) {
+      if (this.index >= this.allEvents.length) this.onComplete();
+      return;
+    }
+
+    const evt = this.allEvents[this.index];
+    this.onEvent(evt);
+    this.index++;
+
+    if (this.index >= this.allEvents.length) {
+      this.onComplete();
+      return;
+    }
+
+    if (this.speed === 0) {
+      // "max" speed: batch remaining in chunks via requestAnimationFrame
+      this._batchProcess();
+      return;
+    }
+
+    // Calculate delay based on t difference
+    const nextEvt = this.allEvents[this.index];
+    const dt = ((nextEvt.t || 0) - (evt.t || 0)) * 1000; // ms
+    const delay = Math.max(10, dt / this.speed);
+    // Cap delay to 2 seconds even at 1x (some agent runs take 30+ minutes)
+    const cappedDelay = Math.min(delay, 2000 / this.speed);
+
+    this._timer = setTimeout(() => this._scheduleNext(), cappedDelay);
+  }
+
+  _batchProcess() {
+    const batchSize = 50;
+    let count = 0;
+    while (this.index < this.allEvents.length && count < batchSize) {
+      this.onEvent(this.allEvents[this.index]);
+      this.index++;
+      count++;
+    }
+    if (this.index >= this.allEvents.length) {
+      this.onComplete();
+    } else if (this.playing) {
+      requestAnimationFrame(() => this._batchProcess());
+    }
+  }
+}
+
+// ============================================================
+// App controller
+// ============================================================
+const state = new DashboardState();
+let playback = null;
+let sseSource = null;
+let renderDebounce = null;
+
+function debouncedRender() {
+  if (renderDebounce) return;
+  renderDebounce = requestAnimationFrame(() => {
+    render(state);
+    updatePlaybackUI();
+    renderDebounce = null;
+  });
+}
+
+function updatePlaybackUI() {
+  if (!playback) return;
+  const scrub = document.getElementById('pb-scrub');
+  const timeLabel = document.getElementById('pb-time');
+  if (scrub) scrub.value = Math.round(playback.progress * 1000);
+  if (timeLabel) timeLabel.textContent = `${fmtTime(playback.currentT)} / ${fmtTime(playback.totalT)}`;
+}
+
+async function loadRun(runId) {
+  // Cleanup previous
+  if (playback) { playback.pause(); playback = null; }
+  if (sseSource) { sseSource.close(); sseSource = null; }
+  state.reset();
+
+  document.getElementById('empty-state').style.display = 'none';
+
+  // Ensure panels are rendered
+  const main = document.getElementById('main-content');
+  if (!document.getElementById('panel-overview')) {
+    const tpl = document.getElementById('panels-template');
+    main.appendChild(tpl.content.cloneNode(true));
+    initPanelToggles();
+    initTimelineFilters();
+  }
+
+  // Load events and config in parallel
+  const [events, runData] = await Promise.all([
+    fetch(`/api/run/${runId}/events`).then(r => r.json()),
+    fetch(`/api/run/${runId}`).then(r => r.json()),
+  ]);
+
+  state.config = runData.config || {};
+
+  // Load stages from goal-plan.json if available
+  if (state.config['goal-plan.json']) {
+    try {
+      const plan = JSON.parse(state.config['goal-plan.json']);
+      const stages = plan.stages || plan;
+      if (Array.isArray(stages)) {
+        state.stages = stages.map(s => ({
+          index: s.index, name: s.name, description: s.description || '',
+          acceptance_criteria: s.acceptance_criteria || '', status: 'pending'
+        }));
+        state.numStages = state.stages.length;
+        state.hasStages = state.stages.length > 0;
+      }
+    } catch {}
+  }
+
+  // Check if run is finished
+  const isFinished = events.some(e => e.event === 'run_end');
+
+  if (isFinished) {
+    // Static + playback mode
+    setupPlaybackMode(events);
+  } else {
+    // Try live SSE
+    setupLiveMode(runId, events);
+  }
+}
+
+function setupPlaybackMode(events) {
+  // Show playback bar, hide live indicator
+  document.getElementById('playback-bar').classList.remove('hidden');
+  document.getElementById('live-indicator').classList.remove('visible');
+
+  const scrub = document.getElementById('pb-scrub');
+  if (scrub) scrub.max = 1000;
+
+  // Start in "end" state: process all events instantly
+  for (const evt of events) processEvent(state, evt);
+  render(state);
+
+  // Set up playback engine for replay
+  playback = new PlaybackEngine(events,
+    (evt) => {}, // events already processed in seekTo
+    () => debouncedRender()
+  );
+  playback.index = events.length;
+  updatePlaybackUI();
+
+  // Wire up controls
+  document.getElementById('pb-play').onclick = () => {
+    if (playback.index >= playback.allEvents.length) {
+      // Restart from beginning
+      seekToFraction(0);
+    }
+    playback.onEvent = (evt) => {
+      processEvent(state, evt);
+      debouncedRender();
+    };
+    playback.play();
+  };
+
+  document.getElementById('pb-pause').onclick = () => playback.pause();
+
+  document.getElementById('pb-end').onclick = () => {
+    playback.pause();
+    seekToFraction(1);
+  };
+
+  document.getElementById('pb-speed').onchange = (e) => {
+    playback.setSpeed(parseFloat(e.target.value));
+  };
+
+  scrub.oninput = () => {
+    const frac = parseInt(scrub.value) / 1000;
+    playback.pause();
+    seekToFraction(frac);
+  };
+}
+
+function seekToFraction(frac) {
+  if (!playback) return;
+  const targetIdx = Math.round(frac * playback.allEvents.length);
+  // Reset state and replay up to targetIdx
+  state.reset();
+  // Restore config and stages
+  reloadStages();
+  for (let i = 0; i < targetIdx && i < playback.allEvents.length; i++) {
+    processEvent(state, playback.allEvents[i]);
+  }
+  playback.index = targetIdx;
+  render(state);
+  updatePlaybackUI();
+}
+
+function reloadStages() {
+  if (state.config['goal-plan.json']) {
+    try {
+      const plan = JSON.parse(state.config['goal-plan.json']);
+      const stages = plan.stages || plan;
+      if (Array.isArray(stages)) {
+        state.stages = stages.map(s => ({
+          index: s.index, name: s.name, description: s.description || '',
+          acceptance_criteria: s.acceptance_criteria || '', status: 'pending'
+        }));
+        state.numStages = state.stages.length;
+        state.hasStages = state.stages.length > 0;
+      }
+    } catch {}
+  }
+}
+
+function setupLiveMode(runId, initialEvents) {
+  // Hide playback bar, show live indicator
+  document.getElementById('playback-bar').classList.add('hidden');
+  document.getElementById('live-indicator').classList.add('visible');
+
+  // Process initial events
+  for (const evt of initialEvents) processEvent(state, evt);
+  render(state);
+
+  // Connect SSE for new events
+  sseSource = new EventSource(`/api/run/${runId}/stream`);
+  let processedCount = initialEvents.length;
+
+  sseSource.onmessage = (msg) => {
+    try {
+      const evt = JSON.parse(msg.data);
+      // Skip events we already processed from initial load
+      if (processedCount > 0) { processedCount--; return; }
+      processEvent(state, evt);
+      debouncedRender();
+      if (evt.event === 'run_end') {
+        sseSource.close();
+        document.getElementById('live-indicator').classList.remove('visible');
+      }
+    } catch {}
+  };
+
+  sseSource.onerror = () => {
+    // SSE will auto-reconnect
+  };
+}
+
+// ============================================================
+// Panel toggles
+// ============================================================
+function initPanelToggles() {
+  document.querySelectorAll('.panel-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const panel = header.dataset.panel;
+      const body = header.nextElementSibling;
+      const isOpen = header.classList.toggle('open');
+      body.classList.toggle('open', isOpen);
+      // Save to localStorage
+      localStorage.setItem(`kodo-panel-${panel}`, isOpen ? 'open' : 'closed');
+    });
+  });
+
+  // Restore saved states
+  document.querySelectorAll('.panel-header').forEach(header => {
+    const panel = header.dataset.panel;
+    const saved = localStorage.getItem(`kodo-panel-${panel}`);
+    if (saved === 'closed') {
+      header.classList.remove('open');
+      header.nextElementSibling.classList.remove('open');
+    } else if (saved === 'open') {
+      header.classList.add('open');
+      header.nextElementSibling.classList.add('open');
+    }
+  });
+}
+
+function initTimelineFilters() {
+  const filterEl = document.getElementById('event-filter');
+  const searchEl = document.getElementById('event-search');
+  if (filterEl) filterEl.onchange = () => { currentFilter = filterEl.value; renderTimeline(state); };
+  if (searchEl) searchEl.oninput = () => { currentSearch = searchEl.value; renderTimeline(state); };
+}
+
+// ============================================================
+// Run selector
+// ============================================================
+async function loadRunList() {
+  const runs = await fetch('/api/runs').then(r => r.json());
+  const selector = document.getElementById('run-selector');
+  selector.innerHTML = '<option value="">Select a run...</option>';
+  for (const r of runs) {
+    const status = r.finished ? 'done' : `cycle ${r.completed_cycles}/${r.max_cycles}`;
+    const goal = (r.goal || '').substring(0, 60).replace(/\n/g, ' ');
+    const opt = document.createElement('option');
+    opt.value = r.run_id;
+    opt.textContent = `${r.run_id} [${status}] ${r.project_name} — ${goal}`;
+    selector.appendChild(opt);
+  }
+
+  selector.onchange = () => {
+    const id = selector.value;
+    if (id) {
+      window.location.hash = `run=${id}`;
+      loadRun(id);
+    }
+  };
+
+  // Auto-load from hash
+  const hash = window.location.hash;
+  if (hash.startsWith('#run=')) {
+    const id = hash.substring(5);
+    selector.value = id;
+    loadRun(id);
+  }
+}
+
+// ============================================================
+// Theme toggle
+// ============================================================
+function initTheme() {
+  const saved = localStorage.getItem('kodo-theme');
+  if (saved === 'light') document.documentElement.classList.add('light');
+  updateThemeBtn();
+
+  document.getElementById('theme-toggle').onclick = () => {
+    document.documentElement.classList.toggle('light');
+    const isLight = document.documentElement.classList.contains('light');
+    localStorage.setItem('kodo-theme', isLight ? 'light' : 'dark');
+    updateThemeBtn();
+  };
+}
+
+function updateThemeBtn() {
+  const btn = document.getElementById('theme-toggle');
+  btn.textContent = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+}
+
+// ============================================================
+// Init
+// ============================================================
+initTheme();
+loadRunList();
+</script>
+</body>
+</html>
