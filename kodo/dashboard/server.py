@@ -13,7 +13,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
 
-_DASHBOARD_HTML = Path(__file__).parent / "dashboard.html"
+_DASHBOARD_DIR = Path(__file__).parent
+_STATIC_FILES = {
+    "/": ("dashboard.html", "text/html; charset=utf-8"),
+    "/dashboard.css": ("dashboard.css", "text/css; charset=utf-8"),
+    "/dashboard.js": ("dashboard.js", "application/javascript; charset=utf-8"),
+}
 
 # Global server reference for embedded mode
 _server: HTTPServer | None = None
@@ -219,13 +224,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html(self, html: str) -> None:
-        body = html.encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+
 
     def _send_error(self, status: int, msg: str) -> None:
         self._send_json({"error": msg}, status)
@@ -236,8 +235,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = parsed.path
         params = parse_qs(parsed.query)
 
-        if path == "/":
-            self._send_html(_DASHBOARD_HTML.read_text(encoding="utf-8"))
+        if path in _STATIC_FILES:
+            filename, content_type = _STATIC_FILES[path]
+            body = (_DASHBOARD_DIR / filename).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         if path == "/api/runs":
@@ -331,6 +336,66 @@ class DashboardHandler(BaseHTTPRequestHandler):
                             break
         except (BrokenPipeError, ConnectionResetError):
             pass
+
+    def do_PUT(self) -> None:
+        path = self.path.split("?")[0]
+        if path.startswith("/api/run/"):
+            parts = path[len("/api/run/"):].split("/")
+            run_id = parts[0]
+            if not _validate_run_id(run_id):
+                self._send_error(400, "Invalid run_id")
+                return
+            sub = parts[1] if len(parts) > 1 else ""
+
+            if sub == "stages":
+                self._handle_save_stages(run_id)
+                return
+
+        self._send_error(404, "Not found")
+
+    def _handle_save_stages(self, run_id: str) -> None:
+        """Update stage definitions in goal-plan.json."""
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length).decode() if length else ""
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._send_error(400, "Invalid JSON")
+            return
+
+        new_stages = data.get("stages")
+        if not isinstance(new_stages, list):
+            self._send_error(400, "stages must be an array")
+            return
+
+        plan_file = _runs_root() / run_id / "goal-plan.json"
+        if not plan_file.exists():
+            self._send_error(404, "No goal-plan.json for this run")
+            return
+
+        try:
+            plan = json.loads(plan_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            self._send_error(500, f"Cannot read plan: {exc}")
+            return
+
+        # Merge: update name/description/acceptance_criteria for matching indices
+        existing = {s["index"]: s for s in plan.get("stages", [])}
+        for ns in new_stages:
+            idx = ns.get("index")
+            if idx in existing:
+                for field in ("name", "description", "acceptance_criteria"):
+                    if field in ns:
+                        existing[idx][field] = ns[field]
+
+        plan["stages"] = list(existing.values())
+        try:
+            plan_file.write_text(json.dumps(plan, indent=2), encoding="utf-8")
+        except OSError as exc:
+            self._send_error(500, f"Cannot write plan: {exc}")
+            return
+
+        self._send_json({"status": "ok"})
 
     def do_POST(self) -> None:
         path = self.path.split("?")[0]
