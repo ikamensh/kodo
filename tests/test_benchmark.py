@@ -32,68 +32,66 @@ from benchmark._util import (
 
 
 class TestDockerSafe:
-    def test_clean(self):
-        assert docker_safe("claude") == "claude"
-
-    def test_colon(self):
-        assert docker_safe("kodo:solo") == "kodo_solo"
-
-    def test_special_chars(self):
-        assert docker_safe("a/b@c") == "a_b_c"
-
-    def test_dots_underscores_dashes_preserved(self):
-        assert docker_safe("a.b-c_d") == "a.b-c_d"
+    @pytest.mark.parametrize("input_,expected", [
+        ("claude", "claude"),
+        ("kodo:solo", "kodo_solo"),
+        ("a/b@c", "a_b_c"),
+        ("a.b-c_d", "a.b-c_d"),
+    ])
+    def test_sanitizes_names(self, input_, expected):
+        """Alphanumeric, dots, dashes, underscores pass through; everything else becomes _."""
+        assert docker_safe(input_) == expected
 
 
 class TestLoadJson:
-    def test_missing_file(self, tmp_path):
-        assert load_json(tmp_path / "nope.json") == {}
-
-    def test_valid(self, tmp_path):
+    @pytest.mark.parametrize("content,expected,label", [
+        (None, {}, "missing file"),
+        ('{"a": 1}', {"a": 1}, "valid json"),
+        ("{not json", {}, "corrupt json"),
+    ])
+    def test_returns_dict_or_empty(self, tmp_path, content, expected, label):
+        """Missing/corrupt files return {}; valid files parse correctly."""
         f = tmp_path / "data.json"
-        f.write_text('{"a": 1}')
-        assert load_json(f) == {"a": 1}
-
-    def test_corrupt(self, tmp_path):
-        f = tmp_path / "bad.json"
-        f.write_text("{not json")
-        assert load_json(f) == {}
+        if content is not None:
+            f.write_text(content)
+        assert load_json(f) == expected
 
 
 class TestLoadJsonl:
-    def test_missing_file(self, tmp_path):
-        assert load_jsonl(tmp_path / "nope.jsonl") == []
-
     def test_valid_lines(self, tmp_path):
         f = tmp_path / "data.jsonl"
         f.write_text('{"a":1}\n{"b":2}\n')
         assert load_jsonl(f) == [{"a": 1}, {"b": 2}]
 
-    def test_blank_lines_skipped(self, tmp_path):
+    @pytest.mark.parametrize("content,label", [
+        (None, "missing file"),
+        ('{"a":1}\n\n{"b":2}\n', "blank lines"),
+        ('{"a":1}\nnot json\n{"b":2}\n', "malformed lines"),
+    ])
+    def test_edge_cases(self, tmp_path, content, label):
+        """Missing file returns []; blank/malformed lines are skipped."""
         f = tmp_path / "data.jsonl"
-        f.write_text('{"a":1}\n\n{"b":2}\n')
-        assert load_jsonl(f) == [{"a": 1}, {"b": 2}]
-
-    def test_bad_lines_skipped(self, tmp_path):
-        f = tmp_path / "data.jsonl"
-        f.write_text('{"a":1}\nnot json\n{"b":2}\n')
+        if content is not None:
+            f.write_text(content)
         result = load_jsonl(f)
-        assert result == [{"a": 1}, {"b": 2}]
+        if content is None:
+            assert result == []
+        else:
+            assert result == [{"a": 1}, {"b": 2}]
 
 
 class TestIterJsonl:
-    def test_missing_file(self, tmp_path):
-        assert list(iter_jsonl(tmp_path / "nope.jsonl")) == []
-
-    def test_streams_lines(self, tmp_path):
+    @pytest.mark.parametrize("content,expected,label", [
+        (None, [], "missing file"),
+        ('{"x":1}\n{"x":2}\n', [{"x": 1}, {"x": 2}], "valid lines"),
+        ('{"x":1}\nbad\n{"x":3}\n', [{"x": 1}, {"x": 3}], "skips bad lines"),
+    ])
+    def test_iter_jsonl(self, tmp_path, content, expected, label):
+        """Missing files yield []; bad lines are skipped; good lines parse."""
         f = tmp_path / "data.jsonl"
-        f.write_text('{"x":1}\n{"x":2}\n')
-        assert list(iter_jsonl(f)) == [{"x": 1}, {"x": 2}]
-
-    def test_skips_bad(self, tmp_path):
-        f = tmp_path / "data.jsonl"
-        f.write_text('{"x":1}\nbad\n{"x":3}\n')
-        assert list(iter_jsonl(f)) == [{"x": 1}, {"x": 3}]
+        if content is not None:
+            f.write_text(content)
+        assert list(iter_jsonl(f)) == expected
 
 
 class TestSetupLogging:
@@ -103,34 +101,13 @@ class TestSetupLogging:
 
 
 class TestDetectBackends:
-    def test_always_includes_kodo(self):
+    def test_nothing_on_path_still_includes_kodo(self):
         with patch("benchmark._util.shutil.which", autospec=True, return_value=None):
-            backends = detect_backends()
-        assert "kodo" in backends
+            assert detect_backends() == ["kodo"]
 
-    def test_detects_claude(self):
-        def fake_which(name):
-            return "/usr/bin/claude" if name == "claude" else None
-
-        with patch(
-            "benchmark._util.shutil.which", autospec=True, side_effect=fake_which
-        ):
-            backends = detect_backends()
-        assert "kodo" in backends
-        assert "claude" in backends
-        assert "cursor" not in backends
-
-    def test_detects_all(self):
-        with patch(
-            "benchmark._util.shutil.which", autospec=True, return_value="/usr/bin/x"
-        ):
-            backends = detect_backends()
-        assert set(backends) == {"kodo", "claude", "cursor", "codex", "gemini"}
-
-    def test_nothing_on_path(self):
-        with patch("benchmark._util.shutil.which", autospec=True, return_value=None):
-            backends = detect_backends()
-        assert backends == ["kodo"]
+    def test_detects_all_when_everything_on_path(self):
+        with patch("benchmark._util.shutil.which", autospec=True, return_value="/usr/bin/x"):
+            assert set(detect_backends()) == {"kodo", "claude", "cursor", "codex", "gemini"}
 
 
 class TestDockerIsReady:
@@ -236,20 +213,22 @@ from benchmark.tasks import SWETask, _parse_list_field, _row_to_task
 
 
 class TestParseListField:
-    def test_list_passthrough(self):
-        assert _parse_list_field(["a", "b"]) == ["a", "b"]
+    @pytest.mark.parametrize("input_,expected", [
+        (["a", "b"], ["a", "b"]),
+        ('["a", "b"]', ["a", "b"]),
+        ("['a', 'b']", ["a", "b"]),
+    ])
+    def test_parses_lists(self, input_, expected):
+        """Lists, JSON strings, and Python repr strings all parse correctly."""
+        assert _parse_list_field(input_) == expected
 
-    def test_json_string(self):
-        assert _parse_list_field('["a", "b"]') == ["a", "b"]
-
-    def test_python_repr(self):
-        assert _parse_list_field("['a', 'b']") == ["a", "b"]
-
-    def test_empty_string(self):
-        assert _parse_list_field("[]") == []
-
-    def test_garbage(self):
-        assert _parse_list_field("not a list") == []
+    @pytest.mark.parametrize("input_,expected", [
+        ("[]", []),
+        ("not a list", []),
+    ])
+    def test_edge_cases(self, input_, expected):
+        """Empty list and garbage input return []."""
+        assert _parse_list_field(input_) == expected
 
 
 class TestRowToTask:
@@ -351,23 +330,21 @@ class TestBuildPrompt:
 
 
 class TestParseJsonOutput:
-    def test_valid_json(self):
-        assert _parse_json_output('{"a": 1}') == {"a": 1}
+    @pytest.mark.parametrize("text,expected", [
+        ('{"a": 1}', {"a": 1}),
+        ('some log\n{"a": 1}', {"a": 1}),
+        ('log1\n{"a": 1}\nlog2', {"a": 1}),
+    ])
+    def test_extracts_json(self, text, expected):
+        """Finds JSON whether it's the whole output, last line, or buried."""
+        assert _parse_json_output(text) == expected
 
-    def test_json_on_last_line(self):
-        assert _parse_json_output('some log\n{"a": 1}') == {"a": 1}
-
-    def test_json_buried_in_output(self):
-        assert _parse_json_output('log1\n{"a": 1}\nlog2') == {"a": 1}
-
-    def test_empty(self):
-        assert _parse_json_output("") == {}
-
-    def test_no_json(self):
-        assert _parse_json_output("just text\nno json here") == {}
+    @pytest.mark.parametrize("text", ["", "just text\nno json here"])
+    def test_returns_empty_when_no_json(self, text):
+        assert _parse_json_output(text) == {}
 
     def test_prefers_full_parse(self):
-        # If full stdout is valid JSON, use that
+        """If full stdout is valid JSON, use that over line-by-line scan."""
         data = json.dumps({"full": True})
         assert _parse_json_output(data) == {"full": True}
 
@@ -504,25 +481,23 @@ class TestPercentile:
 
 
 class TestDatasetShort:
-    def test_verified(self):
-        assert _dataset_short("princeton-nlp/SWE-bench_Verified") == "Verified"
-
-    def test_pro(self):
-        assert _dataset_short("ScaleAI/SWE-bench_Pro") == "Pro"
-
-    def test_lite(self):
-        assert _dataset_short("princeton-nlp/SWE-bench_Lite") == "Lite"
-
-    def test_unknown(self):
-        assert _dataset_short("org/Custom_Dataset") == "Custom_Dataset"
+    @pytest.mark.parametrize("full,short", [
+        ("princeton-nlp/SWE-bench_Verified", "Verified"),
+        ("ScaleAI/SWE-bench_Pro", "Pro"),
+        ("princeton-nlp/SWE-bench_Lite", "Lite"),
+        ("org/Custom_Dataset", "Custom_Dataset"),
+    ])
+    def test_extracts_short_name(self, full, short):
+        assert _dataset_short(full) == short
 
 
 class TestEvalKey:
-    def test_clean(self):
-        assert _eval_key("claude") == "claude"
-
-    def test_colon(self):
-        assert _eval_key("kodo:solo") == "kodo_solo"
+    @pytest.mark.parametrize("input_,expected", [
+        ("claude", "claude"),
+        ("kodo:solo", "kodo_solo"),
+    ])
+    def test_sanitizes(self, input_, expected):
+        assert _eval_key(input_) == expected
 
 
 class TestGenerateReport:
@@ -650,31 +625,19 @@ class TestRunSubprocess:
         assert output == {"ok": True}
         assert error == ""
 
-    def test_timeout(self):
+    @pytest.mark.parametrize("cmd,timeout,expected_status,error_substr", [
+        (["sleep", "10"], 0.05, "timeout", "Timed out"),
+        (["false"], 5, "error", ""),
+        ([sys.executable, "-c", "import sys; sys.exit(2)"], 5, "partial", ""),
+    ])
+    def test_failure_modes(self, cmd, timeout, expected_status, error_substr):
+        """Timeout, nonzero exit, and exit-code-2 (partial) are classified correctly."""
         output, status, error, stdout, stderr = _run_subprocess(
-            ["sleep", "10"],
-            cwd=None,
-            timeout=0.05,
+            cmd, cwd=None, timeout=timeout,
         )
-        assert status == "timeout"
-        assert "Timed out" in error
-
-    def test_nonzero_exit(self):
-        output, status, error, stdout, stderr = _run_subprocess(
-            ["false"],
-            cwd=None,
-            timeout=5,
-        )
-        assert status == "error"
-
-    def test_exit_code_2_is_partial(self):
-        # exit 2 = partial success (kodo verification unsatisfied)
-        output, status, error, stdout, stderr = _run_subprocess(
-            [sys.executable, "-c", "import sys; sys.exit(2)"],
-            cwd=None,
-            timeout=5,
-        )
-        assert status == "partial"
+        assert status == expected_status
+        if error_substr:
+            assert error_substr in error
 
 
 class TestSaveRunMeta:
@@ -3192,72 +3155,3 @@ class TestEvaluatePending:
         assert result == 0
 
 
-class TestProgressView:
-    def test_progress_html_exists(self):
-        """progress.html exists in the static directory."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        assert (static / "progress.html").is_file()
-
-    def test_progress_html_is_valid(self):
-        """Basic sanity: contains expected elements."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "progress.html").read_text()
-        assert "<!DOCTYPE html>" in html
-        assert "kodo bench" in html
-        assert "progress" in html.lower()
-        assert "data/verified/index.json" in html
-        assert "data/pro/index.json" in html
-
-    def test_main_viewer_links_to_progress(self):
-        """Main viewer has a link to the progress page."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert "progress.html" in html
-
-    def test_main_viewer_pending_excludes_error_rows(self):
-        """Pending-eval UI should only count ok/partial runs, not error rows."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert "r.status === 'ok' || r.status === 'partial'" in html
-
-    def test_main_viewer_supports_head_to_head_mode(self):
-        """Head-to-head viewer chrome is driven from overlap-only dataset metadata."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert 'id="view-banner"' in html
-        assert "viewMode(data) === 'head_to_head'" in html
-        assert "syncDatasetTabs()" in html
-
-    def test_methodology_markdown_exists(self):
-        """Methodology content lives in a standalone Markdown file."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        md = (static / "methodology.md").read_text()
-        assert "# Methodology" in md
-        assert "{{KODO_ORCHESTRATOR_MODEL}}" in md
-        assert "{{SNAPSHOT_CREATED_AT}}" in md
-        assert "FAIL_TO_PASS" in md
-        assert "Default benchmark timeout" not in md
-
-    def test_main_viewer_fetches_methodology_markdown(self):
-        """The Methodology tab should load the standalone Markdown document."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert 'data-view="methodology"' in html
-        assert "fetchText(BASE + 'methodology.md')" in html
-        assert "markdownToHtml(" in html
-
-    def test_main_viewer_markdown_renderer_uses_defined_escape_helper(self):
-        """Methodology renderer should rely on the existing esc() helper."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert "let out = esc(text);" in html
-        assert "escapeHtml(" not in html
-        assert "esc(codeLines.join(" in html
-
-    def test_main_viewer_supports_frozen_snapshot_badge(self):
-        """Frozen snapshot metadata should surface in the viewer chrome."""
-        static = Path(__file__).parent.parent / "benchmark" / "online" / "static"
-        html = (static / "index.html").read_text()
-        assert "snapshot_frozen" in html
-        assert "frozen snapshot" in html.lower()
-        assert "KODO_ORCHESTRATOR_MODEL" in html

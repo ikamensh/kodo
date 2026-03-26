@@ -24,31 +24,25 @@ from kodo.factory import (
 )
 
 
+_ALL_BACKENDS = {
+    "claude": "has_claude",
+    "cursor": "has_cursor",
+    "codex": "has_codex",
+    "gemini": "has_gemini_cli",
+    "kimi": "has_kimi",
+    "kiro": "has_kiro",
+    "opencode": "has_opencode",
+}
+
+
 @contextmanager
-def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False, kiro=False, opencode=False):
-    """Patch all has_* helpers at once."""
+def _backends(**enabled):
+    """Patch all has_* helpers. Pass backend=True to enable, rest default False."""
     with ExitStack() as stack:
-        stack.enter_context(
-            patch("kodo.factory.has_claude", autospec=True, return_value=claude)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_cursor", autospec=True, return_value=cursor)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_codex", autospec=True, return_value=codex)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_gemini_cli", autospec=True, return_value=gemini)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_kimi", autospec=True, return_value=kimi)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_kiro", autospec=True, return_value=kiro)
-        )
-        stack.enter_context(
-            patch("kodo.factory.has_opencode", autospec=True, return_value=opencode)
-        )
+        for key, func_name in _ALL_BACKENDS.items():
+            stack.enter_context(
+                patch(f"kodo.factory.{func_name}", autospec=True, return_value=enabled.get(key, False))
+            )
         stack.enter_context(patch("kodo.factory.make_session", autospec=True))
         yield
 

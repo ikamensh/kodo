@@ -13,8 +13,6 @@ import pytest
 
 from kodo import log
 from kodo.cli._main import _main_inner
-from kodo.orchestrators.verification import _check_passed
-
 
 # Issue #1 (--skip-intake / --auto-refine without --goal) is now fixed and
 # covered by tests/cli/test_cli_main.py::TestFlagValidation. Skipped tests removed.
@@ -83,75 +81,8 @@ class TestParseRunPermissionError:
             bad_log.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
-# ---------------------------------------------------------------------------
-# Issue #5: _check_passed fooled by LLM quoting
-# ---------------------------------------------------------------------------
-
-
-class TestCheckPassedQuoting:
-    """_check_passed should not be tricked by quoted or attributed mentions."""
-
-    def test_direct_pass(self):
-        assert _check_passed("ALL CHECKS PASS") is True
-
-    def test_direct_fail(self):
-        assert _check_passed("Tests are failing, 3 errors found") is False
-
-    def test_not_all_checks_pass_rejected(self):
-        assert _check_passed("NOT ALL CHECKS PASS — 2 failures") is False
-
-    def test_not_minor_issues_fixed_rejected(self):
-        assert _check_passed("NOT MINOR ISSUES FIXED — review needed") is False
-
-    def test_quoted_pass_rejected(self):
-        """A report quoting 'ALL CHECKS PASS' but failing should be rejected."""
-        report = (
-            "The agent said 'ALL CHECKS PASS' but I found 3 failing tests "
-            "in test_auth.py. This is incorrect."
-        )
-        assert _check_passed(report) is False
-
-    def test_attributed_pass_rejected(self):
-        """Mentioning the phrase in a negative context should be rejected."""
-        report = (
-            "I cannot say ALL CHECKS PASS because there are unresolved "
-            "issues in the authentication module."
-        )
-        assert _check_passed(report) is False
-
-    def test_minor_issues_fixed_accepted(self):
-        assert _check_passed("MINOR ISSUES FIXED") is True
-
-    def test_code_block_pass_rejected(self):
-        """Signal phrase inside a fenced code block should be rejected."""
-        report = (
-            "The test output shows:\n"
-            "```\n"
-            "ALL CHECKS PASS\n"
-            "```\n"
-            "But actually 2 tests are still failing."
-        )
-        assert _check_passed(report) is False
-
-    def test_inline_code_pass_rejected(self):
-        """Signal phrase inside inline code should be rejected."""
-        report = "The output contained `ALL CHECKS PASS` but tests fail."
-        assert _check_passed(report) is False
-
-    def test_double_quoted_pass_rejected(self):
-        """Signal phrase inside double quotes should be rejected."""
-        report = 'The agent output "ALL CHECKS PASS" but 3 tests are broken.'
-        assert _check_passed(report) is False
-
-    def test_pass_after_period_accepted(self):
-        """Signal phrase at start of a new sentence should be accepted."""
-        report = "I have reviewed all test results. ALL CHECKS PASS"
-        assert _check_passed(report) is True
-
-    def test_pass_on_own_line_accepted(self):
-        """Signal phrase on its own line should be accepted."""
-        report = "Review complete.\nALL CHECKS PASS\n"
-        assert _check_passed(report) is True
+# Issue #5 (_check_passed quoting) — consolidated into
+# tests/orchestrators/test_verify_done.py::TestCheckPassed
 
 
 # ---------------------------------------------------------------------------

@@ -228,7 +228,7 @@ class TestHumanFeedbackLifecycle:
             # Write feedback after coach started
             feedback_file.write_text("background thread test message\n")
 
-            deadline = time.time() + 5
+            deadline = time.time() + 1
             while queue.pending_count == 0 and time.time() < deadline:
                 time.sleep(0.05)
 

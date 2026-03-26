@@ -298,65 +298,46 @@ class TestValidateTestPlan:
 
 
 class TestBuildTestFallbackPlan:
-    def test_has_four_stages(self):
+    """Consolidated tests for _build_test_fallback_plan() structure."""
+
+    def test_plan_structure(self):
+        """4 stages: setup first (with install/tool refs), triage last, sequential indices."""
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         assert len(plan.stages) == 4
-
-    def test_first_stage_is_setup(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        name = plan.stages[0].name.lower()
-        assert "setup" in name or "discover" in name
-
-    def test_first_stage_mentions_install(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        desc = plan.stages[0].description.lower()
-        assert "install" in desc
-
-    def test_first_stage_mentions_building_tools(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        desc = plan.stages[0].description.lower()
-        assert "tool" in desc or "build" in desc
-
-    def test_last_stage_is_triage(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
+        first = plan.stages[0]
+        assert "setup" in first.name.lower() or "discover" in first.name.lower()
+        assert "install" in first.description.lower()
+        assert "tool" in first.description.lower() or "build" in first.description.lower()
         assert _is_report_stage(plan.stages[-1].name)
         assert "triage" in plan.stages[-1].name.lower()
 
-    def test_middle_stages_parallel(self):
+    def test_parallelism_and_persistence(self):
+        """Middle stages run in parallel and are read-only; setup persists."""
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
+        assert plan.stages[0].persist_changes is True
         assert plan.stages[1].parallel_group == 1
         assert plan.stages[2].parallel_group == 1
+        assert plan.stages[1].persist_changes is False
+        assert plan.stages[2].persist_changes is False
 
-    def test_middle_stages_cover_features_and_edges(self):
-        """Middle stages should cover feature walkthroughs and edge cases."""
+    def test_content_and_customization(self):
+        """Middle stages cover features + edges; focus/targets appear in context."""
         plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         all_text = " ".join(
             f"{s.name} {s.description}" for s in plan.stages[1:3]
         ).lower()
         assert "feature" in all_text or "workflow" in all_text
         assert "edge" in all_text or "boundary" in all_text or "invalid" in all_text
-
-    def test_setup_persists(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert plan.stages[0].persist_changes is True
-
-    def test_testing_stages_read_only(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
-        assert plan.stages[1].persist_changes is False
-        assert plan.stages[2].persist_changes is False
-
-    def test_focus_in_context(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md", focus="auth")
-        assert "auth" in plan.context
-
-    def test_target_in_context(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md", targets=["src/"])
-        assert "src/" in plan.context
-
-    def test_context_emphasizes_user_testing(self):
-        plan = _build_test_fallback_plan("/tmp/run/test-report.md")
         ctx = plan.context.lower()
         assert "user" in ctx or "feature" in ctx or "workflow" in ctx
+
+        # focus and targets propagate to context
+        plan_focus = _build_test_fallback_plan("/tmp/run/test-report.md", focus="auth")
+        assert "auth" in plan_focus.context
+        plan_target = _build_test_fallback_plan(
+            "/tmp/run/test-report.md", targets=["src/"]
+        )
+        assert "src/" in plan_target.context
 
 
 # ---------------------------------------------------------------------------

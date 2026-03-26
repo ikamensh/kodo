@@ -757,16 +757,6 @@ class TestApiErrorPaths:
 class TestForParallel:
     """Test the for_parallel() method that creates thread-safe copies."""
 
-    def test_for_parallel_copies_model_and_config(self):
-        """for_parallel() creates a new orchestrator that can be used in parallel threads."""
-
-        orch = ApiOrchestrator(model="claude-opus-4-6")
-        copy = orch.for_parallel()
-
-        assert copy.model == orch.model
-        assert copy.max_context_tokens == orch.max_context_tokens
-        assert copy._pydantic_model is not None
-
     def test_for_parallel_preserves_config(self):
         """for_parallel() preserves all configuration."""
         orch = ApiOrchestrator(
@@ -781,6 +771,7 @@ class TestForParallel:
         assert copy.max_context_tokens == 50000
         assert copy._system_prompt == "custom prompt"
         assert copy._fallback_model == "claude-sonnet-4-5"
+        assert copy._pydantic_model is not None
 
     def test_for_parallel_creates_fresh_model(self):
         """for_parallel() creates a new instance with its own fresh model."""

@@ -794,72 +794,48 @@ class TestImproveFlag:
 
 
 class TestBuildFallbackPlan:
-    """Tests for _build_fallback_plan() structure."""
+    """Consolidated tests for _build_fallback_plan() structure."""
 
-    def test_has_five_stages(self):
-        plan = _build_fallback_plan("/tmp/report.md")
-        assert len(plan.stages) == 5
-
-    def test_stages_have_sequential_indices(self):
-        plan = _build_fallback_plan("/tmp/report.md")
-        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
-
-    def test_first_three_stages_are_parallel(self):
-        """Simplification, Usability, Architecture run in parallel."""
-        plan = _build_fallback_plan("/tmp/report.md")
-        assert plan.stages[0].parallel_group == 1
-        assert plan.stages[1].parallel_group == 1
-        assert plan.stages[2].parallel_group == 1
-
-    def test_triage_and_fix_are_sequential(self):
-        plan = _build_fallback_plan("/tmp/report.md")
-        assert plan.stages[3].parallel_group is None
-        assert plan.stages[4].parallel_group is None
-
-    def test_report_path_in_final_stage(self):
+    def test_plan_structure(self):
+        """5 stages with sequential indices, all having acceptance criteria.
+        Report path appears in the final stage description.
+        Context emphasizes review/senior developer."""
         plan = _build_fallback_plan("/tmp/my-report.md")
-        last = plan.stages[-1]
-        assert "/tmp/my-report.md" in last.description
-
-    def test_all_stages_have_acceptance_criteria(self):
-        plan = _build_fallback_plan("/tmp/report.md")
+        assert len(plan.stages) == 5
+        assert [s.index for s in plan.stages] == [1, 2, 3, 4, 5]
         for stage in plan.stages:
             assert stage.acceptance_criteria, f"Stage {stage.index} missing criteria"
-
-    def test_context_emphasizes_review(self):
-        plan = _build_fallback_plan("/tmp/report.md")
+        assert "/tmp/my-report.md" in plan.stages[-1].description
         assert (
             "senior developer" in plan.context.lower()
             or "review" in plan.context.lower()
         )
 
-    def test_parallel_stages_mention_findings_files(self):
+    def test_parallelism_and_verification(self):
+        """First 3 stages are parallel with quick-check verification;
+        last 2 are sequential; final stage has full verification."""
         plan = _build_fallback_plan("/tmp/report.md")
-        assert "findings-simplification.md" in plan.stages[0].description
-        assert "findings-usability.md" in plan.stages[1].description
-        assert "findings-architecture.md" in plan.stages[2].description
+        for i in range(3):
+            assert plan.stages[i].parallel_group == 1
+            assert isinstance(plan.stages[i].verification, list)
+            assert len(plan.stages[i].verification) == 1
+        assert plan.stages[3].parallel_group is None
+        assert isinstance(plan.stages[3].verification, list)
+        assert plan.stages[4].parallel_group is None
+        assert plan.stages[4].verification == "full"
 
-    def test_fix_stage_references_all_findings(self):
+    def test_findings_files(self):
+        """Parallel stages write to distinct findings files;
+        fix stage references all of them."""
         plan = _build_fallback_plan("/tmp/report.md")
-        fix_stage = plan.stages[-1]
-        assert "findings-simplification.md" in fix_stage.description
-        assert "findings-usability.md" in fix_stage.description
-        assert "findings-architecture.md" in fix_stage.description
-
-    def test_analysis_stages_have_quick_check_verification(self):
-        """Parallel analysis stages use quick-check verification."""
-        plan = _build_fallback_plan("/tmp/report.md")
-        for idx in [0, 1, 2, 3]:  # first 4 stages
-            stage = plan.stages[idx]
-            assert isinstance(stage.verification, list), (
-                f"Stage {stage.index} ({stage.name}) should have quick-check verification"
-            )
-            assert len(stage.verification) == 1
-
-    def test_fix_stage_has_full_verification(self):
-        """Fix & Report stage uses full agent-based verification."""
-        plan = _build_fallback_plan("/tmp/report.md")
-        assert plan.stages[-1].verification == "full"
+        findings = [
+            "findings-simplification.md",
+            "findings-usability.md",
+            "findings-architecture.md",
+        ]
+        for i, f in enumerate(findings):
+            assert f in plan.stages[i].description
+            assert f in plan.stages[-1].description
 
 
 # ---------------------------------------------------------------------------

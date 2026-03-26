@@ -1,7 +1,7 @@
 """Stress tests for legacy mode done signal handling.
 
-Tests edge cases in the _check_passed regex, infinite nudge loop prevention,
-and malformed done strings that should pass or fail the verification gate.
+Tests infinite nudge loop prevention and malformed done strings that should
+pass or fail the verification gate.
 """
 
 from __future__ import annotations
@@ -14,136 +14,14 @@ from kodo.log import RunDir
 from kodo.orchestrators.base import CycleConfig, DoneSignal, QuickCheck
 from kodo.orchestrators.verification import (
     VerificationState,
-    _check_passed,
     handle_done,
     verify_done,
 )
 from tests.conftest import make_agent
 
 
-class TestCheckPassedStress:
-    """Stress test _check_passed regex with adversarial inputs."""
-
-    def test_nested_code_blocks_with_signal(self) -> None:
-        """Multiple code blocks in sequence should all be stripped."""
-        report = """
-        First block:
-        ```
-        ALL CHECKS PASS
-        ```
-        Second block:
-        ```
-        MINOR ISSUES FIXED
-        ```
-        No actual signal present.
-        """
-        assert _check_passed(report) is False
-
-    def test_unclosed_code_fence_keeps_signal(self) -> None:
-        """Unclosed code fence is not stripped - signal evaluated normally."""
-        report = """
-Testing output:
-```
-ALL CHECKS PASS"""
-        # The unclosed fence won't match the regex (needs closing ```),
-        # so signal remains. However, it's inside the fence visually,
-        # and on its own line, so it could pass. Let's see actual behavior.
-        result = _check_passed(report)
-        # Signal is on its own line after "```", which counts as start of line
-        # in the MULTILINE regex, so this actually passes.
-        assert result is True
-
-    def test_signal_in_nested_quotes(self) -> None:
-        """Signal inside nested quotes should be stripped."""
-        report = """
-        The agent said: "Worker reported 'ALL CHECKS PASS' but tests fail."
-        """
-        assert _check_passed(report) is False
-
-    def test_multiple_signals_one_valid(self) -> None:
-        """If one signal is quoted but another is authoritative, should pass."""
-        report = """Worker claimed 'ALL CHECKS PASS' earlier.
-
-Fixed all issues. ALL CHECKS PASS."""
-        assert _check_passed(report) is True
-
-    def test_signal_after_colon_mid_sentence_rejected(self) -> None:
-        """Signal after colon mid-sentence without punctuation before should fail."""
-        report = "Verification complete: ALL CHECKS PASS"
-        # "Verification complete:" - colon is recognized as authoritative boundary per regex
-        # Wait, the regex is (?::|\b) at the END of signal, not before.
-        # The boundary check is ^|(?<=\.)|(?<=!)|(?<=\?)|(?<=\u3002)
-        # So "complete:" doesn't count. The signal must be after . ! ? or at line start.
-        # This should FAIL because "complete:" is not a sentence boundary.
-        # But existing test_signal_with_colon_accepted shows ":" AFTER signal works.
-        # Let me check the regex again: the pattern ends with (?::|\b)
-        # That's checking what comes AFTER the signal, not before.
-        # The before-check is (?:^|(?<=\.)|...) which doesn't include colon.
-        # So this should fail.
-        result = _check_passed(report)
-        assert result is False
-
-    def test_signal_in_middle_of_compound_sentence(self) -> None:
-        """Signal in middle of sentence without punctuation should fail."""
-        report = "Tests ALL CHECKS PASS here but bugs remain"
-        assert _check_passed(report) is False
-
-    def test_multiple_fence_types(self) -> None:
-        """Mix of ``` and ` should both be handled."""
-        report = """
-        Inline: `ALL CHECKS PASS` is what they said.
-        Fenced:
-        ```
-        MINOR ISSUES FIXED
-        ```
-        No real signal.
-        """
-        assert _check_passed(report) is False
-
-    def test_signal_with_unicode_sentence_ender(self) -> None:
-        """Unicode sentence ender (。) should trigger acceptance."""
-        report = "テスト完了。ALL CHECKS PASS"
-        assert _check_passed(report) is True
-
-    def test_not_prefix_case_variations(self) -> None:
-        """Various casings of NOT should all be rejected."""
-        for variant in [
-            "NOT ALL CHECKS PASS",
-            "not all checks pass",
-            "Not All Checks Pass",
-            "NOT MINOR ISSUES FIXED",
-        ]:
-            report = f"{variant} - issues found"
-            assert _check_passed(report) is False, f"Should reject: {variant}"
-
-    def test_signal_in_url_or_path(self) -> None:
-        """Signal embedded in URL or file path should not pass."""
-        report = "See https://example.com/ALL_CHECKS_PASS for details"
-        assert _check_passed(report) is False
-
-    def test_empty_report(self) -> None:
-        """Empty report should not pass."""
-        assert _check_passed("") is False
-
-    def test_whitespace_only_report(self) -> None:
-        """Whitespace-only report should not pass."""
-        assert _check_passed("   \n\n   ") is False
-
-    def test_signal_split_across_lines(self) -> None:
-        """Signal phrase split across lines should not match."""
-        report = """ALL CHECKS
-PASS"""
-        assert _check_passed(report) is False
-
-    def test_triple_markdown_formatting(self) -> None:
-        """Triple bold/italic should work per _MD_FMT pattern."""
-        report = "***ALL CHECKS PASS***"
-        assert _check_passed(report) is True
-
-    def test_signal_after_multiple_punctuation(self) -> None:
-        """Signal after multiple punctuation marks should work."""
-        report = "Done!!! ALL CHECKS PASS."
-        assert _check_passed(report) is True
+# TestCheckPassedStress — consolidated into
+# tests/orchestrators/test_verify_done.py::TestCheckPassed
 
 
 class TestLegacyDoneNudgeLoops:

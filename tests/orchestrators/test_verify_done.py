@@ -15,6 +15,7 @@ from kodo.orchestrators.base import (
 from kodo.orchestrators.verification import (
     VerificationState,
     _build_verification_prompt,
+    _check_passed,
     handle_done,
     verify_done,
 )
@@ -758,108 +759,60 @@ class TestEffortLevel:
 
 
 # --- _check_passed edge cases ---
+#
+# Consolidated from TestCheckPassedEdgeCases (test_verify_done.py),
+# TestCheckPassedQuoting (test_regression.py), and
+# TestCheckPassedStress (test_legacy_done_stress.py).
+
+# fmt: off
+_CHECK_PASSED_CASES = [
+    # (id, report, expected)
+    # --- direct signal ---
+    ("direct_pass",            "ALL CHECKS PASS",                                          True),
+    ("direct_fail",            "Tests are failing, 3 errors found",                         False),
+    # --- NOT prefix ---
+    ("not_all_checks",         "NOT ALL CHECKS PASS — 2 failures",                         False),
+    ("not_minor_issues",       "NOT MINOR ISSUES FIXED — review needed",                   False),
+    # --- quoted signal (reject) ---
+    ("single_quoted",          "Worker said 'ALL CHECKS PASS' but I found bugs.",           False),
+    ("double_quoted",          'Agent output "ALL CHECKS PASS" but 3 tests are broken.',    False),
+    ("inline_code",            "The output contained `ALL CHECKS PASS` but tests fail.",    False),
+    ("fenced_code",            "Output:\n```\nALL CHECKS PASS\n```\nBut tests fail.",       False),
+    # --- sentence boundary (accept) ---
+    ("after_period",           "Tests completed. ALL CHECKS PASS.",                         True),
+    ("after_exclamation",      "Great! ALL CHECKS PASS!",                                   True),
+    ("after_question",         "Ready? ALL CHECKS PASS.",                                   True),
+    ("start_of_line",          "Tests ran successfully.\n\nALL CHECKS PASS",                True),
+    # --- mid-sentence (reject) ---
+    ("mid_sentence",           "Tests ALL CHECKS PASS here but bugs remain",                False),
+    # --- MINOR ISSUES FIXED ---
+    ("minor_issues_accepted",  "Fixed formatting issues. MINOR ISSUES FIXED.",              True),
+    # --- markdown formatting ---
+    ("markdown_bold",          "**ALL CHECKS PASS**",                                       True),
+    # --- unicode sentence ender ---
+    ("unicode_period",         "テスト完了。ALL CHECKS PASS",                                True),
+    # --- empty / whitespace ---
+    ("empty_report",           "",                                                          False),
+    # --- signal split across lines ---
+    ("split_across_lines",     "ALL CHECKS\nPASS",                                          False),
+]
+# fmt: on
 
 
-class TestCheckPassedEdgeCases:
-    """Test the _check_passed regex logic with tricky inputs."""
+class TestCheckPassed:
+    """Verify _check_passed regex against representative edge cases.
 
-    def test_signal_in_fenced_code_rejected(self) -> None:
-        """Signal inside fenced code blocks should be ignored."""
-        from kodo.orchestrators.verification import _check_passed
+    Each case covers a distinct category: direct signal, quoting, sentence
+    boundaries, markdown, unicode, empty input, and split-line rejection.
+    """
 
-        report = """
-        Tests are failing. Here's the expected output:
-        ```
-        ALL CHECKS PASS
-        ```
-        But actual output shows errors.
-        """
-        assert _check_passed(report) is False
-
-    def test_signal_in_inline_code_rejected(self) -> None:
-        """Signal inside inline code ticks should be ignored."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "The agent claimed `ALL CHECKS PASS` but tests fail."
-        assert _check_passed(report) is False
-
-    def test_signal_in_single_quotes_rejected(self) -> None:
-        """Signal inside single quotes should be rejected."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Worker said 'ALL CHECKS PASS' but I found bugs."
-        assert _check_passed(report) is False
-
-    def test_signal_in_double_quotes_rejected(self) -> None:
-        """Signal inside double quotes should be rejected."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = 'The message was "ALL CHECKS PASS" however tests fail.'
-        assert _check_passed(report) is False
-
-    def test_signal_mid_sentence_after_attribution_rejected(self) -> None:
-        """Signal mid-sentence after 'said', 'cannot', etc should be rejected."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "The worker cannot ALL CHECKS PASS in this case."
-        # This should be rejected because it's mid-sentence, not authoritative
-        assert _check_passed(report) is False
-
-    def test_signal_at_start_of_line_accepted(self) -> None:
-        """Signal at start of line is accepted."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Tests ran successfully.\n\nALL CHECKS PASS"
-        assert _check_passed(report) is True
-
-    def test_signal_after_period_accepted(self) -> None:
-        """Signal after sentence-ending period is accepted."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Tests completed. ALL CHECKS PASS."
-        assert _check_passed(report) is True
-
-    def test_signal_after_exclamation_accepted(self) -> None:
-        """Signal after exclamation is accepted."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Great! ALL CHECKS PASS!"
-        assert _check_passed(report) is True
-
-    def test_signal_after_question_accepted(self) -> None:
-        """Signal after question mark is accepted."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Ready? ALL CHECKS PASS."
-        assert _check_passed(report) is True
-
-    def test_minor_issues_fixed_signal_accepted(self) -> None:
-        """MINOR ISSUES FIXED is also an acceptance signal."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "Fixed formatting issues. MINOR ISSUES FIXED."
-        assert _check_passed(report) is True
-
-    def test_not_minor_issues_fixed_rejected(self) -> None:
-        """NOT MINOR ISSUES FIXED should be rejected."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "NOT MINOR ISSUES FIXED - major bugs remain."
-        assert _check_passed(report) is False
-
-    def test_signal_with_markdown_formatting_accepted(self) -> None:
-        """Signal with markdown bold/italic should work."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "**ALL CHECKS PASS**"
-        assert _check_passed(report) is True
-
-    def test_signal_with_colon_accepted(self) -> None:
-        """Signal followed by colon should be accepted."""
-        from kodo.orchestrators.verification import _check_passed
-
-        report = "ALL CHECKS PASS: tests ran successfully"
-        assert _check_passed(report) is True
+    @pytest.mark.parametrize(
+        "report, expected",
+        [(report, expected) for _, report, expected in _CHECK_PASSED_CASES],
+        ids=[id_ for id_, _, _ in _CHECK_PASSED_CASES],
+    )
+    def test_check_passed(self, report: str, expected: bool) -> None:
+        assert _check_passed(report) is expected
 
 
 # --- _run_quick_checks tests ---

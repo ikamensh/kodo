@@ -300,111 +300,45 @@ class TestResumeEmptyString:
 class TestExchangesUpperBound:
     """--exchanges must not exceed 1000."""
 
-    def test_exchanges_1001_fails(self, tmp_path):
+    @pytest.mark.parametrize(
+        "value",
+        ["-5", "0", "1001"],
+        ids=["negative", "zero", "over-limit"],
+    )
+    def test_invalid_values_fail(self, tmp_path, value):
         code = _run_and_capture_exit(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--exchanges",
-                "1001",
-                "--project",
-                str(tmp_path),
-            ]
+            ["kodo", "--goal", "test", "--exchanges", value, "--project", str(tmp_path)]
         )
         assert code != 0
 
-    def test_exchanges_1000_passes_validation(self, tmp_path):
+    def test_boundary_1000_passes(self, tmp_path):
         """--exchanges 1000 should be accepted (boundary)."""
         msgs = _get_fail_messages(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--yes",
-                "--exchanges",
-                "1000",
-                "--project",
-                str(tmp_path),
-            ]
+            ["kodo", "--goal", "test", "--yes", "--exchanges", "1000", "--project", str(tmp_path)]
         )
         assert not any("exceed" in m for m in msgs)
-
-    def test_exchanges_zero_fails(self, tmp_path):
-        code = _run_and_capture_exit(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--exchanges",
-                "0",
-                "--project",
-                str(tmp_path),
-            ]
-        )
-        assert code != 0
-
-    def test_exchanges_negative_fails(self, tmp_path):
-        code = _run_and_capture_exit(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--exchanges",
-                "-5",
-                "--project",
-                str(tmp_path),
-            ]
-        )
-        assert code != 0
 
 
 class TestCyclesUpperBound:
     """--cycles must not exceed 100."""
 
-    def test_cycles_101_fails(self, tmp_path):
+    @pytest.mark.parametrize(
+        "value",
+        ["0", "101"],
+        ids=["zero", "over-limit"],
+    )
+    def test_invalid_values_fail(self, tmp_path, value):
         code = _run_and_capture_exit(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--cycles",
-                "101",
-                "--project",
-                str(tmp_path),
-            ]
+            ["kodo", "--goal", "test", "--cycles", value, "--project", str(tmp_path)]
         )
         assert code != 0
 
-    def test_cycles_100_passes_validation(self, tmp_path):
+    def test_boundary_100_passes(self, tmp_path):
         """--cycles 100 should be accepted (boundary)."""
         msgs = _get_fail_messages(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--yes",
-                "--cycles",
-                "100",
-                "--project",
-                str(tmp_path),
-            ]
+            ["kodo", "--goal", "test", "--yes", "--cycles", "100", "--project", str(tmp_path)]
         )
         assert not any("exceed" in m for m in msgs)
-
-    def test_cycles_zero_fails(self, tmp_path):
-        code = _run_and_capture_exit(
-            [
-                "kodo",
-                "--goal",
-                "test",
-                "--cycles",
-                "0",
-                "--project",
-                str(tmp_path),
-            ]
-        )
-        assert code != 0
 
 
 # ---------------------------------------------------------------------------
@@ -531,8 +465,16 @@ class TestOrchestratorFlag:
 class TestFailPrefixBehavior:
     """Verify _fail() prefix parameter and _cancel() convenience helper."""
 
-    def test_default_prefix_is_error(self):
-        """_fail('msg') should print 'Error: msg' to stderr."""
+    @pytest.mark.parametrize(
+        "msg, prefix, expected_output",
+        [
+            pytest.param("something broke", None, "Error: something broke\n", id="default-prefix"),
+            pytest.param("careful", "Warning: ", "Warning: careful\n", id="custom-prefix"),
+            pytest.param("Cancelled.", "", "Cancelled.\n", id="empty-prefix"),
+        ],
+    )
+    def test_fail_prefix_variants(self, msg, prefix, expected_output):
+        """_fail() applies the given prefix (default 'Error: ') to stderr output."""
         import io
 
         import kodo.cli._launch as _launch_mod
@@ -540,17 +482,25 @@ class TestFailPrefixBehavior:
         _launch_mod._original_stdout = None
 
         captured = io.StringIO()
+        kwargs = {"prefix": prefix} if prefix is not None else {}
         with (
             patch("sys.stderr", captured),
             pytest.raises(SystemExit) as exc_info,
         ):
-            _launch_mod._fail("something broke")
+            _launch_mod._fail(msg, **kwargs)
 
         assert exc_info.value.code == 1
-        assert captured.getvalue() == "Error: something broke\n"
+        assert captured.getvalue() == expected_output
 
-    def test_custom_prefix(self):
-        """_fail('msg', prefix='Warning: ') should use the custom prefix."""
+    @pytest.mark.parametrize(
+        "msg, expected_output",
+        [
+            pytest.param(None, "Cancelled.\n", id="default-cancel"),
+            pytest.param("Aborted.", "Aborted.\n", id="custom-cancel"),
+        ],
+    )
+    def test_cancel_helper(self, msg, expected_output):
+        """_cancel() prints to stderr without 'Error: ' prefix."""
         import io
 
         import kodo.cli._launch as _launch_mod
@@ -558,66 +508,15 @@ class TestFailPrefixBehavior:
         _launch_mod._original_stdout = None
 
         captured = io.StringIO()
+        kwargs = {"msg": msg} if msg is not None else {}
         with (
             patch("sys.stderr", captured),
             pytest.raises(SystemExit) as exc_info,
         ):
-            _launch_mod._fail("careful", prefix="Warning: ")
+            _launch_mod._cancel(**kwargs)
 
         assert exc_info.value.code == 1
-        assert captured.getvalue() == "Warning: careful\n"
-
-    def test_empty_prefix(self):
-        """_fail('Cancelled.', prefix='') should print without 'Error: ' prefix."""
-        import io
-
-        import kodo.cli._launch as _launch_mod
-
-        _launch_mod._original_stdout = None
-
-        captured = io.StringIO()
-        with (
-            patch("sys.stderr", captured),
-            pytest.raises(SystemExit),
-        ):
-            _launch_mod._fail("Cancelled.", prefix="")
-
-        assert captured.getvalue() == "Cancelled.\n"
-
-    def test_cancel_helper_prints_cancelled(self):
-        """_cancel() should print 'Cancelled.' to stderr without 'Error: ' prefix."""
-        import io
-
-        import kodo.cli._launch as _launch_mod
-
-        _launch_mod._original_stdout = None
-
-        captured = io.StringIO()
-        with (
-            patch("sys.stderr", captured),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            _launch_mod._cancel()
-
-        assert exc_info.value.code == 1
-        assert captured.getvalue() == "Cancelled.\n"
-
-    def test_cancel_custom_message(self):
-        """_cancel('Aborted.') should print 'Aborted.' to stderr."""
-        import io
-
-        import kodo.cli._launch as _launch_mod
-
-        _launch_mod._original_stdout = None
-
-        captured = io.StringIO()
-        with (
-            patch("sys.stderr", captured),
-            pytest.raises(SystemExit),
-        ):
-            _launch_mod._cancel("Aborted.")
-
-        assert captured.getvalue() == "Aborted.\n"
+        assert captured.getvalue() == expected_output
 
     def test_fail_json_mode_ignores_prefix(self):
         """In JSON mode, _fail() should output JSON regardless of prefix."""

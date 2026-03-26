@@ -459,6 +459,9 @@ class TestCmdIssue:
 _NO_BACKENDS = {"claude": False, "codex": False, "cursor": False, "gemini-cli": False}
 
 
+_CLAUDE_AVAILABLE = {"claude": True, "codex": False, "cursor": False, "gemini-cli": False}
+
+
 class TestCmdBackends:
     """_cmd_backends() imports from kodo.factory inside the function body,
     so we must patch at the kodo.factory module level."""
@@ -478,186 +481,83 @@ class TestCmdBackends:
         ):
             yield
 
-    def test_shows_section_headers(self, capsys):
+    def test_basic_output_structure(self, capsys):
+        """Section headers shown; missing backends flagged as 'not found'."""
         with patch("sys.argv", ["kodo", "backends"]):
             _cmd_backends()
-
         out = capsys.readouterr().out
         assert "CLI backends (agents):" in out
         assert "API keys:" in out
-
-    def test_missing_backend_shows_not_found(self, capsys):
-        with patch("sys.argv", ["kodo", "backends"]):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
         assert "not found" in out
 
-    def test_api_key_not_set_shown(self, capsys):
+    def test_api_key_display(self, capsys):
+        """Keys shown masked when set, 'not set' when missing."""
+        # With key set
+        with (
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch.dict(
+                "os.environ",
+                {"ANTHROPIC_API_KEY": "sk-ant-1234567890abcdef", "GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""},
+            ),
+            patch("sys.argv", ["kodo", "backends"]),
+        ):
+            _cmd_backends()
+        out = capsys.readouterr().out
+        assert "sk-a" in out
+        assert "cdef" in out
+        assert "sk-ant-1234567890abcdef" not in out
+
+        # Without keys
         with (
             patch.dict("os.environ", {}, clear=True),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
-
         out = capsys.readouterr().out
         assert "not set" in out
 
-    def test_api_key_masked_when_set(self, capsys):
-        with (
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch.dict(
-                "os.environ",
-                {
-                    "ANTHROPIC_API_KEY": "sk-ant-1234567890abcdef",
-                    "GEMINI_API_KEY": "",
-                    "GOOGLE_API_KEY": "",
-                },
+    @pytest.mark.parametrize(
+        "status_return, expected_in_output",
+        [
+            pytest.param(
+                ("Claude Code CLI 2.5.0", None),
+                ["Claude Code CLI 2.5.0"],
+                id="healthy-version",
             ),
+            pytest.param(
+                ("error (exit 127)", "claude: Binary not working — reinstall or check PATH."),
+                ["error (exit 127)", "Binary not working"],
+                id="version-error",
+            ),
+            pytest.param(
+                ("timeout", "Version check timed out (15 s)"),
+                ["timeout", "timed out"],
+                id="version-timeout",
+            ),
+            pytest.param(
+                ("1.0.0", "Authentication issue — check your API key or login status"),
+                ["Authentication issue", "\033[33m"],
+                id="auth-warning-yellow",
+            ),
+            pytest.param(
+                ("1.0.0", None),
+                ["\033[32m", "1.0.0"],
+                id="healthy-green",
+            ),
+        ],
+    )
+    def test_backend_status_display(self, capsys, status_return, expected_in_output):
+        """Backend status scenarios: version, error, timeout, auth warning, healthy."""
+        with (
+            patch("kodo.factory.available_backends", return_value=_CLAUDE_AVAILABLE),
+            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
+            patch("kodo.factory.check_backend_status", autospec=True, return_value=status_return),
             patch("sys.argv", ["kodo", "backends"]),
         ):
             _cmd_backends()
-
         out = capsys.readouterr().out
-        # Key should be masked, not shown in full
-        assert "sk-a" in out
-        assert "cdef" in out
-        assert "sk-ant-1234567890abcdef" not in out
-
-    def test_available_backend_shows_version(self, capsys):
-        """When backend is available and healthy, show version string."""
-        with (
-            patch(
-                "kodo.factory.available_backends",
-                return_value={
-                    "claude": True,
-                    "codex": False,
-                    "cursor": False,
-                    "gemini-cli": False,
-                },
-            ),
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch(
-                "kodo.factory.check_backend_status",
-                autospec=True,
-                return_value=("Claude Code CLI 2.5.0", None),
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "Claude Code CLI 2.5.0" in out
-
-    def test_version_command_fails_shows_error(self, capsys):
-        """When version command returns non-zero exit code, show error and warning."""
-        with (
-            patch(
-                "kodo.factory.available_backends",
-                return_value={
-                    "claude": True,
-                    "codex": False,
-                    "cursor": False,
-                    "gemini-cli": False,
-                },
-            ),
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch(
-                "kodo.factory.check_backend_status",
-                autospec=True,
-                return_value=(
-                    "error (exit 127)",
-                    "claude: Binary not working — reinstall or check PATH.",
-                ),
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "error (exit 127)" in out
-        assert "Binary not working" in out
-
-    def test_version_command_timeout(self, capsys):
-        """When version command times out, show timeout warning."""
-        with (
-            patch(
-                "kodo.factory.available_backends",
-                return_value={
-                    "claude": True,
-                    "codex": False,
-                    "cursor": False,
-                    "gemini-cli": False,
-                },
-            ),
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch(
-                "kodo.factory.check_backend_status",
-                autospec=True,
-                return_value=("timeout", "Version check timed out (15 s)"),
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "timeout" in out
-        assert "timed out" in out
-
-    def test_auth_warning_shown_yellow(self, capsys):
-        """When backend has auth issues, show warning detail on next line."""
-        with (
-            patch(
-                "kodo.factory.available_backends",
-                return_value={
-                    "claude": True,
-                    "codex": False,
-                    "cursor": False,
-                    "gemini-cli": False,
-                },
-            ),
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch(
-                "kodo.factory.check_backend_status",
-                autospec=True,
-                return_value=(
-                    "1.0.0",
-                    "Authentication issue — check your API key or login status",
-                ),
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "Authentication issue" in out
-        assert "\033[33m" in out  # YELLOW escape code
-
-    def test_healthy_backend_green(self, capsys):
-        """Healthy backend name is displayed in green."""
-        with (
-            patch(
-                "kodo.factory.available_backends",
-                return_value={
-                    "claude": True,
-                    "codex": False,
-                    "cursor": False,
-                    "gemini-cli": False,
-                },
-            ),
-            patch("kodo.factory.check_api_key", return_value=None),  # noqa: autospec
-            patch(
-                "kodo.factory.check_backend_status",
-                autospec=True,
-                return_value=("1.0.0", None),
-            ),
-            patch("sys.argv", ["kodo", "backends"]),
-        ):
-            _cmd_backends()
-
-        out = capsys.readouterr().out
-        assert "\033[32m" in out  # GREEN escape code
-        assert "1.0.0" in out
+        for expected in expected_in_output:
+            assert expected in out
 
     def test_gemini_key_shown_when_set(self, capsys):
         """When GEMINI_API_KEY is set, output should show masked Gemini key."""
