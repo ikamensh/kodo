@@ -163,12 +163,12 @@ class TestAdvisoryPlumbingInCycle:
         scripted = (
             ScriptedInput(queue)
             .after(0.05, "first")
-            .after(0.10, "second")
-            .after(0.15, "third", priority="correction")
+            .after(0.25, "second")
+            .after(0.45, "third", priority="correction")
         )
         scripted.start()
         try:
-            time.sleep(0.3)
+            time.sleep(0.8)
             drained = queue.drain()
             assert len(drained) == 3
             assert [d.message for d in drained] == ["first", "second", "third"]
