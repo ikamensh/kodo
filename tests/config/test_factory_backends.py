@@ -25,7 +25,7 @@ from kodo.factory import (
 
 
 @contextmanager
-def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False):
+def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False, kiro=False, opencode=False):
     """Patch all has_* helpers at once."""
     with ExitStack() as stack:
         stack.enter_context(
@@ -42,6 +42,12 @@ def _backends(claude=False, cursor=False, codex=False, gemini=False, kimi=False)
         )
         stack.enter_context(
             patch("kodo.factory.has_kimi", autospec=True, return_value=kimi)
+        )
+        stack.enter_context(
+            patch("kodo.factory.has_kiro", autospec=True, return_value=kiro)
+        )
+        stack.enter_context(
+            patch("kodo.factory.has_opencode", autospec=True, return_value=opencode)
         )
         stack.enter_context(patch("kodo.factory.make_session", autospec=True))
         yield

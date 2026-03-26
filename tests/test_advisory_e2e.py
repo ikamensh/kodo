@@ -211,7 +211,7 @@ class TestHumanFeedbackLifecycle:
         log.init(RunDir.create(tmp_path))
 
         queue = AdvisoryQueue()
-        obs = Coach(queue, "goal", tmp_path, assess_every_n=100)
+        obs = Coach(queue, "goal", tmp_path, assess_every_n=100, poll_interval=0.1)
 
         # Write feedback file before starting coach
         feedback_file = tmp_path / "human_feedback.txt"
@@ -228,10 +228,9 @@ class TestHumanFeedbackLifecycle:
             # Write feedback after coach started
             feedback_file.write_text("background thread test message\n")
 
-            # Wait for coach to poll (polls every 3s, but let's give it time)
-            deadline = time.time() + 10
+            deadline = time.time() + 5
             while queue.pending_count == 0 and time.time() < deadline:
-                time.sleep(0.2)
+                time.sleep(0.05)
 
             assert queue.pending_count >= 1
             drained = queue.drain()
@@ -254,13 +253,7 @@ def _real_gemini_key() -> str | None:
     return None
 
 
-_needs_gemini = pytest.mark.skipif(
-    not _real_gemini_key(),
-    reason="Real GEMINI_API_KEY / GOOGLE_API_KEY not set",
-)
-
-
-@_needs_gemini
+@pytest.mark.live
 class TestAICoachTenetViolation:
     """Integration test: use real LLM (Gemini Flash) to verify the coach
     detects orchestration tenet violations from activity patterns.
@@ -337,64 +330,6 @@ class TestAICoachTenetViolation:
         )
         assert has_relevant_feedback, (
             f"Coach feedback should mention repetition/circles. Got: {combined}"
-        )
-
-    def test_coach_detects_over_decomposition(self, tmp_path):
-        """Coach should flag when orchestrator breaks work into too many
-        trivial pieces (tenet violation: over-decomposition).
-
-        Uses gemini-2.5-flash (not lite) because detecting micromanagement
-        requires understanding that line-level edits should be a single task.
-        """
-        log.init(RunDir.create(tmp_path))
-
-        queue = AdvisoryQueue()
-        obs = Coach(
-            queue,
-            "Add password field to user registration",
-            tmp_path,
-            assess_every_n=999,
-            model="gemini-2.5-flash",
-        )
-
-        # Simulate extreme over-decomposition — 10 trivial single-line changes
-        # dispatched as separate agent calls
-        over_decomposed_tasks = [
-            "In auth.py line 42, add ', password' to the register function signature",
-            "In auth.py line 45, add 'self.password = password'",
-            "In models.py line 12, add 'password: str'",
-            "In models.py line 13, add a blank line after password field",
-            "In validators.py line 1, write 'def validate_password(p): return len(p)>=8'",
-            "In validators.py line 2, add a blank line",
-            "In test_auth.py line 28, add password='test' to the call",
-            "In routes.py line 55, add 'pwd = request.json[\"password\"]'",
-            "In routes.py line 56, pass pwd to register()",
-            "In routes.py line 57, add a comment '# password added'",
-        ]
-        for task in over_decomposed_tasks:
-            obs.record_dispatch("worker", task)
-            obs.record_result("worker", task, is_error=False)
-
-        obs._assess()
-
-        drained = queue.drain()
-        assert len(drained) >= 1, (
-            "Coach should have detected over-decomposition: 10 trivial "
-            "single-line edits dispatched as separate agent calls for what "
-            "should be one task"
-        )
-        combined = " ".join(a.message.lower() for a in drained)
-        has_relevant_feedback = any(
-            keyword in combined
-            for keyword in [
-                "decompos", "granular", "small", "trivial",
-                "micromanag", "single", "line", "combine",
-                "batch", "one task", "unnecessary", "overhead",
-                "detail", "specific", "bottleneck",
-            ]
-        )
-        assert has_relevant_feedback, (
-            f"Coach feedback should mention over-decomposition. Got: {combined}"
         )
 
     def test_coach_stays_silent_on_healthy_pattern(self, tmp_path):

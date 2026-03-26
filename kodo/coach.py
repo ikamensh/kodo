@@ -107,11 +107,13 @@ class Coach:
         model: str | None = None,
         tenets: str | None = None,
         mode: str | None = None,
+        poll_interval: float = 3.0,
     ) -> None:
         self._queue = queue
         self._goal = goal
         self._project_dir = project_dir
         self._assess_every_n = assess_every_n
+        self._poll_interval = poll_interval
         self._model = model
         # Priority: explicit tenets file > mode-specific defaults > generic defaults
         self._tenets = tenets or _MODE_TENETS.get(mode or "", _DEFAULT_TENETS)
@@ -193,7 +195,7 @@ class Coach:
 
     def _run_loop(self) -> None:
         """Main loop: poll for human feedback."""
-        while not self._stop.wait(timeout=3.0):
+        while not self._stop.wait(timeout=self._poll_interval):
             try:
                 self._poll_human_feedback()
             except Exception as exc:
@@ -323,8 +325,8 @@ class Coach:
         if report:
             parts.append(report[:1500])
 
-        # Add pattern summary every 5 dispatches for context
-        if n % 5 == 0 or n == 1:
+        # Add pattern summary on first assessment or every 5 dispatches
+        if not self._message_history or n % 5 == 0 or n == 1:
             task_counts: dict[str, int] = {}
             for d in self._dispatches:
                 key = d["task"][:80]

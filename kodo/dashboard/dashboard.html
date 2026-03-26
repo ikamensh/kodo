@@ -13,77 +13,77 @@
   <span class="logo">kodo</span>
   <select id="run-selector"><option value="">Select a run...</option></select>
   <span class="spacer"></span>
-  <!-- Playback controls (completed runs) -->
   <div class="pb hidden" id="pb">
     <button id="pb-play" title="Play">&#9654;</button>
     <button id="pb-pause" title="Pause">&#10074;&#10074;</button>
     <input type="range" id="pb-scrub" min="0" max="1000" value="1000">
     <span class="time-label" id="pb-time">-</span>
     <select id="pb-speed">
-      <option value="1">1x</option>
-      <option value="2">2x</option>
-      <option value="5" selected>5x</option>
-      <option value="10">10x</option>
-      <option value="50">50x</option>
-      <option value="0">max</option>
+      <option value="1">1x</option><option value="2">2x</option>
+      <option value="5" selected>5x</option><option value="10">10x</option>
+      <option value="50">50x</option><option value="0">max</option>
     </select>
     <button id="pb-end">End</button>
   </div>
-  <!-- Live indicator -->
   <span class="live-dot" id="live-dot" style="display:none"></span>
   <span class="live-label" id="live-label" style="display:none">LIVE</span>
   <button id="theme-toggle">light</button>
 </div>
 
 <!-- ── Workspace ── -->
-<div class="workspace" id="workspace">
-  <!-- Sidebar -->
-  <div class="sidebar" id="sidebar">
-    <!-- Overview: 2x2 grid (dashboard) -->
-    <div class="nav-item active" data-view="overview">
-      <svg viewBox="0 0 22 22"><rect x="2" y="2" width="8" height="8" rx="1.5"/><rect x="12" y="2" width="8" height="8" rx="1.5"/><rect x="2" y="12" width="8" height="8" rx="1.5"/><rect x="12" y="12" width="8" height="8" rx="1.5"/></svg>
-      <span class="tip">Overview</span>
+<div class="workspace">
+  <div class="sidebar">
+    <!-- Actors: two people -->
+    <div class="nav-item active" data-view="actors">
+      <svg viewBox="0 0 22 22"><circle cx="8" cy="6" r="3"/><path d="M2 19v-1c0-3 2.5-5 6-5s6 2 6 5v1"/><circle cx="16" cy="7" r="2.5"/><path d="M19 19v-1c0-1.8-1-3.2-3-4"/></svg>
+      <span class="tip">Actors</span>
     </div>
-    <!-- Stages: boxes with arrows -->
+    <!-- Stages -->
     <div class="nav-item" data-view="stages">
       <svg viewBox="0 0 22 22"><rect x="4" y="2" width="14" height="6" rx="2"/><rect x="4" y="14" width="14" height="6" rx="2"/><line x1="11" y1="8" x2="11" y2="14"/><polyline points="9,12 11,14.5 13,12"/></svg>
       <span class="tip">Stages</span>
     </div>
-    <!-- Timeline: vertical line with event dots -->
+    <!-- Timeline -->
     <div class="nav-item" data-view="timeline">
       <svg viewBox="0 0 22 22"><line x1="7" y1="3" x2="7" y2="19"/><circle cx="7" cy="5" r="2"/><circle cx="7" cy="11" r="2"/><circle cx="7" cy="17" r="2"/><line x1="11" y1="5" x2="19" y2="5"/><line x1="11" y1="11" x2="17" y2="11"/><line x1="11" y1="17" x2="19" y2="17"/></svg>
       <span class="tip">Timeline</span>
     </div>
-    <!-- Config: file/document -->
-    <div class="nav-item" data-view="config">
+    <!-- Coach -->
+    <div class="nav-item" data-view="coach">
+      <svg viewBox="0 0 22 22"><path d="M4 4h14a1 1 0 011 1v9a1 1 0 01-1 1H8l-4 3.5V5a1 1 0 011-1z"/><line x1="8" y1="8" x2="14" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>
+      <span class="tip">Coach</span>
+    </div>
+    <!-- Files -->
+    <div class="nav-item" data-view="files">
       <svg viewBox="0 0 22 22"><path d="M6 2h7l5 5v13a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 015 20V3.5A1.5 1.5 0 016.5 2z" fill="none"/><polyline points="13,2 13,7 18,7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="14" x2="14" y2="14"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
-      <span class="tip">Config</span>
+      <span class="tip">Files</span>
     </div>
   </div>
-  <!-- Main -->
+
   <div class="main" id="main">
     <div class="empty-state" id="empty-state">
       <h2>kodo dashboard</h2>
       <p>Select a run from the dropdown above</p>
     </div>
 
-    <!-- Overview view -->
-    <div class="view" id="view-overview">
-      <div class="view-title"><svg viewBox="0 0 22 22"><rect x="2" y="2" width="8" height="8" rx="1.5"/><rect x="12" y="2" width="8" height="8" rx="1.5"/><rect x="2" y="12" width="8" height="8" rx="1.5"/><rect x="12" y="12" width="8" height="8" rx="1.5"/></svg>Overview</div>
-      <div class="overview-stats" id="ov-stats"></div>
-      <div class="ov-goal" id="ov-goal"></div>
+    <!-- Actors view -->
+    <div class="view" id="view-actors">
+      <div class="view-title"><svg viewBox="0 0 22 22"><circle cx="8" cy="6" r="3"/><path d="M2 19v-1c0-3 2.5-5 6-5s6 2 6 5v1"/><circle cx="16" cy="7" r="2.5"/><path d="M19 19v-1c0-1.8-1-3.2-3-4"/></svg>Actors</div>
+      <div class="run-summary" id="run-summary"></div>
+      <div class="goal-bar" id="goal-bar"></div>
       <div class="progress-bar"><div class="fill" id="progress-fill"></div></div>
-      <div class="agents-grid" id="agents-grid"></div>
+      <div class="split-layout">
+        <div class="split-list" id="actor-list"></div>
+        <div class="split-detail" id="actor-detail"><div class="empty">Select an actor</div></div>
+      </div>
     </div>
 
     <!-- Stages view -->
     <div class="view" id="view-stages">
-      <div class="view-title"><svg viewBox="0 0 22 22"><rect x="1" y="7" width="6" height="8" rx="1.5"/><rect x="15" y="7" width="6" height="8" rx="1.5"/><line x1="7" y1="11" x2="15" y2="11"/><polyline points="13,9 15,11 13,13"/><rect x="8" y="2" width="6" height="5" rx="1" stroke-dasharray="2 1.5"/><rect x="8" y="15" width="6" height="5" rx="1" stroke-dasharray="2 1.5"/></svg>Stages</div>
-      <div class="stages-layout">
-        <div class="stages-list" id="stages-list"></div>
-        <div class="stage-detail" id="stage-detail">
-          <div class="sd-empty">Select a stage from the list</div>
-        </div>
+      <div class="view-title"><svg viewBox="0 0 22 22"><rect x="4" y="2" width="14" height="6" rx="2"/><rect x="4" y="14" width="14" height="6" rx="2"/><line x1="11" y1="8" x2="11" y2="14"/><polyline points="9,12 11,14.5 13,12"/></svg>Stages</div>
+      <div class="split-layout">
+        <div class="split-list" id="stages-list"></div>
+        <div class="split-detail" id="stage-detail"><div class="empty">Select a stage</div></div>
       </div>
     </div>
 
@@ -92,29 +92,33 @@
       <div class="view-title"><svg viewBox="0 0 22 22"><line x1="7" y1="3" x2="7" y2="19"/><circle cx="7" cy="5" r="2"/><circle cx="7" cy="11" r="2"/><circle cx="7" cy="17" r="2"/><line x1="11" y1="5" x2="19" y2="5"/><line x1="11" y1="11" x2="17" y2="11"/><line x1="11" y1="17" x2="19" y2="17"/></svg>Timeline</div>
       <div class="tl-controls">
         <select id="event-filter">
-          <option value="all">all</option>
-          <option value="agent">agent</option>
-          <option value="orchestrator">orchestrator</option>
-          <option value="cycle">cycle/stage</option>
-          <option value="coach">coach/advisor</option>
-          <option value="error">errors</option>
+          <option value="all">all</option><option value="agent">agent</option>
+          <option value="orchestrator">orchestrator</option><option value="cycle">cycle/stage</option>
+          <option value="coach">coach/advisor</option><option value="error">errors</option>
         </select>
         <input type="text" id="event-search" placeholder="search events...">
       </div>
       <div class="event-list" id="event-list"></div>
     </div>
 
-    <!-- Config view -->
-    <div class="view" id="view-config">
-      <div class="view-title"><svg viewBox="0 0 22 22"><path d="M6 2h7l5 5v13a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 015 20V3.5A1.5 1.5 0 016.5 2z" fill="none"/><polyline points="13,2 13,7 18,7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="14" x2="14" y2="14"/><line x1="8" y1="17" x2="12" y2="17"/></svg>Config</div>
-      <div class="cfg-tabs" id="cfg-tabs"></div>
-      <div class="cfg-content" id="cfg-content"></div>
+    <!-- Coach view -->
+    <div class="view" id="view-coach">
+      <div class="view-title"><svg viewBox="0 0 22 22"><path d="M4 4h14a1 1 0 011 1v9a1 1 0 01-1 1H8l-4 3.5V5a1 1 0 011-1z"/><line x1="8" y1="8" x2="14" y2="8"/><line x1="8" y1="11" x2="12" y2="11"/></svg>Coach</div>
+      <div class="coach-stats" id="coach-stats"></div>
+      <div class="coach-feed" id="coach-feed"></div>
+    </div>
+
+    <!-- Files view -->
+    <div class="view" id="view-files">
+      <div class="view-title"><svg viewBox="0 0 22 22"><path d="M6 2h7l5 5v13a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 015 20V3.5A1.5 1.5 0 016.5 2z" fill="none"/><polyline points="13,2 13,7 18,7"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="14" x2="14" y2="14"/><line x1="8" y1="17" x2="12" y2="17"/></svg>Files</div>
+      <div class="file-tabs" id="file-tabs"></div>
+      <div class="file-content" id="file-content"></div>
     </div>
   </div>
 </div>
 
 <!-- ── Status bar ── -->
-<div class="status-bar" id="status-bar">
+<div class="status-bar">
   <div class="status-item"><span class="dot" id="sb-dot"></span><span class="agent-name" id="sb-agent">-</span></div>
   <div class="status-item" id="sb-cycle">-</div>
   <div class="status-item" id="sb-stage">-</div>

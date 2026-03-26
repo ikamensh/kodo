@@ -155,20 +155,27 @@ def _load_run_events(run_id: str) -> list[dict]:
     return events
 
 
-def _load_run_config(run_id: str) -> dict[str, str | None]:
-    """Load config files for a run (goal, plan, team, config)."""
+_TEXT_EXTS = frozenset({".md", ".json", ".txt", ".yaml", ".yml", ".toml", ".cfg"})
+
+
+def _load_run_files(run_id: str) -> dict[str, str]:
+    """Auto-discover and load all text files from a run directory."""
     run_dir = _runs_root() / run_id
-    config: dict[str, str | None] = {}
-    for name in ("goal.md", "goal-refined.md", "goal-plan.json", "team.json", "config.json"):
-        path = run_dir / name
-        if path.exists():
-            try:
-                config[name] = path.read_text(encoding="utf-8")
-            except OSError:
-                config[name] = None
-        else:
-            config[name] = None
-    return config
+    if not run_dir.is_dir():
+        return {}
+    files: dict[str, str] = {}
+    for f in sorted(run_dir.iterdir()):
+        if f.is_dir() or f.name == "log.jsonl" or f.name.startswith("."):
+            continue
+        if f.suffix not in _TEXT_EXTS:
+            continue
+        try:
+            if f.stat().st_size > 200_000:
+                continue
+            files[f.name] = f.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    return files
 
 
 def _get_live_stats() -> dict | None:
@@ -262,8 +269,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
             if sub == "":
                 # Run metadata + config
-                config = _load_run_config(run_id)
-                self._send_json({"run_id": run_id, "config": config})
+                files = _load_run_files(run_id)
+                self._send_json({"run_id": run_id, "files": files})
                 return
 
             if sub == "events":
