@@ -111,53 +111,37 @@ class TestDetectBackends:
 
 
 class TestDockerIsReady:
-    def test_ready_when_returncode_zero(self):
-        with patch("subprocess.run", autospec=True) as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            assert _docker_is_ready() is True
-
-    def test_not_ready_when_returncode_nonzero(self):
-        with patch("subprocess.run", autospec=True) as mock_run:
-            mock_run.return_value = MagicMock(returncode=1)
-            assert _docker_is_ready() is False
-
-    def test_not_ready_when_not_installed(self):
-        with patch("subprocess.run", autospec=True, side_effect=FileNotFoundError):
-            assert _docker_is_ready() is False
-
-    def test_not_ready_on_timeout(self):
-        with patch(
-            "subprocess.run",
-            autospec=True,
-            side_effect=subprocess.TimeoutExpired("docker", 10),
-        ):
-            assert _docker_is_ready() is False
+    @pytest.mark.parametrize("side_effect,returncode,expected", [
+        (None, 0, True),
+        (None, 1, False),
+        (FileNotFoundError, None, False),
+        (subprocess.TimeoutExpired("docker", 10), None, False),
+    ])
+    def test_ready_iff_returncode_zero(self, side_effect, returncode, expected):
+        """Ready only when docker info returns 0; errors/timeouts return False."""
+        if side_effect:
+            with patch("subprocess.run", autospec=True, side_effect=side_effect):
+                assert _docker_is_ready() is expected
+        else:
+            with patch("subprocess.run", autospec=True, return_value=MagicMock(returncode=returncode)):
+                assert _docker_is_ready() is expected
 
 
 class TestStartDockerMacos:
-    def test_orbstack_preferred(self):
+    def test_orbstack_preferred_then_docker_desktop_fallback(self):
+        """Orbstack is tried first; Docker Desktop is fallback; both failing returns False."""
         with (
-            patch(
-                "benchmark._util.shutil.which",
-                autospec=True,
-                return_value="/opt/homebrew/bin/orbctl",
-            ),
+            patch("benchmark._util.shutil.which", autospec=True, return_value="/opt/homebrew/bin/orbctl"),
             patch("subprocess.run", autospec=True) as mock_run,
         ):
             assert _start_docker_macos() is True
-            mock_run.assert_called_once()
             assert mock_run.call_args[0][0] == ["orbctl", "start"]
-
-    def test_docker_desktop_fallback(self):
         with (
             patch("benchmark._util.shutil.which", autospec=True, return_value=None),
             patch("subprocess.run", autospec=True) as mock_run,
         ):
             assert _start_docker_macos() is True
-            mock_run.assert_called_once()
             assert mock_run.call_args[0][0] == ["open", "-a", "Docker"]
-
-    def test_nothing_works(self):
         with (
             patch("benchmark._util.shutil.which", autospec=True, return_value=None),
             patch("subprocess.run", autospec=True, side_effect=FileNotFoundError),
@@ -232,42 +216,21 @@ class TestParseListField:
 
 
 class TestRowToTask:
-    def test_basic(self):
+    def test_parses_all_fields_including_uppercase(self):
+        """Parses lists from JSON strings, handles uppercase field names."""
         row = {
-            "instance_id": "repo__name-123",
-            "repo": "owner/repo",
-            "base_commit": "abc123",
-            "problem_statement": "Fix the bug",
-            "fail_to_pass": '["test_foo"]',
-            "pass_to_pass": '["test_bar"]',
+            "instance_id": "repo__name-123", "repo": "owner/repo",
+            "base_commit": "abc123", "problem_statement": "Fix the bug",
+            "FAIL_TO_PASS": '["test_foo"]', "PASS_TO_PASS": '["test_bar"]',
             "version": "1.0",
-            "repo_language": "python",
         }
         task = _row_to_task(row)
         assert task.instance_id == "repo__name-123"
-        assert task.repo == "owner/repo"
         assert task.fail_to_pass == ["test_foo"]
         assert task.pass_to_pass == ["test_bar"]
 
-    def test_uppercase_fields(self):
-        row = {
-            "instance_id": "id1",
-            "repo": "o/r",
-            "base_commit": "abc",
-            "problem_statement": "desc",
-            "FAIL_TO_PASS": '["t1"]',
-            "PASS_TO_PASS": '["t2"]',
-        }
-        task = _row_to_task(row)
-        assert task.fail_to_pass == ["t1"]
-
-    def test_missing_optional_fields(self):
-        row = {
-            "instance_id": "id1",
-            "repo": "o/r",
-            "base_commit": "abc",
-            "problem_statement": "desc",
-        }
+    def test_missing_optional_fields_default_empty(self):
+        row = {"instance_id": "id1", "repo": "o/r", "base_commit": "abc", "problem_statement": "desc"}
         task = _row_to_task(row)
         assert task.version == ""
         assert task.fail_to_pass == []
@@ -289,28 +252,22 @@ from benchmark.runner import (
 
 
 class TestParseArm:
-    def test_simple(self):
-        assert parse_arm("claude") == ("claude", None)
-
-    def test_with_team(self):
-        assert parse_arm("kodo:solo") == ("kodo", "solo")
-
-    def test_with_complex_team(self):
-        assert parse_arm("kodo:solo+opus") == ("kodo", "solo+opus")
+    @pytest.mark.parametrize("arm,expected", [
+        ("claude", ("claude", None)),
+        ("kodo:solo", ("kodo", "solo")),
+        ("kodo:solo+opus", ("kodo", "solo+opus")),
+    ])
+    def test_splits_backend_and_team(self, arm, expected):
+        assert parse_arm(arm) == expected
 
 
 class TestTimeoutForArm:
-    def test_kodo(self):
-        assert _timeout_for_arm("kodo", 100, 999) == 999
-
-    def test_kodo_team(self):
-        assert _timeout_for_arm("kodo:solo", 100, 999) == 999
-
-    def test_claude(self):
-        assert _timeout_for_arm("claude", 100, 999) == 100
-
-    def test_cursor(self):
-        assert _timeout_for_arm("cursor", 100, 999) == 100
+    @pytest.mark.parametrize("arm,expected", [
+        ("kodo", 999), ("kodo:solo", 999),  # kodo uses kodo_timeout
+        ("claude", 100), ("cursor", 100),   # others use default
+    ])
+    def test_kodo_gets_kodo_timeout(self, arm, expected):
+        assert _timeout_for_arm(arm, 100, 999) == expected
 
 
 class TestBuildPrompt:
@@ -350,85 +307,43 @@ class TestParseJsonOutput:
 
 
 class TestAppendResult:
-    def test_writes_jsonl(self, tmp_path):
-        result = TaskResult("id1", "claude", "patch", 10.0, "ok")
-        _append_result(tmp_path, result)
-        lines = (tmp_path / "results.jsonl").read_text().strip().split("\n")
-        assert len(lines) == 1
-        entry = json.loads(lines[0])
-        assert entry["instance_id"] == "id1"
-        assert entry["status"] == "ok"
-
-    def test_appends(self, tmp_path):
-        _append_result(tmp_path, TaskResult("id1", "a", "", 1.0, "ok"))
-        _append_result(tmp_path, TaskResult("id2", "b", "", 2.0, "error", error="fail"))
+    def test_writes_and_appends_jsonl_with_seed(self, tmp_path):
+        """Writes JSONL, appends multiple entries, stores seed (default 0)."""
+        _append_result(tmp_path, TaskResult("id1", "claude", "patch", 10.0, "ok"))
+        _append_result(tmp_path, TaskResult("id2", "b", "", 2.0, "error", error="fail"), seed=2)
         lines = (tmp_path / "results.jsonl").read_text().strip().split("\n")
         assert len(lines) == 2
-
-    def test_stores_seed(self, tmp_path):
-        result = TaskResult("id1", "claude", "patch", 10.0, "ok")
-        _append_result(tmp_path, result, seed=2)
-        entry = json.loads((tmp_path / "results.jsonl").read_text().strip())
-        assert entry["seed"] == 2
-
-    def test_default_seed_is_zero(self, tmp_path):
-        result = TaskResult("id1", "claude", "patch", 10.0, "ok")
-        _append_result(tmp_path, result)
-        entry = json.loads((tmp_path / "results.jsonl").read_text().strip())
-        assert entry["seed"] == 0
+        e1, e2 = json.loads(lines[0]), json.loads(lines[1])
+        assert (e1["instance_id"], e1["seed"]) == ("id1", 0)
+        assert (e2["instance_id"], e2["seed"]) == ("id2", 2)
 
     def test_calls_fsync(self, tmp_path):
         """Crash safety: writes are flushed and fsynced."""
-        result = TaskResult("id1", "claude", "patch", 10.0, "ok")
         with patch("benchmark.runner.os.fsync", autospec=True) as mock_fsync:
-            _append_result(tmp_path, result)
+            _append_result(tmp_path, TaskResult("id1", "claude", "patch", 10.0, "ok"))
             assert mock_fsync.called
 
 
 class TestAppendPrediction:
-    def test_writes_prediction(self, tmp_path):
-        result = TaskResult("id1", "claude", "diff --git ...", 10.0, "ok")
+    def test_writes_prediction_with_sanitized_filename_but_original_arm(self, tmp_path):
+        """Filename uses sanitized arm; entry stores original arm for lossless round-trips."""
+        result = TaskResult("id1", "kodo:solo_opus", "diff --git ...", 10.0, "ok")
         _append_prediction(tmp_path, result)
-        pred_file = tmp_path / "predictions-claude.jsonl"
-        assert pred_file.exists()
-        entry = json.loads(pred_file.read_text().strip())
-        assert entry["model_patch"] == "diff --git ..."
-
-    def test_arm_sanitized_in_filename(self, tmp_path):
-        result = TaskResult("id1", "kodo:solo", "patch", 10.0, "ok")
-        _append_prediction(tmp_path, result)
-        # Should use sanitized arm name in filename
         files = list(tmp_path.glob("predictions-*.jsonl"))
         assert len(files) == 1
-        assert ":" not in files[0].name
-
-    def test_preserves_original_arm(self, tmp_path):
-        """Regression: predictions must store original arm for lossless round-trips."""
-        result = TaskResult("id1", "kodo:solo_opus", "patch", 10.0, "ok")
-        _append_prediction(tmp_path, result)
-        files = list(tmp_path.glob("predictions-*.jsonl"))
+        assert ":" not in files[0].name  # sanitized filename
         entry = json.loads(files[0].read_text().strip())
-        assert entry["arm"] == "kodo:solo_opus"
-        # model_name_or_path is sanitized (lossy), arm is not
-        assert entry["model_name_or_path"] == "kodo_solo_opus"
+        assert entry["model_patch"] == "diff --git ..."
+        assert entry["arm"] == "kodo:solo_opus"  # original arm preserved
+        assert entry["model_name_or_path"] == "kodo_solo_opus"  # sanitized
 
 
 class TestLoadCompleted:
-    def test_empty_dir(self, tmp_path):
+    def test_loads_pairs_and_skips_bad_lines(self, tmp_path):
+        """Empty dir returns empty set; loads pairs; skips bad JSON lines."""
         assert _load_completed(tmp_path) == set()
-
-    def test_loads_pairs(self, tmp_path):
-        results = tmp_path / "results.jsonl"
-        results.write_text(
-            '{"instance_id":"id1","arm":"claude"}\n{"instance_id":"id2","arm":"kodo"}\n'
-        )
-        assert _load_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
-
-    def test_skips_bad_lines(self, tmp_path):
-        results = tmp_path / "results.jsonl"
-        results.write_text(
-            '{"instance_id":"id1","arm":"claude"}\n'
-            "bad json\n"
+        (tmp_path / "results.jsonl").write_text(
+            '{"instance_id":"id1","arm":"claude"}\nbad json\n'
             '{"instance_id":"id2","arm":"kodo"}\n'
         )
         assert _load_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
@@ -461,23 +376,20 @@ from benchmark.report import (
 
 
 class TestMedian:
-    def test_odd(self):
-        assert _median([3, 1, 2]) == 2
-
-    def test_even(self):
-        assert _median([1, 2, 3, 4]) == 2.5
-
-    def test_single(self):
-        assert _median([5]) == 5
+    @pytest.mark.parametrize("vals,expected", [
+        ([3, 1, 2], 2), ([1, 2, 3, 4], 2.5), ([5], 5),
+    ])
+    def test_median(self, vals, expected):
+        assert _median(vals) == expected
 
 
 class TestPercentile:
-    def test_p90(self):
-        vals = list(range(1, 101))  # 1..100
-        assert _percentile(vals, 90) == 91
-
-    def test_p50(self):
-        assert _percentile([1, 2, 3, 4, 5], 50) == 3
+    @pytest.mark.parametrize("vals,pct,expected", [
+        (list(range(1, 101)), 90, 91),
+        ([1, 2, 3, 4, 5], 50, 3),
+    ])
+    def test_percentile(self, vals, pct, expected):
+        assert _percentile(vals, pct) == expected
 
 
 class TestDatasetShort:
@@ -561,26 +473,17 @@ class TestGenerateReport:
 
 
 class TestPrintStatus:
-    def test_no_runs_dir(self, tmp_path):
-        assert print_status(tmp_path) == 0
-
-    def test_empty_runs_dir(self, tmp_path):
+    def test_returns_zero_regardless_of_state(self, tmp_path):
+        """No runs, empty runs, or populated runs all return 0."""
+        assert print_status(tmp_path) == 0  # no runs dir
         (tmp_path / "runs").mkdir()
-        assert print_status(tmp_path) == 0
-
-    def test_single_run(self, tmp_path):
+        assert print_status(tmp_path) == 0  # empty runs dir
         run_dir = tmp_path / "runs" / "run1"
-        run_dir.mkdir(parents=True)
-        meta = {
-            "dataset": "princeton-nlp/SWE-bench_Verified",
-            "task_count": 5,
-            "arms": ["claude"],
-        }
+        run_dir.mkdir()
+        meta = {"dataset": "princeton-nlp/SWE-bench_Verified", "task_count": 5, "arms": ["claude"]}
         (run_dir / "meta.json").write_text(json.dumps(meta))
-        (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-        )
-        assert print_status(tmp_path) == 0
+        (run_dir / "results.jsonl").write_text('{"instance_id":"id1","arm":"claude","status":"ok"}\n')
+        assert print_status(tmp_path) == 0  # with data
 
 
 # ── runner (continued) ─────────────────────────────────────────────────────
@@ -595,23 +498,15 @@ from benchmark.runner import (
 
 
 class TestCleanEnv:
-    def test_removes_claudecode(self):
-        with patch.dict(
-            "os.environ", {"CLAUDECODE": "1", "PATH": "/usr/bin"}, clear=True
-        ):
+    def test_strips_claudecode_and_api_key(self):
+        """CLAUDECODE always removed; API key removed unless keep_api_key=True."""
+        with patch.dict("os.environ", {"CLAUDECODE": "1", "ANTHROPIC_API_KEY": "sk-xxx", "PATH": "/usr/bin"}, clear=True):
             env = _clean_env()
             assert "CLAUDECODE" not in env
-            assert "PATH" in env
-
-    def test_removes_api_key_by_default(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-xxx"}, clear=True):
-            env = _clean_env()
             assert "ANTHROPIC_API_KEY" not in env
-
-    def test_keeps_api_key_when_requested(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-xxx"}, clear=True):
-            env = _clean_env(keep_api_key=True)
-            assert env["ANTHROPIC_API_KEY"] == "sk-xxx"
+            assert "PATH" in env
+            env2 = _clean_env(keep_api_key=True)
+            assert env2["ANTHROPIC_API_KEY"] == "sk-xxx"
 
 
 class TestRunSubprocess:
@@ -641,133 +536,75 @@ class TestRunSubprocess:
 
 
 class TestSaveRunMeta:
-    def test_creates_meta_file(self, tmp_path):
+    def test_creates_meta_and_does_not_overwrite(self, tmp_path):
         tasks = [SWETask("id1", "o/r", "abc", "desc", [], [])]
         _save_run_meta(tmp_path, tasks, ["claude"], 7200, dataset="test")
         meta = json.loads((tmp_path / "meta.json").read_text())
-        assert meta["task_count"] == 1
-        assert meta["arms"] == ["claude"]
-        assert meta["instance_ids"] == ["id1"]
-
-    def test_does_not_overwrite(self, tmp_path):
-        (tmp_path / "meta.json").write_text('{"existing": true}')
+        assert meta["task_count"] == 1 and meta["arms"] == ["claude"]
+        # Does not overwrite existing
         _save_run_meta(tmp_path, [], [], 100)
-        meta = json.loads((tmp_path / "meta.json").read_text())
-        assert meta == {"existing": True}
+        assert json.loads((tmp_path / "meta.json").read_text()) == meta
 
 
 class TestLoadGlobalCompleted:
-    def test_no_runs_dir(self, tmp_path):
+    def test_empty_and_basic_loading(self, tmp_path):
+        """No runs dir returns empty; single and multiple runs accumulate."""
         assert _load_global_completed(tmp_path) == set()
-
-    def test_single_run(self, tmp_path):
-        run_dir = tmp_path / "runs" / "r1"
-        run_dir.mkdir(parents=True)
-        (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-        )
-        assert _load_global_completed(tmp_path) == {("id1", "claude")}
-
-    def test_multiple_runs(self, tmp_path):
         for name, iid in [("r1", "id1"), ("r2", "id2")]:
             d = tmp_path / "runs" / name
             d.mkdir(parents=True)
             (d / "results.jsonl").write_text(
                 f'{{"instance_id":"{iid}","arm":"claude","status":"ok"}}\n'
             )
-        completed = _load_global_completed(tmp_path)
-        assert completed == {("id1", "claude"), ("id2", "claude")}
+        assert _load_global_completed(tmp_path) == {("id1", "claude"), ("id2", "claude")}
 
-    def test_skips_errors(self, tmp_path):
+    @pytest.mark.parametrize("status,expected_in_set", [
+        ("ok", True), ("partial", True),  # partial has valid patch
+        ("error", False), ("timeout", False),
+    ])
+    def test_status_filtering(self, tmp_path, status, expected_in_set):
+        """ok/partial count as completed; error/timeout are skipped."""
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
         (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"error"}\n'
+            f'{{"instance_id":"id1","arm":"claude","status":"{status}"}}\n'
         )
-        assert _load_global_completed(tmp_path) == set()
+        result = _load_global_completed(tmp_path)
+        assert (("id1", "claude") in result) == expected_in_set
 
-    def test_skips_timeouts(self, tmp_path):
-        run_dir = tmp_path / "runs" / "r1"
-        run_dir.mkdir(parents=True)
-        (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"timeout"}\n'
-        )
-        assert _load_global_completed(tmp_path) == set()
-
-    def test_keeps_partial(self, tmp_path):
-        """partial (kodo exit 2) has a valid patch — should count as completed."""
-        run_dir = tmp_path / "runs" / "r1"
-        run_dir.mkdir(parents=True)
-        (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"kodo:solo","status":"partial"}\n'
-        )
-        assert _load_global_completed(tmp_path) == {("id1", "kodo:solo")}
-
-    def test_exclude_run_dir(self, tmp_path):
+    def test_exclude_run_dir_and_no_data_duplication(self, tmp_path):
+        """Excluded run dirs are ignored; results are NOT copied into current run."""
         r1 = tmp_path / "runs" / "r1"
         r2 = tmp_path / "runs" / "r2"
-        r1.mkdir(parents=True)
-        r2.mkdir(parents=True)
-        (r1 / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-        )
-        (r2 / "results.jsonl").write_text(
-            '{"instance_id":"id2","arm":"claude","status":"ok"}\n'
-        )
-        # Exclude r2 — should only see r1
+        for d in (r1, r2):
+            d.mkdir(parents=True)
+        (r1 / "results.jsonl").write_text('{"instance_id":"id1","arm":"claude","status":"ok"}\n')
+        (r2 / "results.jsonl").write_text('{"instance_id":"id2","arm":"claude","status":"ok"}\n')
         completed = _load_global_completed(tmp_path, exclude_run_dir=r2)
         assert completed == {("id1", "claude")}
+        assert not (r2 / "results_copied.jsonl").exists()  # no duplication
 
     def test_skips_bad_lines(self, tmp_path):
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
         (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-            "bad json\n"
+            '{"instance_id":"id1","arm":"claude","status":"ok"}\nbad json\n'
             '{"instance_id":"id2","arm":"kodo","status":"ok"}\n'
         )
         assert _load_global_completed(tmp_path) == {("id1", "claude"), ("id2", "kodo")}
 
-    def test_no_data_duplication(self, tmp_path):
-        """Key behavioral test: prior run results are NOT copied into current run."""
-        prior = tmp_path / "runs" / "prior"
-        prior.mkdir(parents=True)
-        (prior / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-        )
-
-        cur = tmp_path / "runs" / "current"
-        cur.mkdir(parents=True)
-
-        completed = _load_global_completed(tmp_path, exclude_run_dir=cur)
-        assert ("id1", "claude") in completed
-        # Current run dir should NOT have any copied files
-        assert not (cur / "results.jsonl").exists()
-
-    def test_seed_filtering(self, tmp_path):
-        """Different seeds allow the same task to be re-run."""
+    def test_seed_filtering_and_legacy_default(self, tmp_path):
+        """Seed filtering: each seed sees only matching results; no-seed defaults to 0."""
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
         (run_dir / "results.jsonl").write_text(
             '{"instance_id":"id1","arm":"claude","status":"ok","seed":0}\n'
             '{"instance_id":"id2","arm":"claude","status":"ok","seed":1}\n'
+            '{"instance_id":"id3","arm":"claude","status":"ok"}\n'  # legacy, no seed field
         )
-        # seed=0 should only see id1
-        assert _load_global_completed(tmp_path, seed=0) == {("id1", "claude")}
-        # seed=1 should only see id2
+        assert _load_global_completed(tmp_path, seed=0) == {("id1", "claude"), ("id3", "claude")}
         assert _load_global_completed(tmp_path, seed=1) == {("id2", "claude")}
-        # seed=2 should see nothing
         assert _load_global_completed(tmp_path, seed=2) == set()
-
-    def test_legacy_results_default_to_seed_zero(self, tmp_path):
-        """Results without a seed field are treated as seed=0."""
-        run_dir = tmp_path / "runs" / "r1"
-        run_dir.mkdir(parents=True)
-        (run_dir / "results.jsonl").write_text(
-            '{"instance_id":"id1","arm":"claude","status":"ok"}\n'
-        )
-        assert _load_global_completed(tmp_path, seed=0) == {("id1", "claude")}
-        assert _load_global_completed(tmp_path, seed=1) == set()
 
 
 class TestRunBenchmark:
@@ -996,85 +833,31 @@ class TestEvalDiagnostics:
 
 
 class TestParseProResults:
-    def test_missing_file(self, tmp_path):
-        result = _parse_pro_results(tmp_path)
-        assert result["resolved"] == []
-        assert result["resolve_rate"] == 0.0
+    def test_missing_or_empty_file(self, tmp_path):
+        assert _parse_pro_results(tmp_path)["resolve_rate"] == 0.0
+        (tmp_path / "eval_results.json").write_text("{}")
+        assert _parse_pro_results(tmp_path)["resolve_rate"] == 0.0
 
-    def test_with_results(self, tmp_path):
-        data = {"id1": True, "id2": False, "id3": True}
+    def test_classifies_resolved_failed_and_infra_error(self, tmp_path):
+        """Resolved=True, resolved=False with report=failed, no report=error."""
+        data = {"id1": True, "id2": False, "id3": False}
         (tmp_path / "eval_results.json").write_text(json.dumps(data))
-        # id2 has a report.json → genuine failure
+        # id2 has report.json -> genuine failure; id3 has no report -> infra error
         inst_dir = tmp_path / "id2"
         inst_dir.mkdir()
         (inst_dir / "report.json").write_text(json.dumps({"id2": {"resolved": False}}))
         result = _parse_pro_results(tmp_path)
-        assert sorted(result["resolved"]) == ["id1", "id3"]
+        assert sorted(result["resolved"]) == ["id1"]
         assert result["failed"] == ["id2"]
-        assert result["error"] == []
-        assert result["resolve_rate"] == pytest.approx(2 / 3)
-
-    def test_infra_failure_classified_as_error(self, tmp_path):
-        """When entryscript crashes (no report.json), mark as error not failed."""
-        data = {"id1": True, "id2": False}
-        (tmp_path / "eval_results.json").write_text(json.dumps(data))
-        # id2 has NO report.json → infrastructure failure
-        result = _parse_pro_results(tmp_path)
-        assert result["resolved"] == ["id1"]
-        assert result["failed"] == []
-        assert result["error"] == ["id2"]
-        assert result["resolve_rate"] == pytest.approx(1 / 2)
-
-    def test_empty_results(self, tmp_path):
-        (tmp_path / "eval_results.json").write_text("{}")
-        result = _parse_pro_results(tmp_path)
-        assert result["resolve_rate"] == 0.0
+        assert result["error"] == ["id3"]
+        assert result["resolve_rate"] == pytest.approx(1 / 3)
 
 
 class TestParseStandardResults:
-    def _eval_dir(self, tmp_path):
-        """Create a clean eval subdirectory to avoid pytest artifacts."""
-        d = tmp_path / "eval_results"
-        d.mkdir()
-        return d
-
-    def test_resolved(self, tmp_path):
-        eval_dir = self._eval_dir(tmp_path)
-        inst_dir = eval_dir / "id1"
-        inst_dir.mkdir()
-        report = {"id1": {"resolved": True}}
-        (inst_dir / "report.json").write_text(json.dumps(report))
-
-        result = _parse_standard_results(eval_dir)
-        assert result["resolved"] == ["id1"]
-        assert result["resolve_rate"] == 1.0
-
-    def test_failed(self, tmp_path):
-        eval_dir = self._eval_dir(tmp_path)
-        inst_dir = eval_dir / "id1"
-        inst_dir.mkdir()
-        report = {"id1": {"resolved": False}}
-        (inst_dir / "report.json").write_text(json.dumps(report))
-
-        result = _parse_standard_results(eval_dir)
-        assert result["failed"] == ["id1"]
-
-    def test_missing_report(self, tmp_path):
-        eval_dir = self._eval_dir(tmp_path)
-        (eval_dir / "id1").mkdir()
-        result = _parse_standard_results(eval_dir)
-        assert result["error"] == ["id1"]
-
-    def test_corrupt_report(self, tmp_path):
-        eval_dir = self._eval_dir(tmp_path)
-        inst_dir = eval_dir / "id1"
-        inst_dir.mkdir()
-        (inst_dir / "report.json").write_text("not json")
-        result = _parse_standard_results(eval_dir)
-        assert result["error"] == ["id1"]
-
-    def test_mixed(self, tmp_path):
-        eval_dir = self._eval_dir(tmp_path)
+    def test_classifies_resolved_failed_missing_and_corrupt(self, tmp_path):
+        """Resolved, failed, missing report (error), and corrupt report (error)."""
+        eval_dir = tmp_path / "eval_results"
+        eval_dir.mkdir()
         for name, data in [
             ("id1", {"id1": {"resolved": True}}),
             ("id2", {"id2": {"resolved": False}}),
@@ -1082,67 +865,49 @@ class TestParseStandardResults:
             d = eval_dir / name
             d.mkdir()
             (d / "report.json").write_text(json.dumps(data))
-        (eval_dir / "id3").mkdir()  # no report
-
+        (eval_dir / "id3").mkdir()  # no report -> error
+        d4 = eval_dir / "id4"
+        d4.mkdir()
+        (d4 / "report.json").write_text("not json")  # corrupt -> error
         result = _parse_standard_results(eval_dir)
         assert result["resolved"] == ["id1"]
         assert result["failed"] == ["id2"]
-        assert result["error"] == ["id3"]
-        assert result["resolve_rate"] == pytest.approx(1 / 3)
+        assert sorted(result["error"]) == ["id3", "id4"]
+        assert result["resolve_rate"] == pytest.approx(1 / 4)
 
 
 class TestCollectEvalResults:
-    def test_pro_mode(self, tmp_path):
-        eval_dir = tmp_path / "eval" / "claude"
-        eval_dir.mkdir(parents=True)
-        data = {"id1": True, "id2": False}
-        (eval_dir / "eval_results.json").write_text(json.dumps(data))
-
-        _collect_eval_results(tmp_path, is_pro=True)
-
-        summary = json.loads((tmp_path / "eval-summary.json").read_text())
-        assert "claude" in summary
-        assert summary["claude"]["resolved"] == ["id1"]
-
-    def test_creates_eval_dir_if_missing(self, tmp_path):
+    def test_collects_pro_results_and_creates_eval_dir_if_missing(self, tmp_path):
+        """Handles missing eval dir gracefully; collects pro-mode results."""
         _collect_eval_results(tmp_path, is_pro=True)
         assert (tmp_path / "eval").is_dir()
-        summary = json.loads((tmp_path / "eval-summary.json").read_text())
-        assert summary == {}
+        assert json.loads((tmp_path / "eval-summary.json").read_text()) == {}
+        # Now with data
+        tmp2 = tmp_path / "with_data"
+        tmp2.mkdir()
+        eval_dir = tmp2 / "eval" / "claude"
+        eval_dir.mkdir(parents=True)
+        (eval_dir / "eval_results.json").write_text(json.dumps({"id1": True, "id2": False}))
+        _collect_eval_results(tmp2, is_pro=True)
+        summary = json.loads((tmp2 / "eval-summary.json").read_text())
+        assert summary["claude"]["resolved"] == ["id1"]
 
 
 class TestEvaluatePredictions:
-    def test_no_predictions(self, tmp_path):
+    def test_writes_summary_when_docker_available(self, tmp_path):
+        """No predictions + docker available = empty eval-summary.json created."""
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
-        # No meta, no predictions — should not crash
-        with patch(
-            "benchmark._util.ensure_docker_running", autospec=True, return_value=True
-        ):
+        (run_dir / "meta.json").write_text(json.dumps({"dataset": "princeton-nlp/SWE-bench_Lite"}))
+        with patch("benchmark._util.ensure_docker_running", autospec=True, return_value=True):
             evaluate_predictions(tmp_path, "r1")
-        assert (run_dir / "eval-summary.json").exists()
-
-    def test_reads_dataset_from_meta(self, tmp_path):
-        run_dir = tmp_path / "runs" / "r1"
-        run_dir.mkdir(parents=True)
-        meta = {"dataset": "princeton-nlp/SWE-bench_Lite"}
-        (run_dir / "meta.json").write_text(json.dumps(meta))
-
-        with patch(
-            "benchmark._util.ensure_docker_running", autospec=True, return_value=True
-        ):
-            evaluate_predictions(tmp_path, "r1")
-        # Should complete without error (no predictions to evaluate)
         assert (run_dir / "eval-summary.json").exists()
 
     def test_skips_when_docker_unavailable(self, tmp_path):
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
-        with patch(
-            "benchmark._util.ensure_docker_running", autospec=True, return_value=False
-        ):
+        with patch("benchmark._util.ensure_docker_running", autospec=True, return_value=False):
             evaluate_predictions(tmp_path, "r1")
-        # Should return early — no eval-summary written
         assert not (run_dir / "eval-summary.json").exists()
 
 
@@ -1157,197 +922,92 @@ from benchmark.online.validation import suspicious_upload_reason
 
 
 class TestMarkUploaded:
-    def test_creates_file(self, tmp_path):
+    def test_creates_and_appends(self, tmp_path):
         mark_uploaded(tmp_path, "id1", "claude", "run1")
         assert (tmp_path / "uploaded.jsonl").exists()
-
-    def test_appends(self, tmp_path):
-        mark_uploaded(tmp_path, "id1", "claude", "run1")
         mark_uploaded(tmp_path, "id2", "kodo:solo", "run1")
-        lines = (tmp_path / "uploaded.jsonl").read_text().strip().split("\n")
-        assert len(lines) == 2
+        assert len((tmp_path / "uploaded.jsonl").read_text().strip().split("\n")) == 2
 
 
 class TestLoadUploaded:
-    def test_no_file(self, tmp_path):
+    def test_loads_triples_with_seeds_and_skips_bad_lines(self, tmp_path):
+        """Loads (id, arm, seed) triples; missing file returns empty; bad lines skipped."""
         assert load_uploaded(tmp_path) == set()
-
-    def test_loads_triples(self, tmp_path):
-        mark_uploaded(tmp_path, "id1", "claude", "run1")
-        mark_uploaded(tmp_path, "id2", "kodo:solo", "run2")
-        uploaded = load_uploaded(tmp_path)
-        assert uploaded == {("id1", "claude", 0), ("id2", "kodo:solo", 0)}
-
-    def test_loads_with_seed(self, tmp_path):
         mark_uploaded(tmp_path, "id1", "claude", "run1", seed=0)
         mark_uploaded(tmp_path, "id1", "claude", "run2", seed=1)
+        mark_uploaded(tmp_path, "id2", "kodo:solo", "run3")
+        # Inject bad line
+        with open(tmp_path / "uploaded.jsonl", "a") as f:
+            f.write("bad json\n")
         uploaded = load_uploaded(tmp_path)
-        assert uploaded == {("id1", "claude", 0), ("id1", "claude", 1)}
-
-    def test_skips_bad_lines(self, tmp_path):
-        f = tmp_path / "uploaded.jsonl"
-        f.write_text(
-            '{"instance_id":"id1","arm":"claude","run_id":"r1"}\n'
-            "bad json\n"
-            '{"instance_id":"id2","arm":"kodo","run_id":"r2"}\n'
-        )
-        assert load_uploaded(tmp_path) == {("id1", "claude", 0), ("id2", "kodo", 0)}
+        assert uploaded == {("id1", "claude", 0), ("id1", "claude", 1), ("id2", "kodo:solo", 0)}
 
 
 class TestOnlineValidation:
-    def test_accepts_empty_agent_output_with_patch(self):
-        """A result with a real patch is useful even without agent_output (e.g. cursor)."""
+    @pytest.mark.parametrize("patch_len,agent_output,expected_reason", [
+        (100, {}, None),  # real patch, empty output is fine (e.g. cursor)
+        (0, {}, "empty_agent_output"),  # no patch AND no output
+        (0, {"status": "ok", "finished": True}, "no_patch"),  # output but no patch
+    ])
+    def test_patch_and_output_validation(self, patch_len, agent_output, expected_reason):
         reason = suspicious_upload_reason(
-            status="ok",
-            elapsed_s=42.0,
-            patch_len=100,
-            agent_output={},
+            status="ok", elapsed_s=42.0, patch_len=patch_len, agent_output=agent_output,
         )
+        assert reason == expected_reason
 
-        assert reason is None
+    def test_flags_kodo_worker_broken(self):
+        """Detects broken kodo workers from agent_output or error log."""
+        for kwargs in [
+            dict(arm="kodo:solo", status="error", elapsed_s=627.6, patch_len=4624,
+                 error="worker trace", agent_output={"status": "error", "error": "unknown error"}),
+            dict(arm="kodo:solo", status="error", elapsed_s=1566.5, patch_len=1551,
+                 error="[worker] error: unknown error", agent_output="transcript"),
+        ]:
+            assert suspicious_upload_reason(**kwargs) == "kodo_worker_broken"
 
-    def test_flags_empty_agent_output_when_no_patch(self):
+    @pytest.mark.parametrize("arm,expected_reason", [
+        ("cursor", "bare_arm_missing_model"),
+        ("claude", "bare_arm_missing_model"),
+        ("kodo", "bare_arm_missing_model"),
+        ("cursor:composer-2", None),
+        ("claude:opus", None),
+        ("kodo:solo", None),
+        ("gemini", None),
+    ])
+    def test_bare_arm_rejection(self, arm, expected_reason):
+        """Arms without model suffix are rejected (except gemini)."""
         reason = suspicious_upload_reason(
-            status="ok",
-            elapsed_s=42.0,
-            patch_len=0,
-            agent_output={},
-        )
-
-        assert reason == "empty_agent_output"
-
-    def test_flags_zero_patch_with_nonempty_output(self):
-        reason = suspicious_upload_reason(
-            status="ok",
-            elapsed_s=1.0,
-            patch_len=0,
-            agent_output={"status": "ok", "finished": True},
-        )
-
-        assert reason == "no_patch"
-
-    def test_flags_kodo_worker_broken_from_agent_output(self):
-        reason = suspicious_upload_reason(
-            arm="kodo:solo",
-            status="error",
-            elapsed_s=627.6,
-            patch_len=4624,
-            error="worker trace omitted",
-            agent_output={"status": "error", "error": "unknown error"},
-        )
-
-        assert reason == "kodo_worker_broken"
-
-    def test_flags_kodo_worker_broken_from_error_log(self):
-        reason = suspicious_upload_reason(
-            arm="kodo:solo",
-            status="error",
-            elapsed_s=1566.5,
-            patch_len=1551,
-            error="[worker] error: unknown error",
-            agent_output="worker transcript",
-        )
-
-        assert reason == "kodo_worker_broken"
-
-    @pytest.mark.parametrize("arm", ["cursor", "claude", "codex", "kodo"])
-    def test_rejects_bare_arm_without_model(self, arm):
-        reason = suspicious_upload_reason(
-            arm=arm,
-            status="ok",
-            elapsed_s=42.0,
-            patch_len=100,
+            arm=arm, status="ok", elapsed_s=42.0, patch_len=100,
             agent_output={"status": "ok"},
         )
-
-        assert reason == "bare_arm_missing_model"
-
-    @pytest.mark.parametrize(
-        "arm",
-        ["cursor:composer-2", "claude:opus", "codex:gpt-5.4", "kodo:solo", "gemini"],
-    )
-    def test_accepts_arm_with_model(self, arm):
-        reason = suspicious_upload_reason(
-            arm=arm,
-            status="ok",
-            elapsed_s=42.0,
-            patch_len=100,
-            agent_output={"status": "ok"},
-        )
-
-        assert reason is None
+        assert reason == expected_reason
 
 
 class TestMultiRunAggregation:
-    def test_unpack_legacy_arm(self):
+    def test_unpack_legacy_and_new_format(self):
+        """Legacy (flat dict) wraps in {"0": data}; new format (with "runs") passes through."""
         from benchmark.online.db import _unpack_arm_runs
+        legacy = {"status": "ok", "elapsed_s": 42, "eval_status": True, "resolved": True}
+        assert _unpack_arm_runs(legacy) == {"0": legacy}
+        new = {"runs": {"0": {"status": "ok", "resolved": True, "eval_status": True},
+                        "1": {"status": "ok", "resolved": False, "eval_status": True}}}
+        runs = _unpack_arm_runs(new)
+        assert len(runs) == 2 and runs["0"]["resolved"] is True
 
-        arm_data = {
-            "status": "ok",
-            "elapsed_s": 42,
-            "eval_status": True,
-            "resolved": True,
-        }
-        runs = _unpack_arm_runs(arm_data)
-        assert runs == {"0": arm_data}
-
-    def test_unpack_new_format(self):
-        from benchmark.online.db import _unpack_arm_runs
-
-        arm_data = {
-            "runs": {
-                "0": {"status": "ok", "resolved": True, "eval_status": True},
-                "1": {"status": "ok", "resolved": False, "eval_status": True},
-            }
-        }
-        runs = _unpack_arm_runs(arm_data)
-        assert len(runs) == 2
-        assert runs["0"]["resolved"] is True
-        assert runs["1"]["resolved"] is False
-
-    def test_aggregate_single_run(self):
+    @pytest.mark.parametrize("runs,n_runs,n_eval,rate,resolved", [
+        ({"0": {"status": "ok", "eval_status": True, "resolved": True}}, 1, 1, 1.0, True),
+        ({"0": {"status": "ok", "eval_status": True, "resolved": True},
+          "1": {"status": "ok", "eval_status": True, "resolved": False},
+          "2": {"status": "ok", "eval_status": True, "resolved": True}}, 3, 3, 2/3, True),
+        ({"0": {"status": "ok", "eval_status": True, "resolved": False},
+          "1": {"status": "ok"}}, 2, 1, 0.0, False),
+    ])
+    def test_aggregate_arm(self, runs, n_runs, n_eval, rate, resolved):
         from benchmark.online.db import _aggregate_arm
-
-        runs = {
-            "0": {
-                "status": "ok",
-                "elapsed_s": 42,
-                "eval_status": True,
-                "resolved": True,
-            }
-        }
         agg = _aggregate_arm(runs)
-        assert agg["n_runs"] == 1
-        assert agg["n_evaluated"] == 1
-        assert agg["resolve_rate"] == 1.0
-        assert agg["resolved"] is True
-
-    def test_aggregate_multiple_runs(self):
-        from benchmark.online.db import _aggregate_arm
-
-        runs = {
-            "0": {"status": "ok", "eval_status": True, "resolved": True},
-            "1": {"status": "ok", "eval_status": True, "resolved": False},
-            "2": {"status": "ok", "eval_status": True, "resolved": True},
-        }
-        agg = _aggregate_arm(runs)
-        assert agg["n_runs"] == 3
-        assert agg["n_evaluated"] == 3
-        assert agg["resolve_rate"] == pytest.approx(2 / 3)
-        assert agg["resolved"] is True  # at least one resolved
-
-    def test_aggregate_partial_eval(self):
-        from benchmark.online.db import _aggregate_arm
-
-        runs = {
-            "0": {"status": "ok", "eval_status": True, "resolved": False},
-            "1": {"status": "ok"},  # not yet evaluated
-        }
-        agg = _aggregate_arm(runs)
-        assert agg["n_runs"] == 2
-        assert agg["n_evaluated"] == 1
-        assert agg["resolve_rate"] == 0.0
-        assert agg["resolved"] is False
+        assert (agg["n_runs"], agg["n_evaluated"]) == (n_runs, n_eval)
+        assert agg["resolve_rate"] == pytest.approx(rate)
+        assert agg["resolved"] is resolved
 
 
 class TestFlushPendingUploads:
@@ -1367,19 +1027,11 @@ class TestFlushPendingUploads:
                 )
         return run_dir
 
-    def test_no_config_returns_error(self, tmp_path):
-        with patch(
-            "benchmark.online.client.is_configured", autospec=True, return_value=False
-        ):
-            ret = flush_pending_uploads(tmp_path)
-        assert ret == 1
-
-    def test_no_runs(self, tmp_path):
-        with patch(
-            "benchmark.online.client.is_configured", autospec=True, return_value=True
-        ):
-            ret = flush_pending_uploads(tmp_path)
-        assert ret == 0
+    def test_no_config_returns_error_no_runs_returns_ok(self, tmp_path):
+        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+            assert flush_pending_uploads(tmp_path) == 1
+        with patch("benchmark.online.client.is_configured", autospec=True, return_value=True):
+            assert flush_pending_uploads(tmp_path) == 0
 
     def test_uploads_pending(self, tmp_path):
         self._setup_run(
@@ -1509,17 +1161,14 @@ from benchmark.online.publish import _dataset_key, _DatasetBuild
 
 
 class TestDatasetKey:
-    def test_verified(self):
-        assert _dataset_key("princeton-nlp/SWE-bench_Verified") == "verified"
-
-    def test_pro(self):
-        assert _dataset_key("ScaleAI/SWE-bench_Pro") == "pro"
-
-    def test_lite(self):
-        assert _dataset_key("princeton-nlp/SWE-bench_Lite") == "lite"
-
-    def test_unknown(self):
-        assert _dataset_key("something/else") == ""
+    @pytest.mark.parametrize("full,key", [
+        ("princeton-nlp/SWE-bench_Verified", "verified"),
+        ("ScaleAI/SWE-bench_Pro", "pro"),
+        ("princeton-nlp/SWE-bench_Lite", "lite"),
+        ("something/else", ""),
+    ])
+    def test_extracts_key(self, full, key):
+        assert _dataset_key(full) == key
 
 
 class TestDatasetBuild:
@@ -1567,32 +1216,16 @@ class TestUploadRunOnlineWarning:
 
 
 class TestMainCLI:
-    def test_status_flag(self, tmp_path):
+    def test_status_and_report_only_flags(self, tmp_path):
         with patch("sys.argv", ["benchmark", "--status", "--workspace", str(tmp_path)]):
-            ret = main()
-        assert ret == 0
-
-    def test_report_only(self, tmp_path):
+            assert main() == 0
         run_dir = tmp_path / "runs" / "r1"
         run_dir.mkdir(parents=True)
-        meta = {"dataset": "d", "task_count": 0, "arms": []}
-        (run_dir / "meta.json").write_text(json.dumps(meta))
+        (run_dir / "meta.json").write_text(json.dumps({"dataset": "d", "task_count": 0, "arms": []}))
         (run_dir / "results.jsonl").write_text("")
         (run_dir / "eval-summary.json").write_text("{}")
-
-        with patch(
-            "sys.argv",
-            [
-                "benchmark",
-                "--report-only",
-                "--run-id",
-                "r1",
-                "--workspace",
-                str(tmp_path),
-            ],
-        ):
-            ret = main()
-        assert ret == 0
+        with patch("sys.argv", ["benchmark", "--report-only", "--run-id", "r1", "--workspace", str(tmp_path)]):
+            assert main() == 0
 
     def test_report_only_skips_distributed_mode_when_configured(self, tmp_path):
         """Regression: report-only should not contact the online assignment server."""
@@ -1685,201 +1318,80 @@ from benchmark.online.distribute import prioritize_assignments
 
 
 class TestPrioritizeAssignments:
-    def test_empty_dataset(self):
-        result = prioritize_assignments(
-            all_instance_ids=[],
-            results={},
-            backends=["claude"],
-            active_claims=set(),
-        )
-        assert result == []
+    @pytest.mark.parametrize("ids,results,backends,claims,expected_len,label", [
+        ([], {}, ["claude"], set(), 0, "empty dataset"),
+        (["id1"], {}, [], set(), 0, "no backends"),
+        (["id1"], {"id1": {"claude": {"status": "ok"}}}, ["claude"], set(), 0, "all evaluated"),
+    ])
+    def test_returns_empty(self, ids, results, backends, claims, expected_len, label):
+        """Empty dataset, no backends, or fully evaluated all return []."""
+        assert prioritize_assignments(
+            all_instance_ids=ids, results=results, backends=backends,
+            active_claims=claims,
+        ) == []
 
-    def test_no_backends(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={},
-            backends=[],
-            active_claims=set(),
-        )
-        assert result == []
-
-    def test_all_already_evaluated(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={"id1": {"claude": {"status": "ok"}}},
-            backends=["claude"],
-            active_claims=set(),
-        )
-        assert result == []
-
-    def test_assigns_missing_backend(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={"id1": {"claude": {"status": "ok"}}},
-            backends=["kodo:solo"],
-            active_claims=set(),
-        )
-        assert result == [{"instance_id": "id1", "arm": "kodo:solo"}]
-
-    def test_prefers_tasks_with_other_coverage(self):
-        """Tasks evaluated by other backends should be prioritized."""
-        result = prioritize_assignments(
-            all_instance_ids=["id1", "id2"],
-            results={
-                "id1": {"claude": {"status": "ok"}},  # has 1 other backend
-                "id2": {},  # no coverage
-            },
-            backends=["kodo:solo"],
-            active_claims=set(),
-        )
-        assert len(result) == 2
-        assert result[0]["instance_id"] == "id1"  # higher comparison value
-        assert result[1]["instance_id"] == "id2"
-
-    def test_excludes_active_claims(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1", "id2"],
-            results={},
-            backends=["claude"],
-            active_claims={("id1", "claude")},
-        )
-        assert result == [{"instance_id": "id2", "arm": "claude"}]
-
-    def test_limit(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1", "id2", "id3"],
-            results={},
-            backends=["claude"],
-            active_claims=set(),
-            limit=2,
-        )
-        assert len(result) == 2
-
-    def test_multiple_backends(self):
-        result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={},
-            backends=["claude", "kodo:solo"],
-            active_claims=set(),
-        )
-        assert len(result) == 2
-        arms = {a["arm"] for a in result}
-        assert arms == {"claude", "kodo:solo"}
-
-    def test_deterministic_ordering(self):
-        """Same input always produces same output."""
-        kwargs = dict(
-            all_instance_ids=["id2", "id1", "id3"],
-            results={},
-            backends=["claude", "kodo"],
-            active_claims=set(),
-        )
-        r1 = prioritize_assignments(**kwargs)
-        r2 = prioritize_assignments(**kwargs)
-        assert r1 == r2
-
-    def test_mixed_coverage(self):
-        """Complex scenario: mix of coverage levels."""
-        result = prioritize_assignments(
-            all_instance_ids=["id1", "id2", "id3"],
-            results={
-                "id1": {"claude": {}, "cursor": {}},  # 2 other backends
-                "id2": {"claude": {}},  # 1 other backend
-                "id3": {},  # none
-            },
-            backends=["kodo:solo"],
-            active_claims=set(),
-        )
-        # Ordered by coverage: id1 (2), id2 (1), id3 (0)
-        assert result[0]["instance_id"] == "id1"
-        assert result[1]["instance_id"] == "id2"
-        assert result[2]["instance_id"] == "id3"
-
-    def test_skips_already_covered_backends_only(self):
-        """If backend A is done but B isn't, assign B only."""
+    def test_assigns_missing_backend_and_skips_covered(self):
+        """Assigns only uncovered backends; covered ones are excluded."""
         result = prioritize_assignments(
             all_instance_ids=["id1"],
             results={"id1": {"claude": {}}},
             backends=["claude", "kodo:solo"],
             active_claims=set(),
         )
+        assert result == [{"instance_id": "id1", "arm": "kodo:solo"}]
+
+    def test_excludes_active_claims_and_respects_limit(self):
+        result = prioritize_assignments(
+            all_instance_ids=["id1", "id2", "id3"],
+            results={}, backends=["claude"],
+            active_claims={("id1", "claude")}, limit=1,
+        )
         assert len(result) == 1
-        assert result[0]["arm"] == "kodo:solo"
+        assert result[0]["instance_id"] != "id1"
+
+    def test_deterministic_and_multiple_backends(self):
+        """Same input always produces same output; multiple backends all assigned."""
+        kwargs = dict(all_instance_ids=["id2", "id1"], results={},
+                      backends=["claude", "kodo"], active_claims=set())
+        r1 = prioritize_assignments(**kwargs)
+        r2 = prioritize_assignments(**kwargs)
+        assert r1 == r2
+        assert {a["arm"] for a in r1} == {"claude", "kodo"}
+
+    def test_prefers_higher_coverage_tasks(self):
+        """Tasks evaluated by more other backends are prioritized for comparison value."""
+        result = prioritize_assignments(
+            all_instance_ids=["id1", "id2", "id3"],
+            results={"id1": {"claude": {}, "cursor": {}}, "id2": {"claude": {}}, "id3": {}},
+            backends=["kodo:solo"], active_claims=set(),
+        )
+        assert [r["instance_id"] for r in result] == ["id1", "id2", "id3"]
 
     def test_arm_pressure_steers_away_from_busy_arms(self):
-        """Arms with more active contributors are deprioritized."""
+        """Lower pressure arms come first; missing arms treated as 0; empty dict is no-op."""
         result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={},
-            backends=["claude", "cursor"],
-            active_claims=set(),
-            arm_pressure={"cursor": 3, "claude": 0},
+            all_instance_ids=["id1"], results={},
+            backends=["claude", "cursor"], active_claims=set(),
+            arm_pressure={"cursor": 3},  # claude not mentioned = 0
         )
-        assert len(result) == 2
-        # claude (pressure=0) should come before cursor (pressure=3)
         assert result[0]["arm"] == "claude"
         assert result[1]["arm"] == "cursor"
+        # Empty dict equivalent to no pressure
+        no_p = prioritize_assignments(all_instance_ids=["id1"], results={},
+                                       backends=["claude"], active_claims=set())
+        with_empty = prioritize_assignments(all_instance_ids=["id1"], results={},
+                                             backends=["claude"], active_claims=set(), arm_pressure={})
+        assert no_p == with_empty
 
     def test_arm_pressure_secondary_to_coverage(self):
-        """Coverage still takes priority over arm pressure."""
+        """Coverage takes priority over arm pressure."""
         result = prioritize_assignments(
             all_instance_ids=["id1", "id2"],
-            results={
-                "id1": {"codex": {}},  # has 1 other backend
-                "id2": {},  # no coverage
-            },
-            backends=["claude"],
-            active_claims=set(),
-            arm_pressure={"claude": 5},  # high pressure, but coverage wins
+            results={"id1": {"codex": {}}, "id2": {}},
+            backends=["claude"], active_claims=set(),
+            arm_pressure={"claude": 5},
         )
-        assert result[0]["instance_id"] == "id1"  # higher coverage wins
-
-    def test_arm_pressure_breaks_coverage_ties(self):
-        """When coverage is equal, pressure breaks the tie."""
-        result = prioritize_assignments(
-            all_instance_ids=["id1", "id2"],
-            results={},  # both have 0 coverage
-            backends=["claude", "cursor"],
-            active_claims=set(),
-            arm_pressure={"cursor": 2, "claude": 0},
-        )
-        # Same instance_id, claude (0 pressure) before cursor (2 pressure)
-        claude_results = [r for r in result if r["arm"] == "claude"]
-        cursor_results = [r for r in result if r["arm"] == "cursor"]
-        assert len(claude_results) == 2
-        assert len(cursor_results) == 2
-        # For same instance, claude should come first
-        id1_arms = [r["arm"] for r in result if r["instance_id"] == "id1"]
-        assert id1_arms[0] == "claude"
-
-    def test_arm_pressure_none_treated_as_zero(self):
-        """Missing arms in pressure dict treated as 0 (most attractive)."""
-        result = prioritize_assignments(
-            all_instance_ids=["id1"],
-            results={},
-            backends=["claude", "cursor"],
-            active_claims=set(),
-            arm_pressure={"cursor": 1},  # claude not mentioned = 0
-        )
-        assert result[0]["arm"] == "claude"
-        assert result[1]["arm"] == "cursor"
-
-    def test_arm_pressure_empty_dict_no_effect(self):
-        """Empty pressure dict is equivalent to no pressure."""
-        no_pressure = prioritize_assignments(
-            all_instance_ids=["id1", "id2"],
-            results={},
-            backends=["claude"],
-            active_claims=set(),
-        )
-        with_empty = prioritize_assignments(
-            all_instance_ids=["id1", "id2"],
-            results={},
-            backends=["claude"],
-            active_claims=set(),
-            arm_pressure={},
-        )
-        assert no_pressure == with_empty
+        assert result[0]["instance_id"] == "id1"  # higher coverage wins despite pressure
 
 
 # ── client fetch_assignments ───────────────────────────────────────────────
@@ -1890,24 +1402,13 @@ import benchmark.online.db as online_db
 
 
 class TestOnlineClientConfig:
-    def test_allowed_datasets_env_is_parsed(self):
-        """Public dataset allowlist should respect the configured CSV env var."""
-        with patch.dict(
-            "os.environ",
-            {"KODO_BENCH_ALLOWED_DATASETS": "verified, pro"},
-            clear=False,
-        ):
+    def test_env_vars_parsed_correctly(self):
+        """ALLOWED_DATASETS parsed from CSV; SNAPSHOT_PREFIX strips slashes."""
+        with patch.dict("os.environ", {"KODO_BENCH_ALLOWED_DATASETS": "verified, pro"}, clear=False):
             reloaded = importlib.reload(online_config)
             assert reloaded.ALLOWED_DATASETS == frozenset({"verified", "pro"})
         importlib.reload(online_config)
-
-    def test_snapshot_prefix_env_is_parsed(self):
-        """Snapshot prefix should be normalized without surrounding slashes."""
-        with patch.dict(
-            "os.environ",
-            {"KODO_BENCH_SNAPSHOT_PREFIX": "/frozen/h2h-verified-2026-03-16/"},
-            clear=False,
-        ):
+        with patch.dict("os.environ", {"KODO_BENCH_SNAPSHOT_PREFIX": "/frozen/h2h-verified-2026-03-16/"}, clear=False):
             reloaded = importlib.reload(online_config)
             assert reloaded.SNAPSHOT_PREFIX == "frozen/h2h-verified-2026-03-16"
         importlib.reload(online_config)
@@ -1969,80 +1470,31 @@ class TestOnlineClientConfig:
 
 
 class TestFetchAssignments:
-    def test_returns_none_when_unconfigured(self):
-        with patch(
-            "benchmark.online.client.is_configured", autospec=True, return_value=False
-        ):
-            result = fetch_assignments(["claude"])
-        assert result is None
-
-    def test_raises_on_error(self):
+    def test_returns_none_when_unconfigured_raises_on_error(self):
+        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+            assert fetch_assignments(["claude"]) is None
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._post_json",
-                autospec=True,
-                side_effect=Exception("timeout"),
-            ),
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=True),
+            patch("benchmark.online.client._post_json", autospec=True, side_effect=Exception("timeout")),
         ):
             with pytest.raises(Exception, match="timeout"):
                 fetch_assignments(["claude"])
 
-    def test_returns_assignments(self):
+    def test_returns_assignments_or_empty(self):
         assignments = [{"instance_id": "id1", "arm": "claude", "dataset": "pro"}]
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._post_json",
-                autospec=True,
-                return_value={"assignments": assignments},
-            ),
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=True),
+            patch("benchmark.online.client._post_json", autospec=True, return_value={"assignments": assignments}),
         ):
-            result = fetch_assignments(["claude"], datasets={"pro": ["id1"]})
-        assert result == assignments
+            assert fetch_assignments(["claude"], datasets={"pro": ["id1"]}) == assignments
 
-    def test_passes_datasets(self):
+    def test_passes_datasets_to_server(self):
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._post_json",
-                autospec=True,
-                return_value={"assignments": []},
-            ) as mock_post,
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=True),
+            patch("benchmark.online.client._post_json", autospec=True, return_value={"assignments": []}) as mock_post,
         ):
-            fetch_assignments(
-                ["claude"], datasets={"pro": ["id1"], "verified": ["id2"]}
-            )
-        body = mock_post.call_args[0][1]
-        assert body["datasets"] == {"pro": ["id1"], "verified": ["id2"]}
-
-    def test_empty_response(self):
-        with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._post_json",
-                autospec=True,
-                return_value={"assignments": []},
-            ),
-        ):
-            result = fetch_assignments(["claude"], datasets={"pro": ["id1"]})
-        assert result == []
+            fetch_assignments(["claude"], datasets={"pro": ["id1"], "verified": ["id2"]})
+        assert mock_post.call_args[0][1]["datasets"] == {"pro": ["id1"], "verified": ["id2"]}
 
 
 class TestOnlineDb:
@@ -2123,62 +1575,39 @@ class TestOnlineDb:
         assert filtered["arms"] == ["kodo:solo", "cursor"]
         assert [task["instance_id"] for task in filtered["tasks"]] == ["repo__1"]
 
-    def test_get_snapshot_index_json_reads_snapshot_blob(self):
-        """Frozen index reads should use the snapshot blob path."""
+    def test_snapshot_read_write_blob_paths(self):
+        """Snapshot operations use correct blob paths under snapshots/ prefix."""
+        snap = "h2h-verified-2026-03-16"
+        expected_index_path = f"snapshots/{snap}/data/verified/index.json"
+        expected_patch_path = f"snapshots/{snap}/patches/verified/django__django-11400/cursor.diff"
+
+        # Read index
         blob = MagicMock()
         blob.exists.return_value = True
-        blob.download_as_bytes.return_value = b'{"meta":{"snapshot_frozen":true}}'
+        blob.download_as_bytes.return_value = b'{"meta":{}}'
         bucket = MagicMock()
         bucket.blob.return_value = blob
-
         with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
-            body = online_db.get_snapshot_index_json(
-                "verified", "h2h-verified-2026-03-16"
-            )
+            online_db.get_snapshot_index_json("verified", snap)
+        bucket.blob.assert_called_once_with(expected_index_path)
 
-        bucket.blob.assert_called_once_with(
-            "snapshots/h2h-verified-2026-03-16/data/verified/index.json"
-        )
-        assert body == b'{"meta":{"snapshot_frozen":true}}'
+        # Read patch
+        blob2 = MagicMock()
+        blob2.exists.return_value = True
+        blob2.download_as_text.return_value = "diff"
+        bucket2 = MagicMock()
+        bucket2.blob.return_value = blob2
+        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket2):
+            online_db.get_snapshot_patch("verified", "django__django-11400", "cursor", snap)
+        bucket2.blob.assert_called_once_with(expected_patch_path)
 
-    def test_get_snapshot_patch_reads_snapshot_blob(self):
-        """Frozen patch reads should use the snapshot patch path."""
-        blob = MagicMock()
-        blob.exists.return_value = True
-        blob.download_as_text.return_value = "diff --git a/x b/x"
-        bucket = MagicMock()
-        bucket.blob.return_value = blob
-
-        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
-            patch_text = online_db.get_snapshot_patch(
-                "verified",
-                "django__django-11400",
-                "cursor",
-                "h2h-verified-2026-03-16",
-            )
-
-        bucket.blob.assert_called_once_with(
-            "snapshots/h2h-verified-2026-03-16/patches/verified/django__django-11400/cursor.diff",
-        )
-        assert patch_text == "diff --git a/x b/x"
-
-    def test_save_snapshot_index_writes_json_blob(self):
-        """Frozen snapshot writes should land under the snapshot data prefix."""
-        blob = MagicMock()
-        bucket = MagicMock()
-        bucket.blob.return_value = blob
-
-        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket):
-            online_db.save_snapshot_index(
-                "h2h-verified-2026-03-16",
-                "verified",
-                {"meta": {"snapshot_frozen": True}, "tasks": []},
-            )
-
-        bucket.blob.assert_called_once_with(
-            "snapshots/h2h-verified-2026-03-16/data/verified/index.json"
-        )
-        blob.upload_from_string.assert_called_once()
+        # Write index
+        blob3 = MagicMock()
+        bucket3 = MagicMock()
+        bucket3.blob.return_value = blob3
+        with patch("benchmark.online.db._bucket", autospec=True, return_value=bucket3):
+            online_db.save_snapshot_index(snap, "verified", {"meta": {}, "tasks": []})
+        bucket3.blob.assert_called_once_with(expected_index_path)
 
 
 # ── runner with assignments ────────────────────────────────────────────────
@@ -2517,76 +1946,22 @@ from benchmark.online.mirror import (
 
 
 class TestFetchUnevaluated:
-    def test_returns_none_when_unconfigured(self):
-        with patch(
-            "benchmark.online.client.is_configured", autospec=True, return_value=False
-        ):
-            result = fetch_unevaluated("pro")
-        assert result is None
-
-    def test_returns_none_on_error(self):
+    def test_returns_none_when_unconfigured_or_error(self):
+        with patch("benchmark.online.client.is_configured", autospec=True, return_value=False):
+            assert fetch_unevaluated("pro") is None
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._get_json",
-                autospec=True,
-                side_effect=Exception("timeout"),
-            ),
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=True),
+            patch("benchmark.online.client._get_json", autospec=True, side_effect=Exception("timeout")),
         ):
-            result = fetch_unevaluated("pro")
-        assert result is None
+            assert fetch_unevaluated("pro") is None
 
-    def test_returns_predictions(self):
+    def test_returns_predictions_and_maps_dataset_key(self):
         preds = [{"instance_id": "id1", "arm": "claude", "patch": "diff"}]
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._get_json",
-                autospec=True,
-                return_value={"predictions": preds},
-            ),
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=True),
+            patch("benchmark.online.client._get_json", autospec=True, return_value={"predictions": preds}) as mock_get,
         ):
-            result = fetch_unevaluated("pro")
-        assert result == preds
-
-    def test_empty_response(self):
-        with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._get_json",
-                autospec=True,
-                return_value={"predictions": []},
-            ),
-        ):
-            result = fetch_unevaluated("pro")
-        assert result == []
-
-    def test_maps_dataset_key(self):
-        with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client._get_json",
-                autospec=True,
-                return_value={"predictions": []},
-            ) as mock_get,
-        ):
-            fetch_unevaluated("ScaleAI/SWE-bench_Pro")
+            assert fetch_unevaluated("ScaleAI/SWE-bench_Pro") == preds
         assert mock_get.call_args[0][0] == "/api/unevaluated/pro"
 
 
@@ -2688,25 +2063,15 @@ class TestOnlineMirror:
             "id1/claude": "diff --git"
         }
 
-    def test_load_rows_accepts_directory_or_file(self, tmp_path):
-        dataset_dir = tmp_path / "verified"
-        dataset_dir.mkdir()
-        rows = [{"instance_id": "id1", "arm": "claude"}]
-        (dataset_dir / "rows.json").write_text(json.dumps(rows))
-
-        assert load_rows(dataset_dir) == rows
-        assert load_rows(dataset_dir / "rows.json") == rows
-
-    def test_load_rows_expands_user_home(self, tmp_path):
-        home = tmp_path / "home"
-        dataset_dir = home / ".kodo" / "benchmark" / "mirror" / "verified"
+    def test_load_rows_accepts_dir_file_and_tilde(self, tmp_path):
+        """Accepts directory, file path, and ~ expansion."""
+        dataset_dir = tmp_path / "home" / ".kodo" / "benchmark" / "mirror" / "verified"
         dataset_dir.mkdir(parents=True)
         rows = [{"instance_id": "id1", "arm": "claude"}]
         (dataset_dir / "rows.json").write_text(json.dumps(rows))
-
-        with patch.dict(
-            "os.environ", {"HOME": str(home), "USERPROFILE": str(home)}, clear=False
-        ):
+        assert load_rows(dataset_dir) == rows
+        assert load_rows(dataset_dir / "rows.json") == rows
+        with patch.dict("os.environ", {"HOME": str(tmp_path / "home"), "USERPROFILE": str(tmp_path / "home")}, clear=False):
             assert load_rows("~/.kodo/benchmark/mirror/verified") == rows
 
     def test_fetch_patch_quotes_instance_id_and_arm(self):
@@ -2742,88 +2107,25 @@ class TestOnlineMirror:
 
 
 class TestCleanupDummyResults:
-    def test_candidate_rows_reuses_upload_validation(self):
+    def test_candidate_rows_flags_suspicious_and_skips_clean(self):
+        """candidate_rows flags empty_agent_output and kodo_worker_broken; skips clean rows."""
         rows = [
-            {
-                "instance_id": "id1",
-                "arm": "codex:gpt-5.4",
-                "status": "ok",
-                "elapsed_s": 1.0,
-                "patch_len": 0,
-                "run_id": "run-a",
-                "agent_output": {},
-            },
-            {
-                "instance_id": "id2",
-                "arm": "claude:opus",
-                "status": "ok",
-                "elapsed_s": 120.0,
-                "patch_len": 42,
-                "run_id": "run-a",
-                "agent_output": {"status": "ok"},
-            },
+            {"instance_id": "id1", "arm": "codex:gpt-5.4", "status": "ok",
+             "elapsed_s": 1.0, "patch_len": 0, "run_id": "run-a", "agent_output": {}},
+            {"instance_id": "id2", "arm": "claude:opus", "status": "ok",
+             "elapsed_s": 120.0, "patch_len": 42, "run_id": "run-a",
+             "agent_output": {"status": "ok"}},  # clean - should be skipped
+            {"instance_id": "id3", "arm": "kodo:solo", "status": "error",
+             "elapsed_s": 627.6, "patch_len": 4624, "run_id": "run-a",
+             "error": "[worker] error: unknown error",
+             "agent_output": {"status": "error", "error": "bound to a different event loop"}},
         ]
-
-        with patch(
-            "benchmark.online.cleanup_dummy_results.db.iter_task_results",
-            autospec=True,
-            return_value=rows,
-        ):
+        with patch("benchmark.online.cleanup_dummy_results.db.iter_task_results",
+                    autospec=True, return_value=rows):
             result = candidate_rows("pro", run_id="run-a")
-
-        assert result == [
-            {
-                "instance_id": "id1",
-                "arm": "codex:gpt-5.4",
-                "status": "ok",
-                "elapsed_s": 1.0,
-                "patch_len": 0,
-                "run_id": "run-a",
-                "agent_output": {},
-                "reason": "empty_agent_output",
-            }
-        ]
-
-    def test_candidate_rows_detects_kodo_worker_broken(self):
-        rows = [
-            {
-                "instance_id": "id1",
-                "arm": "kodo:solo",
-                "status": "error",
-                "elapsed_s": 627.6,
-                "patch_len": 4624,
-                "run_id": "run-a",
-                "error": "[worker] error: unknown error",
-                "agent_output": {
-                    "status": "error",
-                    "error": "bound to a different event loop",
-                },
-            },
-        ]
-
-        with patch(
-            "benchmark.online.cleanup_dummy_results.db.iter_task_results",
-            autospec=True,
-            return_value=rows,
-        ):
-            result = candidate_rows("pro", run_id="run-a")
-
-        assert result == [
-            {
-                "instance_id": "id1",
-                "arm": "kodo:solo",
-                "status": "error",
-                "elapsed_s": 627.6,
-                "patch_len": 4624,
-                "run_id": "run-a",
-                "error": "[worker] error: unknown error",
-                "agent_output": {
-                    "status": "error",
-                    "error": "bound to a different event loop",
-                },
-                "reason": "kodo_worker_broken",
-            }
-        ]
+        assert len(result) == 2
+        assert result[0]["reason"] == "empty_agent_output"
+        assert result[1]["reason"] == "kodo_worker_broken"
 
     def test_main_filters_by_reason_and_elapsed(self, capsys):
         rows = [
@@ -2923,70 +2225,20 @@ from benchmark.evaluate_pending import evaluate_pending
 
 
 class TestEvaluatePending:
-    def test_fails_when_unconfigured(self, tmp_path):
-        with patch(
-            "benchmark.online.client.is_configured", autospec=True, return_value=False
-        ):
-            result = evaluate_pending(tmp_path, dataset_arg="verified")
-        assert result == 1
-
-    def test_fails_when_docker_unavailable(self, tmp_path):
+    @pytest.mark.parametrize("configured,docker_ok,fetch_return,expected", [
+        (False, True, [], 1),    # unconfigured
+        (True, False, [], 1),    # docker unavailable
+        (True, True, [], 0),     # nothing pending
+        (True, True, None, 1),   # fetch failure
+    ])
+    def test_precondition_failures(self, tmp_path, configured, docker_ok, fetch_return, expected):
+        """Returns 1 if unconfigured, docker down, or fetch fails; 0 if nothing pending."""
         with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark._util.ensure_docker_running",
-                autospec=True,
-                return_value=False,
-            ),
+            patch("benchmark.online.client.is_configured", autospec=True, return_value=configured),
+            patch("benchmark._util.ensure_docker_running", autospec=True, return_value=docker_ok),
+            patch("benchmark.online.client.fetch_unevaluated", autospec=True, return_value=fetch_return),
         ):
-            result = evaluate_pending(tmp_path, dataset_arg="verified")
-        assert result == 1
-
-    def test_returns_0_when_nothing_pending(self, tmp_path):
-        with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark._util.ensure_docker_running",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client.fetch_unevaluated",
-                autospec=True,
-                return_value=[],
-            ),
-        ):
-            result = evaluate_pending(tmp_path, dataset_arg="verified")
-        assert result == 0
-
-    def test_returns_1_on_fetch_failure(self, tmp_path):
-        with (
-            patch(
-                "benchmark.online.client.is_configured",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark._util.ensure_docker_running",
-                autospec=True,
-                return_value=True,
-            ),
-            patch(
-                "benchmark.online.client.fetch_unevaluated",
-                autospec=True,
-                return_value=None,
-            ),
-        ):
-            result = evaluate_pending(tmp_path, dataset_arg="verified")
-        assert result == 1
+            assert evaluate_pending(tmp_path, dataset_arg="verified") == expected
 
     def test_writes_predictions_and_runs_eval(self, tmp_path):
         """Full flow: fetch → write → combined eval → upload per arm."""

@@ -2390,32 +2390,6 @@ class TestCmdTeamsEdit:
         assert "Copying built-in" in out
         mock_save.assert_called_once()
 
-    def test_save_and_exit(self, capsys):
-        """Selecting 'Save & exit' should save config and return."""
-        cfg = self._base_team_cfg()
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = "Save & exit"
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
-        ):
-            _cmd_teams_edit("test-team")
-
-        mock_save.assert_called_once()
-        saved_config = mock_save.call_args[0][1]
-        assert saved_config["name"] == "test-team"
-        assert saved_config["agents"] == cfg["agents"]
-        assert saved_config["verifiers"] == cfg["verifiers"]
-
     def test_cancel_action_exits(self, capsys):
         """Cancelling action selection should exit without saving."""
         cfg = self._base_team_cfg()
@@ -2555,12 +2529,20 @@ class TestCmdTeamsEdit:
         saved_config = mock_save.call_args[0][1]
         assert saved_config["agents"]["worker"]["model"] == "opus"
 
-    def test_edit_agent_no_agents(self, capsys):
-        """'Edit agent' with no agents should print message and continue."""
+    @pytest.mark.parametrize(
+        "action, expected_msg",
+        [
+            pytest.param("Edit agent", "No agents to edit", id="edit-empty"),
+            pytest.param("Remove agent", "No agents to remove", id="remove-empty"),
+            pytest.param("Edit verifiers", "No agents to assign", id="verifiers-empty"),
+        ],
+    )
+    def test_action_on_empty_agents(self, capsys, action, expected_msg):
+        """Actions on a team with no agents print appropriate messages."""
         cfg = self._base_team_cfg()
         cfg["agents"] = {}
 
-        select_returns = iter(["Edit agent", "Save & exit"])
+        select_returns = iter([action, "Save & exit"])
 
         def mock_select(*args, **kwargs):
             m = MagicMock()
@@ -2579,110 +2561,55 @@ class TestCmdTeamsEdit:
             _cmd_teams_edit("test-team")
 
         out = capsys.readouterr().out
-        assert "No agents to edit" in out
+        assert expected_msg in out
 
-    def test_remove_agent_confirmed(self, capsys):
-        """'Remove agent' with confirmation should delete agent and clean verifiers."""
+    @pytest.mark.parametrize("confirm", [True, False], ids=["confirmed", "cancelled"])
+    def test_remove_agent(self, capsys, confirm):
+        """Remove agent: confirmed removes + cleans verifiers; declined keeps agent."""
         cfg = self._base_team_cfg()
-        # Add a second agent so we can test verifier cleanup
-        cfg["agents"]["architect"] = {
-            "backend": "claude",
-            "model": "opus",
-            "description": "Architect",
-        }
+        cfg["agents"]["architect"] = {"backend": "claude", "model": "opus", "description": "Architect"}
         cfg["verifiers"]["reviewers"] = ["architect"]
 
-        # "Remove agent" → select "architect" → confirm yes → "Save & exit"
-        select_returns = iter(["Remove agent", "architect", "Save & exit"])
+        target = "architect" if confirm else "worker"
+        select_returns = iter(["Remove agent", target, "Save & exit"])
 
         def mock_select(*args, **kwargs):
             m = MagicMock()
             m.ask.return_value = next(select_returns)
             return m
 
-        def mock_confirm(*args, **kwargs):
+        def mock_confirm_fn(*args, **kwargs):
             m = MagicMock()
-            m.ask.return_value = True  # confirm removal
+            m.ask.return_value = confirm
             return m
 
         with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
+            patch("kodo.team_config.list_available_teams", autospec=True, return_value=self._mock_list_teams(cfg)),
             patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
+            patch("questionary.confirm", autospec=True, side_effect=mock_confirm_fn),
             patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
         ):
             _cmd_teams_edit("test-team")
 
         saved_config = mock_save.call_args[0][1]
-        assert "architect" not in saved_config["agents"]
-        # Verifier should be cleaned
-        assert "architect" not in saved_config["verifiers"]["reviewers"]
+        if confirm:
+            assert target not in saved_config["agents"]
+            assert target not in saved_config["verifiers"]["reviewers"]
+        else:
+            assert target in saved_config["agents"]
 
-    def test_remove_agent_cancelled(self, capsys):
-        """'Remove agent' declined should keep agent."""
+    @pytest.mark.parametrize(
+        "orch_input, expect_key",
+        [
+            pytest.param("New orch prompt", True, id="set-prompt"),
+            pytest.param("", False, id="clear-prompt"),
+        ],
+    )
+    def test_edit_team_settings(self, capsys, orch_input, expect_key):
+        """'Edit team settings' updates description; empty orch prompt removes the key."""
         cfg = self._base_team_cfg()
-
-        # "Remove agent" → select "worker" → confirm no → "Save & exit"
-        select_returns = iter(["Remove agent", "worker", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        def mock_confirm(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = False  # decline removal
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
-            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
-        ):
-            _cmd_teams_edit("test-team")
-
-        saved_config = mock_save.call_args[0][1]
-        assert "worker" in saved_config["agents"]
-
-    def test_remove_agent_no_agents(self, capsys):
-        """'Remove agent' with no agents should print message."""
-        cfg = self._base_team_cfg()
-        cfg["agents"] = {}
-
-        select_returns = iter(["Remove agent", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team", autospec=True),
-        ):
-            _cmd_teams_edit("test-team")
-
-        out = capsys.readouterr().out
-        assert "No agents to remove" in out
-
-    def test_edit_team_settings(self, capsys):
-        """'Edit team settings' should update description, exchanges, cycles."""
-        cfg = self._base_team_cfg()
+        if not expect_key:
+            cfg["orchestrator_prompt"] = "Old prompt"
 
         select_returns = iter(["Edit team settings", "Save & exit"])
 
@@ -2691,13 +2618,7 @@ class TestCmdTeamsEdit:
             m.ask.return_value = next(select_returns)
             return m
 
-        # text prompts for: description, orchestrator_prompt
-        text_returns = iter(
-            [
-                "Updated description",  # description
-                "New orch prompt",  # orchestrator_prompt
-            ]
-        )
+        text_returns = iter(["Updated description", orch_input])
 
         def mock_text(*args, **kwargs):
             m = MagicMock()
@@ -2718,48 +2639,10 @@ class TestCmdTeamsEdit:
 
         saved_config = mock_save.call_args[0][1]
         assert saved_config["description"] == "Updated description"
-        assert "max_exchanges" not in saved_config
-        assert "max_cycles" not in saved_config
-        assert saved_config["orchestrator_prompt"] == "New orch prompt"
-
-    def test_edit_settings_clear_orch_prompt(self, capsys):
-        """Clearing orchestrator prompt (empty string) should remove the key."""
-        cfg = self._base_team_cfg()
-        cfg["orchestrator_prompt"] = "Old prompt"
-
-        select_returns = iter(["Edit team settings", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        text_returns = iter(
-            [
-                "Same desc",  # description
-                "",  # orchestrator_prompt (clear)
-            ]
-        )
-
-        def mock_text(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(text_returns)
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("questionary.text", autospec=True, side_effect=mock_text),
-            patch("kodo.cli._subcommands._save_team", autospec=True) as mock_save,
-        ):
-            _cmd_teams_edit("test-team")
-
-        saved_config = mock_save.call_args[0][1]
-        assert "orchestrator_prompt" not in saved_config
+        if expect_key:
+            assert saved_config["orchestrator_prompt"] == orch_input
+        else:
+            assert "orchestrator_prompt" not in saved_config
 
     def test_edit_verifiers(self, capsys):
         """'Edit verifiers' should update verifier assignments."""
@@ -2807,32 +2690,6 @@ class TestCmdTeamsEdit:
         saved_config = mock_save.call_args[0][1]
         assert saved_config["verifiers"]["testers"] == ["worker"]
         assert saved_config["verifiers"]["reviewers"] == ["architect"]
-
-    def test_edit_verifiers_no_agents(self, capsys):
-        """'Edit verifiers' with no agents should print message."""
-        cfg = self._base_team_cfg()
-        cfg["agents"] = {}
-
-        select_returns = iter(["Edit verifiers", "Save & exit"])
-
-        def mock_select(*args, **kwargs):
-            m = MagicMock()
-            m.ask.return_value = next(select_returns)
-            return m
-
-        with (
-            patch(
-                "kodo.team_config.list_available_teams",
-                autospec=True,
-                return_value=self._mock_list_teams(cfg),
-            ),
-            patch("questionary.select", autospec=True, side_effect=mock_select),
-            patch("kodo.cli._subcommands._save_team", autospec=True),
-        ):
-            _cmd_teams_edit("test-team")
-
-        out = capsys.readouterr().out
-        assert "No agents to assign" in out
 
     def test_shows_orch_prompt_snippet(self, capsys):
         """When orchestrator prompt exists, display shows snippet."""

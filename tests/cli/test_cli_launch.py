@@ -423,66 +423,44 @@ class TestFail:
 
 
 class TestFormatJsonOutput:
-    def test_error_output(self):
-        result = _format_json_output(error="bad input")
-        assert result == {"status": "error", "error": "bad input"}
-
-    def test_no_result_output(self):
-        result = _format_json_output()
-        assert result["status"] == "error"
-
-    def test_completed_output(self):
-        rr = RunResult(
-            cycles=[
-                CycleResult(
-                    exchanges=5, total_cost_usd=0.01, finished=True, summary="done"
-                )
-            ],
-        )
-        result = _format_json_output(rr)
-        assert result["status"] == "completed"
-        assert result["finished"] is True
-        assert result["cycles"] == 1
-
-    def test_partial_output(self):
-        rr = RunResult(
-            cycles=[
-                CycleResult(
-                    exchanges=3, total_cost_usd=0.005, finished=False, summary="partial"
-                )
-            ],
-        )
-        result = _format_json_output(rr)
-        assert result["status"] == "partial"
-        assert result["finished"] is False
-
-    def test_failed_output(self):
-        rr = RunResult(cycles=[])
-        result = _format_json_output(rr)
-        assert result["status"] == "failed"
+    @pytest.mark.parametrize(
+        "run_result, kwargs, expected_status, extra_checks",
+        [
+            pytest.param(None, {"error": "bad input"}, "error", {"error": "bad input"}, id="error"),
+            pytest.param(None, {}, "error", {}, id="no-result"),
+            pytest.param(
+                RunResult(cycles=[CycleResult(exchanges=5, total_cost_usd=0.01, finished=True, summary="done")]),
+                {}, "completed", {"finished": True, "cycles": 1},
+                id="completed",
+            ),
+            pytest.param(
+                RunResult(cycles=[CycleResult(exchanges=3, total_cost_usd=0.005, finished=False, summary="partial")]),
+                {}, "partial", {"finished": False},
+                id="partial",
+            ),
+            pytest.param(RunResult(cycles=[]), {}, "failed", {}, id="failed"),
+        ],
+    )
+    def test_status_mapping(self, run_result, kwargs, expected_status, extra_checks):
+        """Different run result states map to correct JSON status values."""
+        result = _format_json_output(run_result, **kwargs)
+        assert result["status"] == expected_status
+        for k, v in extra_checks.items():
+            assert result[k] == v
 
     def test_with_stages(self):
+        """Stage results are included in JSON output."""
         rr = RunResult(
             cycles=[CycleResult(exchanges=5, total_cost_usd=0.01, finished=True)],
             stage_results=[
-                StageResult(
-                    stage_index=1,
-                    stage_name="Setup",
-                    finished=True,
-                    success=True,
-                    summary="OK",
-                    cycles=[MagicMock()],
-                ),
+                StageResult(stage_index=1, stage_name="Setup", finished=True, success=True, summary="OK", cycles=[MagicMock()]),
             ],
         )
         result = _format_json_output(rr)
-        assert "stages" in result
         assert result["stages"][0]["name"] == "Setup"
 
     def test_with_improve_report(self):
-        rr = RunResult(
-            cycles=[CycleResult(exchanges=5, total_cost_usd=0.01, finished=True)],
-        )
+        rr = RunResult(cycles=[CycleResult(exchanges=5, total_cost_usd=0.01, finished=True)])
         result = _format_json_output(rr, improve_report="# Report\n- found bug")
         assert result["improve_report"] == "# Report\n- found bug"
 
@@ -701,10 +679,19 @@ class TestLaunchResume:
         assert "team" in migrated
         assert "mode" not in migrated
 
-    def test_resume_no_config_file_reconstructs(self, tmp_path):
-        """When config.json doesn't exist, reconstruct params from RunState."""
+    @pytest.mark.parametrize(
+        "config_content",
+        [
+            pytest.param(None, id="missing-config-file"),
+            pytest.param("not valid json!", id="corrupt-config"),
+        ],
+    )
+    def test_resume_config_recovery(self, tmp_path, config_content):
+        """Missing or corrupt config.json is reconstructed from RunState."""
         run_dir = RunDir.create(tmp_path, "20260101_120000")
-        # Don't write config.json
+        if config_content is not None:
+            run_dir.config_file.write_text(config_content)
+
         state = self._make_state(tmp_path)
         fake_team = {"worker": Agent(FakeSession(), "w")}
         preset = _fake_team_preset(build_team=lambda: fake_team)
@@ -773,38 +760,6 @@ class TestLaunchResume:
         out = capsys.readouterr().out
         assert "deleted-team" in out
         assert "using 'full'" in out
-
-    def test_resume_with_team_override(self, tmp_path):
-        """team_override should load config for the override team."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        config = _minimal_params()
-        run_dir.config_file.write_text(json.dumps(config))
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "gemini-flash"
-            result = launch_resume(run_dir, state, team_override="quick")
-
-        assert result.finished is True
 
     def test_resume_unknown_team_override_exits(self, tmp_path):
         """Unknown team_override → exits."""
@@ -1035,37 +990,6 @@ class TestLaunchResume:
 
         assert result.finished is True
 
-    def test_resume_corrupt_config_reconstructs(self, tmp_path):
-        """Corrupt config.json → reconstructs from RunState."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        run_dir.config_file.write_text("not valid json!")
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "gemini-flash"
-            result = launch_resume(run_dir, state)
-
-        assert result.finished is True
-
     def test_resume_team_override_value_error_falls_to_preset(self, tmp_path):
         """team_override with ValueError from load_team_config falls back to preset."""
         run_dir = RunDir.create(tmp_path, "20260101_120000")
@@ -1178,8 +1102,15 @@ class TestLaunchResume:
         call_args = mock_orch.return_value.run.call_args[0]
         assert call_args[0] == "Specific saved goal text"
 
-    def test_resume_orchestrator_override(self, tmp_path):
-        """--orchestrator override should change the model passed to build_orchestrator."""
+    @pytest.mark.parametrize(
+        "override, expected_backend, expected_model",
+        [
+            pytest.param("opus", "api", "opus", id="model-only"),
+            pytest.param("claude-code:opus", "claude-code", "opus", id="backend-and-model"),
+        ],
+    )
+    def test_resume_orchestrator_override(self, tmp_path, override, expected_backend, expected_model):
+        """--orchestrator override sets backend and model for build_orchestrator."""
         run_dir = RunDir.create(tmp_path, "20260101_120000")
         config = _minimal_params(orchestrator="api", orchestrator_model="gemini-flash")
         run_dir.config_file.write_text(json.dumps(config))
@@ -1206,147 +1137,53 @@ class TestLaunchResume:
             patch("kodo.factory.check_api_key", autospec=True, return_value=None),
         ):
             mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "opus"
-            launch_resume(run_dir, state, orchestrator_override="opus")
-
-        # build_orchestrator should have been called with the overridden model
-        call_kwargs = mock_orch.call_args
-        assert call_kwargs[0][1] == "opus"  # model arg
-        assert call_kwargs[0][0] == "api"  # backend arg
-
-    def test_resume_cycles_override(self, tmp_path):
-        """--cycles override should change max_cycles passed to orchestrator.run()."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        config = _minimal_params(max_cycles=5)
-        run_dir.config_file.write_text(json.dumps(config))
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "gemini-flash"
-            launch_resume(run_dir, state, cycles_override=20)
-
-        call_kwargs = mock_orch.return_value.run.call_args[1]
-        assert call_kwargs["max_cycles"] == 20
-
-    def test_resume_exchanges_override(self, tmp_path):
-        """--exchanges override should change max_exchanges passed to orchestrator.run()."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        config = _minimal_params(max_exchanges=30)
-        run_dir.config_file.write_text(json.dumps(config))
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "gemini-flash"
-            launch_resume(run_dir, state, exchanges_override=50)
-
-        call_kwargs = mock_orch.return_value.run.call_args[1]
-        assert call_kwargs["max_exchanges"] == 50
-
-    def test_resume_effort_override(self, tmp_path):
-        """--effort override should change effort passed to orchestrator.run()."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        config = _minimal_params(effort="standard")
-        run_dir.config_file.write_text(json.dumps(config))
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "gemini-flash"
-            launch_resume(run_dir, state, effort_override="max")
-
-        call_kwargs = mock_orch.return_value.run.call_args[1]
-        assert call_kwargs["effort"] == "max"
-
-    def test_resume_cli_backend_override(self, tmp_path):
-        """--orchestrator claude-code:opus should set both backend and model."""
-        run_dir = RunDir.create(tmp_path, "20260101_120000")
-        config = _minimal_params(orchestrator="api", orchestrator_model="gemini-flash")
-        run_dir.config_file.write_text(json.dumps(config))
-
-        state = self._make_state(tmp_path)
-        fake_team = {"worker": Agent(FakeSession(), "w")}
-        preset = _fake_team_preset(build_team=lambda: fake_team)
-        fake_result = RunResult(
-            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
-        )
-
-        with (
-            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
-            patch(
-                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
-            ),
-            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
-            patch(
-                "kodo.cli._launch._resolve_auto_commit",
-                autospec=True,
-                return_value=True,
-            ),
-            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
-            patch("kodo.factory.check_api_key", autospec=True, return_value=None),
-        ):
-            mock_orch.return_value.run.return_value = fake_result
-            mock_orch.return_value.model = "opus"
-            launch_resume(run_dir, state, orchestrator_override="claude-code:opus")
+            mock_orch.return_value.model = expected_model
+            launch_resume(run_dir, state, orchestrator_override=override)
 
         call_args = mock_orch.call_args[0]
-        assert call_args[0] == "claude-code"  # backend
-        assert call_args[1] == "opus"  # model
+        assert call_args[0] == expected_backend
+        assert call_args[1] == expected_model
+
+    @pytest.mark.parametrize(
+        "override_kwarg, run_key, override_value",
+        [
+            pytest.param("cycles_override", "max_cycles", 20, id="cycles"),
+            pytest.param("exchanges_override", "max_exchanges", 50, id="exchanges"),
+            pytest.param("effort_override", "effort", "max", id="effort"),
+        ],
+    )
+    def test_resume_run_param_overrides(self, tmp_path, override_kwarg, run_key, override_value):
+        """CLI overrides (cycles, exchanges, effort) are forwarded to orchestrator.run()."""
+        run_dir = RunDir.create(tmp_path, "20260101_120000")
+        config = _minimal_params()
+        run_dir.config_file.write_text(json.dumps(config))
+
+        state = self._make_state(tmp_path)
+        fake_team = {"worker": Agent(FakeSession(), "w")}
+        preset = _fake_team_preset(build_team=lambda: fake_team)
+        fake_result = RunResult(
+            cycles=[CycleResult(exchanges=1, total_cost_usd=0.0, finished=True)],
+        )
+
+        with (
+            patch("kodo.cli._launch.get_team", autospec=True, return_value=preset),
+            patch(
+                "kodo.cli._launch.load_team_config", autospec=True, return_value=None
+            ),
+            patch("kodo.cli._launch.build_orchestrator", autospec=True) as mock_orch,
+            patch(
+                "kodo.cli._launch._resolve_auto_commit",
+                autospec=True,
+                return_value=True,
+            ),
+            patch("kodo.cli._launch._build_advisor", autospec=True, return_value=None),
+        ):
+            mock_orch.return_value.run.return_value = fake_result
+            mock_orch.return_value.model = "gemini-flash"
+            launch_resume(run_dir, state, **{override_kwarg: override_value})
+
+        call_kwargs = mock_orch.return_value.run.call_args[1]
+        assert call_kwargs[run_key] == override_value
 
     def test_resume_overrides_banner(self, tmp_path, capsys):
         """Resume with overrides should show them in the banner."""

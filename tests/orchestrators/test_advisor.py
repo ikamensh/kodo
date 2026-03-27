@@ -563,8 +563,19 @@ class TestRunAdaptive:
 
 class TestBuildAdvisor:
     def test_returns_advisor_with_gemini_key(self, monkeypatch):
+        """_build_advisor passes the correct model string to Advisor."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        advisor = _build_advisor({"orchestrator_model": "gemini-flash"})
+
+        def fake_advisor_init(self, model, **kwargs):
+            self.model = model
+
+        with patch(
+            "kodo.orchestrators.advisor.Advisor.__init__",
+            autospec=True,
+            side_effect=fake_advisor_init,
+        ):
+            advisor = _build_advisor({"orchestrator_model": "gemini-flash"})
+
         assert advisor is not None
         assert "google-gla:" in advisor.model
 

@@ -44,10 +44,14 @@ markers = [
     "live: tests that call real backends (require local auth, run with: pytest -m live)",
     "slow: git integration tests with real subprocess calls (run with: pytest -m slow)",
     "integration: integration tests (real CLI via subprocess)",
+    "real_models: opt out of fast model mock (needs real make_fresh_model)",
 ]
 filterwarnings = [
     "ignore::urllib3.exceptions.NotOpenSSLWarning",
     "ignore:urllib3.*doesn't match a supported version:requests.exceptions.RequestsDependencyWarning",
+    "ignore:You should use:DeprecationWarning",
+    "ignore::ResourceWarning",
+    "ignore:coroutine.*was never awaited:RuntimeWarning",
 ]
 
 [tool.setuptools.packages.find]

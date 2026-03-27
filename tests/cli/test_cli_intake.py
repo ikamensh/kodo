@@ -185,32 +185,19 @@ class TestGetGoal:
 
 
 class TestLooksStaged:
-    def test_numbered_steps_detected(self):
-        text = "1. Setup environment\n2. Write tests\n3. Deploy"
-        assert _looks_staged(text) is True
-
-    def test_single_numbered_line_not_staged(self):
-        text = "1. Just one step"
-        assert _looks_staged(text) is False
-
-    def test_plain_text_not_staged(self):
-        text = "Build a REST API with authentication"
-        assert _looks_staged(text) is False
-
-    def test_exactly_two_numbered_lines_is_staged(self):
-        """Boundary: exactly 2 numbered items meets the threshold."""
-        text = "1) First step\n2) Second step"
-        assert _looks_staged(text) is True
-
-    def test_parenthetical_numbering_detected(self):
-        """Detects 1) 2) 3) style numbering."""
-        text = "1) Build models\n2) Write API\n3) Deploy"
-        assert _looks_staged(text) is True
-
-    def test_indented_numbering_detected(self):
-        """Detects indented numbered lists."""
-        text = "  1. First\n  2. Second\n  3. Third"
-        assert _looks_staged(text) is True
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            pytest.param("1. Setup environment\n2. Write tests\n3. Deploy", True, id="dot-numbering"),
+            pytest.param("1) First step\n2) Second step", True, id="paren-boundary-2"),
+            pytest.param("  1. First\n  2. Second\n  3. Third", True, id="indented"),
+            pytest.param("1. Just one step", False, id="single-line"),
+            pytest.param("Build a REST API with authentication", False, id="plain-text"),
+        ],
+    )
+    def test_staged_detection(self, text, expected):
+        """Numbered lists with 2+ items are staged; single items and plain text are not."""
+        assert _looks_staged(text) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -218,277 +205,102 @@ class TestLooksStaged:
 # ---------------------------------------------------------------------------
 
 
+def _stage(index=1, name="S", description="D", acceptance_criteria="C", **extras):
+    """Helper to build a valid stage dict, overridable per-field."""
+    d = {"index": index, "name": name, "description": description, "acceptance_criteria": acceptance_criteria}
+    d.update(extras)
+    return d
+
+
 class TestParseGoalPlan:
-    def test_valid_plan(self):
-        raw = {
-            "context": "Test project",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "Setup",
-                    "description": "Initialize project",
-                    "acceptance_criteria": "Project compiles",
-                },
-            ],
-        }
+    def test_valid_plan_roundtrip(self):
+        """All core fields are parsed and accessible."""
+        raw = {"context": "Test project", "stages": [_stage(1, "Setup", "Init project", "Compiles")]}
         plan = _parse_goal_plan(raw)
         assert plan.context == "Test project"
         assert len(plan.stages) == 1
-        assert plan.stages[0].name == "Setup"
-        assert plan.stages[0].description == "Initialize project"
-        assert plan.stages[0].acceptance_criteria == "Project compiles"
-        assert plan.stages[0].index == 1
+        s = plan.stages[0]
+        assert (s.index, s.name, s.description, s.acceptance_criteria) == (1, "Setup", "Init project", "Compiles")
 
-    def test_empty_context_returns_empty(self):
-        raw = {"context": "", "stages": []}
+    def test_multi_stage_preserves_order(self):
+        """Multiple stages preserve order and field values."""
+        raw = {"context": "Multi", "stages": [_stage(1, "A", "desc-A", "ac-A"), _stage(2, "B", "desc-B", "ac-B")]}
+        plan = _parse_goal_plan(raw)
+        assert len(plan.stages) == 2
+        assert [s.name for s in plan.stages] == ["A", "B"]
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            pytest.param({"context": "", "stages": []}, id="empty-context"),
+            pytest.param({"stages": []}, id="missing-context"),
+            pytest.param({"context": "Test", "stages": ["not a dict", 42]}, id="non-dict-stages"),
+            pytest.param({"context": "Test", "stages": [{"index": 1, "name": "S1"}]}, id="incomplete-stage"),
+        ],
+    )
+    def test_malformed_stages_skipped(self, raw):
+        """Empty context, missing context, non-dict entries, and incomplete stages all yield empty plan."""
         plan = _parse_goal_plan(raw)
         assert plan.stages == []
 
-    def test_missing_context_returns_empty(self):
-        raw = {"stages": []}
-        plan = _parse_goal_plan(raw)
-        assert plan.stages == []
-
-    def test_skips_non_dict_stages(self):
-        raw = {"context": "Test", "stages": ["not a dict", 42]}
-        plan = _parse_goal_plan(raw)
-        assert plan.stages == []
-
-    def test_skips_incomplete_stages(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {"index": 1, "name": "S1"},  # missing description and criteria
-                {
-                    "index": 2,
-                    "name": "S2",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                },
-            ],
-        }
+    def test_skips_incomplete_keeps_valid(self):
+        """Incomplete stages are skipped; valid ones are kept."""
+        raw = {"context": "Test", "stages": [
+            {"index": 1, "name": "S1"},  # missing desc + criteria
+            _stage(2, "S2"),
+        ]}
         plan = _parse_goal_plan(raw)
         assert len(plan.stages) == 1
         assert plan.stages[0].name == "S2"
 
-    def test_invalid_index_raises(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": "abc",
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                },
-            ],
-        }
-        with pytest.raises(ValueError, match="positive integer"):
-            _parse_goal_plan(raw)
-
-    def test_negative_index_raises(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": -1,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                },
-            ],
-        }
-        with pytest.raises(ValueError, match="positive"):
+    @pytest.mark.parametrize(
+        "index, match",
+        [
+            pytest.param("abc", "positive integer", id="non-numeric"),
+            pytest.param(-1, "positive", id="negative"),
+            pytest.param(0, "positive", id="zero"),
+        ],
+    )
+    def test_invalid_index_raises(self, index, match):
+        raw = {"context": "Test", "stages": [_stage(index=index)]}
+        with pytest.raises(ValueError, match=match):
             _parse_goal_plan(raw)
 
     def test_duplicate_index_raises(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S1",
-                    "description": "D1",
-                    "acceptance_criteria": "C1",
-                },
-                {
-                    "index": 1,
-                    "name": "S2",
-                    "description": "D2",
-                    "acceptance_criteria": "C2",
-                },
-            ],
-        }
+        raw = {"context": "Test", "stages": [_stage(1, "S1"), _stage(1, "S2")]}
         with pytest.raises(ValueError, match="Duplicate"):
             _parse_goal_plan(raw)
 
-    def test_parallel_group_parsed(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "parallel_group": 2,
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages[0].parallel_group == 2
-
-    def test_letter_parallel_group_coerced(self):
-        """Letter parallel_group values like 'A', 'B' are coerced to ints."""
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S1",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "parallel_group": "A",
-                },
-                {
-                    "index": 2,
-                    "name": "S2",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "parallel_group": "B",
-                },
-                {
-                    "index": 3,
-                    "name": "S3",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "parallel_group": "A",
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages[0].parallel_group == plan.stages[2].parallel_group
-        assert plan.stages[0].parallel_group != plan.stages[1].parallel_group
-
-    def test_parallel_group_string_coerced_to_int(self):
-        """parallel_group string "1" is coerced to int."""
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "parallel_group": "1",
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages[0].parallel_group == 1
-        assert isinstance(plan.stages[0].parallel_group, int)
-
-    def test_browser_testing_parsed(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "browser_testing": True,
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages[0].browser_testing is True
-
-    def test_persist_changes_parsed(self):
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                    "persist_changes": True,
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages[0].persist_changes is True
-
-    def test_skipped_stage_with_name_logged(self):
-        """Stage with index+name but missing description should be logged and skipped."""
-        raw = {
-            "context": "Test",
-            "stages": [
-                {"index": 1, "name": "Incomplete Stage"},  # missing desc + criteria
-            ],
-        }
-        plan = _parse_goal_plan(raw)
-        assert plan.stages == []
-
-    def test_string_index_coerced_to_int(self):
+    def test_string_index_coerced(self):
         """String index "1" is coerced to int."""
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": "1",
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                },
-            ],
-        }
-        plan = _parse_goal_plan(raw)
+        plan = _parse_goal_plan({"context": "Test", "stages": [_stage(index="1")]})
         assert plan.stages[0].index == 1
         assert isinstance(plan.stages[0].index, int)
 
-    def test_zero_index_raises(self):
-        """index=0 is invalid (must be positive)."""
-        raw = {
-            "context": "Test",
-            "stages": [
-                {
-                    "index": 0,
-                    "name": "S",
-                    "description": "D",
-                    "acceptance_criteria": "C",
-                },
-            ],
-        }
-        with pytest.raises(ValueError, match="positive"):
-            _parse_goal_plan(raw)
+    @pytest.mark.parametrize(
+        "field, value, expected",
+        [
+            pytest.param("parallel_group", 2, 2, id="parallel-int"),
+            pytest.param("parallel_group", "1", 1, id="parallel-str-to-int"),
+            pytest.param("browser_testing", True, True, id="browser-testing"),
+            pytest.param("persist_changes", True, True, id="persist-changes"),
+        ],
+    )
+    def test_optional_fields_parsed(self, field, value, expected):
+        """Optional stage fields are parsed correctly."""
+        plan = _parse_goal_plan({"context": "Test", "stages": [_stage(**{field: value})]})
+        assert getattr(plan.stages[0], field) == expected
 
-    def test_multi_stage_preserves_order_and_fields(self):
-        """Multiple stages preserve order, description, and acceptance_criteria."""
-        raw = {
-            "context": "Multi",
-            "stages": [
-                {
-                    "index": 1,
-                    "name": "A",
-                    "description": "desc-A",
-                    "acceptance_criteria": "ac-A",
-                },
-                {
-                    "index": 2,
-                    "name": "B",
-                    "description": "desc-B",
-                    "acceptance_criteria": "ac-B",
-                },
-            ],
-        }
+    def test_letter_parallel_group_coerced(self):
+        """Letter parallel_group values like 'A', 'B' are coerced; same letter = same group."""
+        raw = {"context": "Test", "stages": [
+            _stage(1, "S1", parallel_group="A"),
+            _stage(2, "S2", parallel_group="B"),
+            _stage(3, "S3", parallel_group="A"),
+        ]}
         plan = _parse_goal_plan(raw)
-        assert len(plan.stages) == 2
-        assert plan.stages[0].description == "desc-A"
-        assert plan.stages[0].acceptance_criteria == "ac-A"
-        assert plan.stages[1].description == "desc-B"
-        assert plan.stages[1].acceptance_criteria == "ac-B"
+        assert plan.stages[0].parallel_group == plan.stages[2].parallel_group
+        assert plan.stages[0].parallel_group != plan.stages[1].parallel_group
 
 
 # ---------------------------------------------------------------------------

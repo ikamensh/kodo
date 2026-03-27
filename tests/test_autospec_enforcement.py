@@ -261,13 +261,13 @@ class BareMockArgVisitor(ast.NodeVisitor):
 
 
 def _scan_test_files():
-    """Yield (path, source, tree) for all test files (excluding archive)."""
+    """Return cached list of (path, source, tree) for all test files."""
+    results = []
     for test_file in TESTS_DIR.rglob("test_*.py"):
         try:
             rel_path = test_file.relative_to(WORKSPACE_ROOT)
             if "archive" in rel_path.parts:
                 continue
-            # Skip this file itself
             if test_file.name == "test_autospec_enforcement.py":
                 continue
         except ValueError:
@@ -277,50 +277,45 @@ def _scan_test_files():
             tree = ast.parse(source)
         except SyntaxError:
             continue
-        yield test_file, source, tree
+        results.append((test_file, source, tree))
+    return results
 
 
-def find_autospec_violations() -> list[tuple[Path, int, str, str]]:
-    """Scan test files for patches that should use autospec but don't."""
-    violations = []
+def _find_all_violations():
+    """Single pass: scan all files for both autospec and bare-mock violations."""
+    autospec_violations = []
+    bare_mock_violations = []
     for test_file, source, tree in _scan_test_files():
-        visitor = MockPatternVisitor(test_file, source.splitlines())
-        visitor.visit(tree)
-        for line, target, issue in visitor.violations:
-            violations.append((test_file, line, target, issue))
-    return violations
+        v1 = MockPatternVisitor(test_file, source.splitlines())
+        v1.visit(tree)
+        for line, target, issue in v1.violations:
+            autospec_violations.append((test_file, line, target, issue))
+        v2 = BareMockArgVisitor(test_file)
+        v2.visit(tree)
+        for line, issue in v2.violations:
+            bare_mock_violations.append((test_file, line, issue))
+    return autospec_violations, bare_mock_violations
 
 
-def find_bare_mock_arg_violations() -> list[tuple[Path, int, str]]:
-    """Scan test files for bare MagicMock()/Mock() passed as keyword args."""
-    violations = []
-    for test_file, _source, tree in _scan_test_files():
-        visitor = BareMockArgVisitor(test_file)
-        visitor.visit(tree)
-        for line, issue in visitor.violations:
-            violations.append((test_file, line, issue))
-    return violations
+# Cache the scan so both tests share one pass over the files.
+_cached_violations = None
+
+
+def _get_violations():
+    global _cached_violations
+    if _cached_violations is None:
+        _cached_violations = _find_all_violations()
+    return _cached_violations
 
 
 def test_all_mocks_use_autospec():
-    """Verify all mocks use autospec for signature enforcement.
-
-    Why: Mocking without autospec allows tests to pass even when calling
-    functions with invalid parameters. The real function would reject the call,
-    but the mock silently accepts anything.
-
-    Fix: Replace `patch("module.func", mock)` with either:
-    - `patch("module.func", create_autospec(func, return_value=...))`
-    - `patch("module.func", autospec=True)`
-    """
-    violations = find_autospec_violations()
-
+    """Verify all mocks use autospec for signature enforcement."""
+    violations, _ = _get_violations()
     if violations:
-        messages = []
-        for filepath, line, target, issue in violations:
-            rel_path = filepath.relative_to(WORKSPACE_ROOT)
-            messages.append(f"  {rel_path}:{line} - {issue}")
-
+        messages = [
+            f"  {fp.relative_to(WORKSPACE_ROOT)}:{ln} - {issue}"
+            for fp, ln, _tgt, issue in violations
+        ]
         pytest.fail(
             f"Found {len(violations)} mock(s) without autospec:\n"
             + "\n".join(messages)
@@ -329,23 +324,13 @@ def test_all_mocks_use_autospec():
 
 
 def test_no_bare_mock_as_function_arg():
-    """Verify mocks passed as function args use spec enforcement.
-
-    Why: Bare MagicMock()/Mock() accepts any attribute access, hiding
-    interface mismatches. If the real class renames a method, tests with
-    bare mocks keep passing while production code breaks.
-
-    Fix: Use MagicMock(spec=RealClass), create_autospec(RealClass, instance=True),
-    or a typed helper from conftest.py.
-    """
-    violations = find_bare_mock_arg_violations()
-
+    """Verify mocks passed as function args use spec enforcement."""
+    _, violations = _get_violations()
     if violations:
-        messages = []
-        for filepath, line, issue in violations:
-            rel_path = filepath.relative_to(WORKSPACE_ROOT)
-            messages.append(f"  {rel_path}:{line} - {issue}")
-
+        messages = [
+            f"  {fp.relative_to(WORKSPACE_ROOT)}:{ln} - {issue}"
+            for fp, ln, issue in violations
+        ]
         pytest.fail(
             f"Found {len(violations)} bare mock(s) passed as function args:\n"
             + "\n".join(messages)

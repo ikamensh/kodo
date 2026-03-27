@@ -38,20 +38,16 @@ def test_get_team_invalid():
 
 
 def test_build_orchestrator_api():
-    with patch("kodo.orchestrators.api.Summarizer", autospec=True):
-        orch = build_orchestrator("api", model="opus")
+    orch = build_orchestrator("api", model="opus")
     assert type(orch).__name__ == "ApiOrchestrator"
     assert orch.model == "opus"  # alias stored as-is; resolved internally
 
 
 def test_build_orchestrator_api_ollama_local():
-    with (
-        patch("kodo.orchestrators.api.Summarizer", autospec=True),
-        patch(
-            "kodo.models.list_ollama_models",
-            autospec=True,
-            return_value=["qwen2.5-coder"],
-        ),
+    with patch(
+        "kodo.models.list_ollama_models",
+        autospec=True,
+        return_value=["qwen2.5-coder"],
     ):
         orch = build_orchestrator("api", model="ollama-local")
     assert type(orch).__name__ == "ApiOrchestrator"
@@ -59,8 +55,7 @@ def test_build_orchestrator_api_ollama_local():
 
 
 def test_build_orchestrator_api_explicit_ollama_model():
-    with patch("kodo.orchestrators.api.Summarizer", autospec=True):
-        orch = build_orchestrator("api", model="ollama/qwen2.5-coder:14b")
+    orch = build_orchestrator("api", model="ollama/qwen2.5-coder:14b")
     assert type(orch).__name__ == "ApiOrchestrator"
     assert orch.model == "ollama:qwen2.5-coder:14b"
 

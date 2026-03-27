@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -776,8 +776,8 @@ class TestForParallel:
     def test_for_parallel_creates_fresh_model(self):
         """for_parallel() creates a new instance with its own fresh model."""
         orch = ApiOrchestrator(model="gemini-flash")
-
         copy = orch.for_parallel()
+
         # Each instance should have its own model (not sharing cached clients)
         assert copy._pydantic_model is not orch._pydantic_model
 

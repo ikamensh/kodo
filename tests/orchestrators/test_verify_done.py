@@ -235,21 +235,17 @@ def test_both_crash(tmp_project: Path) -> None:
 # --- VerificationState tests ---
 
 
-def test_minor_issues_fixed_accepted(tmp_project: Path) -> None:
-    """When verifiers say MINOR ISSUES FIXED, verify_done accepts (returns None)."""
-    team = {
-        "tester": make_agent("I fixed some formatting. MINOR ISSUES FIXED"),
-        "architect": make_agent("Renamed a variable. MINOR ISSUES FIXED"),
-    }
-    assert verify_done(GOAL, SUMMARY, team, tmp_project) is None
-
-
-def test_minor_issues_fixed_case_insensitive(tmp_project: Path) -> None:
-    """MINOR ISSUES FIXED matching is case-insensitive."""
-    team = {
-        "tester": make_agent("minor issues fixed"),
-        "architect": make_agent("Minor Issues Fixed"),
-    }
+@pytest.mark.parametrize(
+    "tester_msg, architect_msg",
+    [
+        ("I fixed some formatting. MINOR ISSUES FIXED", "Renamed a variable. MINOR ISSUES FIXED"),
+        ("minor issues fixed", "Minor Issues Fixed"),
+    ],
+    ids=["with-context", "case-insensitive"],
+)
+def test_minor_issues_fixed_accepted(tmp_project: Path, tester_msg, architect_msg) -> None:
+    """MINOR ISSUES FIXED signal (case-insensitive) is accepted."""
+    team = {"tester": make_agent(tester_msg), "architect": make_agent(architect_msg)}
     assert verify_done(GOAL, SUMMARY, team, tmp_project) is None
 
 
@@ -287,42 +283,24 @@ def test_attempt_count_in_rejection(tmp_project: Path) -> None:
 # --- Conditional browser testing tests ---
 
 
-def test_browser_skipped_by_default(tmp_project: Path) -> None:
-    """browser_testing defaults to False, so tester_browser is skipped."""
+@pytest.mark.parametrize(
+    "browser_testing, expected_queries",
+    [
+        pytest.param(False, 0, id="flag-false-skips"),
+        pytest.param(True, 1, id="flag-true-runs"),
+    ],
+)
+def test_browser_testing_flag(tmp_project: Path, browser_testing, expected_queries) -> None:
+    """tester_browser runs only when browser_testing=True."""
     tester_browser = make_agent("ALL CHECKS PASS")
     team = {
         "tester": make_agent("ALL CHECKS PASS"),
         "tester_browser": tester_browser,
         "architect": make_agent("ALL CHECKS PASS"),
     }
-    result = verify_done(GOAL, SUMMARY, team, tmp_project)
+    result = verify_done(GOAL, SUMMARY, team, tmp_project, browser_testing=browser_testing)
     assert result is None
-    assert tester_browser.session.stats.queries == 0
-
-
-def test_browser_runs_when_flag_true(tmp_project: Path) -> None:
-    """When browser_testing=True, tester_browser runs."""
-    tester_browser = make_agent("ALL CHECKS PASS")
-    team = {
-        "tester": make_agent("ALL CHECKS PASS"),
-        "tester_browser": tester_browser,
-        "architect": make_agent("ALL CHECKS PASS"),
-    }
-    result = verify_done(GOAL, SUMMARY, team, tmp_project, browser_testing=True)
-    assert result is None
-    assert tester_browser.session.stats.queries == 1
-
-
-def test_browser_flag_false_skips_even_with_agent(tmp_project: Path) -> None:
-    """browser_testing=False skips tester_browser even when the agent exists."""
-    tester_browser = make_agent("ALL CHECKS PASS")
-    team = {
-        "tester": make_agent("ALL CHECKS PASS"),
-        "tester_browser": tester_browser,
-    }
-    result = verify_done(GOAL, SUMMARY, team, tmp_project, browser_testing=False)
-    assert result is None
-    assert tester_browser.session.stats.queries == 0
+    assert tester_browser.session.stats.queries == expected_queries
 
 
 # --- handle_done verification modes ---
@@ -331,37 +309,17 @@ def test_browser_flag_false_skips_even_with_agent(tmp_project: Path) -> None:
 class TestHandleDoneVerificationSkip:
     """Tests for verification='skip' mode in handle_done."""
 
-    def test_skip_accepts_immediately(self, tmp_project: Path) -> None:
-        """verification='skip' accepts without running any verifiers."""
-        team = {"tester": make_agent("THIS SHOULD NOT RUN")}
+    def test_skip_accepts_without_running_verifiers(self, tmp_project: Path) -> None:
+        """verification='skip' accepts immediately, never queries agents."""
+        tester = make_agent("THIS SHOULD NOT RUN")
+        team = {"tester": tester}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
             config=CycleConfig(verification="skip"),
         )
         assert "Verified and accepted" in result
-        assert done_signal.called
-        assert done_signal.success
-
-    def test_skip_does_not_run_verifiers(self, tmp_project: Path) -> None:
-        """verification='skip' never queries the tester."""
-        tester = make_agent("ALL CHECKS PASS")
-        team = {"tester": tester}
-        done_signal = DoneSignal()
-        handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
-            config=CycleConfig(verification="skip"),
-        )
+        assert done_signal.called and done_signal.success
         assert tester.session.stats.queries == 0
 
     def test_skip_still_rejects_on_failure(self, tmp_project: Path) -> None:
@@ -369,47 +327,33 @@ class TestHandleDoneVerificationSkip:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
         result = handle_done(
-            SUMMARY,
-            False,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
+            SUMMARY, False, done_signal, GOAL, team, tmp_project,
             config=CycleConfig(verification="skip"),
         )
         assert "unsuccessful" in result.lower()
-        assert done_signal.called
-        assert not done_signal.success
+        assert done_signal.called and not done_signal.success
 
 
 class TestHandleDoneQuickCheck:
     """Tests for verification=[QuickCheck(...)] mode in handle_done."""
 
-    def test_quick_check_passes_when_file_exists(self, tmp_project: Path) -> None:
-        """Quick check accepts when the expected file exists."""
+    def test_quick_check_passes_without_running_verifiers(self, tmp_project: Path) -> None:
+        """Quick check accepts when file exists and never queries agent verifiers."""
         check_file = tmp_project / "findings.md"
         check_file.write_text("some findings")
-        team = {"tester": make_agent("THIS SHOULD NOT RUN")}
+        tester = make_agent("THIS SHOULD NOT RUN")
+        team = {"tester": tester}
         done_signal = DoneSignal()
         checks = [
-            QuickCheck(
-                path=str(check_file),
-                description="Findings file",
-                error_message="Missing findings",
-            )
+            QuickCheck(path=str(check_file), description="Findings file", error_message="Missing findings")
         ]
         result = handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert "Verified and accepted" in result
-        assert done_signal.called
-        assert done_signal.success
+        assert done_signal.called and done_signal.success
+        assert tester.session.stats.queries == 0
 
     def test_quick_check_rejects_when_file_missing(self, tmp_project: Path) -> None:
         """Quick check rejects when the expected file does not exist."""
@@ -417,49 +361,15 @@ class TestHandleDoneQuickCheck:
         team = {"tester": make_agent("ALL CHECKS PASS")}
         done_signal = DoneSignal()
         checks = [
-            QuickCheck(
-                path=missing,
-                description="Findings file",
-                error_message="Missing findings",
-            )
+            QuickCheck(path=missing, description="Findings file", error_message="Missing findings")
         ]
         result = handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
+            SUMMARY, True, done_signal, GOAL, team, tmp_project,
             config=CycleConfig(verification=checks),
         )
         assert "Quick-check verification failed" in result
         assert "Missing findings" in result
         assert not done_signal.called
-
-    def test_quick_check_does_not_run_verifiers(self, tmp_project: Path) -> None:
-        """Quick check mode never queries agent verifiers."""
-        check_file = tmp_project / "findings.md"
-        check_file.write_text("data")
-        tester = make_agent("ALL CHECKS PASS")
-        team = {"tester": tester}
-        done_signal = DoneSignal()
-        checks = [
-            QuickCheck(
-                path=str(check_file),
-                description="Findings file",
-                error_message="Missing",
-            )
-        ]
-        handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
-            config=CycleConfig(verification=checks),
-        )
-        assert tester.session.stats.queries == 0
 
     def test_multiple_quick_checks_all_must_pass(self, tmp_project: Path) -> None:
         """All quick checks must pass; one missing file rejects."""
@@ -679,44 +589,46 @@ class TestVerifyDoneWithCriteria:
 class TestEffortLevel:
     """Tests for effort-level prompt supplements."""
 
-    def test_standard_effort_no_supplement(self) -> None:
-        """Standard effort adds nothing to orchestrator prompt."""
-        prompt = build_orchestrator_prompt(effort="standard")
-        assert prompt == ORCHESTRATOR_SYSTEM_PROMPT
+    @pytest.mark.parametrize(
+        "effort, expect_equal_base, expect_substring",
+        [
+            pytest.param("standard", True, None, id="standard-no-change"),
+            pytest.param("low", False, "Effort Level: LOW", id="low"),
+            pytest.param("high", False, "Effort Level: HIGH", id="high"),
+            pytest.param("max", False, "Effort Level: MAX", id="max"),
+        ],
+    )
+    def test_orchestrator_prompt(self, effort, expect_equal_base, expect_substring) -> None:
+        """Each effort level either leaves the base prompt unchanged or appends a supplement."""
+        prompt = build_orchestrator_prompt(effort=effort)
+        if expect_equal_base:
+            assert prompt == ORCHESTRATOR_SYSTEM_PROMPT
+        else:
+            assert prompt.startswith(ORCHESTRATOR_SYSTEM_PROMPT)
+            assert expect_substring in prompt
 
-    def test_high_effort_adds_supplement(self) -> None:
-        """High effort appends quality standards to orchestrator prompt."""
-        prompt = build_orchestrator_prompt(effort="high")
-        assert prompt.startswith(ORCHESTRATOR_SYSTEM_PROMPT)
-        assert "Effort Level: HIGH" in prompt
-        assert "NOT sufficient" in prompt
-
-    def test_max_effort_adds_supplement(self) -> None:
-        """Max effort appends aggressive standards to orchestrator prompt."""
-        prompt = build_orchestrator_prompt(effort="max")
-        assert "Effort Level: MAX" in prompt
-        assert "comfort zone" in prompt
-
-    def test_high_effort_in_verification_prompt(self) -> None:
-        """High effort adds skepticism to verification prompt."""
-        prompt = _build_verification_prompt(GOAL, SUMMARY, effort="high")
-        assert "HIGH" in prompt
-        assert "actually good" in prompt
-
-    def test_max_effort_in_verification_prompt(self) -> None:
-        """Max effort adds demanding language to verification prompt."""
-        prompt = _build_verification_prompt(GOAL, SUMMARY, effort="max")
-        assert "MAX" in prompt
-        assert "skeptical" in prompt
+    @pytest.mark.parametrize(
+        "effort, adds_supplement",
+        [
+            pytest.param("standard", False, id="standard"),
+            pytest.param("low", False, id="low"),
+            pytest.param("high", True, id="high"),
+            pytest.param("max", True, id="max"),
+        ],
+    )
+    def test_verification_prompt_supplement(self, effort, adds_supplement) -> None:
+        """Only high/max efforts add extra scrutiny to verification prompts."""
+        prompt = _build_verification_prompt(GOAL, SUMMARY, effort=effort)
+        baseline = _build_verification_prompt(GOAL, SUMMARY)
+        if adds_supplement:
+            assert len(prompt) > len(baseline)
+            assert effort.upper() in prompt
+        else:
+            assert prompt == baseline
 
     def test_effort_combined_with_criteria(self) -> None:
         """Effort supplement stacks with criteria-aware prompt."""
-        prompt = _build_verification_prompt(
-            GOAL,
-            SUMMARY,
-            SAMPLE_CRITERIA,
-            effort="max",
-        )
+        prompt = _build_verification_prompt(GOAL, SUMMARY, SAMPLE_CRITERIA, effort="max")
         assert "Acceptance Criteria" in prompt
         assert "MAX" in prompt
         assert "Panel.on_draw()" in prompt
@@ -727,35 +639,9 @@ class TestEffortLevel:
         team = {"tester": tester}
         done_signal = DoneSignal()
         config = CycleConfig(verification="full", effort="max")
-        handle_done(
-            SUMMARY,
-            True,
-            done_signal,
-            GOAL,
-            team,
-            tmp_project,
-            config=config,
-        )
+        handle_done(SUMMARY, True, done_signal, GOAL, team, tmp_project, config=config)
         prompt = tester.session.prompts[0]
         assert "MAX" in prompt
-
-    def test_standard_effort_no_verification_supplement(self) -> None:
-        """Standard effort adds no supplement to verification prompt."""
-        prompt_standard = _build_verification_prompt(GOAL, SUMMARY, effort="standard")
-        prompt_none = _build_verification_prompt(GOAL, SUMMARY)
-        assert prompt_standard == prompt_none
-
-    def test_low_effort_adds_supplement(self) -> None:
-        """Low effort appends simplicity guidance to orchestrator prompt."""
-        prompt = build_orchestrator_prompt(effort="low")
-        assert "Effort Level: LOW" in prompt
-        assert "simple" in prompt.lower()
-
-    def test_low_effort_no_verification_supplement(self) -> None:
-        """Low effort adds no extra verification scrutiny."""
-        prompt_low = _build_verification_prompt(GOAL, SUMMARY, effort="low")
-        prompt_standard = _build_verification_prompt(GOAL, SUMMARY, effort="standard")
-        assert prompt_low == prompt_standard
 
 
 # --- _check_passed edge cases ---

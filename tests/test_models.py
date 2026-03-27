@@ -77,6 +77,7 @@ class TestPydanticModelMap:
 # ── make_fresh_model ─────────────────────────────────────────────────────
 
 
+@pytest.mark.real_models
 class TestMakeFreshModel:
     def test_anthropic_returns_model_instance(self):
         """anthropic: prefix creates an AnthropicModel instance."""
@@ -112,7 +113,17 @@ class TestMakeFreshModel:
 
     def test_ollama_returns_openai_chat_model(self):
         """ollama: prefix creates an OpenAIChatModel backed by Ollama."""
-        result = make_fresh_model("ollama:llama3.2")
+        from unittest.mock import create_autospec, patch
+
+        from pydantic_ai.providers.ollama import OllamaProvider
+
+        mock_provider = create_autospec(OllamaProvider, instance=True)
+        with patch(  # noqa: autospec
+            "pydantic_ai.providers.ollama.OllamaProvider",
+            return_value=mock_provider,
+        ):
+            result = make_fresh_model("ollama:llama3.2")
+
         assert not isinstance(result, str)
         assert type(result).__name__ == "OpenAIChatModel"
 

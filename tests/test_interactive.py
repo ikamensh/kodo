@@ -56,7 +56,7 @@ def _make_orchestrator(result=None, error=None):
     actual_result = result or MagicMock(name="RunResult")
 
     def _run(*args, **kwargs):
-        gate.wait(timeout=0.5)
+        gate.wait(timeout=0.05)
         if error:
             raise error
         return actual_result

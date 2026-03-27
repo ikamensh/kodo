@@ -100,6 +100,26 @@ def _isolate_log(tmp_path: Path):
     log._test_restore(saved)
 
 
+@pytest.fixture(autouse=True)
+def _fast_model_construction(request):
+    """Replace make_fresh_model with a fast mock to avoid real httpx client setup.
+
+    Tests that need the real model (e.g. test_models.py) can opt out with
+    @pytest.mark.real_models.
+    """
+    if "real_models" in {m.name for m in request.node.iter_markers()}:
+        yield
+        return
+    from unittest.mock import MagicMock, patch
+
+    with patch(
+        "kodo.orchestrators.api.make_fresh_model",
+        autospec=True,
+        side_effect=lambda model_str: MagicMock(name=f"mock-{model_str}"),
+    ):
+        yield
+
+
 class FakeSession:
     """Minimal Session implementation for testing."""
 

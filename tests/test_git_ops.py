@@ -22,6 +22,18 @@ from kodo.orchestrators.git_ops import (
 from tests.conftest import _GIT_ENV
 
 
+def _git_add_commit(cwd: Path, msg: str) -> None:
+    """Stage all and commit in one subprocess call."""
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "add", "-A"],
+        cwd=cwd, capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-m", msg],
+        cwd=cwd, capture_output=True, check=True, env=_GIT_ENV,
+    )
+
+
 # ── Tier 1: Core Functionality ────────────────────────────────────────
 
 
@@ -213,16 +225,7 @@ def _create_real_merge_conflict(git_project: Path) -> str:
     """
     # Create base file
     (git_project / "shared.txt").write_text("original content\n")
-    subprocess.run(
-        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "add shared"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    _git_add_commit(git_project, "add shared")
 
     # Create branch with different change
     branch_name = "kodo-conflict-test"
@@ -233,16 +236,7 @@ def _create_real_merge_conflict(git_project: Path) -> str:
         check=True,
     )
     (git_project / "shared.txt").write_text("branch version\n")
-    subprocess.run(
-        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "branch change"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    _git_add_commit(git_project, "branch change")
 
     # Go back to main, make conflicting change
     subprocess.run(
@@ -252,16 +246,7 @@ def _create_real_merge_conflict(git_project: Path) -> str:
         check=True,
     )
     (git_project / "shared.txt").write_text("main version\n")
-    subprocess.run(
-        ["git", "add", "-A"], cwd=git_project, capture_output=True, check=True
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "main change"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    _git_add_commit(git_project, "main change")
 
     # Start merge (will conflict) — must pass _GIT_ENV for committer identity
     subprocess.run(
@@ -280,19 +265,7 @@ def test_merge_dirty_main_repo_refused(git_project: Path):
     try:
         # Make a change in the worktree and commit
         (worktree_dir / "wt.txt").write_text("worktree change")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "worktree commit"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(worktree_dir, "worktree commit")
 
         # Make the main repo dirty
         (git_project / "dirty.txt").write_text("uncommitted change")
@@ -343,19 +316,7 @@ def test_merge_happy_path_no_conflict(git_project: Path):
     try:
         # Add a file in the worktree
         (worktree_dir / "feature.txt").write_text("new feature")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(worktree_dir, "add feature")
 
         # Remove worktree before merge (branch must not be checked out)
         # Use _remove_worktree_keep_branch to keep the branch for merging
@@ -397,37 +358,13 @@ def test_merge_strips_pycache_from_both_branches(git_project: Path):
         (pycache_dir / "test.cpython-313.pyc").write_bytes(b"\x00\x01\x02")
         (worktree_dir / "feature.txt").write_text("feature")
 
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature with pycache"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(worktree_dir, "add feature with pycache")
 
         # Add __pycache__ in main repo
         main_pycache = git_project / "main_module" / "__pycache__"
         main_pycache.mkdir(parents=True)
         (main_pycache / "main.cpython-313.pyc").write_bytes(b"\x00\x01\x02")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add main pycache"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(git_project, "add main pycache")
 
         # Remove worktree before merge (branch must not be checked out)
         _remove_worktree_keep_branch(git_project, worktree_dir)
@@ -454,155 +391,58 @@ def test_merge_strips_pycache_from_both_branches(git_project: Path):
         _cleanup_branch(git_project, branch_name)
 
 
-def test_merge_conflict_agent_resolves(git_project: Path):
-    """merge_worktree_branch uses agent to resolve conflicts successfully."""
+@pytest.mark.parametrize(
+    "agent_resolves, expect_success, expect_conflict",
+    [
+        pytest.param(True, True, False, id="agent_resolves"),
+        pytest.param(False, False, True, id="agent_fails"),
+    ],
+)
+def test_merge_conflict_agent_outcome(
+    git_project: Path, agent_resolves: bool, expect_success: bool, expect_conflict: bool
+):
+    """merge_worktree_branch delegates to agent on conflict; outcome depends on agent result."""
     # Create a base file
     (git_project / "shared.txt").write_text("original content\n")
-    subprocess.run(
-        ["git", "add", "-A"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "add shared file"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
+    _git_add_commit(git_project, "add shared file")
 
     # Create worktree and modify the same file
     worktree_dir, branch_name = create_worktree(git_project, "test")
     try:
         (worktree_dir / "shared.txt").write_text("worktree version\n")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "modify shared in worktree"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(worktree_dir, "modify shared in worktree")
 
         # Modify the same file in main
         (git_project / "shared.txt").write_text("main version\n")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "modify shared in main"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(git_project, "modify shared in main")
 
         # Remove worktree before merge (branch must not be checked out)
         _remove_worktree_keep_branch(git_project, worktree_dir)
 
-        # Mock _resolve_conflicts_with_agent to return True (resolved)
         with mock.patch(
             "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
             autospec=True,
-            return_value=True,
+            return_value=agent_resolves,
         ):
             result = merge_worktree_branch(git_project, branch_name, "test-stage")
 
-        assert result.success is True
+        assert result.success is expect_success
         assert result.had_changes is True
-        assert result.conflict is False  # Successfully resolved
-        assert result.error == ""
+        assert result.conflict is expect_conflict
 
-    finally:
-        _cleanup_branch(git_project, branch_name)
-
-
-def test_merge_conflict_agent_fails(git_project: Path):
-    """merge_worktree_branch aborts merge when agent fails to resolve conflicts."""
-    # Create a base file
-    (git_project / "shared.txt").write_text("original content\n")
-    subprocess.run(
-        ["git", "add", "-A"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "add shared file"],
-        cwd=git_project,
-        capture_output=True,
-        check=True,
-        env=_GIT_ENV,
-    )
-
-    # Create worktree and modify the same file
-    worktree_dir, branch_name = create_worktree(git_project, "test")
-    try:
-        (worktree_dir / "shared.txt").write_text("worktree version\n")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "modify shared in worktree"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-
-        # Modify the same file in main
-        (git_project / "shared.txt").write_text("main version\n")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "modify shared in main"],
-            cwd=git_project,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-
-        # Remove worktree before merge (branch must not be checked out)
-        _remove_worktree_keep_branch(git_project, worktree_dir)
-
-        # Mock _resolve_conflicts_with_agent to return False (failed)
-        with mock.patch(
-            "kodo.orchestrators.git_ops._resolve_conflicts_with_agent",
-            autospec=True,
-            return_value=False,
-        ):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
-
-        assert result.success is False
-        assert result.had_changes is True
-        assert result.conflict is True
-        assert "CONFLICT" in result.error
-
-        # Verify merge was aborted - no merge commit
-        log_result = subprocess.run(
-            ["git", "log", "--oneline", "-1"],
-            cwd=git_project,
-            capture_output=True,
-            text=True,
-        )
-        assert "Merge kodo parallel stage" not in log_result.stdout
-        assert "modify shared in main" in log_result.stdout
+        if agent_resolves:
+            assert result.error == ""
+        else:
+            assert "CONFLICT" in result.error
+            # Verify merge was aborted - no merge commit
+            log_result = subprocess.run(
+                ["git", "log", "--oneline", "-1"],
+                cwd=git_project,
+                capture_output=True,
+                text=True,
+            )
+            assert "Merge kodo parallel stage" not in log_result.stdout
+            assert "modify shared in main" in log_result.stdout
 
     finally:
         _cleanup_branch(git_project, branch_name)
@@ -614,19 +454,7 @@ def test_merge_non_conflict_failure(git_project: Path):
     worktree_dir, branch_name = create_worktree(git_project, "test")
     try:
         (worktree_dir / "feature.txt").write_text("feature")
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
+        _git_add_commit(worktree_dir, "add feature")
 
         # Remove worktree before merge (branch must not be checked out)
         _remove_worktree_keep_branch(git_project, worktree_dir)
@@ -665,17 +493,7 @@ def test_strip_pycache_noop_when_none(git_project: Path):
     """_strip_pycache_from_index should be no-op when no pycache files in index."""
     # Create and commit a regular python file
     (git_project / "test.py").write_text("print('hello')")
-    subprocess.run(
-        ["git", "add", "test.py"],
-        cwd=git_project,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "add test.py"],
-        cwd=git_project,
-        check=True,
-        env=_GIT_ENV,
-    )
+    _git_add_commit(git_project, "add test.py")
 
     # Call strip_pycache - should not remove anything
     _strip_pycache_from_index(git_project)
@@ -900,57 +718,15 @@ def test_remove_worktree_dir_persists_after_git_remove(git_project: Path):
 # ── Tier 6: _resolve_conflicts_with_agent full paths (lines 230-299) ──
 
 
-def test_resolve_conflicts_session_crash(git_project: Path):
-    """_resolve_conflicts_with_agent returns False when make_session raises (lines 259-262)."""
-    branch_name = _create_real_merge_conflict(git_project)
-
-    try:
-        with mock.patch(
-            "kodo.make_session",
-            autospec=True,
-            side_effect=RuntimeError("Session creation failed"),
-        ):
-            result = _resolve_conflicts_with_agent(
-                git_project, branch_name, "test-stage"
-            )
-
-        assert result is False
-    finally:
-        subprocess.run(
-            ["git", "merge", "--abort"], cwd=git_project, capture_output=True
-        )
-        _cleanup_branch(git_project, branch_name)
-
-
-def test_resolve_conflicts_remaining_unresolved(git_project: Path):
-    """_resolve_conflicts_with_agent returns False when conflicts remain (lines 275-282)."""
-    from tests.conftest import FakeSession
-
-    branch_name = _create_real_merge_conflict(git_project)
-
-    try:
-        # Agent "runs" but doesn't actually resolve the conflict markers
-        fake_session = FakeSession(response_text="I tried but could not resolve")
-
-        with mock.patch(
-            "kodo.make_session",
-            autospec=True,
-            return_value=fake_session,
-        ):
-            result = _resolve_conflicts_with_agent(
-                git_project, branch_name, "test-stage"
-            )
-
-        assert result is False
-    finally:
-        subprocess.run(
-            ["git", "merge", "--abort"], cwd=git_project, capture_output=True
-        )
-        _cleanup_branch(git_project, branch_name)
-
-
-def test_resolve_conflicts_success(git_project: Path):
-    """_resolve_conflicts_with_agent returns True when agent resolves and commit succeeds (lines 285-299)."""
+@pytest.mark.parametrize(
+    "resolves, expected",
+    [
+        pytest.param(False, False, id="remaining_unresolved"),
+        pytest.param(True, True, id="success"),
+    ],
+)
+def test_resolve_conflicts_outcome(git_project: Path, resolves: bool, expected: bool):
+    """_resolve_conflicts_with_agent result depends on whether agent resolves conflicts."""
     from tests.conftest import FakeSession
 
     branch_name = _create_real_merge_conflict(git_project)
@@ -959,7 +735,6 @@ def test_resolve_conflicts_success(git_project: Path):
         """Session that actually resolves the conflict by fixing the file."""
 
         def query(self, prompt, project_dir, *, max_turns=10):
-            # Resolve the conflict by writing the combined content
             (project_dir / "shared.txt").write_text("both main and branch version\n")
             subprocess.run(
                 ["git", "add", "shared.txt"],
@@ -969,100 +744,101 @@ def test_resolve_conflicts_success(git_project: Path):
             )
             return super().query(prompt, project_dir, max_turns=max_turns)
 
+    if resolves:
+        session = ResolvingSession(response_text="resolved")
+    else:
+        session = FakeSession(response_text="I tried but could not resolve")
+
     try:
         with mock.patch(
             "kodo.make_session",
             autospec=True,
-            return_value=ResolvingSession(response_text="resolved"),
+            return_value=session,
         ):
             result = _resolve_conflicts_with_agent(
                 git_project, branch_name, "test-stage"
             )
 
-        assert result is True
+        assert result is expected
 
-        # Verify merge commit was created
-        log_result = subprocess.run(
-            ["git", "log", "--oneline", "-1"],
-            cwd=git_project,
-            capture_output=True,
-            text=True,
-        )
-        assert "Merge" in log_result.stdout or "merge" in log_result.stdout.lower()
+        if expected:
+            # Verify merge commit was created
+            log_result = subprocess.run(
+                ["git", "log", "--oneline", "-1"],
+                cwd=git_project,
+                capture_output=True,
+                text=True,
+            )
+            assert "Merge" in log_result.stdout or "merge" in log_result.stdout.lower()
     finally:
+        if not expected:
+            subprocess.run(
+                ["git", "merge", "--abort"], cwd=git_project, capture_output=True
+            )
         _cleanup_branch(git_project, branch_name)
 
 
-def test_resolve_conflicts_commit_fails(git_project: Path):
-    """_resolve_conflicts_with_agent returns False when merge commit fails (lines 293-295)."""
+@pytest.mark.parametrize(
+    "failure_mode",
+    [
+        pytest.param("session_crash", id="session_crash"),
+        pytest.param("commit_fails", id="commit_fails"),
+    ],
+)
+def test_resolve_conflicts_failure_modes(git_project: Path, failure_mode: str):
+    """_resolve_conflicts_with_agent returns False on session crash or commit failure."""
     from tests.conftest import FakeSession
 
     branch_name = _create_real_merge_conflict(git_project)
 
-    class ResolvingSession(FakeSession):
-        """Session that resolves the conflict but commit will be mocked to fail."""
-
-        def query(self, prompt, project_dir, *, max_turns=10):
-            (project_dir / "shared.txt").write_text("resolved content\n")
-            subprocess.run(
-                ["git", "add", "shared.txt"],
-                cwd=project_dir,
-                capture_output=True,
-                check=True,
-            )
-            return super().query(prompt, project_dir, max_turns=max_turns)
-
-    original_run = subprocess.run
-
-    def mock_run(cmd, *args, **kwargs):
-        if isinstance(cmd, list) and cmd[:2] == ["git", "commit"]:
-            return subprocess.CompletedProcess(
-                cmd, 1, stdout="", stderr="commit failed"
-            )
-        return original_run(cmd, *args, **kwargs)
-
     try:
-        with mock.patch(
-            "kodo.make_session",
-            autospec=True,
-            return_value=ResolvingSession(response_text="resolved"),
-        ):
-            # Need to let session.query run normally first, then intercept commit
-            # The mock_run only intercepts AFTER the session resolves
-            with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-                # This won't work because mock_run also intercepts git diff calls.
-                # Instead, mock only the commit call precisely.
-                pass
-
-        # Better approach: let the function run normally up to the commit,
-        # then fail the commit call.
-        call_count = {"commit": 0}
-
-        def mock_run_commit_fail(cmd, *args, **kwargs):
-            if (
-                isinstance(cmd, list)
-                and cmd[:2] == ["git", "commit"]
-                and "--no-edit" in cmd
-            ):
-                call_count["commit"] += 1
-                return subprocess.CompletedProcess(
-                    cmd, 1, stdout="", stderr="commit rejected"
-                )
-            return original_run(cmd, *args, **kwargs)
-
-        with (
-            mock.patch(
+        if failure_mode == "session_crash":
+            with mock.patch(
                 "kodo.make_session",
                 autospec=True,
-                return_value=ResolvingSession(response_text="resolved"),
-            ),
-            mock.patch(
-                "subprocess.run", autospec=True, side_effect=mock_run_commit_fail
-            ),
-        ):
-            result = _resolve_conflicts_with_agent(
-                git_project, branch_name, "test-stage"
-            )
+                side_effect=RuntimeError("Session creation failed"),
+            ):
+                result = _resolve_conflicts_with_agent(
+                    git_project, branch_name, "test-stage"
+                )
+        else:  # commit_fails
+            class ResolvingSession(FakeSession):
+                def query(self, prompt, project_dir, *, max_turns=10):
+                    (project_dir / "shared.txt").write_text("resolved content\n")
+                    subprocess.run(
+                        ["git", "add", "shared.txt"],
+                        cwd=project_dir,
+                        capture_output=True,
+                        check=True,
+                    )
+                    return super().query(prompt, project_dir, max_turns=max_turns)
+
+            original_run = subprocess.run
+
+            def mock_run_commit_fail(cmd, *args, **kwargs):
+                if (
+                    isinstance(cmd, list)
+                    and cmd[:2] == ["git", "commit"]
+                    and "--no-edit" in cmd
+                ):
+                    return subprocess.CompletedProcess(
+                        cmd, 1, stdout="", stderr="commit rejected"
+                    )
+                return original_run(cmd, *args, **kwargs)
+
+            with (
+                mock.patch(
+                    "kodo.make_session",
+                    autospec=True,
+                    return_value=ResolvingSession(response_text="resolved"),
+                ),
+                mock.patch(
+                    "subprocess.run", autospec=True, side_effect=mock_run_commit_fail
+                ),
+            ):
+                result = _resolve_conflicts_with_agent(
+                    git_project, branch_name, "test-stage"
+                )
 
         assert result is False
     finally:
@@ -1072,217 +848,211 @@ def test_resolve_conflicts_commit_fails(git_project: Path):
         _cleanup_branch(git_project, branch_name)
 
 
-# ── Tier 7: merge_worktree_branch edge cases (lines 359, 373-378, 412-417, 478) ──
+# ── Tier 7: merge_worktree_branch error-path tests (fully mocked, no real git) ──
+#
+# merge_worktree_branch calls subprocess.run in this order:
+#   0. git status --porcelain          (preflight dirty check)
+#   1. git log HEAD..{branch} --oneline (diff check — has commits?)
+#   2. git rev-parse --abbrev-ref HEAD  (get current branch)
+#   3. git checkout {branch}            (check=True)
+#   4. git ls-files --cached …          (_strip_pycache on branch)
+#   5. git status --porcelain           (status_before — pycache cleanup needed?)
+#   6. git checkout {current_branch}    (check=True — back to main)
+#   7. git ls-files --cached …          (_strip_pycache on main)
+#   8. git status --porcelain           (status_main — pycache cleanup needed?)
+#   9. git status --porcelain           (status_clean — untracked check)
+#  10. git checkout -- .                (clean working tree)
+#  11. git clean -fd
+#  12. git merge …                      (the actual merge)
+#
+# Each test below injects a failure at one specific step and verifies the
+# function returns the expected MergeResult.  No real git repo is needed.
+
+_BRANCH = "kodo-test-branch"
+_CURRENT = "main"
+_PROJECT = Path("/fake/project")
 
 
-def test_merge_rev_parse_fails(git_project: Path):
-    """merge_worktree_branch returns error when rev-parse fails (line 359)."""
-    # Create a worktree with a commit
-    worktree_dir, branch_name = create_worktree(git_project, "revparse")
-    try:
-        (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(
-            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-        _remove_worktree_keep_branch(git_project, worktree_dir)
-
-        original_run = subprocess.run
-
-        def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and "rev-parse" in cmd:
-                return subprocess.CompletedProcess(
-                    cmd, 1, stdout="", stderr="rev-parse error"
-                )
-            return original_run(cmd, *args, **kwargs)
-
-        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
-
-        assert result.success is False
-        assert result.had_changes is False
-        assert "rev-parse" in result.error.lower() or result.error != ""
-    finally:
-        _cleanup_branch(git_project, branch_name)
+def _ok(cmd="git", stdout="", stderr=""):
+    """A successful CompletedProcess."""
+    return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr=stderr)
 
 
-def test_merge_checkout_branch_fails(git_project: Path):
-    """merge_worktree_branch returns error when checkout branch fails (lines 373-378)."""
-    worktree_dir, branch_name = create_worktree(git_project, "cofail")
-    try:
-        (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(
-            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-        _remove_worktree_keep_branch(git_project, worktree_dir)
+def _fail(cmd="git", stderr=""):
+    """A failed CompletedProcess (returncode=1)."""
+    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr=stderr)
 
-        original_run = subprocess.run
-        checkout_count = [0]
 
-        def mock_run(cmd, *args, **kwargs):
-            if (
-                isinstance(cmd, list)
-                and cmd[:2] == ["git", "checkout"]
-                and branch_name in cmd
-            ):
-                checkout_count[0] += 1
+def _merge_happy_responses():
+    """Return the list of responses for a fully successful merge (no pycache)."""
+    return [
+        _ok(stdout=""),                        # 0: preflight status (clean)
+        _ok(stdout="abc1234 some commit\n"),   # 1: git log (has commits)
+        _ok(stdout=f"{_CURRENT}\n"),           # 2: rev-parse
+        _ok(),                                 # 3: checkout branch
+        _ok(stdout=""),                        # 4: ls-files (no pycache)
+        _ok(stdout=""),                        # 5: status (no pycache changes)
+        _ok(),                                 # 6: checkout main back
+        _ok(stdout=""),                        # 7: ls-files (no pycache)
+        _ok(stdout=""),                        # 8: status (no pycache changes)
+        _ok(stdout=""),                        # 9: status (clean check)
+        _ok(),                                 # 10: checkout -- .
+        _ok(),                                 # 11: clean -fd
+        _ok(),                                 # 12: merge
+    ]
+
+
+def test_merge_rev_parse_fails():
+    """merge_worktree_branch returns error when rev-parse fails.
+
+    Doctest: step 2 (rev-parse) returns rc=1. The function should bail
+    before attempting any checkout, returning success=False with the
+    stderr from rev-parse.
+    """
+    responses = _merge_happy_responses()
+    responses[2] = _fail(stderr="rev-parse error")
+    call_idx = [0]
+
+    def mock_run(cmd, *args, **kwargs):
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i < len(responses):
+            r = responses[i]
+            if kwargs.get("check") and r.returncode != 0:
                 raise subprocess.CalledProcessError(
-                    1, cmd, output=b"", stderr=b"checkout failed: unable to checkout"
+                    r.returncode, cmd, output=b"", stderr=r.stderr.encode()
                 )
-            return original_run(cmd, *args, **kwargs)
+            return r
+        return _ok()
 
-        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
+        result = merge_worktree_branch(_PROJECT, _BRANCH, "test-stage")
 
-        assert result.success is False
-        assert result.had_changes is False
-        assert "checkout" in result.error.lower()
-    finally:
-        _cleanup_branch(git_project, branch_name)
-
-
-def test_merge_checkout_main_back_fails(git_project: Path):
-    """merge_worktree_branch returns error when checkout back to main fails (lines 412-417)."""
-    worktree_dir, branch_name = create_worktree(git_project, "mainback")
-    try:
-        (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(
-            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-        _remove_worktree_keep_branch(git_project, worktree_dir)
-
-        # Get current branch name
-        current = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=git_project,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-
-        original_run = subprocess.run
-        first_checkout_done = [False]
-
-        def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and cmd[:2] == ["git", "checkout"]:
-                if not first_checkout_done[0] and branch_name in cmd:
-                    # Allow first checkout to branch
-                    first_checkout_done[0] = True
-                    return original_run(cmd, *args, **kwargs)
-                if first_checkout_done[0] and current in cmd:
-                    # Fail checkout back to main
-                    raise subprocess.CalledProcessError(
-                        1, cmd, output=b"", stderr=b"checkout main failed"
-                    )
-            return original_run(cmd, *args, **kwargs)
-
-        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
-
-        assert result.success is False
-        assert result.had_changes is False
-        assert "checkout" in result.error.lower()
-    finally:
-        # Make sure we're back on main branch for cleanup
-        subprocess.run(
-            ["git", "checkout", "master"], cwd=git_project, capture_output=True
-        )
-        subprocess.run(
-            ["git", "checkout", "main"], cwd=git_project, capture_output=True
-        )
-        _cleanup_branch(git_project, branch_name)
+    assert result.success is False
+    assert result.had_changes is False
+    assert "rev-parse" in result.error.lower()
 
 
-def test_merge_git_clean_fails(git_project: Path):
-    """merge_worktree_branch logs warning when git clean -fd fails (line 478)."""
-    worktree_dir, branch_name = create_worktree(git_project, "cleanfail")
-    try:
-        (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(
-            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-        _remove_worktree_keep_branch(git_project, worktree_dir)
+def test_merge_checkout_branch_fails():
+    """merge_worktree_branch returns error when checkout to branch fails.
 
-        original_run = subprocess.run
+    Doctest: step 3 (checkout branch) raises CalledProcessError.
+    The function catches this and returns success=False with the stderr.
+    """
+    responses = _merge_happy_responses()
+    # Step 3 will raise via check=True — mark it as failure
+    responses[3] = _fail(stderr="checkout failed: unable to checkout")
+    call_idx = [0]
 
-        def mock_run(cmd, *args, **kwargs):
-            if isinstance(cmd, list) and cmd[:2] == ["git", "clean"]:
-                return subprocess.CompletedProcess(
-                    cmd, 1, stdout="", stderr="clean failed"
+    def mock_run(cmd, *args, **kwargs):
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i < len(responses):
+            r = responses[i]
+            if kwargs.get("check") and r.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    r.returncode, cmd, output=b"", stderr=r.stderr.encode()
                 )
-            return original_run(cmd, *args, **kwargs)
+            return r
+        return _ok()
 
-        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
+        result = merge_worktree_branch(_PROJECT, _BRANCH, "test-stage")
 
-        # Merge should still succeed (clean failure is just logged)
-        assert result.success is True
-        assert result.had_changes is True
-    finally:
-        _cleanup_branch(git_project, branch_name)
+    assert result.success is False
+    assert result.had_changes is False
+    assert "checkout" in result.error.lower()
 
 
-def test_merge_checkout_branch_timeout(git_project: Path):
-    """merge_worktree_branch handles TimeoutExpired during checkout (lines 373-378)."""
-    worktree_dir, branch_name = create_worktree(git_project, "timeout")
-    try:
-        (worktree_dir / "feature.txt").write_text("content")
-        subprocess.run(
-            ["git", "add", "-A"], cwd=worktree_dir, capture_output=True, check=True
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "add feature"],
-            cwd=worktree_dir,
-            capture_output=True,
-            check=True,
-            env=_GIT_ENV,
-        )
-        _remove_worktree_keep_branch(git_project, worktree_dir)
+def test_merge_checkout_main_back_fails():
+    """merge_worktree_branch returns error when checkout back to main fails.
 
-        original_run = subprocess.run
+    Doctest: step 6 (checkout current_branch) raises CalledProcessError.
+    The function catches this and returns success=False.
+    """
+    responses = _merge_happy_responses()
+    responses[6] = _fail(stderr="checkout main failed")
+    call_idx = [0]
 
-        def mock_run(cmd, *args, **kwargs):
-            if (
-                isinstance(cmd, list)
-                and cmd[:2] == ["git", "checkout"]
-                and branch_name in cmd
-            ):
+    def mock_run(cmd, *args, **kwargs):
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i < len(responses):
+            r = responses[i]
+            if kwargs.get("check") and r.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    r.returncode, cmd, output=b"", stderr=r.stderr.encode()
+                )
+            return r
+        return _ok()
+
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
+        result = merge_worktree_branch(_PROJECT, _BRANCH, "test-stage")
+
+    assert result.success is False
+    assert result.had_changes is False
+    assert "checkout" in result.error.lower()
+
+
+def test_merge_git_clean_fails():
+    """merge_worktree_branch still succeeds when git clean -fd fails.
+
+    Doctest: step 11 (clean -fd) returns rc=1. The function only logs
+    a warning and continues to merge, so the overall result is success.
+    """
+    responses = _merge_happy_responses()
+    responses[11] = _fail(stderr="clean failed")
+    call_idx = [0]
+
+    def mock_run(cmd, *args, **kwargs):
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i < len(responses):
+            r = responses[i]
+            if kwargs.get("check") and r.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    r.returncode, cmd, output=b"", stderr=r.stderr.encode()
+                )
+            return r
+        return _ok()
+
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
+        result = merge_worktree_branch(_PROJECT, _BRANCH, "test-stage")
+
+    assert result.success is True
+    assert result.had_changes is True
+
+
+def test_merge_checkout_branch_timeout():
+    """merge_worktree_branch handles TimeoutExpired during checkout.
+
+    Doctest: step 3 (checkout branch) raises TimeoutExpired.
+    The function catches this and returns success=False.
+    """
+    responses = _merge_happy_responses()
+    # Mark step 3 as "raise timeout" via a sentinel
+    responses[3] = "TIMEOUT"
+    call_idx = [0]
+
+    def mock_run(cmd, *args, **kwargs):
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i < len(responses):
+            r = responses[i]
+            if r == "TIMEOUT":
                 raise subprocess.TimeoutExpired(cmd, 60)
-            return original_run(cmd, *args, **kwargs)
+            if kwargs.get("check") and r.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    r.returncode, cmd, output=b"", stderr=r.stderr.encode()
+                )
+            return r
+        return _ok()
 
-        with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
-            result = merge_worktree_branch(git_project, branch_name, "test-stage")
+    with mock.patch("subprocess.run", autospec=True, side_effect=mock_run):
+        result = merge_worktree_branch(_PROJECT, _BRANCH, "test-stage")
 
-        assert result.success is False
-        assert result.had_changes is False
-    finally:
-        _cleanup_branch(git_project, branch_name)
+    assert result.success is False
+    assert result.had_changes is False
 
 
 # ── Tier 8: cleanup_stale_worktrees ────────────────────────────────────
