@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import threading
 from typing import TYPE_CHECKING, Any
+from xml.sax.saxutils import escape as xml_escape
 
 from kodo import log
 
@@ -51,11 +52,11 @@ def _build_toolbar() -> HTML:
 
     # Stage
     if stage_label:
-        parts.append(stage_label)
+        parts.append(xml_escape(stage_label))
 
     # Active agent
     if active_agent:
-        parts.append(f"<b>{active_agent}</b> working")
+        parts.append(f"<b>{xml_escape(active_agent)}</b> working")
 
     # Cost summary from RunStats
     stats = log.get_run_stats()
