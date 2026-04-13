@@ -162,6 +162,10 @@ class ClaudeSession:
             # steal focus and lock out the user (especially on macOS).
             os.environ["SAGA2D_HEADLESS"] = "1"
 
+            # Identify this session as kodo-orchestrated so hooks and
+            # downstream tooling (e.g. gleaner) can tag it reliably.
+            os.environ["CLAUDE_SESSION_SOURCE"] = "kodo"
+
             # Unless explicitly opted in, strip ANTHROPIC_API_KEY so the SDK
             # session uses the Claude.ai subscription instead of API billing.
             saved_api_key = None
