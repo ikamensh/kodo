@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kodo-workers"
+version = "0.1.0"
+description = "Worker-session backends extracted from kodo (Claude, Cursor, Codex, Gemini CLI, Kimi, Kiro, OpenCode)."
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = []
+
+[project.optional-dependencies]
+claude = [
+    "claude-agent-sdk>=0.1.36",
+]
+kimi = [
+    "kimi-agent-sdk>=0.0.5",
+]
+test = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kodo_workers*"]

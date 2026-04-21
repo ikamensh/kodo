@@ -20,6 +20,12 @@ from typing import Any
 
 from kodo.formatting import DIM as _DIM, RESET as _RESET
 
+# Route kodo_workers session events into kodo's own log by installing a
+# sink that delegates back to this module's emit/tprint/save_conversation.
+# This keeps kodo_workers independent of kodo while ensuring that when
+# both are used together, session events land in the run's JSONL file.
+from kodo_workers import log as _workers_log
+
 _log_file: Path | None = None
 _run_id: str | None = None
 _start_time: float | None = None
@@ -776,3 +782,30 @@ def _serialize(obj: Any) -> Any:
         return repr(obj)
     except Exception:
         return f"<{type(obj).__name__} unserializable>"
+
+
+# ---------------------------------------------------------------------------
+# kodo_workers sink adapter
+# ---------------------------------------------------------------------------
+
+
+class _WorkersSink:
+    """Delegate kodo_workers.log calls back to this module.
+
+    Installed at import time so session events emitted from kodo_workers
+    land in kodo's run log (once ``init()`` has set ``_log_file``).
+    """
+
+    def emit(self, event: str, **data: Any) -> None:
+        emit(event, **data)
+
+    def tprint(self, msg: str) -> None:
+        tprint(msg)
+
+    def save_conversation(
+        self, agent_name: str, query_index: int, messages: list[dict]
+    ) -> str | None:
+        return save_conversation(agent_name, query_index, messages)
+
+
+_workers_log.set_sink(_WorkersSink())
