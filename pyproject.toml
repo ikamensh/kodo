@@ -58,7 +58,7 @@ filterwarnings = [
 include = ["kodo*", "benchmark*"]
 
 [tool.setuptools.package-data]
-kodo = ["*.html"]
+kodo = ["*.html", "dashboard/*.html", "dashboard/*.css", "dashboard/*.js"]
 benchmark = ["online/static/*.html"]
 
 [project.scripts]
