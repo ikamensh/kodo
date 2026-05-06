@@ -44,6 +44,7 @@ class KimiCodeOrchestrator(OrchestratorBase):
         config: CycleConfig | None = None,
         advisory_queue=None,
         observer=None,
+        coach=None,
     ) -> CycleResult:
         if config is None:
             config = CycleConfig()
