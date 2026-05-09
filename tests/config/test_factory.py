@@ -17,6 +17,13 @@ from kodo.factory import (
 )
 
 
+def _fake_backend_sdk_spec(name: str):
+    """Pretend optional SDK extras are installed for availability tests."""
+    if name in {"claude_agent_sdk", "kimi_agent_sdk"}:
+        return object()
+    return None
+
+
 def test_clear_backend_cache_invalidates():
     """clear_backend_cache() causes available_backends() to re-detect."""
     with patch("kodo.factory.shutil.which", autospec=True, return_value=None):
@@ -26,10 +33,31 @@ def test_clear_backend_cache_invalidates():
 
     with patch(
         "kodo.factory.shutil.which", autospec=True, return_value="/usr/bin/fake"
+    ), patch(
+        "kodo.factory.importlib.util.find_spec",
+        autospec=True,
+        side_effect=_fake_backend_sdk_spec,
     ):
         clear_backend_cache()
         b2 = available_backends()
     assert all(v for v in b2.values())
+
+
+def test_available_backends_requires_sdk_extras_for_in_process_backends():
+    """Claude/Kimi need their optional SDK extras as well as their CLIs."""
+    with patch(
+        "kodo.factory.shutil.which", autospec=True, return_value="/usr/bin/fake"
+    ), patch("kodo.factory.importlib.util.find_spec", autospec=True, return_value=None):
+        clear_backend_cache()
+        backends = available_backends()
+
+    assert backends["claude"] is False
+    assert backends["kimi"] is False
+    assert backends["codex"] is True
+    assert backends["cursor"] is True
+    assert backends["gemini-cli"] is True
+    assert backends["kiro"] is True
+    assert backends["opencode"] is True
 
 
 def test_get_team_invalid():

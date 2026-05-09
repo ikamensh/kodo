@@ -108,14 +108,37 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 2. Install kodo using uv
 ```bash
-uv tool install git+https://github.com/ikamensh/kodo
+uv tool install 'kodo[claude]'
 ```
 
 That's it. `kodo` is now on your PATH.
 
+The `claude` extra installs the Python SDK used to drive Claude Code. Other
+CLI-backed workers use their own command-line tools, so their extras are
+mostly labels for readable installs:
+
+```bash
+uv tool install 'kodo[cursor,codex,gemini-cli]'
+uv tool install 'kodo[all-agents]'      # Claude + Kimi SDKs
+```
+
+The default API orchestrator install includes the slim Anthropic, Gemini,
+OpenAI, and OpenRouter provider dependencies. For the less common Groq,
+Mistral, and xAI API providers:
+
+```bash
+uv tool install 'kodo[api-extra-providers]'
+```
+
 To also install the **SWE-bench benchmark harness** (`kodo-bench`):
 ```bash
-uv tool install --with 'kodo[benchmark]' git+https://github.com/ikamensh/kodo
+uv tool install 'kodo[claude,benchmark]'
+```
+
+To install from the current GitHub branch instead of PyPI:
+
+```bash
+uv tool install 'kodo[claude] @ git+https://github.com/ikamensh/kodo'
 ```
 
 ### Prerequisites

@@ -5,30 +5,67 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kodo"
 version = "0.5.0"
+description = "Autonomous multi-agent coding orchestration for CLI and API coding agents."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    { name = "Ilya Kamen" },
+]
+keywords = [
+    "coding-agents",
+    "claude-code",
+    "codex",
+    "cursor",
+    "gemini",
+    "multi-agent",
+]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
 dependencies = [
-    "kodo-workers @ file:./kodo_workers",
-    "claude-agent-sdk>=0.1.36",
     "detect-secrets>=1.5.0",
     "httpx>=0.28",
     "mcp>=1.0",
     "piicleaner>=0.4.1",
     "python-dotenv>=1.0",
     "questionary>=2.0",
-    "pydantic-ai>=1.0",
-    "summarization-pydantic-ai>=0.0.3",
+    "pydantic-ai-slim[anthropic,google,openai,openrouter]>=1.74",
+    "summarization-pydantic-ai>=0.1.4",
     "uvicorn>=0.40",
     "charset-normalizer>=3.4.6",  # pin to suppress deprecation warning on import
     "chardet<6",  # requests 2.x only supports chardet <6; swebench pulls in 7.x
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.0",
-    "ruff"
+claude = [
+    "claude-agent-sdk>=0.1.36",
 ]
+codex = []
+cursor = []
+gemini-cli = []
 kimi = [
     "kimi-agent-sdk>=0.0.5",
+]
+kiro = []
+opencode = []
+all-agents = [
+    "claude-agent-sdk>=0.1.36",
+    "kimi-agent-sdk>=0.0.5",
+]
+api-extra-providers = [
+    "pydantic-ai-slim[groq,mistral,xai]>=1.74",
+]
+test = [
+    "build",
+    "pytest>=7.0",
+    "ruff",
+    "twine",
 ]
 benchmark = [
     "datasets>=2.0",
@@ -37,6 +74,11 @@ benchmark = [
     "google-cloud-firestore>=2.0",
     "google-cloud-storage>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ikamensh/kodo"
+Repository = "https://github.com/ikamensh/kodo"
+Issues = "https://github.com/ikamensh/kodo/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -55,12 +97,40 @@ filterwarnings = [
     "ignore:coroutine.*was never awaited:RuntimeWarning",
 ]
 
-[tool.setuptools.packages.find]
-include = ["kodo*", "benchmark*"]
+[tool.setuptools]
+packages = [
+    "benchmark",
+    "benchmark.online",
+    "kodo",
+    "kodo.cli",
+    "kodo.dashboard",
+    "kodo.defaults",
+    "kodo.knowledge",
+    "kodo.orchestrators",
+    "kodo.prompts",
+    "kodo.sessions",
+    "kodo_workers",
+    "kodo_workers.sessions",
+]
+
+[tool.setuptools.package-dir]
+kodo_workers = "kodo_workers/src/kodo_workers"
 
 [tool.setuptools.package-data]
-kodo = ["*.html"]
-benchmark = ["online/static/*.html"]
+kodo = [
+    "*.html",
+    "dashboard/*.css",
+    "dashboard/*.html",
+    "dashboard/*.js",
+    "defaults/*.json",
+]
+benchmark = [
+    "*.md",
+    "online/*.md",
+    "online/static/*.html",
+    "online/static/*.md",
+    "subsets/*.json",
+]
 
 [project.scripts]
 kodo = "kodo.cli:main"

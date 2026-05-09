@@ -5,6 +5,7 @@ Centralises the duplicated team-building logic from main.py and cli.py.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -52,6 +53,14 @@ from kodo.prompts.roles import (
 # ---------------------------------------------------------------------------
 
 
+def _module_available(name: str) -> bool:
+    """Return True when an optional Python dependency can be imported."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 @lru_cache(maxsize=1)
 def available_backends() -> dict[str, bool]:
     """Detect which worker backends are installed and on PATH.
@@ -59,12 +68,14 @@ def available_backends() -> dict[str, bool]:
     Result is cached. Call clear_backend_cache() to invalidate (e.g. after
     env changes or in tests).
     """
+    has_claude_sdk = _module_available("claude_agent_sdk")
+    has_kimi_sdk = _module_available("kimi_agent_sdk")
     return {
-        "claude": shutil.which("claude") is not None,
+        "claude": shutil.which("claude") is not None and has_claude_sdk,
         "codex": shutil.which("codex") is not None,
         "cursor": shutil.which("cursor-agent") is not None,
         "gemini-cli": shutil.which("gemini") is not None,
-        "kimi": shutil.which("kimi") is not None,
+        "kimi": shutil.which("kimi") is not None and has_kimi_sdk,
         "kiro": shutil.which("kiro-cli") is not None,
         "opencode": shutil.which("opencode") is not None,
     }
