@@ -3,6 +3,7 @@
   <br><br>
   <strong>Building while you sleep.</strong>
   <br><br>
+  <a href="https://pypi.org/project/kodo-agent/"><img src="https://img.shields.io/pypi/v/kodo-agent" alt="PyPI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.13+-blue?logo=python&logoColor=white" alt="Python 3.13+"></a>
   <a href="https://github.com/ikamensh/kodo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude_Code-Max-blueviolet?logo=anthropic&logoColor=white" alt="Claude Code"></a>
@@ -108,14 +109,14 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 2. Install kodo using uv
 ```bash
-uv tool install git+https://github.com/ikamensh/kodo
+uv tool install kodo-agent
 ```
 
 That's it. `kodo` is now on your PATH.
 
 To also install the **SWE-bench benchmark harness** (`kodo-bench`):
 ```bash
-uv tool install --with 'kodo[benchmark]' git+https://github.com/ikamensh/kodo
+uv tool install 'kodo-agent[benchmark]'
 ```
 
 ### Prerequisites

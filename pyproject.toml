@@ -3,9 +3,32 @@ requires = ["setuptools>=61.0", "wheel>=0.46.2", "pip>=25.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kodo"
+name = "kodo-agent"
 version = "0.5.0"
+description = "Autonomous multi-agent coding orchestrator."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    { name = "Ilya Kamen" },
+]
+keywords = [
+    "agent",
+    "automation",
+    "cli",
+    "coding",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
 dependencies = [
     "claude-agent-sdk>=0.1.36",
     "detect-secrets>=1.5.0",
@@ -20,6 +43,11 @@ dependencies = [
     "charset-normalizer>=3.4.6",  # pin to suppress deprecation warning on import
     "chardet<6",  # requests 2.x only supports chardet <6; swebench pulls in 7.x
 ]
+
+[project.urls]
+Homepage = "https://github.com/ikamensh/kodo"
+Repository = "https://github.com/ikamensh/kodo"
+Issues = "https://github.com/ikamensh/kodo/issues"
 
 [project.optional-dependencies]
 test = [
@@ -58,8 +86,14 @@ filterwarnings = [
 include = ["kodo*", "benchmark*"]
 
 [tool.setuptools.package-data]
-kodo = ["*.html", "dashboard/*.html", "dashboard/*.css", "dashboard/*.js"]
-benchmark = ["online/static/*.html"]
+kodo = [
+    "*.html",
+    "dashboard/*.css",
+    "dashboard/*.html",
+    "dashboard/*.js",
+    "defaults/*.json",
+]
+benchmark = ["online/static/*.html", "online/static/*.md"]
 
 [project.scripts]
 kodo = "kodo.cli:main"

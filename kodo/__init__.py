@@ -1,6 +1,11 @@
 """kodo — autonomous goal-driven coding agent."""
 
-__version__ = "0.4.272"
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kodo.sessions.base import Session
+
+__version__ = "0.5.0"
 
 # ---------------------------------------------------------------------------
 # Compatibility shim: pydantic-ai 1.20 imports ``UserLocation`` from anthropic
