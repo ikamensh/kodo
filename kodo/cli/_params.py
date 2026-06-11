@@ -27,6 +27,7 @@ from kodo.models import (
     GEMINI_CLI_PRO,
     implied_orchestrator_from_model,
     list_ollama_models,
+    probe_keys_async,
 )
 from kodo.user_config import get_user_default
 
@@ -117,6 +118,11 @@ def select_params() -> dict:
     ]
     print(f"  Backends: {' | '.join(parts)}\n")
 
+    # Probe configured API keys (free list-models requests) in the background
+    # while the user answers the first questions; rejected keys annotate the
+    # model list below.
+    probe_join = probe_keys_async()
+
     # Team selection — built-in presets + user JSON teams
     team_options = [f"{name} — {m.description}" for name, m in TEAMS.items()]
     from kodo.team_config import list_available_teams
@@ -161,6 +167,9 @@ def select_params() -> dict:
             [CURSOR_COMPOSER, "sonnet-4-6-thinking", "gpt-5"],
         )
     elif orchestrator == "api":
+        bad_keys = probe_join()
+        for err in bad_keys.values():
+            print(f"  ⚠ {err}")
         # Build model list from available providers, grouped by provider
         model_choices: list[str] = []
         choices_data = available_model_choices()
@@ -168,7 +177,10 @@ def select_params() -> dict:
         for alias, display, provider_name in choices_data:
             if provider_name != current_provider:
                 current_provider = provider_name
-            model_choices.append(f"{alias} — {display} ({provider_name})")
+            label = f"{alias} — {display} ({provider_name})"
+            if provider_name in bad_keys:
+                label += "  ⚠ key rejected"
+            model_choices.append(label)
         # Add Ollama models if running
         for ollama_model in list_ollama_models():
             model_choices.append(f"ollama:{ollama_model}")

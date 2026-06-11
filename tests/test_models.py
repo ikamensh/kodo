@@ -7,15 +7,24 @@ import pytest
 from kodo.models import (
     MODEL_PRICING,
     OLLAMA_LOCAL,
+    PROVIDER_REGISTRY,
     PYDANTIC_MODEL_MAP,
+    _probe_request,
     api_orchestrator_model_options,
+    check_api_key_for_model,
     ensure_ollama_base_url,
     implied_orchestrator_from_model,
     is_ollama_model,
     list_ollama_models,
     make_fresh_model,
     normalize_ollama_model,
+    probe_keys_async,
+    verify_api_key,
 )
+
+
+def _provider(name: str):
+    return next(p for p in PROVIDER_REGISTRY if p.name == name)
 
 
 # ── Pricing table sanity ─────────────────────────────────────────────────
@@ -178,6 +187,19 @@ class TestOllamaHelpers:
             mp.delenv("OLLAMA_BASE_URL", raising=False)
             assert ensure_ollama_base_url() == "http://localhost:11434/v1"
 
+    def test_verify_skipped_for_ollama_and_unknown(self):
+        """Ollama and legacy-heuristic models never trigger a network probe."""
+        from unittest.mock import patch
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True) as mock_get,
+        ):
+            mp.setenv("ANTHROPIC_API_KEY", "k")
+            assert check_api_key_for_model("ollama:llama3.2") is None
+            assert check_api_key_for_model("some-unknown-model") is None
+        mock_get.assert_not_called()
+
     def test_api_orchestrator_model_options_include_detected_ollama_models(self):
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
@@ -194,3 +216,163 @@ class TestOllamaHelpers:
             assert "gemini-flash" in options
             assert "ollama:qwen2.5-coder:14b" in options
             assert "ollama:llama3.2" in options
+
+
+# ── Live API key verification ────────────────────────────────────────────
+
+
+class TestVerifyApiKey:
+    """verify_api_key makes one free request to catch dead keys pre-launch.
+
+    Rejection must be definitive (auth-style HTTP error); anything
+    inconclusive (network down, 5xx) must NOT block a launch.
+    """
+
+    def test_every_provider_has_probe_endpoint(self):
+        """New providers must get a probe URL, or expired keys for them
+        would silently skip early validation again (the original bug)."""
+        for provider in PROVIDER_REGISTRY:
+            assert _probe_request(provider, "key") is not None, provider.name
+
+    def test_rejected_key_returns_message(self):
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(401, json={"error": {"message": "invalid api key"}})
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp),
+        ):
+            mp.setenv("OPENAI_API_KEY", "sk-dead")
+            err = verify_api_key(_provider("OpenAI"))
+        assert err is not None
+        assert "OPENAI_API_KEY" in err
+        assert "invalid api key" in err
+
+    def test_google_expired_key_400_detected(self):
+        """Google reports expired keys as HTTP 400, not 401 (issue trigger)."""
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(
+            400,
+            json={"error": {"code": 400, "message": "API key expired."}},
+        )
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp),
+        ):
+            mp.setenv("GOOGLE_API_KEY", "expired")
+            mp.delenv("GEMINI_API_KEY", raising=False)
+            err = verify_api_key(_provider("Google"))
+        assert err is not None
+        assert "API key expired" in err
+
+    def test_google_probes_google_api_key_when_both_set(self):
+        """The google-genai SDK prefers GOOGLE_API_KEY; probe the same key."""
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(200, json={"models": []})
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp) as mock_get,
+        ):
+            mp.setenv("GOOGLE_API_KEY", "the-google-key")
+            mp.setenv("GEMINI_API_KEY", "the-gemini-key")
+            assert verify_api_key(_provider("Google")) is None
+        headers = mock_get.call_args.kwargs["headers"]
+        assert headers["x-goog-api-key"] == "the-google-key"
+
+    def test_valid_key_returns_none(self):
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(200, json={"data": []})
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp),
+        ):
+            mp.setenv("OPENAI_API_KEY", "sk-live")
+            assert verify_api_key(_provider("OpenAI")) is None
+
+    def test_network_error_is_inconclusive(self):
+        """Offline / proxy trouble must not block a launch."""
+        import httpx
+        from unittest.mock import patch
+
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, side_effect=httpx.ConnectError("down")),
+        ):
+            mp.setenv("OPENAI_API_KEY", "sk-x")
+            assert verify_api_key(_provider("OpenAI")) is None
+
+    def test_server_error_is_inconclusive(self):
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(503, text="overloaded")
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp),
+        ):
+            mp.setenv("OPENAI_API_KEY", "sk-x")
+            assert verify_api_key(_provider("OpenAI")) is None
+
+    def test_check_api_key_for_model_surfaces_rejection(self):
+        """The wizard/launch funnel (check_api_key_for_model) propagates a
+        live rejection for a registry alias — the user-facing behavior."""
+        import httpx
+        from unittest.mock import patch
+
+        resp = httpx.Response(
+            400, json={"error": {"message": "API key expired. Please renew."}}
+        )
+        with (
+            pytest.MonkeyPatch.context() as mp,
+            patch("httpx.get", autospec=True, return_value=resp),
+        ):
+            mp.setenv("GOOGLE_API_KEY", "expired")
+            mp.delenv("GEMINI_API_KEY", raising=False)
+            err = check_api_key_for_model("gemini-flash")
+        assert err is not None and "API key expired" in err
+
+    def test_check_api_key_for_model_missing_key_message_unchanged(self):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.delenv("GOOGLE_API_KEY", raising=False)
+            mp.delenv("GEMINI_API_KEY", raising=False)
+            err = check_api_key_for_model("gemini-flash")
+        assert err is not None and "not set" in err
+
+
+class TestProbeKeysAsync:
+    """probe_keys_async probes configured providers in parallel and reports
+    only definitive rejections, keyed by provider name."""
+
+    def test_collects_only_rejections(self):
+        from unittest.mock import patch
+
+        google, openai = _provider("Google"), _provider("OpenAI")
+
+        def fake_verify(provider):
+            return "GOOGLE_API_KEY was rejected" if provider.name == "Google" else None
+
+        with (
+            patch(
+                "kodo.models.available_providers",
+                autospec=True,
+                return_value=[google, openai],
+            ),
+            patch(
+                "kodo.models.verify_api_key", autospec=True, side_effect=fake_verify
+            ),
+        ):
+            results = probe_keys_async()()
+        assert results == {"Google": "GOOGLE_API_KEY was rejected"}
+
+    def test_no_configured_providers_yields_empty(self):
+        from unittest.mock import patch
+
+        with patch("kodo.models.available_providers", autospec=True, return_value=[]):
+            assert probe_keys_async()() == {}

@@ -6,6 +6,7 @@ Import from here instead of scattering raw literals.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
@@ -278,8 +279,10 @@ def _build_registry() -> tuple[Provider, ...]:
             ),
         ),
         Provider(
+            # GOOGLE_API_KEY first: the google-genai SDK prefers it when both
+            # are set, and verify_api_key must probe the key actually used.
             name="Google",
-            env_vars=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+            env_vars=("GOOGLE_API_KEY", "GEMINI_API_KEY"),
             pydantic_prefix="google-gla",
             models=(
                 ModelInfo(
@@ -539,10 +542,137 @@ def model_display_name(model: str | None) -> str:
     return model
 
 
-def check_api_key_for_model(model: str | None) -> str | None:
-    """Return an error message if the required API key is missing, else None.
+def _provider_for_model(model: str) -> Provider | None:
+    """Resolve the registry Provider for an alias, full model ID, or provider:model."""
+    info = get_model_info(model)
+    if info is not None:
+        for provider in PROVIDER_REGISTRY:
+            if info in provider.models:
+                return provider
+    if ":" in model:
+        prefix = model.split(":", 1)[0]
+        for provider in PROVIDER_REGISTRY:
+            if provider.pydantic_prefix == prefix:
+                return provider
+    return None
 
-    Works for registry models and Ollama models.
+
+# Free auth-probe endpoints (list-models or key-info; no tokens consumed).
+_BEARER_PROBE_URLS: dict[str, str] = {
+    "OpenAI": "https://api.openai.com/v1/models",
+    "DeepSeek": "https://api.deepseek.com/models",
+    "Groq": "https://api.groq.com/openai/v1/models",
+    "OpenRouter": "https://openrouter.ai/api/v1/key",
+    "Mistral": "https://api.mistral.ai/v1/models",
+    "xAI": "https://api.x.ai/v1/models",
+}
+
+
+def _probe_request(provider: Provider, key: str) -> tuple[str, dict[str, str]] | None:
+    """Return (url, headers) for a free request that authenticates *key*."""
+    if provider.name == "Anthropic":
+        return (
+            "https://api.anthropic.com/v1/models?limit=1",
+            {"x-api-key": key, "anthropic-version": "2023-06-01"},
+        )
+    if provider.name == "Google":
+        return (
+            "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+            {"x-goog-api-key": key},
+        )
+    url = _BEARER_PROBE_URLS.get(provider.name)
+    if url is None:
+        return None
+    return (url, {"Authorization": f"Bearer {key}"})
+
+
+def _error_detail(resp) -> str:
+    """Extract a human-readable error message from a provider response."""
+    try:
+        err = resp.json().get("error")
+    except ValueError:
+        err = None
+    if isinstance(err, dict) and err.get("message"):
+        return str(err["message"])
+    if isinstance(err, str):
+        return err
+    return resp.text[:200]
+
+
+def verify_api_key(provider: Provider) -> str | None:
+    """Live-check the provider's API key with a free models-list request.
+
+    Returns an error message on a definitive rejection (expired/invalid key),
+    None when the key works or the result is inconclusive (offline, provider
+    without a probe endpoint). Goal is cheap early detection before a run
+    starts, not gatekeeping — network trouble never blocks a launch here.
+    """
+    import os
+
+    import httpx
+
+    key = next((os.environ[v] for v in provider.env_vars if os.environ.get(v)), None)
+    if not key:
+        return None
+    probe = _probe_request(provider, key)
+    if probe is None:
+        return None
+    url, headers = probe
+    try:
+        resp = httpx.get(url, headers=headers, timeout=4.0)
+    except httpx.HTTPError:
+        return None
+    rejected = resp.status_code in (401, 403) or (
+        resp.status_code == 400 and "api key" in resp.text.lower()
+    )
+    if rejected:
+        env_var = next(v for v in provider.env_vars if os.environ.get(v))
+        return (
+            f"{env_var} was rejected by {provider.name} "
+            f"(HTTP {resp.status_code}): {_error_detail(resp)}"
+        )
+    return None
+
+
+def probe_keys_async() -> Callable[[], dict[str, str]]:
+    """Start background key probes for every configured provider.
+
+    Returns a join() that waits for the probes (bounded) and maps
+    provider name → error for rejected keys only. Started at wizard entry,
+    the probes overlap with the first questions, so results are ready by
+    the time the model list is shown.
+    """
+    import threading
+
+    results: dict[str, str] = {}
+
+    def _run() -> None:
+        from concurrent.futures import ThreadPoolExecutor
+
+        providers = available_providers()
+        if not providers:
+            return
+        with ThreadPoolExecutor(max_workers=len(providers)) as pool:
+            for provider, err in zip(providers, pool.map(verify_api_key, providers)):
+                if err:
+                    results[provider.name] = err
+
+    thread = threading.Thread(target=_run, daemon=True, name="kodo-key-probes")
+    thread.start()
+
+    def join(timeout: float = 6.0) -> dict[str, str]:
+        thread.join(timeout)
+        return dict(results)
+
+    return join
+
+
+def check_api_key_for_model(model: str | None) -> str | None:
+    """Return an error message if the required API key is missing or rejected.
+
+    For registry models with a key set, performs a free live probe against the
+    provider (see verify_api_key) so expired/invalid keys surface before a run
+    starts. Also handles Ollama models.
     """
     import os
 
@@ -558,37 +688,12 @@ def check_api_key_for_model(model: str | None) -> str | None:
                 )
         return None
 
-    # Check registry by alias
-    infos = _all_model_infos()
-    if model in infos:
-        info = infos[model]
-        for provider in PROVIDER_REGISTRY:
-            if info in provider.models:
-                if _provider_has_key(provider):
-                    return None
-                key_names = " or ".join(provider.env_vars)
-                return f"{key_names} not set — required for {provider.name} models"
-
-    # Check registry by full model ID
-    by_full = _all_model_infos_by_full_id()
-    if model in by_full:
-        info = by_full[model]
-        for provider in PROVIDER_REGISTRY:
-            if info in provider.models:
-                if _provider_has_key(provider):
-                    return None
-                key_names = " or ".join(provider.env_vars)
-                return f"{key_names} not set — required for {provider.name} models"
-
-    # provider:model format — check the prefix
-    if ":" in model:
-        prefix = model.split(":", 1)[0]
-        for provider in PROVIDER_REGISTRY:
-            if provider.pydantic_prefix == prefix:
-                if _provider_has_key(provider):
-                    return None
-                key_names = " or ".join(provider.env_vars)
-                return f"{key_names} not set — required for {provider.name} models"
+    provider = _provider_for_model(model)
+    if provider is not None:
+        if not _provider_has_key(provider):
+            key_names = " or ".join(provider.env_vars)
+            return f"{key_names} not set — required for {provider.name} models"
+        return verify_api_key(provider)
 
     # Legacy heuristics for unknown models
     if model.startswith("gemini"):

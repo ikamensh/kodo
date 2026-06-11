@@ -202,11 +202,17 @@ class TestCheckApiKey:
         assert "GEMINI_API_KEY" in result
 
     def test_gemini_key_accepted(self):
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "test"}):
+        with (
+            patch.dict("os.environ", {"GEMINI_API_KEY": "test"}),
+            patch("kodo.models.verify_api_key", autospec=True, return_value=None),
+        ):
             assert check_api_key("api", "gemini-flash") is None
 
     def test_google_key_accepted_for_gemini(self):
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}):
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch("kodo.models.verify_api_key", autospec=True, return_value=None),
+        ):
             assert check_api_key("api", "gemini-pro") is None
 
     def test_ollama_local_needs_no_api_key(self):
@@ -226,7 +232,10 @@ class TestCheckApiKey:
         assert "ANTHROPIC_API_KEY" in result
 
     def test_anthropic_key_accepted(self):
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+        with (
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}),
+            patch("kodo.models.verify_api_key", autospec=True, return_value=None),
+        ):
             assert check_api_key("api", "opus") is None
 
 

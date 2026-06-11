@@ -757,6 +757,36 @@ class TestSelectParams:
         assert "ollama:qwen2.5-coder:14b" in model_options
         assert "ollama:llama3.2" in model_options
 
+    def test_api_orchestrator_flags_rejected_keys(self, capsys, _no_live_key_probes):
+        """A provider whose key failed the background probe gets its models
+        flagged in the selection list, and the full error prints above it."""
+        rejection = {
+            "Google": "GOOGLE_API_KEY was rejected by Google (HTTP 400): expired"
+        }
+        _no_live_key_probes.return_value = lambda timeout=6.0: rejection
+        with (
+            patch(
+                "kodo.cli._params._select_one",
+                autospec=True,
+                side_effect=self._patch_select_one("api"),
+            ),
+            patch(
+                "kodo.cli._params.available_model_choices",
+                autospec=True,
+                return_value=[
+                    ("opus", "Claude Opus 4.7", "Anthropic"),
+                    ("gemini-flash", "Gemini 3.5 Flash", "Google"),
+                ],
+            ),
+        ):
+            select_params()
+
+        model_call = [c for c in self._select_one_calls if "model" in c[0].lower()]
+        options = model_call[0][1]
+        assert "opus — Claude Opus 4.7 (Anthropic)" in options
+        assert "gemini-flash — Gemini 3.5 Flash (Google)  ⚠ key rejected" in options
+        assert "GOOGLE_API_KEY was rejected" in capsys.readouterr().out
+
     def test_claude_code_orchestrator(self):
         """claude-code orchestrator should offer Claude model choices."""
         with patch(
