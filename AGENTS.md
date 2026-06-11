@@ -17,6 +17,8 @@ Primary user workflows and how to verify them with mocks (no API keys or real ba
 
 **Report bug:** `kodo issue [RUN_ID]` — resolves run like `--resume` (latest or by id), prompts for description (leave empty if crash obvious), packs run into `run.tar.gz` (log, config, goal, conversations), opens GitHub new-issue URL with run context pre-filled. User attaches the archive (GitHub rejects .jsonl). Tests: `tests/cli/test_subcommands.py::TestCmdIssue`.
 
+**Steering input (`kodo/cli/_interactive.py`):** deliberately *no* persistent prompt line or status bar — any always-visible UI needs a renderer that redraws around every output write, which desyncs and corrupts scrollback under tmux (issue #52). Instead a cbreak watcher opens a plain `input()` composer on first keypress; orchestrator output is buffered while composing. Don't reintroduce prompt_toolkit/TUI rendering here.
+
 ## Boundary condition tests (final status)
 
 | Test | File | Status | Notes |

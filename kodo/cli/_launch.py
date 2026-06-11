@@ -421,7 +421,10 @@ def print_launch_identity(
     if is_interactive(json_mode):
         from kodo.formatting import DIM, RESET
 
-        print(f"  {DIM}Type feedback anytime. /stop to end gracefully.{RESET}")
+        print(
+            f"  {DIM}Type anytime to steer the agent — Enter sends."
+            f" /stop to end gracefully.{RESET}"
+        )
     print()
 
 
