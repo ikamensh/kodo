@@ -41,7 +41,7 @@ class KnowledgeOrchestrator:
 
     def __init__(
         self,
-        model: str = "claude-opus-4-6",
+        model: str = "claude-opus-4-7",
         designer_model: str | None = None,
         agent_model: str | None = None,
         max_context_tokens: int = 100_000,

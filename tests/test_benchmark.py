@@ -969,7 +969,7 @@ class TestOnlineValidation:
         ("cursor", "bare_arm_missing_model"),
         ("claude", "bare_arm_missing_model"),
         ("kodo", "bare_arm_missing_model"),
-        ("cursor:composer-2", None),
+        ("cursor:composer-2.5", None),
         ("claude:opus", None),
         ("kodo:solo", None),
         ("gemini", None),

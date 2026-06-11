@@ -98,25 +98,25 @@ def api_orchestrator_model_options() -> list[str]:
 # ---------------------------------------------------------------------------
 CLAUDE_OPUS = "opus"
 CLAUDE_SONNET = "sonnet"
-CLAUDE_OPUS_FULL = "claude-opus-4-6"
+CLAUDE_OPUS_FULL = "claude-opus-4-7"
 CLAUDE_SONNET_FULL = "claude-sonnet-4-6"
 
 # ---------------------------------------------------------------------------
 # Cursor
 # ---------------------------------------------------------------------------
-CURSOR_COMPOSER = "composer-2"
+CURSOR_COMPOSER = "composer-2.5"
 
 # ---------------------------------------------------------------------------
 # Codex
 # ---------------------------------------------------------------------------
-CODEX_DEFAULT = "gpt-5.4"
-CODEX_WORKER = "gpt-5.4"
+CODEX_DEFAULT = "gpt-5.5"
+CODEX_WORKER = "gpt-5.5"
 
 # ---------------------------------------------------------------------------
 # Gemini CLI (agent backend)
 # ---------------------------------------------------------------------------
-GEMINI_CLI_FLASH = "gemini-3-flash"
-GEMINI_CLI_FLASH_V3 = "gemini-3-flash"
+GEMINI_CLI_FLASH = "gemini-3.5-flash"
+GEMINI_CLI_FLASH_V3 = "gemini-3.5-flash"
 GEMINI_CLI_PRO = "gemini-3-pro"
 
 # ---------------------------------------------------------------------------
@@ -128,7 +128,7 @@ GEMINI_ALIAS_FLASH = "gemini-flash"
 
 GEMINI_API_PRO = "gemini-3.1-pro-preview"
 GEMINI_API_PRO_V3 = "gemini-3.1-pro-preview"
-GEMINI_API_FLASH = "gemini-3-flash-preview"
+GEMINI_API_FLASH = "gemini-3.5-flash"
 
 # ---------------------------------------------------------------------------
 # Gemini API (summarizer — lightweight, direct REST)
@@ -205,7 +205,7 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     CLAUDE_SONNET_FULL: (3, 15),
     GEMINI_API_PRO: (2.0, 12.0),
     GEMINI_API_PRO_V3: (2.0, 12.0),
-    GEMINI_API_FLASH: (0.50, 3.0),
+    GEMINI_API_FLASH: (1.50, 9.0),
 }
 
 # ---------------------------------------------------------------------------
@@ -230,8 +230,8 @@ class ModelInfo:
     """Metadata for a single model in the provider registry."""
 
     alias: str  # short CLI name, e.g. "opus"
-    pydantic_id: str  # full pydantic-ai model string, e.g. "anthropic:claude-opus-4-6"
-    full_model_id: str  # bare model ID, e.g. "claude-opus-4-6"
+    pydantic_id: str  # full pydantic-ai model string, e.g. "anthropic:claude-opus-4-7"
+    full_model_id: str  # bare model ID, e.g. "claude-opus-4-7"
     display_name: str  # human-friendly, e.g. "Claude Opus"
     pricing: tuple[float, float] = (0.0, 0.0)  # (input, output) per 1M tokens
 
@@ -256,9 +256,9 @@ def _build_registry() -> tuple[Provider, ...]:
             models=(
                 ModelInfo(
                     "opus",
-                    "anthropic:claude-opus-4-6",
-                    "claude-opus-4-6",
-                    "Claude Opus 4.6",
+                    "anthropic:claude-opus-4-7",
+                    "claude-opus-4-7",
+                    "Claude Opus 4.7",
                     (5.0, 25.0),
                 ),
                 ModelInfo(
@@ -291,10 +291,10 @@ def _build_registry() -> tuple[Provider, ...]:
                 ),
                 ModelInfo(
                     "gemini-flash",
-                    "google-gla:gemini-3-flash-preview",
-                    "gemini-3-flash-preview",
-                    "Gemini 3 Flash",
-                    (0.50, 3.0),
+                    "google-gla:gemini-3.5-flash",
+                    "gemini-3.5-flash",
+                    "Gemini 3.5 Flash",
+                    (1.50, 9.0),
                 ),
                 ModelInfo(
                     "gemini-flash-lite",
@@ -311,21 +311,17 @@ def _build_registry() -> tuple[Provider, ...]:
             pydantic_prefix="openai",
             models=(
                 ModelInfo(
-                    "gpt-5.4", "openai:gpt-5.4", "gpt-5.4", "GPT-5.4", (2.0, 8.0)
+                    "gpt-5.5", "openai:gpt-5.5", "gpt-5.5", "GPT-5.5", (5.0, 30.0)
+                ),
+                ModelInfo(
+                    "gpt-5.4", "openai:gpt-5.4", "gpt-5.4", "GPT-5.4", (2.5, 15.0)
                 ),
                 ModelInfo(
                     "gpt-5.4-mini",
                     "openai:gpt-5.4-mini",
                     "gpt-5.4-mini",
                     "GPT-5.4 Mini",
-                    (0.40, 1.60),
-                ),
-                ModelInfo(
-                    "gpt-5.4-nano",
-                    "openai:gpt-5.4-nano",
-                    "gpt-5.4-nano",
-                    "GPT-5.4 Nano",
-                    (0.10, 0.40),
+                    (0.75, 4.50),
                 ),
             ),
         ),
@@ -477,8 +473,8 @@ def resolve_model(model: str | None) -> str:
     """Resolve a model alias or provider:model string to a pydantic-ai model string.
 
     - Alias (e.g. "opus") → pydantic ID from registry
-    - provider:model passthrough (e.g. "anthropic:claude-opus-4-6")
-    - Legacy bare IDs (e.g. "claude-opus-4-6") → lookup in PYDANTIC_MODEL_MAP
+    - provider:model passthrough (e.g. "anthropic:claude-opus-4-7")
+    - Legacy bare IDs (e.g. "claude-opus-4-7") → lookup in PYDANTIC_MODEL_MAP
     - Unknown → passthrough
     """
     if not model:
@@ -493,7 +489,7 @@ def resolve_model(model: str | None) -> str:
     if ":" in model:
         return model
 
-    # Legacy bare model IDs (e.g. "claude-opus-4-6", "gemini-3-flash-preview")
+    # Legacy bare model IDs (e.g. "claude-opus-4-7", "gemini-3.5-flash")
     if model in PYDANTIC_MODEL_MAP:
         return PYDANTIC_MODEL_MAP[model]
 

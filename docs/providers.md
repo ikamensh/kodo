@@ -44,7 +44,7 @@ OpenAI's Codex CLI is an alternative fast worker backend. If Cursor is not avail
 
 ### kodo-specific notes
 
-- Default model: `gpt-5.4`. Configurable in team config.
+- Default model: `gpt-5.5`. Configurable in team config.
 - Supports session resume (agents continue their prior thread on `kodo --resume`).
 - Runs in `workspace-write` sandbox mode by default.
 
@@ -60,7 +60,7 @@ Google's open-source Gemini CLI. Used for the `worker_fast` role when Cursor and
 
 ### kodo-specific notes
 
-- Default model: `gemini-2.5-flash`. 1M token context window.
+- Default model: `gemini-3.5-flash`. 1M token context window.
 - Supports session resume (auto-saved sessions, `--resume` flag).
 - The only backend with a generous free tier — useful for development and testing.
 

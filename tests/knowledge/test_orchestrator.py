@@ -114,7 +114,7 @@ class TestOrchestratorInit:
 
         orch = KnowledgeOrchestrator(model=CLAUDE_OPUS_FULL)
 
-        # Should map to "anthropic:claude-opus-4-6"
+        # Should map to "anthropic:claude-opus-4-7"
         assert orch._pydantic_model.startswith("anthropic:")
         assert CLAUDE_OPUS_FULL in orch._pydantic_model
 
@@ -123,7 +123,7 @@ class TestOrchestratorInit:
         from kodo.models import CLAUDE_SONNET_FULL, GEMINI_API_FLASH
 
         orch = KnowledgeOrchestrator(
-            model="claude-opus-4-6",
+            model="claude-opus-4-7",
             designer_model=GEMINI_API_FLASH,
             agent_model=CLAUDE_SONNET_FULL,
         )

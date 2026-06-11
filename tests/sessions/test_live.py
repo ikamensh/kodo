@@ -77,7 +77,7 @@ class TestGeminiCliSession:
         from kodo.sessions.gemini_cli import GeminiCliSession
 
         session = GeminiCliSession(
-            model="gemini-2.5-flash-lite",
+            model="gemini-3.5-flash",
             system_prompt="You are a helpful assistant.",
         )
         result = session.query(SIMPLE_PROMPT, project_dir, max_turns=5)
@@ -113,7 +113,7 @@ class TestCodexSession:
     def result_and_session(self, project_dir: Path):
         from kodo.sessions.codex import CodexSession
 
-        session = CodexSession(model="gpt-5.2-codex")
+        session = CodexSession(model="gpt-5.5")
         result = session.query(SIMPLE_PROMPT, project_dir, max_turns=5)
         return result, session
 

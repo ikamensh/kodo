@@ -319,11 +319,11 @@ def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]
 
     Formats:
         "opus"                  → (None, "opus")           — API model
-        "openai:gpt-5.4"       → (None, "openai:gpt-5.4") — API model with provider
+        "openai:gpt-5.5"       → (None, "openai:gpt-5.5") — API model with provider
         "claude-code:opus"      → ("claude-code", "opus")  — CLI backend + model
-        "cursor:sonnet-4-6"     → ("cursor", "sonnet-4-6")
-        "gemini-cli:gemini-3-flash" → ("gemini-cli", "gemini-3-flash")
-        "codex:gpt-5.4"        → ("codex", "gpt-5.4")
+        "cursor:composer-2.5"   → ("cursor", "composer-2.5")
+        "gemini-cli:gemini-3.5-flash" → ("gemini-cli", "gemini-3.5-flash")
+        "codex:gpt-5.5"        → ("codex", "gpt-5.5")
     """
     if value is None:
         return None, None
@@ -379,8 +379,8 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
                 orch_model = _ORCH_DEFAULT_MODELS[orchestrator]
             else:
                 # API orchestrator: pick cheapest available model
-                # Priority: gpt-5.4 → gemini-flash → claude-haiku
-                _API_MODEL_PRIORITY = ("gpt-5.4", "gemini-flash", "haiku")
+                # Priority: gpt-5.5 → gemini-flash → claude-haiku
+                _API_MODEL_PRIORITY = ("gpt-5.5", "gemini-flash", "haiku")
                 providers = _available_model_providers()
                 available_aliases = {m.alias for p in providers for m in p.models}
                 orch_model = next(

@@ -48,10 +48,10 @@ kodo builds a complete team from Gemini CLI with model tiers:
 
 | Role | Model | Purpose |
 |------|-------|---------|
-| worker_fast | gemini-2.5-flash | Straightforward coding tasks |
-| worker_smart | gemini-2.5-pro | Complex reasoning, debugging |
-| architect | gemini-2.5-pro | Code review, architecture decisions |
-| tester | gemini-2.5-flash | Independent verification |
+| worker_fast | gemini-3.5-flash | Straightforward coding tasks |
+| worker_smart | gemini-3-pro | Complex reasoning, debugging |
+| architect | gemini-3-pro | Code review, architecture decisions |
+| tester | gemini-3.5-flash | Independent verification |
 
 In mission/quick mode you get both workers (fast + smart). In saga mode you get the full team above.
 

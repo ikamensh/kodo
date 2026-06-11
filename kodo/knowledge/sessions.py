@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 # Falls back gracefully: prefers Anthropic when available, Gemini otherwise.
 _PREFERENCE_MAP: dict[str, str] = {
     "best": "google-gla:gemini-3.1-pro-preview",
-    "fast": "google-gla:gemini-3-flash-preview",
+    "fast": "google-gla:gemini-3.5-flash",
     "reasoning": "google-gla:gemini-3.1-pro-preview",
     # "search" and "compute" use "best" model but get extra tools
 }
@@ -157,7 +157,7 @@ class ApiSession:
 
 def make_knowledge_session(
     role: "AgentRole",
-    default_model: str = "claude-opus-4-6",
+    default_model: str = "claude-opus-4-7",
     workspace: "Workspace | None" = None,
 ) -> ApiSession:
     """Create an API session for a knowledge agent role.

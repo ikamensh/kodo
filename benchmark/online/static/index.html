@@ -1002,7 +1002,7 @@ function formatMethodologyTemplate(template, data, arms) {
     REPO_COUNT: String(groupByRepo(data.tasks).length),
     SNAPSHOT_CREATED_AT: data.meta?.snapshot_created_at || 'live dataset (not frozen)',
     SHARED_PROMPT_TEMPLATE: SHARED_PROMPT_TEMPLATE.replace(/\\n/g, '\n'),
-    KODO_ORCHESTRATOR_MODEL: data.meta?.kodo_orchestrator_model || 'gemini-3-flash-preview',
+    KODO_ORCHESTRATOR_MODEL: data.meta?.kodo_orchestrator_model || 'gemini-3.5-flash',
   };
   return template.replace(/{{([A-Z0-9_]+)}}/g, (_, key) => replacements[key] ?? '');
 }

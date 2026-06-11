@@ -81,15 +81,15 @@ class TestPydanticModelMap:
 class TestMakeFreshModel:
     def test_anthropic_returns_model_instance(self):
         """anthropic: prefix creates an AnthropicModel instance."""
-        result = make_fresh_model("anthropic:claude-opus-4-6")
+        result = make_fresh_model("anthropic:claude-opus-4-7")
         from pydantic_ai.models.anthropic import AnthropicModel
 
         assert isinstance(result, AnthropicModel)
 
     def test_no_colon_returns_string(self):
         """Model string without provider prefix is returned as-is."""
-        result = make_fresh_model("claude-opus-4-6")
-        assert result == "claude-opus-4-6"
+        result = make_fresh_model("claude-opus-4-7")
+        assert result == "claude-opus-4-7"
 
     def test_unknown_provider_returns_string(self):
         """Unknown provider prefix is returned as-is."""
@@ -99,7 +99,7 @@ class TestMakeFreshModel:
     @pytest.mark.live
     def test_google_gla_returns_google_model(self):
         """google-gla: prefix creates a GoogleModel instance (requires GOOGLE_API_KEY)."""
-        result = make_fresh_model("google-gla:gemini-3-flash-preview")
+        result = make_fresh_model("google-gla:gemini-3.5-flash")
         # Should return a GoogleModel, not a string
         assert not isinstance(result, str)
         assert type(result).__name__ == "GoogleModel"
@@ -107,7 +107,7 @@ class TestMakeFreshModel:
     @pytest.mark.live
     def test_google_vertex_returns_google_model(self):
         """google-vertex: prefix creates a GoogleModel with vertexai=True (requires GCP credentials)."""
-        result = make_fresh_model("google-vertex:gemini-3-flash-preview")
+        result = make_fresh_model("google-vertex:gemini-3.5-flash")
         assert not isinstance(result, str)
         assert type(result).__name__ == "GoogleModel"
 

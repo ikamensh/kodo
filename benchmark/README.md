@@ -24,7 +24,7 @@ uv run python -m benchmark --evaluate-only --run-id 20260309_105930
 |-----|------|-------|
 | `claude` | Claude Code CLI | Default model: opus. Override: `claude:sonnet` |
 | `cursor` | Cursor agent CLI | composer-1.5 |
-| `codex` | OpenAI Codex CLI | Default model: gpt-5.4. Override: `codex:o3` |
+| `codex` | OpenAI Codex CLI | Default model: gpt-5.5. Override: `codex:gpt-5.4` |
 | `gemini` | Google Gemini CLI | |
 | `kodo` | Kodo orchestrator | Default team. Override: `kodo:solo`, `kodo:solo+opus` |
 

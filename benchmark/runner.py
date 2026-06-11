@@ -50,16 +50,16 @@ def parse_arm(arm: str) -> tuple[str, str | None]:
 def normalize_arm(arm: str) -> str:
     """Expand bare backend arms to include their default model.
 
-    ``"cursor"`` → ``"cursor:composer-2"``, ``"claude"`` → ``"claude:opus"``, etc.
+    ``"cursor"`` → ``"cursor:composer-2.5"``, ``"claude"`` → ``"claude:opus"``, etc.
     This ensures benchmark results are never silently mixed when a default changes.
     Arms that already carry a model/team suffix are left unchanged.
     """
-    from kodo.models import CURSOR_COMPOSER
+    from kodo.models import CODEX_DEFAULT, CURSOR_COMPOSER
 
     _defaults: dict[str, str] = {
         "claude": "opus",
         "cursor": CURSOR_COMPOSER,
-        "codex": "gpt-5.4",
+        "codex": CODEX_DEFAULT,
     }
     base, team = parse_arm(arm)
     if team is None and base in _defaults:
@@ -505,6 +505,8 @@ def _run_codex(
     task: SWETask, repo_dir: Path, timeout: int, *, model: str | None = None
 ) -> tuple[dict, str, str, str, str]:
     """Run OpenAI Codex CLI in non-interactive mode."""
+    from kodo.models import CODEX_DEFAULT
+
     prompt = _build_prompt(task)
     cmd = [
         "codex",
@@ -512,7 +514,7 @@ def _run_codex(
         "--full-auto",
         "--json",
         "-m",
-        model or "gpt-5.4",
+        model or CODEX_DEFAULT,
     ]
     cmd.append(prompt)
     return _run_subprocess(cmd, cwd=repo_dir, timeout=timeout)

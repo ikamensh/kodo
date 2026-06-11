@@ -744,7 +744,7 @@ class TestApiErrorPaths:
             patch("time.sleep", autospec=True),
             patch.object(ApiOrchestrator, "_summarize", return_value="ok"),
         ):
-            orch = ApiOrchestrator(model="claude-opus-4-6")
+            orch = ApiOrchestrator(model="opus")
             result = orch.cycle("test", tmp_path, team, max_exchanges=10)
 
         assert call_count[0] == 2
