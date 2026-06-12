@@ -235,6 +235,9 @@ class ModelInfo:
     full_model_id: str  # bare model ID, e.g. "claude-opus-4-7"
     display_name: str  # human-friendly, e.g. "Claude Opus"
     pricing: tuple[float, float] = (0.0, 0.0)  # (input, output) per 1M tokens
+    # Offered in the orchestrator selection wizard. False for models too weak
+    # to direct a run; they stay resolvable as aliases (workers, Custom...).
+    orchestrator_grade: bool = True
 
 
 @dataclass(frozen=True)
@@ -360,6 +363,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "meta-llama/llama-4-scout-17b-16e-instruct",
                     "Llama 4 Scout",
                     (0.11, 0.34),
+                    orchestrator_grade=False,
                 ),
                 ModelInfo(
                     "llama-70b",
@@ -367,6 +371,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "llama-3.3-70b-versatile",
                     "Llama 3.3 70B",
                     (0.59, 0.79),
+                    orchestrator_grade=False,
                 ),
             ),
         ),
@@ -381,6 +386,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "openrouter/auto",
                     "OpenRouter Auto",
                     (0.0, 0.0),
+                    orchestrator_grade=False,
                 ),
                 ModelInfo(
                     "nemotron",
@@ -388,6 +394,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "nvidia/nemotron-3-super-120b-a12b",
                     "Nemotron 3 Super",
                     (0.12, 0.30),
+                    orchestrator_grade=False,
                 ),
                 ModelInfo(
                     "nemotron-free",
@@ -395,6 +402,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "nvidia/nemotron-3-super-120b-a12b:free",
                     "Nemotron 3 Super (free)",
                     (0.0, 0.0),
+                    orchestrator_grade=False,
                 ),
             ),
         ),
@@ -409,6 +417,7 @@ def _build_registry() -> tuple[Provider, ...]:
                     "codestral-latest",
                     "Codestral",
                     (0.30, 0.90),
+                    orchestrator_grade=False,
                 ),
                 ModelInfo(
                     "mistral-large",
@@ -446,11 +455,16 @@ def available_providers() -> list[Provider]:
 
 
 def available_model_choices() -> list[tuple[str, str, str]]:
-    """Return (alias, display_name, provider_name) tuples from available providers."""
+    """Return (alias, display_name, provider_name) tuples from available providers.
+
+    Only orchestrator-grade models — this feeds the orchestrator selection
+    wizard. Weaker registry models stay usable via Custom.../flags.
+    """
     choices: list[tuple[str, str, str]] = []
     for provider in available_providers():
         for m in provider.models:
-            choices.append((m.alias, m.display_name, provider.name))
+            if m.orchestrator_grade:
+                choices.append((m.alias, m.display_name, provider.name))
     return choices
 
 

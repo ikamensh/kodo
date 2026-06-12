@@ -11,6 +11,7 @@ from kodo.models import (
     PYDANTIC_MODEL_MAP,
     _probe_request,
     api_orchestrator_model_options,
+    available_model_choices,
     check_api_key_for_model,
     ensure_ollama_base_url,
     implied_orchestrator_from_model,
@@ -19,6 +20,7 @@ from kodo.models import (
     make_fresh_model,
     normalize_ollama_model,
     probe_keys_async,
+    resolve_model,
     verify_api_key,
 )
 
@@ -344,6 +346,33 @@ class TestVerifyApiKey:
             mp.delenv("GEMINI_API_KEY", raising=False)
             err = check_api_key_for_model("gemini-flash")
         assert err is not None and "not set" in err
+
+
+class TestOrchestratorGrade:
+    """Weak models are excluded from orchestrator selection but remain
+    resolvable as aliases (for worker configs and the Custom... entry)."""
+
+    def test_weak_models_hidden_from_orchestrator_wizard(self):
+        with pytest.MonkeyPatch.context() as mp:
+            for var in ("OPENROUTER_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"):
+                mp.setenv(var, "k")
+            aliases = [a for a, _d, _p in available_model_choices()]
+        assert "mistral-large" in aliases
+        weak = (
+            "openrouter-auto",
+            "nemotron",
+            "nemotron-free",
+            "codestral",
+            "llama-4-scout",
+            "llama-70b",
+        )
+        for alias in weak:
+            assert alias not in aliases, alias
+
+    def test_weak_aliases_still_resolve(self):
+        assert resolve_model("codestral") == "mistral:codestral-latest"
+        assert resolve_model("nemotron-free").startswith("openrouter:")
+        assert resolve_model("llama-70b").startswith("groq:")
 
 
 class TestProbeKeysAsync:

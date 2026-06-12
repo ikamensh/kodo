@@ -6,6 +6,7 @@ from pathlib import Path
 import questionary
 
 from kodo.cli._ui import _atomic_write
+from kodo.formatting import RESET, YELLOW
 from kodo.factory import (
     DEFAULT_MAX_CYCLES,
     DEFAULT_MAX_EXCHANGES,
@@ -37,18 +38,26 @@ from kodo.user_config import get_user_default
 
 
 def _labeled_choices(
-    options: list[str],
+    options: list[str | questionary.Choice],
     default_index: int,
 ) -> list[questionary.Choice]:
-    """Build Choice objects, appending '(default)' to the default item's label."""
+    """Build Choice objects, appending '(default)' to the default item's label.
+
+    Pre-built Choice objects (e.g. disabled entries) pass through unchanged.
+    """
     choices = []
     for i, opt in enumerate(options):
+        if isinstance(opt, questionary.Choice):
+            choices.append(opt)
+            continue
         label = f"{opt} (default)" if i == default_index else opt
         choices.append(questionary.Choice(title=label, value=opt))
     return choices
 
 
-def _select_one(title: str, options: list[str], default_index: int = 0) -> str:
+def _select_one(
+    title: str, options: list[str | questionary.Choice], default_index: int = 0
+) -> str:
     """Arrow-key single selection. Returns the chosen string."""
     choices = _labeled_choices(options, default_index)
     result = questionary.select(title, choices=choices).ask()
@@ -169,24 +178,39 @@ def select_params() -> dict:
     elif orchestrator == "api":
         bad_keys = probe_join()
         for err in bad_keys.values():
-            print(f"  ⚠ {err}")
-        # Build model list from available providers, grouped by provider
-        model_choices: list[str] = []
-        choices_data = available_model_choices()
-        current_provider = ""
-        for alias, display, provider_name in choices_data:
-            if provider_name != current_provider:
-                current_provider = provider_name
+            print(f"  {YELLOW}⚠ {err}{RESET}")
+        # Build model list from available providers; providers whose key
+        # failed the live probe sink to the bottom as disabled entries.
+        model_choices: list[str | questionary.Choice] = []
+        rejected_choices: list[questionary.Choice] = []
+        for alias, display, provider_name in available_model_choices():
             label = f"{alias} — {display} ({provider_name})"
             if provider_name in bad_keys:
-                label += "  ⚠ key rejected"
-            model_choices.append(label)
+                rejected_choices.append(
+                    questionary.Choice(title=label, disabled="key rejected")
+                )
+            else:
+                model_choices.append(label)
         # Add Ollama models if running
         for ollama_model in list_ollama_models():
             model_choices.append(f"ollama:{ollama_model}")
-        if not model_choices:
-            model_choices = api_orchestrator_model_options()
+        if not model_choices and not rejected_choices:
+            model_choices = list(api_orchestrator_model_options())
+        # Best price/perf orchestrator first — it becomes the default.
+        for preferred in ("gemini-flash", "gpt-5.5", "gemini-pro", "gpt-5.4"):
+            idx = next(
+                (
+                    i
+                    for i, c in enumerate(model_choices)
+                    if isinstance(c, str) and c.startswith(f"{preferred} — ")
+                ),
+                None,
+            )
+            if idx is not None:
+                model_choices.insert(0, model_choices.pop(idx))
+                break
         model_choices.append("Custom...")
+        model_choices.extend(rejected_choices)
 
         selected = _select_one("Orchestrator model:", model_choices)
         if selected == "Custom...":

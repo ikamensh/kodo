@@ -784,8 +784,53 @@ class TestSelectParams:
         model_call = [c for c in self._select_one_calls if "model" in c[0].lower()]
         options = model_call[0][1]
         assert "opus — Claude Opus 4.7 (Anthropic)" in options
-        assert "gemini-flash — Gemini 3.5 Flash (Google)  ⚠ key rejected" in options
+        # Rejected provider's models sink below Custom... as disabled entries
+        import questionary
+
+        disabled = [
+            o for o in options if isinstance(o, questionary.Choice) and o.disabled
+        ]
+        assert [d.title for d in disabled] == [
+            "gemini-flash — Gemini 3.5 Flash (Google)"
+        ]
+        assert options.index(disabled[0]) > options.index("Custom...")
         assert "GOOGLE_API_KEY was rejected" in capsys.readouterr().out
+
+    def test_preferred_orchestrator_default(self, _no_live_key_probes):
+        """Best price/perf model floats to the top (= default): gemini-flash
+        first; when its key is rejected, the next preferred one (gpt-5.5)."""
+        choices = [
+            ("opus", "Claude Opus 4.7", "Anthropic"),
+            ("gemini-flash", "Gemini 3.5 Flash", "Google"),
+            ("gpt-5.5", "GPT-5.5", "OpenAI"),
+        ]
+
+        def run_wizard():
+            with (
+                patch(
+                    "kodo.cli._params._select_one",
+                    autospec=True,
+                    side_effect=self._patch_select_one("api"),
+                ),
+                patch(
+                    "kodo.cli._params.available_model_choices",
+                    autospec=True,
+                    return_value=choices,
+                ),
+            ):
+                self._select_one_calls.clear()
+                select_params()
+            model_call = [
+                c for c in self._select_one_calls if "model" in c[0].lower()
+            ]
+            return model_call[0][1]
+
+        options = run_wizard()
+        assert options[0].startswith("gemini-flash — ")
+
+        _no_live_key_probes.return_value = lambda timeout=6.0: {"Google": "rejected"}
+        options = run_wizard()
+        assert options[0].startswith("gpt-5.5 — ")
 
     def test_claude_code_orchestrator(self):
         """claude-code orchestrator should offer Claude model choices."""
