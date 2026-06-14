@@ -86,8 +86,8 @@ def test_session_id_property():
 
 def test_custom_sandbox_parameter():
     """Can initialize session with custom sandbox."""
-    session = CodexSession(model="o4-mini", sandbox="full-auto")
-    assert session._sandbox == "full-auto"
+    session = CodexSession(model="o4-mini", sandbox="danger-full-access")
+    assert session._sandbox == "danger-full-access"
 
 
 def test_nested_message_format(tmp_path: Path):
@@ -140,6 +140,33 @@ def test_legacy_item_completed_format(tmp_path: Path):
             result_text="assistant response",
             session_id="t1",
             legacy_item=True,
+        ),
+    ):
+        result = session.query("task", tmp_path, max_turns=10)
+
+    assert result.text == "assistant response"
+
+
+def test_current_item_completed_agent_message_format(tmp_path: Path):
+    """Codex 0.139 emits item.completed with item.type=agent_message."""
+    log.init(RunDir.create(tmp_path, "codex_current_item"))
+    session = CodexSession(model="o4-mini")
+
+    with patch(
+        "kodo.sessions.base.subprocess.Popen",
+        _make_popen_factory(
+            result_text="",
+            session_id="t1",
+            extra_messages=[
+                {
+                    "type": "item.completed",
+                    "item": {
+                        "id": "item_0",
+                        "type": "agent_message",
+                        "text": "assistant response",
+                    },
+                }
+            ],
         ),
     ):
         result = session.query("task", tmp_path, max_turns=10)
@@ -213,7 +240,7 @@ def test_model_not_supported_hint(tmp_path: Path):
 def test_command_construction(tmp_path: Path):
     """Verify command is constructed correctly with all parameters."""
     log.init(RunDir.create(tmp_path, "codex_cmd"))
-    session = CodexSession(model="o4-mini", sandbox="full-auto")
+    session = CodexSession(model="o4-mini", sandbox="danger-full-access")
 
     calls = []
 
@@ -227,10 +254,10 @@ def test_command_construction(tmp_path: Path):
     cmd = calls[0]
     assert "codex" in cmd
     assert "exec" in cmd
-    assert "--full-auto" in cmd
+    assert "--full-auto" not in cmd
     assert "--json" in cmd
     assert "--sandbox" in cmd
-    assert "full-auto" in cmd
+    assert "danger-full-access" in cmd
     assert "-m" in cmd
     assert "o4-mini" in cmd
     assert str(tmp_path) in cmd

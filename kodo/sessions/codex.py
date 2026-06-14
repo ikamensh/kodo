@@ -60,7 +60,6 @@ class CodexSession(SubprocessSession):
             "codex",
             "exec",
             prompt,
-            "--full-auto",
             "--json",
             "--cd",
             str(project_dir),
@@ -117,7 +116,7 @@ class CodexSession(SubprocessSession):
                 # Agent text response (current codex format)
                 elif event_type == "agent_message":
                     src = inner if inner else msg
-                    text = src.get("message", "")
+                    text = src.get("message") or src.get("text", "")
                     if text:
                         result_text = text
 
@@ -135,8 +134,13 @@ class CodexSession(SubprocessSession):
 
                 # Legacy: capture assistant message text
                 elif event_type == "item.completed":
-                    item = msg.get("item", {})
-                    if item.get("role") == "assistant":
+                    src = inner if inner else msg
+                    item = src.get("item", {})
+                    if item.get("type") == "agent_message":
+                        text = item.get("text") or item.get("message", "")
+                        if text:
+                            result_text = text
+                    elif item.get("role") == "assistant":
                         for content in item.get("content", []):
                             if content.get("type") == "text":
                                 result_text = content.get("text", "")
