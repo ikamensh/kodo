@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kodo-agent"
-version = "0.5.0"
+version = "0.5.1"
 description = "Autonomous multi-agent coding orchestrator."
 readme = "README.md"
 license = "MIT"
