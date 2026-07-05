@@ -311,6 +311,18 @@ def _cmd_update() -> None:
 
 
 # ---------------------------------------------------------------------------
+# kodo doctor
+# ---------------------------------------------------------------------------
+
+
+def _cmd_doctor() -> None:
+    """Check whether this machine can run kodo in the current project."""
+    from kodo.doctor import print_doctor
+
+    raise SystemExit(print_doctor())
+
+
+# ---------------------------------------------------------------------------
 # kodo backends
 # ---------------------------------------------------------------------------
 
@@ -323,6 +335,7 @@ def _cmd_backends() -> None:
 
     from kodo.factory import (
         available_backends,
+        backend_definitions,
         check_backend_status,
     )
     from kodo.formatting import (
@@ -337,12 +350,7 @@ def _cmd_backends() -> None:
     backends = available_backends()
 
     _INSTALL_LINKS: dict[str, str] = {
-        "claude": "https://code.claude.com/docs/en/setup",
-        "codex": "https://github.com/openai/codex/blob/main/docs/install.md",
-        "cursor": "https://cursor.com/docs/cli/installation",
-        "gemini-cli": "https://geminicli.com/docs/get-started/installation/",
-        "kimi": "https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html#installation",
-        "kiro": "https://kiro.dev/docs/cli/installation/",
+        definition.key: definition.install_hint for definition in backend_definitions()
     }
     _README_URL = "https://github.com/ikamensh/kodo#prerequisites"
 

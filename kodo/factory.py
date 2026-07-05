@@ -52,6 +52,82 @@ from kodo.prompts.roles import (
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class BackendDefinition:
+    """CLI metadata shared by backend discovery, preflight checks, and doctor."""
+
+    key: str
+    binary: str
+    version_cmd: tuple[str, ...]
+    install_hint: str
+    login_hint: str
+    auth_status_cmds: tuple[tuple[str, ...], ...] = ()
+
+
+BACKEND_DEFINITIONS: dict[str, BackendDefinition] = {
+    "claude": BackendDefinition(
+        key="claude",
+        binary="claude",
+        version_cmd=("claude", "--version"),
+        install_hint="install Claude Code: https://code.claude.com/docs/en/setup",
+        login_hint="run `claude` and complete login",
+        auth_status_cmds=(("claude", "auth", "status"),),
+    ),
+    "codex": BackendDefinition(
+        key="codex",
+        binary="codex",
+        version_cmd=("codex", "--version"),
+        install_hint="install Codex: https://github.com/openai/codex/blob/main/docs/install.md",
+        login_hint="run `codex login`",
+        auth_status_cmds=(("codex", "auth", "status"),),
+    ),
+    "cursor": BackendDefinition(
+        key="cursor",
+        binary="cursor-agent",
+        version_cmd=("cursor-agent", "--version"),
+        install_hint="install Cursor CLI: https://cursor.com/docs/cli/installation",
+        login_hint="run `cursor-agent login` or open Cursor and sign in",
+    ),
+    "gemini-cli": BackendDefinition(
+        key="gemini-cli",
+        binary="gemini",
+        version_cmd=("gemini", "--version"),
+        install_hint="install Gemini CLI: https://geminicli.com/docs/get-started/installation/",
+        login_hint="run `gemini auth login`",
+        auth_status_cmds=(("gemini", "auth", "status"),),
+    ),
+    "kimi": BackendDefinition(
+        key="kimi",
+        binary="kimi",
+        version_cmd=("kimi", "--version"),
+        install_hint="install Kimi CLI: https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html#installation",
+        login_hint="run `kimi login`",
+        auth_status_cmds=(("kimi", "auth", "status"),),
+    ),
+    "kiro": BackendDefinition(
+        key="kiro",
+        binary="kiro-cli",
+        version_cmd=("kiro-cli", "--version"),
+        install_hint="install Kiro CLI: https://kiro.dev/docs/cli/installation/",
+        login_hint="run `kiro-cli login`",
+        auth_status_cmds=(("kiro-cli", "auth", "status"),),
+    ),
+    "opencode": BackendDefinition(
+        key="opencode",
+        binary="opencode",
+        version_cmd=("opencode", "--version"),
+        install_hint="install opencode and ensure `opencode` is on PATH",
+        login_hint="run `opencode auth login`",
+        auth_status_cmds=(("opencode", "auth", "status"),),
+    ),
+}
+
+
+def backend_definitions() -> tuple[BackendDefinition, ...]:
+    """Return supported backend definitions in display order."""
+    return tuple(BACKEND_DEFINITIONS.values())
+
+
 @lru_cache(maxsize=1)
 def available_backends() -> dict[str, bool]:
     """Detect which worker backends are installed and on PATH.
@@ -60,13 +136,8 @@ def available_backends() -> dict[str, bool]:
     env changes or in tests).
     """
     return {
-        "claude": shutil.which("claude") is not None,
-        "codex": shutil.which("codex") is not None,
-        "cursor": shutil.which("cursor-agent") is not None,
-        "gemini-cli": shutil.which("gemini") is not None,
-        "kimi": shutil.which("kimi") is not None,
-        "kiro": shutil.which("kiro-cli") is not None,
-        "opencode": shutil.which("opencode") is not None,
+        definition.key: shutil.which(definition.binary) is not None
+        for definition in backend_definitions()
     }
 
 
@@ -205,13 +276,8 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
 
 # Binary → version/help command to test viability
 _PREFLIGHT_CMDS: dict[str, list[str]] = {
-    "claude": ["claude", "--version"],
-    "cursor": ["cursor-agent", "--version"],
-    "codex": ["codex", "--version"],
-    "gemini-cli": ["gemini", "--version"],
-    "kimi": ["kimi", "--version"],
-    "kiro": ["kiro-cli", "--version"],
-    "opencode": ["opencode", "--version"],
+    definition.key: list(definition.version_cmd)
+    for definition in backend_definitions()
 }
 
 # Session class → backend key for preflight
