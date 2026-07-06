@@ -35,6 +35,25 @@ def _fake_build_team():
     return {"worker_fast": agent, "worker_smart": agent}
 
 
+def _fake_available_backends() -> dict[str, bool]:
+    return {
+        "claude": True,
+        "codex": False,
+        "cursor": True,
+        "gemini-cli": False,
+        "kimi": False,
+        "kiro": False,
+        "opencode": False,
+    }
+
+
+def _fake_available_backends_cache_clear() -> None:
+    return None
+
+
+_fake_available_backends.cache_clear = _fake_available_backends_cache_clear
+
+
 def main() -> int:
     project_dir = Path(__file__).resolve().parent.parent / "tmp_smoke_interactive"
     project_dir.mkdir(exist_ok=True)
@@ -141,6 +160,7 @@ def main() -> int:
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
+        patch("kodo.factory.available_backends", new=_fake_available_backends),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_quick", _fake_build_team),
         patch("kodo.factory._build_team_full", _fake_build_team),
