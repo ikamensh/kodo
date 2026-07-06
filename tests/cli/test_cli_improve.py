@@ -16,6 +16,7 @@ from kodo.cli._improve import (
 )
 from kodo.log import RunDir
 from kodo.orchestrators.base import GoalPlan, GoalStage
+from scripts.improve_mock_plan import build_mock_discovery_plan, detect_project_type
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +230,40 @@ class TestRunImproveDiscovery:
         # Prior items should be in triage stage description
         triage = [s for s in result.stages if _is_triage_stage(s.name)][0]
         assert "Prior items" in triage.description
+
+
+# ---------------------------------------------------------------------------
+# Mocked improve workflow helpers
+# ---------------------------------------------------------------------------
+
+
+class TestMockedImprovePlan:
+    def test_detects_app_fixture_and_builds_7_stage_plan(self, tmp_path):
+        """Mocked no-key improve runs still demonstrate detected-type planning."""
+        (tmp_path / "main.py").write_text("print('hello')\n", encoding="utf-8")
+
+        project_type = detect_project_type(tmp_path)
+        plan = build_mock_discovery_plan(project_type)
+
+        assert project_type == "app"
+        assert plan.context == "Detected project type: app"
+        assert len(plan.stages) == 7
+        assert plan.stages[0].name == "App Entry Points & Workflows"
+        assert plan.stages[-1].name == "Fix & Report"
+
+    def test_detects_library_fixture_and_builds_library_plan(self, tmp_path):
+        """A fixture without app entry points gets the library-specific flow."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = 'lib'\nversion = '0.1.0'\n",
+            encoding="utf-8",
+        )
+
+        project_type = detect_project_type(tmp_path)
+        plan = build_mock_discovery_plan(project_type)
+
+        assert project_type == "library"
+        assert len(plan.stages) == 7
+        assert plan.stages[0].name == "Package API Surface"
 
 
 # ---------------------------------------------------------------------------

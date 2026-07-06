@@ -14,26 +14,31 @@ uv run python scripts/run_improve_mocked.py
 
 ```
 Project type: app
-Improve plan stages: 4
-  1. Baseline & Static Analysis
-  2. Happy Path Integration Testing
-  3. Exploratory & Adversarial Testing
-  4. Fix & Report
+Improve plan stages: 7
+  1. App Entry Points & Workflows
+  2. Install & Run Experience
+  3. Public Interface Usability
+  4. Simplification & Dead Weight
+  5. Architecture & Boundaries
+  6. Triage & Verify
+  7. Fix & Report
 
   🦉 kodo v0.4.57 — autonomous multi-agent coding
   Project: tests/fixtures/buggy_project
-  Improve type: app
 
 ============================================================
   READY TO LAUNCH
 ============================================================
   Project:      tests/fixtures/buggy_project
   Goal:         Thoroughly test and improve this codebase using a structured sequence...
-  Stages:       4
-                  1. Baseline & Static Analysis
-                  2. Happy Path Integration Testing
-                  3. Exploratory & Adversarial Testing
-                  4. Fix & Report
+  Stages:       7
+                  1. App Entry Points & Workflows
+                  2. Install & Run Experience
+                  3. Public Interface Usability
+                  4. Simplification & Dead Weight
+                  5. Architecture & Boundaries
+                  6. Triage & Verify
+                  7. Fix & Report
   Team:         saga — Full team (Cursor + Codex + Gemini CLI + Claude Code)
   Orchestrator: api (gemini-flash)
   Exchanges:    30/cycle, 5 cycles
@@ -47,7 +52,7 @@ Team:
   architect (? / fake-model)
 Project dir: tests/fixtures/buggy_project
 Max: 30 exchanges/cycle, 5 cycles
-Stages: 4
+Stages: 7
 Log: ~/.kodo/runs/<run_id>/log.jsonl
 
 ==================================================
@@ -57,7 +62,7 @@ Done: 1 cycle(s), 1 exchanges, $0.0000
 OK: kodo --improve completed with mocked AI
 ```
 
-**Log output (log.jsonl):** run_init → cli_args (goal, plan, stages) → run_start (orchestrator mock, 4 stages) → cycle_end → run_end.
+**Log output (log.jsonl):** run_init → cli_args (goal, plan, stages) → run_start (orchestrator mock, 7 stages) → cycle_end → run_end.
 
 **Issues encountered:** None. The script uses `--yes` to skip confirmation prompts. With mocks, the orchestrator returns immediately without running real stages.
 

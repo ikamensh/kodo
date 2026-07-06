@@ -1,6 +1,6 @@
 """Smoke test: run kodo --improve with mocked orchestrator and sessions.
 
-Verifies discovery fallback to default 7-stage plan and a successful cycle.
+Verifies detected project type, 7-stage improve plan, and a successful cycle.
 All external deps mocked. No API keys or real backends required.
 
 Usage:
@@ -20,6 +20,7 @@ from kodo import log
 from kodo.agent import Agent
 from kodo.cli import _main_inner
 from kodo.orchestrators.base import CycleResult, RunResult
+from scripts.improve_mock_plan import build_mock_discovery_plan, detect_project_type
 from tests.conftest import FakeSession
 
 
@@ -45,6 +46,8 @@ def main() -> int:
         "[project.scripts]\nsmoke-app = 'smoke_app:main'\n",
         encoding="utf-8",
     )
+    project_type = detect_project_type(project_dir)
+    discovery_plan = build_mock_discovery_plan(project_type)
 
     plan_captured: list = []
     orchestrator_run_called = []
@@ -115,8 +118,7 @@ def main() -> int:
         patch("kodo.factory._build_team_quick", _fake_build_team),
         patch("kodo.factory._build_team_full", _fake_build_team),
         patch("kodo.cli._launch.build_orchestrator", return_value=mock_orch),
-        # Mock discovery to return None so fallback plan is used
-        patch("kodo.cli._main.run_improve_discovery", return_value=None),
+        patch("kodo.cli._main.run_improve_discovery", return_value=discovery_plan),
     ):
         sys.argv = [
             "kodo",
@@ -145,16 +147,28 @@ def main() -> int:
         return 1
 
     plan = plan_captured[0]
-    if len(plan.stages) != 5:
+    if project_type != "app":
         print(
-            f"FAIL: Expected 5-stage improve plan, got {len(plan.stages)}",
+            f"FAIL: Expected project type 'app', got {project_type!r}",
             file=sys.stderr,
         )
         return 1
 
-    if plan.stages[0].name != "Simplification & Dead Weight":
+    if len(plan.stages) != 7:
         print(
-            f"FAIL: Expected first stage 'Simplification & Dead Weight', got {plan.stages[0].name!r}",
+            f"FAIL: Expected 7-stage improve plan, got {len(plan.stages)}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if plan.context != "Detected project type: app":
+        print(f"FAIL: Expected app plan context, got {plan.context!r}", file=sys.stderr)
+        return 1
+
+    if plan.stages[0].name != "App Entry Points & Workflows":
+        print(
+            "FAIL: Expected first stage 'App Entry Points & Workflows', "
+            f"got {plan.stages[0].name!r}",
             file=sys.stderr,
         )
         return 1
