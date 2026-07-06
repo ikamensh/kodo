@@ -54,14 +54,12 @@ from kodo.prompts.roles import (
 
 @dataclass(frozen=True)
 class BackendDefinition:
-    """CLI metadata shared by backend discovery, preflight checks, and doctor."""
+    """CLI metadata shared by backend discovery and preflight checks."""
 
     key: str
     binary: str
     version_cmd: tuple[str, ...]
     install_hint: str
-    login_hint: str
-    auth_status_cmds: tuple[tuple[str, ...], ...] = ()
 
 
 BACKEND_DEFINITIONS: dict[str, BackendDefinition] = {
@@ -70,55 +68,42 @@ BACKEND_DEFINITIONS: dict[str, BackendDefinition] = {
         binary="claude",
         version_cmd=("claude", "--version"),
         install_hint="install Claude Code: https://code.claude.com/docs/en/setup",
-        login_hint="run `claude` and complete login",
-        auth_status_cmds=(("claude", "auth", "status"),),
     ),
     "codex": BackendDefinition(
         key="codex",
         binary="codex",
         version_cmd=("codex", "--version"),
         install_hint="install Codex: https://github.com/openai/codex/blob/main/docs/install.md",
-        login_hint="run `codex login`",
-        auth_status_cmds=(("codex", "auth", "status"),),
     ),
     "cursor": BackendDefinition(
         key="cursor",
         binary="cursor-agent",
         version_cmd=("cursor-agent", "--version"),
         install_hint="install Cursor CLI: https://cursor.com/docs/cli/installation",
-        login_hint="run `cursor-agent login` or open Cursor and sign in",
     ),
     "gemini-cli": BackendDefinition(
         key="gemini-cli",
         binary="gemini",
         version_cmd=("gemini", "--version"),
         install_hint="install Gemini CLI: https://geminicli.com/docs/get-started/installation/",
-        login_hint="run `gemini auth login`",
-        auth_status_cmds=(("gemini", "auth", "status"),),
     ),
     "kimi": BackendDefinition(
         key="kimi",
         binary="kimi",
         version_cmd=("kimi", "--version"),
         install_hint="install Kimi CLI: https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html#installation",
-        login_hint="run `kimi login`",
-        auth_status_cmds=(("kimi", "auth", "status"),),
     ),
     "kiro": BackendDefinition(
         key="kiro",
         binary="kiro-cli",
         version_cmd=("kiro-cli", "--version"),
         install_hint="install Kiro CLI: https://kiro.dev/docs/cli/installation/",
-        login_hint="run `kiro-cli login`",
-        auth_status_cmds=(("kiro-cli", "auth", "status"),),
     ),
     "opencode": BackendDefinition(
         key="opencode",
         binary="opencode",
         version_cmd=("opencode", "--version"),
         install_hint="install opencode and ensure `opencode` is on PATH",
-        login_hint="run `opencode auth login`",
-        auth_status_cmds=(("opencode", "auth", "status"),),
     ),
 }
 

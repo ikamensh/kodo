@@ -36,6 +36,20 @@ class TestHelpAndVersion:
         assert "--resume" in out
         assert "--improve" in out
         assert "kodo runs" in out
+        assert "kodo doctor" not in out
+
+    @pytest.mark.parametrize("argv", [["kodo", "doctor"], ["kodo", "doctor", "--help"]])
+    def test_doctor_is_not_a_public_subcommand(self, argv, capsys):
+        """The dormant doctor experiment must not be exposed as a CLI surface."""
+        with (
+            patch("sys.argv", argv),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            _main_inner()
+
+        assert exc_info.value.code != 0
+        err = capsys.readouterr().err
+        assert "unrecognized arguments: doctor" in err
 
     def test_version_prints_version(self, capsys):
         from kodo import __version__

@@ -311,18 +311,6 @@ def _cmd_update() -> None:
 
 
 # ---------------------------------------------------------------------------
-# kodo doctor
-# ---------------------------------------------------------------------------
-
-
-def _cmd_doctor() -> None:
-    """Check whether this machine can run kodo in the current project."""
-    from kodo.doctor import print_doctor
-
-    raise SystemExit(print_doctor())
-
-
-# ---------------------------------------------------------------------------
 # kodo backends
 # ---------------------------------------------------------------------------
 
