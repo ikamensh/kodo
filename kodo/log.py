@@ -754,6 +754,7 @@ def init_append(log_file: Path) -> Path:
         raise ValueError(
             f"Not a valid kodo log (missing run_start or cli_args): {log_file}"
         )
+    _ensure_jsonl_line_boundary(log_file)
 
     with _lock:
         _log_file = log_file
@@ -764,6 +765,18 @@ def init_append(log_file: Path) -> Path:
 
     emit("run_resumed", log_file=str(log_file))
     return log_file
+
+
+def _ensure_jsonl_line_boundary(log_file: Path) -> None:
+    """Append one newline when a crash left the last JSONL record unterminated."""
+    with open(log_file, "rb+") as fh:
+        fh.seek(0, os.SEEK_END)
+        if fh.tell() == 0:
+            return
+        fh.seek(-1, os.SEEK_END)
+        if fh.read(1) != b"\n":
+            fh.seek(0, os.SEEK_END)
+            fh.write(b"\n")
 
 
 def _serialize(obj: Any) -> Any:

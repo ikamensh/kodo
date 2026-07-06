@@ -277,6 +277,29 @@ def test_init_append_preserves_existing(tmp_path: Path):
     assert last["event"] == "run_resumed"
 
 
+def test_init_append_keeps_unterminated_jsonl_readable(tmp_path: Path):
+    """Resuming a crash-truncated log should keep every physical line parseable."""
+    run_dir = log._runs_root() / "unterminated_run"
+    run_dir.mkdir(parents=True)
+    f = run_dir / "log.jsonl"
+    events = [
+        {"event": "run_start", "goal": "test", "project_dir": str(tmp_path)},
+        {"event": "cli_args", "team": "full"},
+        {"event": "cycle_end", "summary": "interrupted"},
+    ]
+    f.write_text("\n".join(json.dumps(evt) for evt in events), encoding="utf-8")
+
+    log.init_append(f)
+
+    parsed_events = [json.loads(line) for line in f.read_text().splitlines() if line]
+    assert [evt["event"] for evt in parsed_events] == [
+        "run_start",
+        "cli_args",
+        "cycle_end",
+        "run_resumed",
+    ]
+
+
 def test_parse_run_with_cli_args(tmp_path: Path):
     f = tmp_path / "log.jsonl"
     _write_events(
