@@ -68,6 +68,18 @@ uv run python scripts/smoke_test_interactive.py
 uv run python scripts/run_improve_mocked.py
 ```
 
+## Skipped Workflow Justifications
+
+**Before declaring release readiness, every skipped item from "Supported Mocked Smoke Scripts" above must be listed here with an explicit reason.**
+
+If all smoke workflows were executed, write "None skipped."
+
+| Skipped workflow | Reason |
+|------------------|--------|
+|                  |        |
+
+- [ ] All skipped mocked smoke workflows are listed above with explicit justifications (or "None skipped" is confirmed).
+
 ## Optional Browser Viewer Check
 
 Run this when release changes touch the log viewer or embedded run data.
@@ -75,3 +87,10 @@ Run this when release changes touch the log viewer or embedded run data.
 ```bash
 uv run python scripts/verify_viewer_browser.py
 ```
+
+## Release Readiness Gate
+
+- [ ] All required checks above are complete.
+- [ ] All skipped workflows are justified in "Skipped Workflow Justifications".
+
+**Do not publish the release until all boxes are checked.**
