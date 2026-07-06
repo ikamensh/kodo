@@ -49,6 +49,7 @@ def _fake_build_orchestrator(*args, **kwargs):
         plan=None,
         verifiers=None,
         auto_commit=True,
+        **kwargs,
     ):
         log.emit(
             "run_start",
@@ -103,8 +104,8 @@ def main():
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
         patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.factory._build_team_mission", _fake_build_team),
-        patch("kodo.factory._build_team_saga", _fake_build_team),
+        patch("kodo.factory._build_team_quick", _fake_build_team),
+        patch("kodo.factory._build_team_full", _fake_build_team),
         patch(
             "kodo.cli._launch.build_orchestrator", side_effect=_fake_build_orchestrator
         ),

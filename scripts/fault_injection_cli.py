@@ -118,15 +118,15 @@ def run_cli(scenario: str) -> tuple[bool, bool]:
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
         patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.factory._build_team_mission", _team_builder),
-        patch("kodo.factory._build_team_saga", _team_builder),
+        patch("kodo.factory._build_team_quick", _team_builder),
+        patch("kodo.factory._build_team_full", _team_builder),
         patch("kodo.cli._launch.build_orchestrator", side_effect=orch_builder),
     ]
 
     if scenario == "summarize_raises":
         from tests.conftest import FakeRunResult
 
-        def fake_run_sync(prompt, *, usage_limits=None):
+        def fake_run_sync(prompt, **kwargs):
             return FakeRunResult(output="partial")
 
         def fake_agent_init(self, model, *, system_prompt=None, tools=None, **kwargs):
@@ -159,6 +159,7 @@ def run_cli(scenario: str) -> tuple[bool, bool]:
                 "--orchestrator",
                 "api",
                 "--skip-intake",
+                "--project",
                 str(project_dir),
             ]
             try:

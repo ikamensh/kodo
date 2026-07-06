@@ -60,6 +60,7 @@ def main() -> int:
         plan=None,
         verifiers=None,
         auto_commit=True,
+        **kwargs,
     ):
         if plan is not None:
             plan_captured.append(plan)
@@ -111,8 +112,8 @@ def main() -> int:
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
         patch("kodo.cli._params.check_api_key", return_value=None),
-        patch("kodo.factory._build_team_mission", _fake_build_team),
-        patch("kodo.factory._build_team_saga", _fake_build_team),
+        patch("kodo.factory._build_team_quick", _fake_build_team),
+        patch("kodo.factory._build_team_full", _fake_build_team),
         patch("kodo.cli._launch.build_orchestrator", return_value=mock_orch),
         # Mock discovery to return None so fallback plan is used
         patch("kodo.cli._main.run_improve_discovery", return_value=None),
@@ -144,16 +145,16 @@ def main() -> int:
         return 1
 
     plan = plan_captured[0]
-    if len(plan.stages) != 7:
+    if len(plan.stages) != 5:
         print(
-            f"FAIL: Expected 7-stage improve plan, got {len(plan.stages)}",
+            f"FAIL: Expected 5-stage improve plan, got {len(plan.stages)}",
             file=sys.stderr,
         )
         return 1
 
-    if plan.stages[0].name != "Test Tool Forge":
+    if plan.stages[0].name != "Simplification & Dead Weight":
         print(
-            f"FAIL: Expected first stage 'Test Tool Forge', got {plan.stages[0].name!r}",
+            f"FAIL: Expected first stage 'Simplification & Dead Weight', got {plan.stages[0].name!r}",
             file=sys.stderr,
         )
         return 1
