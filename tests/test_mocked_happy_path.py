@@ -223,6 +223,20 @@ class TestMockedRunHappyPath:
             assert config["team"] == "quick"  # --team quick stored as-is
 
 
+class TestReleaseChecklistSmokeScripts:
+    """Release checklist scripts should remain executable without API keys."""
+
+    def test_interactive_smoke_script_completes(self):
+        """The interactive smoke script uses a current built-in team preset."""
+        from scripts import smoke_test_interactive
+
+        original_argv = sys.argv[:]
+        try:
+            assert smoke_test_interactive.main() == 0
+        finally:
+            sys.argv = original_argv
+
+
 class TestMockedResumeHappyPath:
     """Full CLI resume path with mocked backends — exercises launch_resume."""
 

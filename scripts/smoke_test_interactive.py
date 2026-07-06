@@ -1,6 +1,6 @@
 """Smoke test: simulate interactive CLI session with mocked input/questionary.
 
-Happy path: enter goal, select saga mode, api orchestrator (gemini-flash),
+Happy path: enter goal, select full team, api orchestrator (gemini-flash),
 skip refinement, confirm. Verifies the run completes successfully.
 All external deps mocked. No API keys or real backends required.
 
@@ -44,15 +44,15 @@ def main() -> int:
         for f in kodo_dir.glob("config*.json"):
             f.unlink()
 
-    # Build saga option string (matches select_params format)
-    saga_mode = TEAMS["saga"]
-    saga_option = f"saga — {saga_mode.description}"
+    # Build full-team option string (matches select_params format)
+    team_preset = TEAMS["full"]
+    team_option = f"{team_preset.name} — {team_preset.description}"
 
     # Ordered responses for questionary.select().ask()
     # Order: Team, Orchestrator, Model, Max exchanges, Max cycles, Refine goal
     select_responses = iter(
         [
-            saga_option,
+            team_option,
             "api (recommended — delegates cleanly, pay-per-token)",
             "gemini-flash",
             "30",
@@ -145,6 +145,7 @@ def main() -> int:
         patch("kodo.factory._build_team_quick", _fake_build_team),
         patch("kodo.factory._build_team_full", _fake_build_team),
         patch("kodo.cli._launch.build_orchestrator", return_value=mock_orch),
+        patch("kodo.cli._intake._stdin_has_data", return_value=False),
         patch("builtins.input", side_effect=mock_input),
         patch(
             "questionary.select",
