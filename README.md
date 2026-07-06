@@ -134,8 +134,6 @@ You need **at least one** agent backend installed:
 
 Claude Code + one fast backend (Cursor, Codex, or Gemini CLI) is recommended. See [docs/providers.md](docs/providers.md) for detailed setup instructions, authentication, and troubleshooting.
 
-Run `kodo doctor` after setup to verify the current project is ready. It prints one line for Python, git, and each supported backend, with `ok`, `missing`, or `broken` plus a short fix hint. It exits 0 only when the current directory is a git repo and at least one backend is usable.
-
 For the **API orchestrator** (recommended), set a key in `.env` or your environment:
 ```bash
 GOOGLE_API_KEY=...     # Gemini orchestrator (recommended — fast and cheap)
@@ -264,7 +262,6 @@ kodo test                     # find bugs through realistic testing
 kodo runs                     # list all past runs
 kodo runs ./my-project        # list runs for a specific project
 kodo issue [RUN_ID]           # report a bug (opens GitHub with run context pre-filled)
-kodo doctor                   # check Python, git, and backend readiness
 kodo backends                 # show available backends, models, API key status
 kodo teams                    # list available teams
 kodo teams add my-team        # interactively create a custom team

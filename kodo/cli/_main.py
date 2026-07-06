@@ -53,7 +53,6 @@ from kodo.cli._params import (  # noqa: E402
 from kodo.cli._subcommands import (  # noqa: E402
     _cmd_backends,
     _cmd_dashboard,
-    _cmd_doctor,
     _cmd_issue,
     _cmd_logs,
     _cmd_runs,
@@ -115,7 +114,6 @@ def _main_inner() -> None:
         "log": _cmd_logs,
         "logs": _cmd_logs,
         "dashboard": _cmd_dashboard,
-        "doctor": _cmd_doctor,
         "issue": _cmd_issue,
         "issues": _cmd_issue,
         "update": _cmd_update,
@@ -135,9 +133,17 @@ def _main_inner() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("test", "improve"):
         sys.argv[1] = f"--{sys.argv[1]}"
 
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+        message = f"unrecognized arguments: {sys.argv[1]}"
+        if "--json" in sys.argv:
+            print(json.dumps({"status": "error", "error": message}))
+            sys.exit(EXIT_ERROR)
+        print(f"kodo: error: {message}", file=sys.stderr)
+        sys.exit(2)
+
     parser = _JSONArgumentParser(
         description="kodo — autonomous multi-agent coding",
-        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo dashboard Live web dashboard for monitoring runs\n  kodo doctor    Check local readiness to run kodo\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, edit, or delete team configurations\n  kodo update    Update kodo to the latest version",
+        epilog="subcommands:\n  kodo test      Find bugs through realistic testing\n  kodo improve   Code review: simplification, usability, architecture\n  kodo runs      List all known runs\n  kodo logs      Open log viewer in browser\n  kodo dashboard Live web dashboard for monitoring runs\n  kodo issue     Report a bug (opens GitHub with run context)\n  kodo backends  List available backends and API keys\n  kodo teams     List, add, edit, or delete team configurations\n  kodo update    Update kodo to the latest version",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"kodo {__version__}")
