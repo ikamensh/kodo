@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
 
@@ -264,6 +267,38 @@ class TestMockedImprovePlan:
         assert project_type == "library"
         assert len(plan.stages) == 7
         assert plan.stages[0].name == "Package API Surface"
+
+
+class TestRunImproveMockedScript:
+    def test_output_uses_mocked_orchestrator_labels(self):
+        """The mocked no-key workflow should not leak mock internals or real model labels."""
+        repo_root = Path(__file__).resolve().parents[2]
+        env = os.environ.copy()
+        for key in (
+            "OPENAI_API_KEY",
+            "GOOGLE_API_KEY",
+            "GEMINI_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "OPENROUTER_API_KEY",
+            "KODO_API_KEY",
+        ):
+            env.pop(key, None)
+
+        result = subprocess.run(
+            [sys.executable, "scripts/run_improve_mocked.py"],
+            cwd=repo_root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stdout
+        assert "OK: kodo --improve completed with mocked AI" in result.stdout
+        assert "MagicMock" not in result.stdout
+        assert "Orchestrator: claude-code (mock)" in result.stdout
+        assert "Orchestrator: claude-code (opus)" not in result.stdout
 
 
 # ---------------------------------------------------------------------------

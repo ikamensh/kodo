@@ -40,6 +40,7 @@ from kodo.cli._launch import (  # noqa: E402
     LaunchAssets,
     _emit_json_and_exit,
     _fail,
+    _orchestrator_display_label,
     build_launch_assets,
     json_output_redirect,
     launch_resume,
@@ -804,12 +805,9 @@ def _main_inner() -> None:
         if len(team_text) > 42:
             team_text = team_text[:41] + "…"
         _box_line(f"Team:         {team_text}")
-        from kodo.models import orchestrator_emoji as _orch_emoji
-
-        _emo = _orch_emoji(params["orchestrator"], params.get("orchestrator_model"))
-        _emo_s = f"{_emo} " if _emo else ""
+        orchestrator = launch_prepared.orchestrator if launch_prepared else None
         _box_line(
-            f"Orchestrator: {_emo_s}{params['orchestrator']} ({params['orchestrator_model']})",
+            f"Orchestrator: {_orchestrator_display_label(params, orchestrator)}",
         )
         _box_line(
             f"Exchanges:    {params['max_exchanges']}/cycle, {params['max_cycles']} cycles",

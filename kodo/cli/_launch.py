@@ -288,6 +288,27 @@ class LaunchAssets:
     debug_letter_assignments: list[tuple[str, str]] | None = None
 
 
+def _string_attr(obj: object | None, name: str) -> str | None:
+    if obj is None:
+        return None
+    value = getattr(obj, name, None)
+    return value if isinstance(value, str) else None
+
+
+def _orchestrator_display_label(
+    params: dict,
+    orchestrator: object | None = None,
+) -> str:
+    model = _string_attr(orchestrator, "model") or params["orchestrator_model"]
+    emoji = _string_attr(orchestrator, "_emoji")
+    if emoji is None:
+        from kodo.models import orchestrator_emoji
+
+        emoji = orchestrator_emoji(params["orchestrator"], model)
+    prefix = f"{emoji} " if emoji else ""
+    return f"{prefix}{params['orchestrator']} ({model})"
+
+
 def build_launch_assets(
     run_dir: RunDir,
     params: dict,
@@ -409,9 +430,7 @@ def print_launch_identity(
         for letter, role in assets.debug_letter_assignments or ():
             print(f"    {letter} = {role}")
     print(f"  Team: {assets.team_preset.name}")
-    _emo = getattr(assets.orchestrator, "_emoji", "")
-    _emo_s = f"{_emo} " if _emo else ""
-    print(f"  Orchestrator: {_emo_s}{params['orchestrator']} ({assets.orchestrator.model})")
+    print(f"  Orchestrator: {_orchestrator_display_label(params, assets.orchestrator)}")
     print("  Agents:")
     for k, a in assets.team.items():
         print(f"    {k} ({_backend_label(a)} / {a.session.model})")
