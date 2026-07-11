@@ -151,6 +151,57 @@ class TestListRuns:
         legacy = next(r for r in runs if r.run_id == "legacy_run")
         assert legacy.goal == "legacy goal"
 
+    def test_project_filter_ignores_projectless_cli_args(self, tmp_path: Path):
+        """Value-less resume can find logs whose cli_args predate project_dir."""
+        project = tmp_path / "project"
+        project.mkdir()
+
+        def write_run(run_id: str, metadata_events: list[dict]) -> None:
+            d = log._runs_root() / run_id
+            d.mkdir(parents=True)
+            events = metadata_events + [
+                {
+                    **_RUN_START,
+                    "goal": "Build a todo API",
+                    "project_dir": str(project),
+                },
+                {"event": "cycle_end", "summary": "partial", "finished": False},
+            ]
+            lines = [
+                json.dumps({"ts": "2025-01-01T00:00:00Z", "t": i, **e})
+                for i, e in enumerate(events)
+            ]
+            (d / "log.jsonl").write_text("\n".join(lines) + "\n")
+
+        projectless_cli_args = {
+            "event": "cli_args",
+            "team": "saga",
+            "goal_text": "Build a todo API",
+            "has_plan": False,
+            "max_exchanges": 30,
+            "max_cycles": 5,
+            "orchestrator": "api",
+            "orchestrator_model": "gemini-flash",
+        }
+        write_run(
+            "project_from_run_init",
+            [
+                {
+                    "event": "run_init",
+                    "project_dir": str(project),
+                },
+                projectless_cli_args,
+            ],
+        )
+        write_run("project_from_run_start", [projectless_cli_args])
+
+        runs = log.find_incomplete_runs(project)
+
+        assert {r.run_id for r in runs} == {
+            "project_from_run_init",
+            "project_from_run_start",
+        }
+
 
 # ---------------------------------------------------------------------------
 # find_incomplete_runs — project isolation

@@ -679,8 +679,10 @@ def _extract_project_dir(log_file: Path) -> str | None:
                 except (json.JSONDecodeError, ValueError):
                     continue
                 event = evt.get("event")
-                if event in ("run_start", "cli_args"):
-                    return evt.get("project_dir", "")
+                if event in ("run_init", "run_start", "cli_args"):
+                    project_dir = evt.get("project_dir")
+                    if project_dir:
+                        return project_dir
     except (OSError, PermissionError):
         pass
     return None
