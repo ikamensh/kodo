@@ -147,12 +147,12 @@ ANTHROPIC_API_KEY=...  # Claude API orchestrator (alternative)
 ```bash
 # Interactive mode (recommended) — walks you through goal, config, launch
 kodo                     # run in current directory
-kodo ./my-project        # run in specific directory
+kodo --project ./my-project  # run in specific directory
 
 # Non-interactive (for scripting, CI, overnight cron jobs)
-kodo --goal 'Build a REST API for user management' ./my-project
-kodo --goal-file requirements.md ./my-project
-kodo --goal 'Build X' --team full --exchanges 50 --cycles 10 ./my-project
+kodo --goal 'Build a REST API for user management' --project ./my-project
+kodo --goal-file requirements.md --project ./my-project
+kodo --goal 'Build X' --team full --exchanges 50 --cycles 10 --project ./my-project
 
 # Test — find bugs through realistic interaction (not unit tests)
 kodo test                            # test current project
@@ -187,7 +187,7 @@ Passing `--goal` or `--goal-file` enables non-interactive mode — no prompts, n
 ### All flags
 
 ```
-kodo [project_dir] [options]
+kodo [options]
 
 Goal (mutually exclusive):
   --goal TEXT               Goal text (inline)
@@ -204,8 +204,8 @@ Configuration:
   --team TEAM               full (default) | quick | test
   --exchanges N             Max exchanges per cycle
   --cycles N                Max cycles
-  --orchestrator BACKEND    api (default) | claude-code | gemini-cli | codex | cursor
-  --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
+  --orchestrator VALUE      Backend or model, e.g. api, gpt-5.4-mini, ollama:qwen2.5-coder:14b
+  --project PATH            Project directory (default: current directory)
 
 Behavior:
   --effort LEVEL            low | standard (default) | high | max
@@ -260,7 +260,7 @@ kodo --improve --focus 'CLI interface'   # focus on area
 ```bash
 kodo test                     # find bugs through realistic testing
 kodo runs                     # list all past runs
-kodo runs ./my-project        # list runs for a specific project
+kodo runs --project ./my-project  # list runs for a specific project
 kodo issue [RUN_ID]           # report a bug (opens GitHub with run context pre-filled)
 kodo backends                 # show available backends, models, API key status
 kodo teams                    # list available teams

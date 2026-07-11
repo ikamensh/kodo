@@ -112,7 +112,7 @@ If you already use [Ollama](https://ollama.com/), you can run the orchestrator l
 
 ```bash
 ollama pull qwen2.5-coder:14b
-kodo --goal "..." --orchestrator-model ollama:qwen2.5-coder:14b
+kodo --goal "..." --orchestrator ollama:qwen2.5-coder:14b
 ```
 
 Notes:

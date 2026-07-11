@@ -3,7 +3,7 @@
 Run after: uv run python scripts/create_mock_interrupted_run.py
 
 Steps:
-1. kodo runs /tmp/kodo_resume_test
+1. kodo runs --project /tmp/kodo_resume_test
 2. Resume by project dir (latest incomplete)
 3. Re-create mock, then resume by run ID
 """
@@ -134,6 +134,7 @@ def run_resume(project_dir: str, run_id: str | None = "__latest__") -> None:
         patch("kodo.factory.has_cursor", return_value=True),
         patch("kodo.factory.has_codex", return_value=False),
         patch("kodo.factory.has_gemini_cli", return_value=False),
+        patch("kodo.factory.check_api_key", return_value=None),
         patch("kodo.cli._params.check_api_key", return_value=None),
         patch("kodo.factory._build_team_quick", _fake_build_team),
         patch("kodo.factory._build_team_full", _fake_build_team),

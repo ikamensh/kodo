@@ -2,7 +2,7 @@
 
 You can run kodo with **zero cost** using Gemini CLI and a free Google API key. No Claude Code, no Cursor, no credit card required.
 
-If you already run Ollama locally, you can also make the **orchestrator** local with `--orchestrator-model ollama:<model>`. That implies the API orchestrator automatically, removes orchestrator API cost, and still leaves `ollama-local` as a shortcut for the first detected local model. You still need at least one worker backend.
+If you already run Ollama locally, you can also make the **orchestrator** local with `--orchestrator ollama:<model>`. That implies the API orchestrator automatically, removes orchestrator API cost, and still leaves `ollama-local` as a shortcut for the first detected local model. You still need at least one worker backend.
 
 ## Setup
 
@@ -36,10 +36,10 @@ kodo auto-detects that Gemini CLI is your only backend and builds a full team:
 
 ```bash
 # Quick improvement scan
-kodo --improve ./my-project
+kodo --improve --project ./my-project
 
 # Overnight feature build
-kodo --goal-file feature.md ./my-project
+kodo --goal-file feature.md --project ./my-project
 ```
 
 ## What you get
@@ -65,7 +65,7 @@ The free tier has rate limits that may slow down longer runs:
 
 For overnight runs, the daily Pro limit (50 requests) is the main constraint. Consider:
 
-- Using `--mode quick` for smaller tasks (fewer exchanges, 1 cycle)
+- Using `--team quick` for smaller tasks (fewer exchanges, 1 cycle)
 - Setting `--exchanges 10 --cycles 1` for constrained runs
 - Running during off-peak hours when rate limits reset
 
@@ -74,14 +74,14 @@ For overnight runs, the daily Pro limit (50 requests) is the main constraint. Co
 ```bash
 # Minimal run with free tier
 kodo --goal "Add input validation to the user registration form" \
-     --mode quick --yes ./my-project
+     --team quick --yes --project ./my-project
 ```
 
 ```bash
 # Same setup, but run the orchestrator through local Ollama
 kodo --goal "Add input validation to the user registration form" \
-     --orchestrator-model ollama:qwen2.5-coder:14b \
-     --mode quick --yes ./my-project
+     --orchestrator ollama:qwen2.5-coder:14b \
+     --team quick --yes --project ./my-project
 ```
 
 ## Upgrading

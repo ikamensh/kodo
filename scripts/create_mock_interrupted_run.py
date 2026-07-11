@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from kodo import log
+
 RUN_ID = "interrupted_run"
 PROJECT_DIR = "/tmp/kodo_resume_test"
 
@@ -20,7 +22,7 @@ def main() -> None:
     project_path = Path(PROJECT_DIR).resolve()
     project_dir_str = str(project_path)
 
-    runs_root = Path.home() / ".kodo" / "runs"
+    runs_root = log._runs_root()
     run_dir = runs_root / RUN_ID
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +97,7 @@ def main() -> None:
     print(f"  cd {project_dir_str} && kodo --resume --yes")
     print()
     print("Or resume by run ID:")
-    print(f"  kodo --resume {RUN_ID} {PROJECT_DIR} --yes")
+    print(f"  kodo --resume {RUN_ID} --project {project_dir_str} --yes")
 
 
 if __name__ == "__main__":

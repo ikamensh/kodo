@@ -306,7 +306,7 @@ class TestResumeCLI:
             stage_results=[],
         )
 
-        # --resume (no value) uses __latest__ path; project_dir is positional
+        # --resume (no value) uses __latest__; project_dir comes from --project.
         with (
             patch(
                 "sys.argv", ["kodo", "--resume", "--yes", "--project", str(tmp_path)]
@@ -323,6 +323,31 @@ class TestResumeCLI:
             _main_inner()
 
         mock_resume.assert_called_once()
+
+
+class TestResumeHelperScripts:
+    def test_create_mock_interrupted_run_prints_project_flag(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """The resume-by-ID helper command should use the current --project syntax."""
+        import scripts.create_mock_interrupted_run as script
+
+        project = tmp_path / "project"
+        runs_root = tmp_path / "runs"
+        runs_root.mkdir()
+        monkeypatch.setattr(script, "PROJECT_DIR", str(project))
+        script.log._test_redirect_runs(runs_root)
+
+        script.main()
+
+        out = capsys.readouterr().out
+        expected = (
+            f"kodo --resume {script.RUN_ID} --project {project.resolve()} --yes"
+        )
+        old_positional = f"kodo --resume {script.RUN_ID} {project.resolve()} --yes"
+        assert expected in out
+        assert old_positional not in out
+        assert (runs_root / script.RUN_ID / "log.jsonl").exists()
 
 
 # ---------------------------------------------------------------------------
