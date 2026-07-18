@@ -1,7 +1,8 @@
-# Iteration 1
+# Iteration 2
 
 ## Goal
-Prioritize release hygiene now by stabilizing the `0.5.1` release/test surface.
+Enforce testability policies and document newly stabilized features
 
 ## Scope
-Stabilize the release surface and fix stale workflows.
+- Enforce mocked backends and benchmark output paths in tests
+- Document `kodo doctor` command
