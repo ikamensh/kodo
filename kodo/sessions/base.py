@@ -138,6 +138,8 @@ class SubprocessSession:
         cmd: list[str],
         *,
         cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        start_new_session: bool = False,
     ) -> tuple[subprocess.Popen, list[str], threading.Thread]:
         """Spawn subprocess with a stderr-drain thread.
 
@@ -148,7 +150,7 @@ class SubprocessSession:
         # accidental API billing when workers should use subscription.
         import os
 
-        env = os.environ.copy()
+        env = os.environ.copy() if env is None else env.copy()
         env.pop("ANTHROPIC_API_KEY", None)
         proc = subprocess.Popen(
             cmd,
@@ -158,6 +160,7 @@ class SubprocessSession:
             errors="replace",
             cwd=cwd,
             env=env,
+            start_new_session=start_new_session,
         )
         self._process = proc
         assert proc.stdout is not None, "stdout must be PIPE"
@@ -298,6 +301,7 @@ class SubprocessSession:
         cmd: list[str],
         *,
         cwd: str | None = None,
+        env: dict[str, str] | None = None,
         parse_stdout: Callable[[subprocess.Popen], tuple[str, int, int]],
     ) -> "QueryResult | _SpawnedResult":
         """Shared spawn → parse → wait → stats logic for subprocess queries.
@@ -314,7 +318,7 @@ class SubprocessSession:
         t0 = time.monotonic()
 
         try:
-            proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=cwd)
+            proc, stderr_chunks, stderr_thread = self._spawn(cmd, cwd=cwd, env=env)
         except (FileNotFoundError, PermissionError, OSError) as exc:
             elapsed = time.monotonic() - t0
             error_msg = (
