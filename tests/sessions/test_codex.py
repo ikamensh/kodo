@@ -219,8 +219,8 @@ def test_background_event_errors_captured(tmp_path: Path):
     )
 
 
-def test_model_not_supported_hint(tmp_path: Path):
-    """'not supported' error gets actionable hint."""
+def test_model_not_supported_preserves_provider_message(tmp_path: Path):
+    """Model errors stay intact instead of adding misleading login advice."""
     log.init(RunDir.create(tmp_path, "codex_unsupported"))
     session = CodexSession(model="bad-model")
 
@@ -234,7 +234,7 @@ def test_model_not_supported_hint(tmp_path: Path):
         result = session.query("task", tmp_path, max_turns=10)
 
     assert result.is_error is True
-    assert "login" in result.text.lower() or "check" in result.text.lower()
+    assert result.text == "model not supported for your account"
 
 
 def test_command_construction(tmp_path: Path):
