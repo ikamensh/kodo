@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import tempfile
 
 import pytest
 
@@ -126,6 +127,22 @@ def test_blanket_permissions_use_opencode_effective_map(isolated_cli):
         assert config["permission"] == {"*": "deny"}
         assert config["agent"]["hive-llm"]["permission"] == {"*": "deny"}
         assert json.loads(env["OPENCODE_PERMISSION"]) == {"*": "deny"}
+
+
+def test_isolated_worker_can_use_system_temp_without_interactive_permissions(isolated_cli):
+    """Autonomous code/test work includes temporary files, while unknown subagents stay denied."""
+    result = OpenCodeSession(model="opencode/test-free", isolated_model=True).query(
+        "work", isolated_cli, max_turns=1,
+    )
+    assert not result.is_error
+    call = json.loads((isolated_cli / "calls.jsonl").read_text())
+    permissions = call["config"]["permission"]
+    roots = {Path(tempfile.gettempdir()), Path(tempfile.gettempdir()).resolve(), Path("/tmp"), Path("/tmp").resolve()}
+    for root in roots:
+        assert permissions["external_directory"][str(root / "*")] == "allow"
+    assert permissions["task"] == {"*": "deny", "general": "allow", "explore": "allow"}
+    assert permissions["question"] == permissions["plan_enter"] == permissions["plan_exit"] == "deny"
+    assert "--auto" not in call["args"]
 
 
 def test_cancel_during_preflight_never_launches_worker(tmp_path, monkeypatch):

@@ -43,9 +43,17 @@ def isolated_opencode_config(
         agents[agent].update(mode="primary", prompt=prompt)
     if permission is not None:
         agents[agent]["permission"] = permission
-    permission = permission if permission is not None else {
-        "task": {"*": "deny", "general": "allow", "explore": "allow"},
-    }
+    if permission is None:
+        temp_roots = {Path(tempfile.gettempdir())}
+        if os.name == "posix":
+            temp_roots.add(Path("/tmp"))
+        temp_roots |= {path.resolve() for path in temp_roots}
+        permission = {
+            "task": {"*": "deny", "general": "allow", "explore": "allow"},
+            # Native cp/read of ordinary scratch files otherwise auto-rejects in headless mode.
+            "external_directory": {str(path / "*"): "allow" for path in sorted(temp_roots)},
+            "question": "deny", "plan_enter": "deny", "plan_exit": "deny",
+        }
     instructions = []
     if repository_instructions and (project_dir / "AGENTS.md").is_file():
         instructions.append(str(project_dir / "AGENTS.md"))

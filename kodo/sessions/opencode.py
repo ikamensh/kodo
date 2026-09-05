@@ -117,9 +117,13 @@ class OpenCodeSession(SubprocessSession):
 
         raw_messages: list[dict] = []
         provider_error = ""
+        finish_reason = ""
+        step_open = False
+        commentary_only = False
+        last_tool_error = ""
 
         def _parse_stdout(proc):
-            nonlocal provider_error
+            nonlocal provider_error, finish_reason, step_open, commentary_only, last_tool_error
             result_text = ""
             input_tokens = 0
             output_tokens = 0
@@ -141,6 +145,11 @@ class OpenCodeSession(SubprocessSession):
                 part = msg.get("part", {})
                 msg_type = msg.get("type", "")
 
+                if msg_type == "step_start":
+                    step_open = True
+                if msg_type == "tool_use" and part.get("state", {}).get("status") == "error":
+                    last_tool_error = f"{part.get('tool', 'tool')}: {part['state'].get('error', '')}"
+
                 if msg_type == "error":
                     error = msg.get("error", {})
                     data = error.get("data", error)
@@ -156,9 +165,12 @@ class OpenCodeSession(SubprocessSession):
                     t = part.get("text", "")
                     if t:
                         result_text = str(t)
+                        commentary_only = part.get("metadata", {}).get("openai", {}).get("phase") == "commentary"
 
                 # Extract token counts from step_finish events
                 if msg_type == "step_finish":
+                    finish_reason = part.get("reason", "")
+                    step_open = False
                     tokens = part.get("tokens", {})
                     input_tokens += tokens.get("input", 0)
                     output_tokens += tokens.get("output", 0) + tokens.get("reasoning", 0)
@@ -187,6 +199,13 @@ class OpenCodeSession(SubprocessSession):
 
         is_error = bool(provider_error) or r.returncode != 0
         result_text = provider_error or r.result_text
+        incomplete_reason = ""
+        if not is_error and (
+            finish_reason != "stop" or step_open or commentary_only or not result_text
+        ):
+            incomplete_reason = f"OpenCode ended without a terminal response (finish: {finish_reason or 'missing'})."
+            if last_tool_error:
+                incomplete_reason += f" Last tool error: {last_tool_error}"
 
         if not is_error and not result_text:
             # Try to reconstruct from raw messages
@@ -197,7 +216,7 @@ class OpenCodeSession(SubprocessSession):
             ]
             result_text = "\n".join(t for t in texts if t).strip()
             if not result_text:
-                result_text = "[completed, no text response]"
+                result_text = "[incomplete, no text response]"
 
         if is_error and not result_text:
             hint = classify_session_error(
@@ -230,6 +249,7 @@ class OpenCodeSession(SubprocessSession):
             input_tokens=r.input_tokens or None,
             output_tokens=r.output_tokens or None,
             response_text=result_text,
+            incomplete_reason=incomplete_reason,
             conversation_log=conv_file,
         )
 
@@ -240,4 +260,5 @@ class OpenCodeSession(SubprocessSession):
             is_error=is_error,
             input_tokens=r.input_tokens or None,
             output_tokens=r.output_tokens or None,
+            incomplete_reason=incomplete_reason,
         )

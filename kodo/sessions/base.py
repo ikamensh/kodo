@@ -21,6 +21,7 @@ class QueryResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     usage_raw: dict | None = field(default=None, repr=False)
+    incomplete_reason: str = ""  # nonempty when transport ends before a terminal response
 
     def __post_init__(self) -> None:
         self.text = self.text.strip()

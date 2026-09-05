@@ -7,7 +7,11 @@ configuration behavior. Clones and resumed sessions preserve the isolation polic
 The session pins the main, small, title, summary, compaction, and built-in worker
 models; limits the provider catalog to that one model; and permits native task
 dispatch only to the pinned general/explore agents. Coding tools retain OpenCode's
-normal permissions. `--pure` excludes external plugins, and a fixed title avoids
+normal permissions, with explicit access to the system temporary directories
+(including `/tmp` and resolved aliases). Native question/plan-mode tools are denied
+because these sessions are headless. The helper's explicit `permission="deny"`
+mode still denies all native tools for planners. No `--auto` flag is added.
+`--pure` excludes external plugins, and a fixed title avoids
 automatic title generation. This is configuration isolation, not a sandbox for
 arbitrary commands that a coding agent can execute.
 
@@ -32,3 +36,12 @@ and [instruction loading](https://github.com/anomalyco/opencode/blob/dev/package
 Integration regressions exercise real subprocesses for conflicting settings,
 managed overrides, permissions, resume/clone, cancellation, and structured provider
 errors (including error events emitted alongside a zero exit status).
+
+`QueryResult.incomplete_reason` is nonempty when OpenCode exits without completing
+its tool loop or producing a terminal response. It includes the final finish
+reason and any last tool error. Progress text and usage remain available;
+`is_error` continues to identify provider/process errors. Callers must use this
+field to distinguish partial work from completion and decide whether to resume.
+A recoverable tool error followed by a final response does not mark the query
+incomplete. This handles OpenCode's noninteractive permission refusal, which can
+end a tool loop with CLI exit zero and no top-level error event.
