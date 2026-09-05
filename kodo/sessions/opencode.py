@@ -54,12 +54,16 @@ class OpenCodeSession(SubprocessSession):
 
     def query(self, prompt: str, project_dir: Path, *, max_turns: int) -> QueryResult:
         prompt = self._prepend_system_prompt(prompt)
+        project_dir = project_dir.resolve()
 
         cmd = [
             "opencode",
             "run",
             "--format",
             "json",
+            # OpenCode's project selection can differ from subprocess cwd (e.g. inherited PWD).
+            "--dir",
+            str(project_dir),
         ]
 
         if self.model != "default":
