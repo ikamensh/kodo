@@ -15,6 +15,11 @@ Claude Code handles complex reasoning, architecture review, and deep debugging. 
 - Agents run under your Claude subscription — no per-token API cost for workers.
 - kodo strips `ANTHROPIC_API_KEY` from the agent environment by default so sessions bill through your subscription, not the API.
 - Supports session resume (agents continue their prior conversation on `kodo --resume`).
+- Claude sessions allow up to 16 MiB per SDK stdout JSON message so image-bearing
+  tool results do not hit the SDK's 1 MiB default. Library callers can set
+  `ClaudeSession(max_buffer_size=...)`; clones retain that limit. Messages above
+  the configured cap still fail explicitly, without truncating their content.
+  See Anthropic's [large-response guidance](https://platform.claude.com/cookbook/claude-agent-sdk-00-the-one-liner-research-agent#handling-large-responses-and-buffer-limits).
 
 ---
 
