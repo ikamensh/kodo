@@ -33,7 +33,7 @@ from kodo.knowledge.tools import build_knowledge_tools
 from kodo.orchestrators.base import DoneSignal, apply_done_signal, CycleResult
 from kodo.summarizer import Summarizer
 
-from kodo.models import MODEL_PRICING, PYDANTIC_MODEL_MAP
+from kodo.models import CLAUDE_OPUS_FULL, get_pricing, resolve_model
 
 
 class KnowledgeOrchestrator:
@@ -41,18 +41,15 @@ class KnowledgeOrchestrator:
 
     def __init__(
         self,
-        model: str = "claude-opus-4-7",
+        model: str = CLAUDE_OPUS_FULL,
         designer_model: str | None = None,
         agent_model: str | None = None,
         max_context_tokens: int = 100_000,
     ):
         self.model = model
-        self._pydantic_model = PYDANTIC_MODEL_MAP.get(model, model)
+        self._pydantic_model = resolve_model(model)
         # Designer can be cheap — it just picks team structure
-        self._designer_model = PYDANTIC_MODEL_MAP.get(
-            designer_model or model,
-            designer_model or self._pydantic_model,
-        )
+        self._designer_model = resolve_model(designer_model or model)
         # Agent model: what the worker agents use
         self._agent_model = agent_model or model
         self._max_context_tokens = max_context_tokens
@@ -402,7 +399,7 @@ class KnowledgeOrchestrator:
         # Extract cost
         if run_result is not None:
             usage = run_result.usage()
-            price_in, price_out = MODEL_PRICING.get(self.model, (0, 0))
+            price_in, price_out = get_pricing(self.model)
             result.total_cost_usd = (
                 usage.input_tokens * price_in + usage.output_tokens * price_out
             ) / 1_000_000

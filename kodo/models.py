@@ -99,8 +99,8 @@ def api_orchestrator_model_options() -> list[str]:
 # ---------------------------------------------------------------------------
 CLAUDE_OPUS = "opus"
 CLAUDE_SONNET = "sonnet"
-CLAUDE_OPUS_FULL = "claude-opus-4-7"
-CLAUDE_SONNET_FULL = "claude-sonnet-4-6"
+CLAUDE_OPUS_FULL = "claude-opus-5"
+CLAUDE_SONNET_FULL = "claude-sonnet-5"
 
 # ---------------------------------------------------------------------------
 # Cursor
@@ -110,15 +110,15 @@ CURSOR_COMPOSER = "composer-2.5"
 # ---------------------------------------------------------------------------
 # Codex
 # ---------------------------------------------------------------------------
-CODEX_DEFAULT = "gpt-5.5"
-CODEX_WORKER = "gpt-5.5"
+# Terra is the current balanced successor to GPT-5.5; heavier models remain opt-in.
+CODEX_DEFAULT = "gpt-5.6-terra"
+CODEX_WORKER = CODEX_DEFAULT
 
 # ---------------------------------------------------------------------------
 # Gemini CLI (agent backend)
 # ---------------------------------------------------------------------------
-GEMINI_CLI_FLASH = "gemini-3.5-flash"
-GEMINI_CLI_FLASH_V3 = "gemini-3.5-flash"
-GEMINI_CLI_PRO = "gemini-3-pro"
+GEMINI_CLI_FLASH = "gemini-3.8-flash"
+GEMINI_CLI_PRO = "gemini-3.1-pro-preview"
 
 # ---------------------------------------------------------------------------
 # Gemini API (orchestrator)
@@ -128,18 +128,18 @@ GEMINI_ALIAS_PRO = "gemini-pro"
 GEMINI_ALIAS_FLASH = "gemini-flash"
 
 GEMINI_API_PRO = "gemini-3.1-pro-preview"
-GEMINI_API_PRO_V3 = "gemini-3.1-pro-preview"
-GEMINI_API_FLASH = "gemini-3.5-flash"
+GEMINI_API_FLASH = GEMINI_CLI_FLASH
 
 # ---------------------------------------------------------------------------
 # Gemini API (summarizer — lightweight, direct REST)
 # ---------------------------------------------------------------------------
-GEMINI_SUMMARIZER = "gemini-3.1-flash-lite-preview"
+# Keep summarization on the cheaper stable Flash-Lite model.
+GEMINI_SUMMARIZER = "gemini-3.1-flash-lite"
 
 # ---------------------------------------------------------------------------
 # Kimi (Moonshot AI)
 # ---------------------------------------------------------------------------
-KIMI_K2_5 = "kimi-k2.5"
+KIMI_DEFAULT = "default"
 
 # ---------------------------------------------------------------------------
 # Kiro (Amazon)
@@ -199,29 +199,6 @@ def orchestrator_emoji(orchestrator_name: str, model: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Per-1M-token pricing: (input, output)
-# ---------------------------------------------------------------------------
-MODEL_PRICING: dict[str, tuple[float, float]] = {
-    CLAUDE_OPUS_FULL: (5, 25),
-    CLAUDE_SONNET_FULL: (3, 15),
-    GEMINI_API_PRO: (2.0, 12.0),
-    GEMINI_API_PRO_V3: (2.0, 12.0),
-    GEMINI_API_FLASH: (1.50, 9.0),
-}
-
-# ---------------------------------------------------------------------------
-# Map our model IDs → pydantic-ai model strings (provider:model).
-# ---------------------------------------------------------------------------
-PYDANTIC_MODEL_MAP: dict[str, str] = {
-    CLAUDE_OPUS_FULL: f"anthropic:{CLAUDE_OPUS_FULL}",
-    CLAUDE_SONNET_FULL: f"anthropic:{CLAUDE_SONNET_FULL}",
-    GEMINI_API_PRO: f"google-gla:{GEMINI_API_PRO}",
-    GEMINI_API_PRO_V3: f"google-gla:{GEMINI_API_PRO_V3}",
-    GEMINI_API_FLASH: f"google-gla:{GEMINI_API_FLASH}",
-}
-
-
-# ---------------------------------------------------------------------------
 # Provider registry (for API orchestrator model selection)
 # ---------------------------------------------------------------------------
 
@@ -260,17 +237,17 @@ def _build_registry() -> tuple[Provider, ...]:
             models=(
                 ModelInfo(
                     "opus",
-                    "anthropic:claude-opus-4-7",
-                    "claude-opus-4-7",
-                    "Claude Opus 4.7",
+                    f"anthropic:{CLAUDE_OPUS_FULL}",
+                    CLAUDE_OPUS_FULL,
+                    "Claude Opus 5",
                     (5.0, 25.0),
                 ),
                 ModelInfo(
                     "sonnet",
-                    "anthropic:claude-sonnet-4-6",
-                    "claude-sonnet-4-6",
-                    "Claude Sonnet 4.6",
-                    (3.0, 15.0),
+                    f"anthropic:{CLAUDE_SONNET_FULL}",
+                    CLAUDE_SONNET_FULL,
+                    "Claude Sonnet 5",
+                    (2.0, 10.0),
                 ),
                 ModelInfo(
                     "haiku",
@@ -278,6 +255,23 @@ def _build_registry() -> tuple[Provider, ...]:
                     "claude-haiku-4-5",
                     "Claude Haiku 4.5",
                     (1.0, 5.0),
+                ),
+                # Keep known prices for explicit model pins in saved runs.
+                ModelInfo(
+                    "claude-opus-4-7",
+                    "anthropic:claude-opus-4-7",
+                    "claude-opus-4-7",
+                    "Claude Opus 4.7",
+                    (5.0, 25.0),
+                    orchestrator_grade=False,
+                ),
+                ModelInfo(
+                    "claude-sonnet-4-6",
+                    "anthropic:claude-sonnet-4-6",
+                    "claude-sonnet-4-6",
+                    "Claude Sonnet 4.6",
+                    (3.0, 15.0),
+                    orchestrator_grade=False,
                 ),
             ),
         ),
@@ -290,24 +284,41 @@ def _build_registry() -> tuple[Provider, ...]:
             models=(
                 ModelInfo(
                     "gemini-pro",
-                    "google-gla:gemini-3.1-pro-preview",
-                    "gemini-3.1-pro-preview",
+                    f"google-gla:{GEMINI_API_PRO}",
+                    GEMINI_API_PRO,
                     "Gemini 3.1 Pro",
                     (2.0, 12.0),
                 ),
                 ModelInfo(
                     "gemini-flash",
+                    f"google-gla:{GEMINI_API_FLASH}",
+                    GEMINI_API_FLASH,
+                    "Gemini 3.8 Flash",
+                    (0.75, 3.75),  # Introductory rates through 2026-12-31.
+                ),
+                ModelInfo(
+                    "gemini-flash-lite",
+                    f"google-gla:{GEMINI_SUMMARIZER}",
+                    GEMINI_SUMMARIZER,
+                    "Gemini 3.1 Flash Lite",
+                    (0.25, 1.50),
+                    orchestrator_grade=False,
+                ),
+                ModelInfo(
+                    "gemini-3.5-flash-lite",
+                    "google-gla:gemini-3.5-flash-lite",
+                    "gemini-3.5-flash-lite",
+                    "Gemini 3.5 Flash Lite",
+                    (0.30, 2.50),
+                    orchestrator_grade=False,
+                ),
+                ModelInfo(
+                    "gemini-3.5-flash",
                     "google-gla:gemini-3.5-flash",
                     "gemini-3.5-flash",
                     "Gemini 3.5 Flash",
                     (1.50, 9.0),
-                ),
-                ModelInfo(
-                    "gemini-flash-lite",
-                    "google-gla:gemini-3.1-flash-lite-preview",
-                    "gemini-3.1-flash-lite-preview",
-                    "Gemini 3.1 Flash Lite",
-                    (0.07, 0.30),
+                    orchestrator_grade=False,
                 ),
             ),
         ),
@@ -315,20 +326,19 @@ def _build_registry() -> tuple[Provider, ...]:
             name="OpenAI",
             env_vars=("OPENAI_API_KEY",),
             pydantic_prefix="openai",
-            models=(
+            models=tuple(
                 ModelInfo(
-                    "gpt-5.5", "openai:gpt-5.5", "gpt-5.5", "GPT-5.5", (5.0, 30.0)
-                ),
-                ModelInfo(
-                    "gpt-5.4", "openai:gpt-5.4", "gpt-5.4", "GPT-5.4", (2.5, 15.0)
-                ),
-                ModelInfo(
-                    "gpt-5.4-mini",
-                    "openai:gpt-5.4-mini",
-                    "gpt-5.4-mini",
-                    "GPT-5.4 Mini",
-                    (0.75, 4.50),
-                ),
+                    model, f"openai:{model}", model, display, pricing, recommended
+                )
+                for model, display, pricing, recommended in (
+                    (CODEX_DEFAULT, "GPT-5.6 Terra", (2.0, 12.0), True),
+                    ("gpt-5.6-sol", "GPT-5.6 Sol", (4.0, 20.0), True),
+                    ("gpt-6-astra", "GPT-6 Astra", (10.0, 50.0), True),
+                    ("gpt-5.6-luna", "GPT-5.6 Luna", (0.20, 1.20), True),
+                    ("gpt-5.5", "GPT-5.5", (5.0, 30.0), False),
+                    ("gpt-5.4", "GPT-5.4", (2.5, 15.0), False),
+                    ("gpt-5.4-mini", "GPT-5.4 Mini", (0.75, 4.50), False),
+                )
             ),
         ),
         Provider(
@@ -338,17 +348,17 @@ def _build_registry() -> tuple[Provider, ...]:
             models=(
                 ModelInfo(
                     "deepseek",
-                    "deepseek:deepseek-chat",
-                    "deepseek-chat",
-                    "DeepSeek Chat",
-                    (0.55, 2.19),
+                    "deepseek:deepseek-v4-flash",
+                    "deepseek-v4-flash",
+                    "DeepSeek V4 Flash",
+                    (0.44, 1.32),  # Peak rates; off-peak costs half.
                 ),
                 ModelInfo(
                     "deepseek-reasoner",
-                    "deepseek:deepseek-reasoner",
-                    "deepseek-reasoner",
-                    "DeepSeek Reasoner",
-                    (0.55, 2.19),
+                    "deepseek:deepseek-v4-pro",
+                    "deepseek-v4-pro",
+                    "DeepSeek V4 Pro",
+                    (1.32, 3.96),  # Peak rates; off-peak costs half.
                 ),
             ),
         ),
@@ -433,13 +443,41 @@ def _build_registry() -> tuple[Provider, ...]:
             env_vars=("XAI_API_KEY",),
             pydantic_prefix="xai",
             models=(
-                ModelInfo("grok-4.1", "xai:grok-4.1", "grok-4.1", "Grok 4.1", (3.0, 15.0)),
+                ModelInfo(
+                    "grok-4.6", "xai:grok-4.6", "grok-4.6", "Grok 4.6", (2.0, 6.0)
+                ),
             ),
         ),
     )
 
 
 PROVIDER_REGISTRY: tuple[Provider, ...] = _build_registry()
+OPENAI_MODEL_OPTIONS = tuple(
+    model.full_model_id
+    for provider in PROVIDER_REGISTRY
+    if provider.name == "OpenAI"
+    for model in provider.models
+    if model.orchestrator_grade
+)
+
+# All lookups are derived from the registry, including provider-qualified IDs.
+_MODEL_INFOS = {
+    name: model
+    for provider in PROVIDER_REGISTRY
+    for model in provider.models
+    for name in (model.alias, model.full_model_id, model.pydantic_id)
+}
+MODEL_PRICING = {
+    model.full_model_id: model.pricing
+    for provider in PROVIDER_REGISTRY
+    for model in provider.models
+    if model.pricing != (0.0, 0.0)
+}
+PYDANTIC_MODEL_MAP = {
+    model.full_model_id: model.pydantic_id
+    for provider in PROVIDER_REGISTRY
+    for model in provider.models
+}
 
 
 def _provider_has_key(provider: Provider) -> bool:
@@ -468,82 +506,27 @@ def available_model_choices() -> list[tuple[str, str, str]]:
     return choices
 
 
-def _all_model_infos() -> dict[str, ModelInfo]:
-    """Build a lookup from alias → ModelInfo across all providers."""
-    result: dict[str, ModelInfo] = {}
-    for provider in PROVIDER_REGISTRY:
-        for m in provider.models:
-            result[m.alias] = m
-    return result
-
-
-def _all_model_infos_by_full_id() -> dict[str, ModelInfo]:
-    """Build a lookup from full_model_id → ModelInfo across all providers."""
-    result: dict[str, ModelInfo] = {}
-    for provider in PROVIDER_REGISTRY:
-        for m in provider.models:
-            result[m.full_model_id] = m
-    return result
-
-
 def resolve_model(model: str | None) -> str:
-    """Resolve a model alias or provider:model string to a pydantic-ai model string.
-
-    - Alias (e.g. "opus") → pydantic ID from registry
-    - provider:model passthrough (e.g. "anthropic:claude-opus-4-7")
-    - Legacy bare IDs (e.g. "claude-opus-4-7") → lookup in PYDANTIC_MODEL_MAP
-    - Unknown → passthrough
-    """
-    if not model:
-        return PYDANTIC_MODEL_MAP.get(CLAUDE_OPUS_FULL, f"anthropic:{CLAUDE_OPUS_FULL}")
-
-    # Check registry aliases first
-    infos = _all_model_infos()
-    if model in infos:
-        return infos[model].pydantic_id
-
-    # Already a provider:model string — passthrough
-    if ":" in model:
-        return model
-
-    # Legacy bare model IDs (e.g. "claude-opus-4-7", "gemini-3.5-flash")
-    if model in PYDANTIC_MODEL_MAP:
-        return PYDANTIC_MODEL_MAP[model]
-
-    # Check if it matches a full_model_id in the registry
-    by_full = _all_model_infos_by_full_id()
-    if model in by_full:
-        return by_full[model].pydantic_id
-
-    # Unknown — passthrough (let pydantic-ai figure it out)
-    return model
+    """Resolve a known alias or bare ID; preserve explicit/custom model strings."""
+    model = model or CLAUDE_OPUS_FULL
+    info = _MODEL_INFOS.get(model)
+    return info.pydantic_id if info is not None else model
 
 
 def get_model_info(model: str | None) -> ModelInfo | None:
-    """Look up ModelInfo by alias or full model ID. Returns None if not found."""
-    if not model:
-        return None
-    infos = _all_model_infos()
-    if model in infos:
-        return infos[model]
-    by_full = _all_model_infos_by_full_id()
-    if model in by_full:
-        return by_full[model]
-    return None
+    """Look up metadata by alias, bare ID, or provider-qualified ID."""
+    if model and model.startswith(("openai-responses:", "openai-chat:")):
+        model = f"openai:{model.split(':', 1)[1]}"
+    return _MODEL_INFOS.get(model) if model else None
 
 
 def get_pricing(model: str | None) -> tuple[float, float]:
-    """Return (input_per_1M, output_per_1M) pricing for a model.
+    """Return standard input/output USD per 1M tokens, or zero for unknown models.
 
-    Checks the registry first, then falls back to the legacy MODEL_PRICING dict.
+    Estimates exclude caching, long-context premiums, and tool charges.
     """
-    if not model:
-        return (0.0, 0.0)
     info = get_model_info(model)
-    if info is not None:
-        return info.pricing
-    # Legacy: bare model IDs in MODEL_PRICING
-    return MODEL_PRICING.get(model, (0.0, 0.0))
+    return info.pricing if info is not None else (0.0, 0.0)
 
 
 def model_display_name(model: str | None) -> str:
@@ -565,6 +548,8 @@ def _provider_for_model(model: str) -> Provider | None:
                 return provider
     if ":" in model:
         prefix = model.split(":", 1)[0]
+        if prefix in ("openai-chat", "openai-responses"):
+            prefix = "openai"
         for provider in PROVIDER_REGISTRY:
             if provider.pydantic_prefix == prefix:
                 return provider
@@ -725,7 +710,7 @@ def check_api_key_for_model(model: str | None) -> str | None:
 
 def all_aliases() -> dict[str, str]:
     """Return a dict of alias → pydantic-ai model ID for all registered models."""
-    return {m.alias: m.pydantic_id for m in _all_model_infos().values()}
+    return {m.alias: m.pydantic_id for p in PROVIDER_REGISTRY for m in p.models}
 
 
 # ---------------------------------------------------------------------------
@@ -754,11 +739,22 @@ def make_fresh_model(model_str: str):
         fresh_client = _httpx.AsyncClient(
             timeout=_httpx.Timeout(timeout=600, connect=5),
         )
-        provider = GoogleProvider(
-            vertexai=(provider_name == "google-vertex"),
-            http_client=fresh_client,
+        provider = (
+            GoogleProvider(vertexai=True, http_client=fresh_client)
+            if provider_name == "google-vertex"
+            else GoogleProvider(http_client=fresh_client)
         )
         return GoogleModel(model_name, provider=provider)
+
+    if provider_name == "deepseek":
+        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.providers.deepseek import DeepSeekProvider
+
+        fresh_client = _httpx.AsyncClient(
+            timeout=_httpx.Timeout(timeout=600, connect=5),
+        )
+        provider = DeepSeekProvider(http_client=fresh_client)
+        return OpenAIChatModel(model_name, provider=provider)
 
     if provider_name == "ollama":
         from pydantic_ai.models.openai import OpenAIChatModel
@@ -799,15 +795,25 @@ def make_fresh_model(model_str: str):
         )
         return OpenAIChatModel(model_name, provider=provider)
 
-    if provider_name == "openai":
+    if provider_name in ("openai", "openai-responses", "openai-chat"):
         from pydantic_ai.providers.openai import OpenAIProvider
-        from pydantic_ai.models.openai import OpenAIChatModel
+        from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+        from pydantic_ai.profiles.openai import openai_model_profile
 
         fresh_client = _httpx.AsyncClient(
             timeout=_httpx.Timeout(timeout=600, connect=5),
         )
         provider = OpenAIProvider(http_client=fresh_client)
-        return OpenAIChatModel(model_name, provider=provider)
+        model_class = (
+            OpenAIChatModel if provider_name == "openai-chat" else OpenAIResponsesModel
+        )
+        profile = openai_model_profile(model_name)
+        if model_name == "gpt-6-astra":
+            from dataclasses import replace
+
+            # Pydantic AI 1.x only recognizes GPT-5 as a reasoning family.
+            profile = replace(profile, openai_supports_encrypted_reasoning_content=True)
+        return model_class(model_name, provider=provider, profile=profile)
 
     # Unknown provider: return the string, let pydantic-ai handle it
     return model_str

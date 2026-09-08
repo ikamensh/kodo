@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from kodo import log
+from kodo.models import CLAUDE_OPUS_FULL
 from kodo.knowledge.models import KnowledgeGoal
 from kodo.knowledge.orchestrator import KnowledgeOrchestrator
 
@@ -22,7 +23,7 @@ def main(argv: list[str] | None = None) -> None:
         choices=["quick", "standard", "deep", "exhaustive"],
         default="standard",
     )
-    parser.add_argument("--model", default="claude-opus-4-7", help="Orchestrator model")
+    parser.add_argument("--model", default=CLAUDE_OPUS_FULL, help="Orchestrator model")
     parser.add_argument(
         "--designer-model",
         default=None,

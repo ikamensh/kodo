@@ -5,24 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from kodo.sessions.base import Session
 
-__version__ = "0.5.0"
-
-# ---------------------------------------------------------------------------
-# Compatibility shim: pydantic-ai 1.20 imports ``UserLocation`` from anthropic
-# but anthropic 0.84 renamed it to ``BetaUserLocationParam``.  Alias it so
-# pydantic-ai's ``from ... import UserLocation`` succeeds without upgrading
-# mcp (blocked by kimi-agent-sdk's mcp<1.17 pin).
-# Remove once kimi-agent-sdk lifts its mcp cap and we can upgrade pydantic-ai.
-# ---------------------------------------------------------------------------
-try:
-    from anthropic.types.beta import beta_web_search_tool_20250305_param as _ws_mod
-
-    if not hasattr(_ws_mod, "UserLocation") and hasattr(
-        _ws_mod, "BetaUserLocationParam"
-    ):
-        _ws_mod.UserLocation = _ws_mod.BetaUserLocationParam  # type: ignore[attr-defined]
-except ImportError:
-    pass
+__version__ = "0.5.1"
 
 from kodo import log
 
@@ -91,6 +74,8 @@ def make_session(
             system_prompt=system_prompt,
             timeout_s=session_timeout_s,
         )
+    if backend != "claude":
+        raise ValueError(f"Unknown worker backend: {backend!r}")
     return ClaudeSession(
         model=model,
         system_prompt=system_prompt,

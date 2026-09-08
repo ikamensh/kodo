@@ -5,6 +5,7 @@ from pathlib import Path
 
 import questionary
 
+from kodo.backends import BACKENDS
 from kodo.cli._ui import _atomic_write
 from kodo.formatting import RESET, YELLOW
 from kodo.factory import (
@@ -19,6 +20,7 @@ from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
     CODEX_DEFAULT,
+    OPENAI_MODEL_OPTIONS,
     CURSOR_COMPOSER,
     api_orchestrator_model_options,
     available_model_choices,
@@ -143,7 +145,7 @@ def select_params() -> dict:
             team_options.append(f"{tname} — {desc}")
     team_choice = _select_one("Team:", team_options)
     team_name = team_choice.split(" — ")[0]
-    team_preset = get_team(team_name)
+    get_team(team_name)
 
     # Build orchestrator choices based on available backends.
     # API is recommended: CLI tools tend to solve problems themselves instead
@@ -169,11 +171,11 @@ def select_params() -> dict:
             [GEMINI_CLI_FLASH, GEMINI_CLI_PRO],
         )
     elif orchestrator == "codex":
-        orch_model = _select_one("Orchestrator model:", [CODEX_DEFAULT])
+        orch_model = _select_one("Orchestrator model:", list(OPENAI_MODEL_OPTIONS))
     elif orchestrator == "cursor":
         orch_model = _select_one(
             "Orchestrator model:",
-            [CURSOR_COMPOSER, "sonnet-4-6-thinking", "gpt-5"],
+            [CURSOR_COMPOSER, "claude-sonnet-5-thinking-high", "gpt-5.6-sol-high"],
         )
     elif orchestrator == "api":
         bad_keys = probe_join()
@@ -197,7 +199,7 @@ def select_params() -> dict:
         if not model_choices and not rejected_choices:
             model_choices = list(api_orchestrator_model_options())
         # Best price/perf orchestrator first — it becomes the default.
-        for preferred in ("gemini-flash", "gpt-5.5", "gemini-pro", "gpt-5.4"):
+        for preferred in ("gemini-flash", CODEX_DEFAULT, "gemini-pro", "gpt-5.6-sol"):
             idx = next(
                 (
                     i
@@ -347,7 +349,7 @@ def _load_or_select_params(project_dir: Path) -> dict:
     return params
 
 
-_CLI_BACKENDS = {"claude-code", "gemini-cli", "codex", "cursor"}
+_CLI_BACKENDS = {b.orchestrator for b in BACKENDS.values() if b.orchestrator}
 
 
 def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]:
@@ -355,11 +357,11 @@ def _parse_orchestrator_flag(value: str | None) -> tuple[str | None, str | None]
 
     Formats:
         "opus"                  → (None, "opus")           — API model
-        "openai:gpt-5.5"       → (None, "openai:gpt-5.5") — API model with provider
+        "openai:gpt-5.6-terra"       → (None, "openai:gpt-5.6-terra") — API model with provider
         "claude-code:opus"      → ("claude-code", "opus")  — CLI backend + model
         "cursor:composer-2.5"   → ("cursor", "composer-2.5")
-        "gemini-cli:gemini-3.5-flash" → ("gemini-cli", "gemini-3.5-flash")
-        "codex:gpt-5.5"        → ("codex", "gpt-5.5")
+        "gemini-cli:gemini-3.8-flash" → ("gemini-cli", "gemini-3.8-flash")
+        "codex:gpt-5.6-terra"        → ("codex", "gpt-5.6-terra")
     """
     if value is None:
         return None, None
@@ -377,7 +379,7 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
     """Build config dict from CLI flags, falling back to team defaults."""
     debug = getattr(args, "debug", False)
     team_name = args.team or "full"
-    team_preset = get_team(team_name)
+    get_team(team_name)
 
     explicit_backend, orch_model = _parse_orchestrator_flag(
         getattr(args, "orchestrator", None)
@@ -406,17 +408,16 @@ def _build_params_from_flags(args, project_dir: Path) -> dict:
         # Default model per orchestrator when not explicitly specified
         if not orch_model:
             _ORCH_DEFAULT_MODELS = {
-                "claude-code": CLAUDE_OPUS,
-                "gemini-cli": GEMINI_CLI_FLASH,
-                "codex": CODEX_DEFAULT,
-                "cursor": CURSOR_COMPOSER,
+                b.orchestrator: b.smart_model
+                for b in BACKENDS.values()
+                if b.orchestrator
             }
             if orchestrator in _ORCH_DEFAULT_MODELS:
                 orch_model = _ORCH_DEFAULT_MODELS[orchestrator]
             else:
                 # API orchestrator: pick cheapest available model
-                # Priority: gpt-5.5 → gemini-flash → claude-haiku
-                _API_MODEL_PRIORITY = ("gpt-5.5", "gemini-flash", "haiku")
+                # Prefer the balanced OpenAI default, then Gemini Flash and Haiku.
+                _API_MODEL_PRIORITY = (CODEX_DEFAULT, "gemini-flash", "haiku")
                 providers = _available_model_providers()
                 available_aliases = {m.alias for p in providers for m in p.models}
                 orch_model = next(

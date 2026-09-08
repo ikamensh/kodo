@@ -1827,71 +1827,27 @@ class TestAskAgentFields:
 
         assert result["model"] == "my-custom-model"
 
-    def test_unknown_backend_uses_text_for_model(self):
-        """Backend not in _BACKEND_MODELS should fall through to text input for model."""
-        # Use a backend that's in _BACKEND_MAP but not in _BACKEND_MODELS
-        # Actually, all backends in _BACKEND_MAP are in _BACKEND_MODELS.
-        # So we test the else branch by patching _BACKEND_MAP to include an extra backend.
-        # Alternatively, just pick a backend and ensure model_suggestions is empty.
-        # The simplest: mock the internal _BACKEND_MODELS to not contain the chosen backend.
-
+    def test_opencode_model_can_be_entered_as_text(self):
+        """Backends without curated model suggestions accept a model name directly."""
         mock_select, mock_text, mock_confirm = _make_questionary_mocks(
-            select_returns=[
-                "claude",  # backend (will be chosen, but we'll make suggestions empty)
-            ],
+            select_returns=["opencode"],
             text_returns=[
-                "my-text-model",  # model via text (no suggestions)
-                "Text model agent",  # description
-                "",  # system_prompt
-                "10",  # max_turns
+                "my-text-model",
+                "Text model agent",
+                "",  # system prompt
+                "10",  # max turns
                 "",  # timeout
-                "",  # fallback (claude-only)
             ],
             confirm_returns=[False],
         )
-
-        # Patch the local _BACKEND_MODELS dict to be empty for claude
         with (
             patch("questionary.select", autospec=True, side_effect=mock_select),
             patch("questionary.text", autospec=True, side_effect=mock_text),
             patch("questionary.confirm", autospec=True, side_effect=mock_confirm),
-            patch.dict(
-                "kodo.cli._subcommands._ask_agent_fields.__code__",
-            )
-            if False
-            # Can't easily patch a local variable. Instead, use a backend
-            # that's genuinely not in _BACKEND_MODELS by adding it to _BACKEND_MAP.
-            else patch(
-                "kodo.team_config._BACKEND_MAP",
-                {
-                    "claude": "claude",
-                    "cursor": "cursor",
-                    "codex": "codex",
-                    "gemini-cli": "gemini-cli",
-                    "custom-backend": "custom-backend",
-                },
-            ),
         ):
-            # Re-select to pick the custom-backend
-            mock_select2, mock_text2, mock_confirm2 = _make_questionary_mocks(
-                select_returns=["custom-backend"],
-                text_returns=[
-                    "my-text-model",  # model via text (no suggestions branch)
-                    "Text model agent",  # description
-                    "",  # system_prompt
-                    "10",  # max_turns
-                    "",  # timeout
-                ],
-                confirm_returns=[False],
-            )
-            with (
-                patch("questionary.select", side_effect=mock_select2),  # noqa: autospec
-                patch("questionary.text", side_effect=mock_text2),  # noqa: autospec
-                patch("questionary.confirm", side_effect=mock_confirm2),  # noqa: autospec
-            ):
-                result = _ask_agent_fields()
+            result = _ask_agent_fields()
 
-        assert result["backend"] == "custom-backend"
+        assert result["backend"] == "opencode"
         assert result["model"] == "my-text-model"
 
     def test_invalid_max_turns_exits(self):

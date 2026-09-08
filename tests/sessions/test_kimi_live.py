@@ -3,14 +3,12 @@
 Run with: uv run pytest tests/sessions/test_kimi_live.py -v -m live
 
 Requires:
-  - kimi-agent-sdk installed: uv pip install kimi-agent-sdk
-  - KIMI_API_KEY set in environment (get one at https://platform.moonshot.ai/console/api-keys)
-  - kimi CLI authenticated: kimi /login
+  - native Kimi Code CLI installed and authenticated: kimi login
 """
 
 from __future__ import annotations
 
-import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -21,8 +19,8 @@ from kodo.log import RunDir
 pytestmark = [
     pytest.mark.live,
     pytest.mark.skipif(
-        not os.environ.get("KIMI_API_KEY"),
-        reason="KIMI_API_KEY not set",
+        shutil.which("kimi") is None,
+        reason="Native Kimi Code CLI not installed",
     ),
 ]
 
@@ -52,22 +50,6 @@ def test_simple_query(kimi_session, tmp_path: Path):
     assert not result.is_error, f"Query failed: {result.text}"
     assert len(result.text) > 0
     assert "HELLO_KODO_TEST" in result.text
-
-
-def test_token_tracking(kimi_session, tmp_path: Path):
-    """Token usage is tracked after a query."""
-    result = kimi_session.query(
-        "What is 2+2? Reply with just the number.",
-        tmp_path,
-        max_turns=5,
-    )
-    assert not result.is_error, f"Query failed: {result.text}"
-    # Token counts should be populated
-    assert (
-        kimi_session.stats.total_input_tokens > 0
-        or kimi_session.stats.total_output_tokens > 0
-    )
-    assert kimi_session.stats.queries == 1
 
 
 def test_session_id_assigned(kimi_session, tmp_path: Path):

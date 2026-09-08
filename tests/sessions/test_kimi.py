@@ -1,597 +1,190 @@
-"""Tests for kodo.sessions.kimi.KimiSession."""
+"""Exercise the native Kimi ACP adapter through a real child process."""
 
 from __future__ import annotations
 
-import sys
-import types
-from pathlib import Path
+import os
+import signal
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from kodo import log
-from kodo.log import RunDir
-
-
-# ---------------------------------------------------------------------------
-# Mock kimi_agent_sdk module — injected before importing KimiSession
-# ---------------------------------------------------------------------------
-
-
-class _MockTextPart:
-    def __init__(self, text: str = ""):
-        self.text = text
-
-
-class _MockTokenUsage:
-    def __init__(self, prompt_tokens: int = 0, completion_tokens: int = 0):
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-
-
-class _MockTurnEnd:
-    pass
-
-
-class _MockApprovalRequest:
-    def resolve(self, action: str) -> None:
-        pass
-
-
-class _MockKimiSession:
-    """Mimics kimi_agent_sdk.Session."""
-
-    _responses: list = []
-    _session_id: str = "kimi-test-123"
-
-    def __init__(self, responses=None, session_id="kimi-test-123"):
-        self._responses = responses or [_MockTextPart(text="done")]
-        self.id = session_id
-        self.prompts: list[str] = []
-        self._closed = False
-
-    @classmethod
-    async def create(cls, work_dir=None, model=None, yolo=True, **kwargs):
-        instance = cls()
-        return instance
-
-    @classmethod
-    async def resume(cls, work_dir=None, session_id=None, **kwargs):
-        instance = cls(session_id=session_id or "resumed-123")
-        return instance
-
-    async def prompt(self, text):
-        self.prompts.append(text)
-        for msg in self._responses:
-            yield msg
-
-    async def close(self):
-        self._closed = True
-
-    def cancel(self):
-        pass
-
-
-def _install_mock_sdk(responses=None, session_id="kimi-test-123"):
-    """Install a fake kimi_agent_sdk module into sys.modules."""
-    mod = types.ModuleType("kimi_agent_sdk")
-    mod.TextPart = _MockTextPart
-    mod.TokenUsage = _MockTokenUsage
-    mod.TurnEnd = _MockTurnEnd
-    mod.ApprovalRequest = _MockApprovalRequest
-
-    # Create a Session class that returns instances with the given responses
-    class ConfiguredSession(_MockKimiSession):
-        _responses = responses or [_MockTextPart(text="done")]
-        _session_id = session_id
-
-        @classmethod
-        async def create(cls, work_dir=None, model=None, yolo=True, **kwargs):
-            return cls(responses=cls._responses, session_id=cls._session_id)
-
-        @classmethod
-        async def resume(cls, work_dir=None, session_id=None, **kwargs):
-            return cls(
-                responses=cls._responses,
-                session_id=session_id or cls._session_id,
-            )
-
-    mod.Session = ConfiguredSession
-    sys.modules["kimi_agent_sdk"] = mod
-    return mod
-
-
-@pytest.fixture(autouse=True)
-def _mock_kimi_sdk():
-    """Install mock SDK before each test, remove after."""
-    _install_mock_sdk()
-    yield
-    sys.modules.pop("kimi_agent_sdk", None)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
-def test_query_returns_result(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_test"))
-    _install_mock_sdk(responses=[_MockTextPart(text="All done!")])
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession(model="kimi-k2.5-thinking")
-    try:
-        result = session.query("do stuff", tmp_path, max_turns=10)
-        assert result.text == "All done!"
-        assert result.is_error is False
-        assert session.stats.queries == 1
-    finally:
-        session.close()
-
-
-def test_stats_accumulate(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_stats"))
-    _install_mock_sdk(
-        responses=[
-            _MockTextPart(text="ok"),
-            _MockTokenUsage(prompt_tokens=100, completion_tokens=50),
-            _MockTurnEnd(),
-        ],
-    )
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        result = session.query("task", tmp_path, max_turns=10)
-        assert result.text == "ok"
-        assert result.input_tokens == 100
-        assert result.output_tokens == 50
-        assert session.stats.total_input_tokens == 100
-        assert session.stats.total_output_tokens == 50
-        assert session.stats.queries == 1
-    finally:
-        session.close()
-
-
-def test_reset_clears_stats(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_reset"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        session.query("task", tmp_path, max_turns=10)
-        assert session.stats.queries == 1
-
-        session.reset()
-        assert session.stats.queries == 0
-    finally:
-        session.close()
-
-
-def test_system_prompt_prepended_once(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_sysprompt"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession(system_prompt="Be helpful.")
-    try:
-        session.query("task1", tmp_path, max_turns=10)
-        session.query("task2", tmp_path, max_turns=10)
-
-        # Access the mock session's recorded prompts
-        sdk_session = session._session
-        assert "Be helpful." in sdk_session.prompts[0]
-        assert "Be helpful." not in sdk_session.prompts[1]
-    finally:
-        session.close()
-
-
-def test_cost_bucket(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_bucket"))
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    assert session.cost_bucket == "kimi_api"
-    session.close()
-
-
-def test_clone_creates_fresh_session(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_clone"))
-
-    from kodo.sessions.kimi import KimiSession
-
-    original = KimiSession(model="kimi-k2", system_prompt="Be smart.")
-    cloned = original.clone()
-    try:
-        assert cloned.model == "kimi-k2"
-        assert cloned.system_prompt == "Be smart."
-        assert cloned._session is None  # fresh, no connection
-        assert cloned is not original
-    finally:
-        original.close()
-        cloned.close()
-
-
-def test_session_id_from_sdk(tmp_path: Path):
-    log.init(RunDir.create(tmp_path, "kimi_sid"))
-    _install_mock_sdk(session_id="my-session-42")
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        assert session.session_id is None  # before first query
-        session.query("task", tmp_path, max_turns=10)
-        assert session.session_id == "my-session-42"
-    finally:
-        session.close()
-
-
-# ---------------------------------------------------------------------------
-# New tests for improved coverage
-# ---------------------------------------------------------------------------
-
-
-def test_context_manager_with_statement(tmp_path: Path):
-    """Test that KimiSession works with context manager."""
-    log.init(RunDir.create(tmp_path, "kimi_ctx"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    with KimiSession() as session:
-        assert session is not None
-        result = session.query("test", tmp_path, max_turns=10)
-        assert result.text == "done"
-    # Session should be closed after exiting context
-
-
-def test_context_manager_exception_handling(tmp_path: Path):
-    """Test that context manager closes session even on exception."""
-    log.init(RunDir.create(tmp_path, "kimi_ctx_err"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = None
-    try:
-        with KimiSession() as s:
-            session = s
-            raise ValueError("Test error")
-    except ValueError:
-        pass
-
-    # Session should still be closed
-    assert session._closed
-
-
-def test_query_with_custom_timeout(tmp_path: Path):
-    """Test that custom session_timeout_s is used."""
-    log.init(RunDir.create(tmp_path, "kimi_timeout"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession(session_timeout_s=30)
-    try:
-        assert session._query_timeout == 30.0
-    finally:
-        session.close()
-
-
-def test_run_with_none_coro(tmp_path: Path):
-    """Test that _run handles None coro gracefully."""
-    log.init(RunDir.create(tmp_path, "kimi_none_coro"))
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        result = session._run(None)
-        assert result is None  # should return immediately
-    finally:
-        session.close()
-
-
-def test_session_resume_success(tmp_path: Path):
-    """Test that resume_session_id successfully resumes session."""
-    log.init(RunDir.create(tmp_path, "kimi_resume"))
-    _install_mock_sdk(session_id="resumed-456")
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession(resume_session_id="old-session-123")
-    try:
-        result = session.query("test", tmp_path, max_turns=10)
-
-        # resume_session_id should be cleared after first use (one-shot)
-        assert session.resume_session_id is None
-        assert result.is_error is False
-    finally:
-        session.close()
-
-
-def test_terminate_with_session(tmp_path: Path):
-    """Test that terminate calls cancel on active session."""
-    log.init(RunDir.create(tmp_path, "kimi_terminate"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-    from unittest.mock import MagicMock
-
-    session = KimiSession()
-    try:
-        session.query("test", tmp_path, max_turns=10)
-
-        # Mock cancel to track calls
-        session._session.cancel = MagicMock()
-
-        session.terminate()
-        session._session.cancel.assert_called_once()
-    finally:
-        session.close()
-
-
-def test_query_with_closed_loop_raises(tmp_path: Path):
-    """Test that query raises RuntimeError if loop is closed."""
-    log.init(RunDir.create(tmp_path, "kimi_closed_loop"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    session.close()  # Closes the loop
-
-    with pytest.raises(RuntimeError, match="Session is closed"):
-        session.query("test", tmp_path, max_turns=10)
-
-
-def test_query_handles_ensure_session_error(tmp_path: Path):
-    """Test that query handles errors during session creation."""
-    log.init(RunDir.create(tmp_path, "kimi_ensure_err"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        # Mock _ensure_session to raise
-        def mock_ensure(*args):
-            raise ConnectionError("Network error")
-
-        original_ensure = session._ensure_session
-        session._ensure_session = mock_ensure
-
-        result = session.query("test", tmp_path, max_turns=10)
-
-        assert result.is_error
-        assert "Kimi session failed to connect" in result.text
-        assert "ConnectionError" in result.text
-        assert session._session is None
-
-        session._ensure_session = original_ensure
-    finally:
-        session.close()
-
-
-def test_approval_request_handling(tmp_path: Path):
-    """Test that ApprovalRequest messages are handled."""
-    log.init(RunDir.create(tmp_path, "kimi_approval"))
-
-    # Create responses with ApprovalRequest
-    responses = [
-        _MockTextPart(text="Starting task"),
-        _MockApprovalRequest(),
-        _MockTextPart(text="Task complete"),
+from kodo.sessions.kimi import KimiSession
+
+
+def test_native_query_streams_text_and_resumes_exact_session(tmp_path, fake_kimi):
+    """Each query resumes its own session, independent of other workers' sessions."""
+    with KimiSession(system_prompt="Be concise.") as session:
+        first = session.query("first task", tmp_path, max_turns=5)
+        saved_id = session.session_id
+        second = session.query("second task", tmp_path, max_turns=5)
+        assert first.text == second.text == "Hello world"
+        assert not first.is_error and not second.is_error
+        assert saved_id == session.session_id
+        assert session.stats.queries == 2
+        # ACP supplies no billing/token usage; unknown is distinct from free.
+        assert first.cost_usd is first.input_tokens is first.output_tokens is None
+    requests = fake_kimi()
+    assert len([r for r in requests if r.get("method") == "session/new"]) == 1
+    load = next(r for r in requests if r.get("method") == "session/load")
+    assert load["params"]["sessionId"] == saved_id
+    prompts = [
+        r["params"]["prompt"][0]["text"]
+        for r in requests
+        if r.get("method") == "session/prompt"
     ]
-    _install_mock_sdk(responses=responses)
+    assert prompts == ["Be concise.\n\nfirst task", "second task"]
+    assert all(r.get("method") != "session/set_model" for r in requests)
+    assert all(proc.poll() is not None for proc in fake_kimi.processes)
 
-    from kodo.sessions.kimi import KimiSession
 
+def test_explicit_native_model_alias_is_preserved(tmp_path, fake_kimi):
+    session = KimiSession(model="custom-provider/my-coding-model")
+    result = session.query("hello", tmp_path, max_turns=5)
+    assert not result.is_error
+    selected = next(r for r in fake_kimi() if r.get("method") == "session/set_model")
+    assert selected["params"] == {
+        "sessionId": session.session_id,
+        "modelId": "custom-provider/my-coding-model",
+    }
+
+
+def test_clone_and_reset_start_fresh_conversations(tmp_path, fake_kimi):
+    session = KimiSession(model="my-model", system_prompt="Be concise.")
+    session.query("first", tmp_path, max_turns=5)
+    original_id = session.session_id
+    clone = session.clone()
+    assert clone.session_id is None
+    assert not clone.query("clone", tmp_path, max_turns=5).is_error
+    assert clone.session_id != original_id
+    assert session.session_id == original_id
+    session.reset()
+    assert session.session_id is None
+    assert session.stats.queries == 0
+    assert not session.query("after reset", tmp_path, max_turns=5).is_error
+    assert session.session_id not in (original_id, clone.session_id)
+    prompts = [
+        r["params"]["prompt"][0]["text"]
+        for r in fake_kimi()
+        if r.get("method") == "session/prompt"
+    ]
+    assert prompts == [
+        "Be concise.\n\nfirst",
+        "Be concise.\n\nclone",
+        "Be concise.\n\nafter reset",
+    ]
+
+
+def test_changing_project_creates_a_new_session(tmp_path, fake_kimi):
     session = KimiSession()
-    try:
-        result = session.query("task", tmp_path, max_turns=10)
-        assert "Starting task" in result.text
-        assert "Task complete" in result.text
-    finally:
-        session.close()
+    session.query("hello", tmp_path, max_turns=5)
+    previous_id = session.session_id
+    other_project = tmp_path / "other"
+    other_project.mkdir()
+    assert not session.query("hello", other_project, max_turns=5).is_error
+    assert session.session_id != previous_id
+    assert all(r.get("method") != "session/load" for r in fake_kimi())
 
 
-def test_run_with_dead_thread(tmp_path: Path):
-    """Test that _run raises RuntimeError when thread is dead."""
-    log.init(RunDir.create(tmp_path, "kimi_dead_thread"))
-    _install_mock_sdk()
+def test_saved_run_resumes_exact_kimi_conversation(tmp_path, fake_kimi):
+    from kodo.agent import Agent
+    from kodo.orchestrators.resume import inject_resume_sessions
+    from kodo.orchestrators.types import ResumeState
 
-    from kodo.sessions.kimi import KimiSession
-    from unittest.mock import MagicMock
-    import asyncio
-
+    saved_id = "saved-kimi-worker-id"
     session = KimiSession()
-    original_thread = session._thread
-    try:
-        # Mock thread to appear dead
-        mock_thread = MagicMock()
-        mock_thread.is_alive.return_value = False
-        session._thread = mock_thread
-
-        # Use a real coroutine that can be checked
-        coro = asyncio.sleep(0)
-
-        with pytest.raises(RuntimeError, match="thread is dead"):
-            session._run(coro)
-    finally:
-        # Restore original thread and clean up
-        session._thread = original_thread
-        session.close()
+    resume = ResumeState(1, "prior work", {"worker": saved_id}, [], [], 0)
+    inject_resume_sessions({"worker": Agent(session, "worker")}, resume)
+    assert not session.query("continue", tmp_path, max_turns=5).is_error
+    loaded = next(r for r in fake_kimi() if r.get("method") == "session/load")
+    assert loaded["params"]["sessionId"] == session.session_id == saved_id
+    assert all(r.get("method") != "session/new" for r in fake_kimi())
 
 
-def test_build_config_with_existing_file(tmp_path, monkeypatch):
-    """Test _build_config returns None when config file exists with models."""
-    log.init(RunDir.create(tmp_path, "kimi_config_exists"))
-
-    from kodo.sessions.kimi import KimiSession
-
-    # Create fake config file
-    kimi_dir = tmp_path / ".kimi"
-    kimi_dir.mkdir()
-    config_file = kimi_dir / "config.toml"
-    config_file.write_text("[models.kimi-k2.5]\nname = 'test'")
-
-    # Mock Path.home() to return tmp_path
-    import pathlib
-
-    original_home = pathlib.Path.home
-    monkeypatch.setattr(pathlib.Path, "home", lambda: tmp_path)
-
-    try:
-        config = KimiSession._build_config()
-        assert config is None  # Should use existing config
-    finally:
-        monkeypatch.setattr(pathlib.Path, "home", original_home)
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [("error", "Provider unavailable"), ("auth", "kimi login")],
+)
+def test_native_errors_are_returned_without_retry(
+    tmp_path, fake_kimi, monkeypatch, mode, expected
+):
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", mode)
+    result = KimiSession().query("hello", tmp_path, max_turns=5)
+    assert result.is_error
+    assert expected in result.text
+    assert len(fake_kimi.processes) == 1
+    assert fake_kimi.processes[0].poll() is not None
 
 
-def test_build_config_without_api_key(monkeypatch):
-    """Test _build_config returns None when KIMI_API_KEY is missing."""
-    from kodo.sessions.kimi import KimiSession
-    import pathlib
-
-    # Mock config file doesn't exist
-    def mock_exists(self):
-        return False
-
-    original_exists = pathlib.Path.exists
-    monkeypatch.setattr(pathlib.Path, "exists", mock_exists)
-    monkeypatch.delenv("KIMI_API_KEY", raising=False)
-
-    try:
-        config = KimiSession._build_config()
-        assert config is None
-    finally:
-        monkeypatch.setattr(pathlib.Path, "exists", original_exists)
+def test_permission_request_allows_current_tool_once(tmp_path, fake_kimi, monkeypatch):
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "permission")
+    result = KimiSession().query("inspect files", tmp_path, max_turns=5)
+    assert not result.is_error
+    permission = next(r for r in fake_kimi() if r.get("id") == "permission-1")
+    assert permission["result"]["outcome"] == {
+        "outcome": "selected",
+        "optionId": "allow",
+    }
 
 
-def test_build_config_from_env_key(tmp_path, monkeypatch):
-    """Test _build_config creates Config from KIMI_API_KEY."""
-    from kodo.sessions.kimi import KimiSession
-    import pathlib
-    import sys
-
-    # Mock config file doesn't exist
-    def mock_exists(self):
-        return False
-
-    monkeypatch.setattr(pathlib.Path, "exists", mock_exists)
-    monkeypatch.setenv("KIMI_API_KEY", "test-key-123")
-
-    # Add Config class to mock SDK
-    _install_mock_sdk()
-
-    class MockConfig:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    sys.modules["kimi_agent_sdk"].Config = MockConfig
-
-    try:
-        config = KimiSession._build_config()
-        # Config should be created (not None)
-        assert config is not None
-        assert isinstance(config, MockConfig)
-    finally:
-        pass
+def test_tool_limit_cancels_current_prompt(tmp_path, fake_kimi, monkeypatch):
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "limit")
+    result = KimiSession().query("inspect files", tmp_path, max_turns=3)
+    assert result.is_error
+    assert result.incomplete_reason == "max_turns"
+    assert sum(r.get("method") == "session/cancel" for r in fake_kimi()) == 1
 
 
-def test_session_resume_fallback(tmp_path):
-    """Test failed resume falls back to creating new session."""
-    log.init(RunDir.create(tmp_path, "kimi_resume_fallback"))
-
-    # Install mock SDK with resume returning None
-    _install_mock_sdk()
-    import sys
-
-    # Override resume to return None
-    async def mock_resume(*args, **kwargs):
-        return None
-
-    sys.modules["kimi_agent_sdk"].Session.resume = classmethod(mock_resume)
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession(resume_session_id="old-123")
-    try:
-        # Should log warning and fall back to create
-        result = session.query("test", tmp_path, max_turns=10)
-        assert not result.is_error
-        # Session should be created (not None)
-        assert session._session is not None
-    finally:
-        session.close()
+@pytest.mark.parametrize("timeout", [0, 1])
+def test_deadline_reaps_hanging_child(tmp_path, fake_kimi, monkeypatch, timeout):
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "hang")
+    result = KimiSession(session_timeout_s=timeout).query(
+        "hello", tmp_path, max_turns=5
+    )
+    assert result.is_error
+    assert result.incomplete_reason == "timeout"
+    assert fake_kimi.processes[0].poll() is not None
 
 
-def test_close_session_handles_runtime_error(tmp_path):
-    """Test _close_session handles RuntimeError during close."""
-    log.init(RunDir.create(tmp_path, "kimi_close_err"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        # Create a session first
-        session.query("test", tmp_path, max_turns=10)
-
-        # Mock _run to raise RuntimeError
-        original_run = session._run
-
-        def mock_run(*args, **kwargs):
-            raise RuntimeError("Thread error")
-
-        session._run = mock_run
-
-        # Should not raise, just pass
-        session._close_session()
-        assert session._session is None
-
-        session._run = original_run
-    finally:
-        session._run = original_run
-        session.close()
+def test_close_interrupts_blocked_query(tmp_path, fake_kimi, monkeypatch):
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "hang")
+    session = KimiSession(session_timeout_s=5)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(session.query, "hello", tmp_path, max_turns=5)
+        try:
+            deadline = time.monotonic() + 3
+            while not any(r.get("method") == "session/prompt" for r in fake_kimi()):
+                assert time.monotonic() < deadline, "Kimi did not reach its prompt"
+                threading.Event().wait(0.01)
+            session.close()
+            result = pending.result(timeout=2)
+            assert result.is_error
+            assert result.incomplete_reason != "timeout"
+            assert fake_kimi.processes[0].poll() is not None
+        finally:
+            session.close()
 
 
-def test_query_exception_handling(tmp_path):
-    """Test that query handles exceptions during execution."""
-    log.init(RunDir.create(tmp_path, "kimi_query_exc"))
-    _install_mock_sdk()
-
-    from kodo.sessions.kimi import KimiSession
-
-    session = KimiSession()
-    try:
-        # Create session first
-        session.query("test", tmp_path, max_turns=10)
-
-        # Mock _run to raise exception during query
-        def mock_run_exc(*args, **kwargs):
-            if args and hasattr(args[0], "__name__"):
-                # This is _do_query
-                raise ValueError("Query execution failed")
-            return None
-
-        original_run = session._run
-        session._run = mock_run_exc
-
-        result = session.query("test2", tmp_path, max_turns=10)
-
-        assert result.is_error
-        assert "Kimi session error during query" in result.text
-        assert "ValueError" in result.text
-
-        session._run = original_run
-    finally:
-        session._run = original_run
-        session.close()
+def test_deadline_returns_when_descendant_inherits_output(tmp_path, fake_kimi, monkeypatch):
+    """A descendant holding stdout open cannot trap timed-out query cleanup."""
+    child_pid = tmp_path / "descendant.pid"
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "inherited_stdout")
+    monkeypatch.setenv("KODO_FAKE_KIMI_CHILD_PID", str(child_pid))
+    session = KimiSession(session_timeout_s=1)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(session.query, "run tool", tmp_path, max_turns=5)
+        try:
+            result = pending.result(timeout=8)
+            assert child_pid.exists(), "The fixture must start its descendant"
+            assert result.incomplete_reason == "timeout"
+            assert result.is_error
+            assert fake_kimi.processes[0].poll() is not None
+        finally:
+            # Stop the fixture's descendant even when the regression fails.
+            if child_pid.exists():
+                try:
+                    os.kill(int(child_pid.read_text()), signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            session.close()
