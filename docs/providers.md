@@ -34,7 +34,7 @@ Cursor handles fast iteration, testing, and browser-based verification. Used for
 ### kodo-specific notes
 
 - No per-token cost — agents bill through your Cursor subscription.
-- Testers and browser testers currently require Cursor (Codex does not yet support these roles).
+- Team presets choose available testing backends; custom teams can assign tester roles explicitly.
 - Supports session resume via chat ID.
 
 ---
@@ -49,7 +49,7 @@ OpenAI's Codex CLI is an alternative fast worker backend. If Cursor is not avail
 
 ### kodo-specific notes
 
-- Default model: `gpt-5.5`. Configurable in team config.
+- Default model: `gpt-5.6-terra`. Configurable in team config; `gpt-6-astra` is also available for demanding work.
 - Supports session resume (agents continue their prior thread on `kodo --resume`).
 - Runs in `workspace-write` sandbox mode by default.
 
@@ -65,7 +65,7 @@ Google's open-source Gemini CLI. Used for the `worker_fast` role when Cursor and
 
 ### kodo-specific notes
 
-- Default model: `gemini-3.5-flash`. 1M token context window.
+- Default model: `gemini-3.8-flash`. Your installed CLI and account must support the selected model.
 - Supports session resume (auto-saved sessions, `--resume` flag).
 - The only backend with a generous free tier — useful for development and testing.
 
@@ -73,11 +73,13 @@ Google's open-source Gemini CLI. Used for the `worker_fast` role when Cursor and
 
 ## Kimi (smart workers)
 
-Moonshot AI's Kimi agent SDK. Used as a smart worker alternative.
+Moonshot AI's native Kimi Code CLI. Used as a worker or as an orchestrator via its agent protocol.
 
 **Install and authenticate:** [Kimi CLI getting started](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html)
 
-**Requires:** `KIMI_API_KEY` environment variable.
+**Requires:** an installed CLI supporting `kimi acp`, authenticated through the CLI's normal login/configuration. Run `kimi login` before launching kodo.
+
+Kodo no longer installs the old `kimi-agent-sdk` or its pinned Python CLI dependencies. Existing SDK-only `KIMI_API_KEY` setups need to be configured in the native CLI. Authentication failures are reported by that CLI; kodo does not create or modify its credentials.
 
 ---
 
@@ -99,7 +101,7 @@ Amazon's AI coding CLI. Used as a general-purpose worker.
 
 ## Orchestrator API keys
 
-The orchestrator (the "brain" that directs agents) can run on Gemini API, Claude API, or local Ollama. This is separate from the agent backends above.
+The orchestrator can use OpenAI, Gemini, Claude, other configured API providers, or local Ollama. This is separate from the agent backends above. See the [current model audit](model-audit-2026-09-08.md) for defaults and provider sources.
 
 ```bash
 # Gemini orchestrator (recommended — fast and cheap)
@@ -107,6 +109,9 @@ export GOOGLE_API_KEY=...     # or GEMINI_API_KEY
 
 # Claude API orchestrator (alternative)
 export ANTHROPIC_API_KEY=...
+
+# OpenAI API orchestrator
+export OPENAI_API_KEY=...
 ```
 
 Set these in a `.env` file in your project directory or export them in your shell.
@@ -117,13 +122,13 @@ If you already use [Ollama](https://ollama.com/), you can run the orchestrator l
 
 ```bash
 ollama pull qwen2.5-coder:14b
-kodo --goal "..." --orchestrator-model ollama:qwen2.5-coder:14b
+kodo --goal "..." --orchestrator ollama:qwen2.5-coder:14b
 ```
 
 Notes:
 
 - Interactive setup lists the detected local Ollama models so you can pick one directly.
 - `ollama-local` remains available as a shortcut for "first detected local model".
-- Passing an Ollama model implies the `api` orchestrator automatically, so `--orchestrator api` is optional.
+- Passing an Ollama model selects the API orchestrator automatically.
 - kodo assumes the default Ollama OpenAI-compatible endpoint at `http://localhost:11434/v1`.
 - This only replaces the orchestrator API cost. You still need at least one worker backend from the sections above.
