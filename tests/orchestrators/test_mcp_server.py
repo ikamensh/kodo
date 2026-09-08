@@ -5,8 +5,15 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, create_autospec, patch
+
+import httpx
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 
 from kodo import log
 from kodo.log import RunDir
@@ -83,6 +90,31 @@ def test_mcp_context_exit_joins_thread():
 
         assert elapsed < 4.0, "__exit__ should complete well within the 5s join timeout"
         assert not ctx._thread.is_alive()
+
+
+def test_mcp_context_finishes_application_shutdown():
+    """Leaving the context awaits the real server's async lifespan cleanup."""
+    events = []
+
+    @asynccontextmanager
+    async def lifespan(app):
+        events.append("started")
+        yield
+        await asyncio.sleep(0.01)
+        events.append("closed")
+
+    async def health(request):
+        return PlainTextResponse("ready")
+
+    app = Starlette(routes=[Route("/health", health)], lifespan=lifespan)
+    mcp = SimpleNamespace(settings=SimpleNamespace(), sse_app=lambda: app)
+    with McpServerContext(mcp) as ctx:
+        response = httpx.get(f"http://127.0.0.1:{ctx.port}/health", timeout=2)
+        assert response.text == "ready"
+        assert events == ["started"]
+
+    assert events == ["started", "closed"]
+    assert not ctx._thread.is_alive()
 
 
 def test_mcp_exposes_expected_tools():
@@ -273,75 +305,58 @@ def test_enter_raises_on_startup_timeout():
 
 
 def test_exit_handles_loop_already_closed():
-    """__exit__ should handle RuntimeError when loop is already closed."""
+    """Repeated cleanup leaves an already stopped server and closed loop alone."""
     mcp = _make_mcp_with_tools()
-
     with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
-        ctx = McpServerContext(mcp)
-        ctx.__enter__()
-
-        # Mock loop.call_soon_threadsafe to raise RuntimeError
-
-        def raise_runtime_error(*args):
-            raise RuntimeError("Event loop is closed")
-
-        ctx._loop.call_soon_threadsafe = raise_runtime_error
-
-        # Should not raise - __exit__ handles this gracefully
-        ctx.__exit__(None, None, None)
-
-        # Thread should be stopped
+        with McpServerContext(mcp) as ctx:
+            pass
+        ctx.__exit__()
         assert not ctx._thread.is_alive()
+        assert ctx._loop.is_closed()
 
 
-def test_exit_escalates_on_stuck_thread():
-    """__exit__ should escalate when thread doesn't stop, calling loop.stop multiple times."""
-    mcp = _make_mcp_with_tools()
+def test_exit_unwinds_unresponsive_server(monkeypatch):
+    """The shutdown deadline still allows cancelled server tasks to clean up."""
+    cleaned_up = threading.Event()
 
-    with patch("uvicorn.Server", autospec=True, side_effect=_make_fake_uvicorn_server):
-        ctx = McpServerContext(mcp)
-        ctx.__enter__()
+    def unresponsive_server(config):
+        server = SimpleNamespace(should_exit=False)
 
-        # Track calls to call_soon_threadsafe
-        call_count = {"call_soon_threadsafe": 0}
-        original_call_soon = ctx._loop.call_soon_threadsafe
+        async def startup(sockets=None):
+            pass
 
-        def track_call_soon(func):
-            call_count["call_soon_threadsafe"] += 1
-            # Actually call original to properly stop the loop
-            original_call_soon(func)
+        async def serve():
+            await server.startup()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                await asyncio.sleep(0.01)
+                cleaned_up.set()
 
-        ctx._loop.call_soon_threadsafe = track_call_soon
+        server.startup = startup
+        server.serve = serve
+        return server
 
-        # Mock thread.is_alive to return True for first join, then False
-        join_count = [0]
-        original_join = ctx._thread.join
-
-        def mock_join(timeout=None):
-            join_count[0] += 1
-            if join_count[0] <= 2:
-                # Don't actually join to simulate stuck thread
-                time.sleep(0.01)
-            else:
-                # Finally join to let test complete
-                original_join(timeout=0.1)
-
-        def mock_is_alive():
-            # Stuck for first two checks, then stops
-            return join_count[0] <= 2
-
-        ctx._thread.join = mock_join
-        ctx._thread.is_alive = mock_is_alive
-
-        # Mock log.emit to verify it's called
-        with patch("kodo.log.emit", autospec=True) as mock_emit:
-            ctx.__exit__(None, None, None)
-
-            # Should have called call_soon_threadsafe twice (initial + escalation)
-            assert call_count["call_soon_threadsafe"] >= 2
-
-            # Should have called log.emit with the stuck thread event
-            mock_emit.assert_called_once_with(
-                "mcp_server_thread_stuck",
-                message="Thread still alive after 7s",
+    with patch("uvicorn.Server", autospec=True, side_effect=unresponsive_server):
+        with McpServerContext(_make_mcp_with_tools()) as ctx:
+            original_join = ctx._thread.join
+            # Exercise the timeout without spending five seconds waiting.
+            monkeypatch.setattr(
+                ctx._thread, "join", lambda timeout: original_join(timeout=0.2)
             )
+
+    assert cleaned_up.is_set()
+    assert not ctx._thread.is_alive()
+    assert ctx._loop.is_closed()
+
+
+def test_exit_reports_stuck_thread():
+    """A server that outlives the shutdown deadline reports a stuck-thread event."""
+    ctx = McpServerContext(_make_mcp_with_tools())
+    ctx._thread = create_autospec(threading.Thread, instance=True)
+    ctx._thread.is_alive.return_value = True
+    with patch("kodo.log.emit", autospec=True) as emit:
+        ctx.__exit__()
+    emit.assert_called_once_with(
+        "mcp_server_thread_stuck", message="Thread still alive after 7s"
+    )
