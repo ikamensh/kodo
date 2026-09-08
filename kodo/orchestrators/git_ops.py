@@ -58,13 +58,18 @@ def create_worktree(project_dir: Path, label: str) -> tuple[Path, str]:
         worktree_dir.rmdir()
     except OSError:
         shutil.rmtree(worktree_dir, ignore_errors=True)
-    subprocess.run(
-        [_GIT, "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
-        cwd=project_dir,
-        capture_output=True,
-        check=True,
-        timeout=_GIT_TIMEOUT,
-    )
+    try:
+        subprocess.run(
+            [_GIT, "worktree", "add", str(worktree_dir), "-b", branch_name, "HEAD"],
+            cwd=project_dir,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TIMEOUT,
+        )
+    except BaseException:
+        # Git may have created the branch/worktree before interruption.
+        remove_worktree(project_dir, worktree_dir, branch_name)
+        raise
     return worktree_dir, branch_name
 
 

@@ -6,7 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
 
@@ -27,6 +27,7 @@ from kodo.orchestrators.base import (
     merge_worktree_branch,
     remove_worktree,
 )
+from kodo.sessions.base import QueryResult, Session
 from tests.conftest import make_agent
 
 
@@ -1114,29 +1115,15 @@ def test_sequential_stage_crash_before_parallel_is_caught(mock_viewer, tmp_proje
 
 
 @pytest.mark.slow
-@patch("kodo.orchestrators.base.open_viewer", create=True)  # noqa: autospec
-def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
+@pytest.mark.parametrize("interrupt_after_creation", [False, True])
+def test_worktree_cleanup_on_interrupt_during_creation(
+    git_project, tmp_path, interrupt_after_creation
+):
     """If KeyboardInterrupt fires during worktree creation, already-created
     worktrees must still be cleaned up (no leak)."""
-    # Need a real git repo so the first create_worktree succeeds
     import subprocess
 
-    project = tmp_path / "repo"
-    project.mkdir()
-    subprocess.run(["git", "init"], cwd=project, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=project,
-        capture_output=True,
-        check=True,
-        env={
-            **os.environ,
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-        },
-    )
+    project = git_project
     log.init(RunDir.create(tmp_path))
 
     plan = _make_parallel_plan()  # S1 seq, S2+S3 parallel, S4 seq
@@ -1147,32 +1134,33 @@ def test_worktree_cleanup_on_interrupt_during_creation(mock_viewer, tmp_path):
     )
     team = {"worker": make_agent()}
 
-    call_count = 0
-    original_create = create_worktree
+    attempted = []
+    real_run = subprocess.run
 
-    def create_then_interrupt(proj_dir, label):
-        """First call succeeds; second raises KeyboardInterrupt."""
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            return original_create(proj_dir, label)
-        raise KeyboardInterrupt("simulated interrupt during worktree creation")
+    def create_then_interrupt(cmd, *args, **kwargs):
+        """Interrupt the second git worktree creation at the process boundary."""
+        if cmd[:3] == ["git", "worktree", "add"]:
+            attempted.append((Path(cmd[3]), cmd[5]))
+            if len(attempted) == 2:
+                if interrupt_after_creation:
+                    real_run(cmd, *args, **kwargs)
+                raise KeyboardInterrupt("simulated interrupt during worktree creation")
+        return real_run(cmd, *args, **kwargs)
 
-    with (
-        patch(
-            "kodo.orchestrators.base.create_worktree",
-            autospec=True,
-            side_effect=create_then_interrupt,
-        ),
-        patch("kodo.orchestrators.base.remove_worktree", autospec=True) as mock_remove,
-        patch("kodo.viewer.open_viewer", create=True),  # noqa: autospec
-    ):
-        # The KeyboardInterrupt should propagate but cleanup should happen first
-        with pytest.raises(KeyboardInterrupt):
-            orch.run("goal", project, team, max_cycles=10, plan=plan)
+    try:
+        with patch("subprocess.run", autospec=True, side_effect=create_then_interrupt):
+            with pytest.raises(KeyboardInterrupt):
+                orch.run("goal", project, team, max_cycles=10, plan=plan)
 
-        # The first worktree was successfully created — verify it was cleaned up
-        assert mock_remove.call_count == 1
+        assert len(attempted) == 2
+        for worktree, branch in attempted:
+            assert not worktree.exists()
+            assert branch not in _git(project, "branch", "--list").stdout
+            assert str(worktree) not in _git(project, "worktree", "list").stdout
+    finally:
+        for worktree, branch in attempted:
+            if worktree.exists():
+                remove_worktree(project, worktree, branch)
 
 
 # ── persist_changes helper tests ──────────────────────────────────────────
@@ -1306,17 +1294,18 @@ class TestMergeWorktreeBranch:
         """When merge conflicts occur, an agent resolves them."""
         project, branch = conflict_project
 
-        def _fake_resolve(project_dir, branch_name, stage_name):
-            """Simulate agent resolving conflicts: pick a side, add, commit."""
+        def _fake_resolve(prompt, project_dir, *, max_turns):
+            """The external agent resolves and stages; Kodo commits the merge."""
             (project_dir / "shared.py").write_text("resolved version")
             _git(project_dir, "add", "shared.py")
-            _git(project_dir, "commit", "--no-edit")
-            return True
+            return QueryResult(text="Resolved and staged", elapsed_s=0)
 
+        session = create_autospec(Session, instance=True)
+        session.query.side_effect = _fake_resolve
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            "kodo.make_session",
             autospec=True,
-            side_effect=_fake_resolve,
+            return_value=session,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")
 
@@ -1325,18 +1314,21 @@ class TestMergeWorktreeBranch:
         assert result.had_changes
 
         content = (project / "shared.py").read_text()
-        assert "<<<<<<<" not in content
+        assert content == "resolved version"
+        assert not _git(project, "status", "--porcelain").stdout.strip()
+        head = _git(project, "rev-list", "--parents", "-n", "1", "HEAD").stdout.split()
+        assert len(head) == 3  # merge commit and both parents
 
     def test_conflict_aborts_when_agent_fails(self, conflict_project):
         """If agent can't resolve conflicts, merge aborts cleanly."""
-        from unittest.mock import patch
-
         project, branch = conflict_project
 
+        session = create_autospec(Session, instance=True)
+        session.query.return_value = QueryResult(text="Unable to resolve", elapsed_s=0)
         with patch(
-            "kodo.orchestrators.base._resolve_conflicts_with_agent",
+            "kodo.make_session",
             autospec=True,
-            return_value=False,
+            return_value=session,
         ):
             result = merge_worktree_branch(project, branch, "ConflictStage")
 
