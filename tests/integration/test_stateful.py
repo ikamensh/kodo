@@ -15,7 +15,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 _PROJECT_DIR = Path(__file__).resolve().parents[2]
-_VIEWER_WAIT_TIMEOUT = 5.0
+_VIEWER_WAIT_TIMEOUT = 30.0  # cold starts on CI macOS and loaded laptops exceed 5s
 _VIEWER_POLL_INTERVAL = 0.3
 
 
