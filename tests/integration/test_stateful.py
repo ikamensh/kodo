@@ -16,7 +16,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 _PROJECT_DIR = Path(__file__).resolve().parents[2]
-_VIEWER_WAIT_TIMEOUT = 5.0
+_VIEWER_WAIT_TIMEOUT = 30.0  # polled; only a broken start waits this long
 _VIEWER_POLL_INTERVAL = 0.3
 
 
@@ -30,8 +30,9 @@ def _start_viewer(port: int, runs_dir: Path) -> subprocess.Popen:
     return subprocess.Popen(
         [sys.executable, "-m", "kodo", "logs", "--port", str(port)],
         cwd=_PROJECT_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
         # Headless and hermetic: `kodo logs` opens a browser before serving and
         # indexes every past run, which takes seconds on a well-used machine.
         env={**os.environ, "BROWSER": "true", "KODO_RUNS_DIR": str(runs_dir)},
@@ -57,7 +58,10 @@ class TestLogViewerServer:
         port = _find_free_port()
         proc = _start_viewer(port, tmp_path)
         try:
-            assert _wait_for_server(port), "Viewer did not become ready"
+            if not _wait_for_server(port):
+                proc.terminate()
+                output, _ = proc.communicate(timeout=5)
+                pytest.fail(f"Viewer did not become ready (exit {proc.returncode}):\n{output}")
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as resp:
                 assert resp.status == 200
                 body = resp.read()
