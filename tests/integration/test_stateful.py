@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 from pathlib import Path
@@ -26,7 +27,7 @@ def _find_free_port() -> int:
 
 def _start_viewer(port: int) -> subprocess.Popen:
     return subprocess.Popen(
-        ["uv", "run", "kodo", "logs", "--port", str(port)],
+        [sys.executable, "-m", "kodo", "logs", "--port", str(port)],
         cwd=_PROJECT_DIR,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,

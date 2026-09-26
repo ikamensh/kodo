@@ -56,6 +56,7 @@ class GitCommitSession(FakeSession):
             cwd=project_dir,
             capture_output=True,
             check=True,
+            env=_GIT_ENV,  # CI runners have no git identity
         )
 
         return QueryResult(

@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,7 +31,8 @@ def run_kodo(
     cwd: Path | str | None = None,
     env: dict[str, str] | None = None,
 ) -> CliResult:
-    command = ["uv", "run", "kodo"] + list(args)
+    # The interpreter running pytest already has kodo installed; CI has no uv.
+    command = [sys.executable, "-m", "kodo", *args]
     work_dir = Path(cwd) if cwd is not None else _PROJECT_DIR
     merged_env = {**os.environ, **(env or {})}
 
