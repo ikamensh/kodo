@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import socketserver
 import threading
+from http.server import HTTPServer
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
@@ -62,3 +64,16 @@ def strip_markdown_fences(text: str) -> str:
         lines = [line for line in lines if not line.strip().startswith("```")]
         text = "\n".join(lines)
     return text
+
+
+class LoopbackHTTPServer(HTTPServer):
+    """An HTTPServer for 127.0.0.1 that never resolves its own hostname.
+
+    ``HTTPServer.server_bind`` calls ``socket.getfqdn()``, a reverse DNS lookup
+    that stalls for tens of seconds on hosts without working reverse DNS
+    (e.g. macOS CI runners) before the server can accept a single request.
+    """
+
+    def server_bind(self) -> None:
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]

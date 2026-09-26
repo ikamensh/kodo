@@ -13,6 +13,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
 
+from kodo.utils import LoopbackHTTPServer
+
 _DASHBOARD_DIR = Path(__file__).parent
 _STATIC_FILES = {
     "/": ("dashboard.html", "text/html; charset=utf-8"),
@@ -436,7 +438,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._send_error(404, "Not found")
 
 
-class _ThreadedHTTPServer(HTTPServer):
+class _ThreadedHTTPServer(LoopbackHTTPServer):
     """HTTPServer that handles each request in a new thread."""
     daemon_threads = True
     allow_reuse_address = True

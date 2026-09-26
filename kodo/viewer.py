@@ -17,8 +17,10 @@ import sys
 import tempfile
 import time
 import webbrowser
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
+
+from kodo.utils import LoopbackHTTPServer
 
 _VIEWER_HTML = Path(__file__).parent / "viewer.html"
 _EMBED_MARKER = "/*__EMBED_MARKER__*/"
@@ -168,7 +170,7 @@ def _serve(port: int, log_path: Path | None) -> None:
             self.wfile.write(data)
 
     try:
-        server = HTTPServer(("127.0.0.1", port), Handler)
+        server = LoopbackHTTPServer(("127.0.0.1", port), Handler)
     except OSError as exc:
         print(f"Error: {exc}")
         print(f"Hint: try a different port with --port {port + 1}")

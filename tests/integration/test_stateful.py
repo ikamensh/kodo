@@ -26,7 +26,18 @@ def _find_free_port() -> int:
         return s.getsockname()[1]
 
 
-def _start_viewer(port: int, runs_dir: Path) -> subprocess.Popen:
+def _start_viewer(port: int, tmp_path: Path) -> subprocess.Popen:
+    # A host without reverse DNS (CI macOS stalls on it): a loopback server
+    # must never resolve its own name.
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "sitecustomize.py").write_text(
+        "import socket\n"
+        "def _no_reverse_dns(name=''):\n"
+        "    raise OSError('reverse DNS unavailable')\n"
+        "socket.getfqdn = _no_reverse_dns\n"
+    )
+    python_path = os.pathsep.join(filter(None, [str(site), os.environ.get("PYTHONPATH")]))
     return subprocess.Popen(
         [sys.executable, "-m", "kodo", "logs", "--port", str(port)],
         cwd=_PROJECT_DIR,
@@ -35,14 +46,19 @@ def _start_viewer(port: int, runs_dir: Path) -> subprocess.Popen:
         text=True,
         # Headless and hermetic: `kodo logs` opens a browser before serving and
         # indexes every past run, which takes seconds on a well-used machine.
-        env={**os.environ, "BROWSER": "true", "KODO_RUNS_DIR": str(runs_dir)},
+        env={
+            **os.environ, "BROWSER": "true", "KODO_RUNS_DIR": str(tmp_path / "runs"),
+            "PYTHONPATH": python_path,
+        },
     )
 
 
-def _wait_for_server(port: int, timeout: float = _VIEWER_WAIT_TIMEOUT) -> bool:
+def _wait_for_server(
+    port: int, proc: subprocess.Popen, timeout: float = _VIEWER_WAIT_TIMEOUT
+) -> bool:
     url = f"http://127.0.0.1:{port}/"
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    while time.monotonic() < deadline and proc.poll() is None:
         try:
             with urllib.request.urlopen(url, timeout=2) as resp:
                 if resp.status == 200:
@@ -58,7 +74,7 @@ class TestLogViewerServer:
         port = _find_free_port()
         proc = _start_viewer(port, tmp_path)
         try:
-            if not _wait_for_server(port):
+            if not _wait_for_server(port, proc):
                 proc.terminate()
                 output, _ = proc.communicate(timeout=5)
                 pytest.fail(f"Viewer did not become ready (exit {proc.returncode}):\n{output}")
