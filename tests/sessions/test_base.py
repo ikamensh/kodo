@@ -162,6 +162,31 @@ class TestSubprocessSpawn:
             else:
                 os.environ.pop("ANTHROPIC_API_KEY", None)
 
+    def test_spawned_cli_reads_eof_not_the_callers_open_stdin(self):
+        """Agent CLIs such as `opencode run` read piped stdin until EOF. A caller
+        whose own stdin is a pipe nobody closes (a shell tool, a pipeline) must
+        not hang the agent forever."""
+        import os
+
+        session = ConcreteSubprocessSession(model="test")
+        read_end, write_end = os.pipe()
+        saved_stdin = os.dup(0)
+        os.dup2(read_end, 0)
+        try:
+            proc, _, thread = session._spawn(
+                [sys.executable, "-c", "import sys; print(len(sys.stdin.read()))"]
+            )
+            try:
+                assert proc.wait(timeout=10) == 0
+            finally:
+                proc.kill()
+            assert proc.stdout.read().strip() == "0"
+            thread.join(timeout=2)
+        finally:
+            os.dup2(saved_stdin, 0)
+            for fd in (saved_stdin, read_end, write_end):
+                os.close(fd)
+
     def test_spawn_sets_did_timeout_false(self):
         """_spawn resets the timeout flag."""
         session = ConcreteSubprocessSession(model="test")
