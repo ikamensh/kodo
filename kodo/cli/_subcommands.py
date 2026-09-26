@@ -21,6 +21,7 @@ from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_SONNET,
     CODEX_WORKER,
+    OPENAI_MODEL_OPTIONS,
     CURSOR_COMPOSER,
     GEMINI_CLI_FLASH,
     GEMINI_CLI_PRO,
@@ -321,11 +322,8 @@ def _cmd_backends() -> None:
     import sys
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from kodo.factory import (
-        available_backends,
-        backend_definitions,
-        check_backend_status,
-    )
+    from kodo.backends import BACKENDS
+    from kodo.factory import available_backends, check_backend_status
     from kodo.formatting import (
         DIM as _DIM,
         GREEN as _GRN,
@@ -338,7 +336,7 @@ def _cmd_backends() -> None:
     backends = available_backends()
 
     _INSTALL_LINKS: dict[str, str] = {
-        definition.key: definition.install_hint for definition in backend_definitions()
+        name: backend.install_hint for name, backend in BACKENDS.items()
     }
     _README_URL = "https://github.com/ikamensh/kodo#prerequisites"
 
@@ -355,9 +353,7 @@ def _cmd_backends() -> None:
     # Check all installed backends in parallel
     status_results: dict[str, tuple[str, str | None]] = {}
     with ThreadPoolExecutor(max_workers=len(installed) or 1) as pool:
-        futures = {
-            pool.submit(check_backend_status, name): name for name in installed
-        }
+        futures = {pool.submit(check_backend_status, name): name for name in installed}
         for future in as_completed(futures):
             status_results[futures[future]] = future.result()
 
@@ -425,7 +421,7 @@ def _print_team_blocks(
 ) -> bool:
     """Print the same team cards as ``kodo teams``. Returns True if any backend is missing."""
     from kodo.factory import smart_model_for_backend
-    from kodo.team_config import _BACKEND_MAP
+    from kodo.backends import BACKENDS
 
     try:
         term_width = os.get_terminal_size().columns
@@ -451,7 +447,7 @@ def _print_team_blocks(
             if raw_model:
                 model = raw_model
             else:
-                bkey = _BACKEND_MAP.get(backend, "")
+                bkey = backend if backend in BACKENDS else ""
                 try:
                     model = f"default ({smart_model_for_backend(bkey)})"
                 except KeyError:
@@ -462,7 +458,7 @@ def _print_team_blocks(
                 if raw_desc
                 else ""
             )
-            backend_key = _BACKEND_MAP.get(backend, "")
+            backend_key = backend if backend in BACKENDS else ""
             ok = backends.get(backend_key, False)
             if ok:
                 status = f"{GREEN}ok{RESET}"
@@ -589,7 +585,8 @@ def _cmd_teams_auto_all() -> None:
 def _cmd_teams_auto(mode_name: str) -> None:
     """Generate a viable team config from available backends."""
     from kodo.factory import available_backends
-    from kodo.team_config import _BACKEND_MAP, list_available_teams
+    from kodo.backends import BACKENDS
+    from kodo.team_config import list_available_teams
 
     available_backends.cache_clear()
     backends = available_backends()
@@ -623,7 +620,7 @@ def _cmd_teams_auto(mode_name: str) -> None:
     skipped = []
     for akey, acfg in src_agents.items():
         backend = acfg.get("backend", "")
-        backend_key = _BACKEND_MAP.get(backend, "")
+        backend_key = backend if backend in BACKENDS else ""
         if backends.get(backend_key, False):
             agents[akey] = acfg
         else:
@@ -746,10 +743,11 @@ def _ask_agent_fields(
     defaults: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Interactively collect fields for one agent definition."""
-    from kodo.team_config import _AGENT_DEFAULTS, _BACKEND_MAP
+    from kodo.backends import BACKENDS
+    from kodo.team_config import _AGENT_DEFAULTS
 
     d = defaults or {}
-    backends = list(_BACKEND_MAP.keys())
+    backends = list(BACKENDS)
 
     # Place the default backend first so the pointer and highlight are in sync
     # (questionary.select has a visual glitch when default != first item).
@@ -768,8 +766,8 @@ def _ask_agent_fields(
     _BACKEND_MODELS: dict[str, list[str]] = {
         "claude": ["sonnet", "opus"],
         "cursor": ["composer-2.5", "composer-2.5-fast"],
-        "codex": ["gpt-5.5", "gpt-5.4"],
-        "gemini-cli": ["gemini-3.5-flash", "gemini-3-pro"],
+        "codex": list(OPENAI_MODEL_OPTIONS),
+        "gemini-cli": [GEMINI_CLI_FLASH, GEMINI_CLI_PRO],
     }
     model_suggestions = _BACKEND_MODELS.get(backend, [])
     prev_model = d.get("model", "")

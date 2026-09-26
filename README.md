@@ -18,7 +18,9 @@
 
 # 🦉 kodo
 
-Autonomous multi-agent coding that runs overnight on your Claude Code Max subscription. An orchestrator directs Claude Code agents through work cycles with independent verification — so you wake up to tested, reviewed code instead of a stale terminal.
+Autonomous multi-agent coding that runs overnight using your installed coding agents. An orchestrator delegates implementation and review across work cycles, with resumable logs and checkpoints.
+
+Verification is currently directed by the orchestrator: the default completion tool asks it to consult testers, but does not enforce an independent verification gate. Check the run's test and review evidence before relying on its success status.
 
 ### [SWE-bench Verified: Kodo 57% vs Cursor 46%](https://kodo-bench-h2h-430011644943.europe-west1.run.app/)
 
@@ -76,11 +78,11 @@ The architect verifier caught **9 rounds of bugs** that the worker agent was bli
 
 You have a Claude Code Max subscription. You can't use it while you sleep.
 
-kodo lets you set a goal, go to bed, and wake up to working code that's been independently tested and reviewed. The orchestrator (Gemini Flash) directs your subscription-covered Claude Code agents through multiple work cycles with built-in QA.
+kodo lets you set a goal and leave a team working through multiple cycles. Choose an API orchestrator such as Gemini Flash or Claude, or an installed CLI backend. The orchestrator delegates implementation, testing, and review to the team.
 
 <table>
 <tr><td nowrap>🌙 <strong>Overnight runs</strong></td><td>Set a goal, leave it running for hours. Cycles checkpoint progress automatically.</td></tr>
-<tr><td nowrap>🔍 <strong>Built-in verification</strong></td><td>Independent architect + tester agents review work before accepting. Catches bugs the implementing agent is blind to.</td></tr>
+<tr><td nowrap>🔍 <strong>Review roles</strong></td><td>Architect and tester agents can independently review work. The default completion path relies on the orchestrator to request and assess that review.</td></tr>
 <tr><td nowrap>🎭 <strong>Role separation</strong></td><td>Orchestrator making judgment calls, workers building code, independent reviewers catching issues.</td></tr>
 <tr><td nowrap>🧠 <strong>Context efficiency</strong></td><td>Work is spread across multiple agent context windows, so tasks that might overwhelm a single agent's context can succeed when agents take turns with focused scopes.</td></tr>
 </table>
@@ -147,12 +149,12 @@ ANTHROPIC_API_KEY=...  # Claude API orchestrator (alternative)
 ```bash
 # Interactive mode (recommended) — walks you through goal, config, launch
 kodo                     # run in current directory
-kodo ./my-project        # run in specific directory
+kodo --project ./my-project  # run in specific directory
 
 # Non-interactive (for scripting, CI, overnight cron jobs)
-kodo --goal 'Build a REST API for user management' ./my-project
-kodo --goal-file requirements.md ./my-project
-kodo --goal 'Build X' --team full --exchanges 50 --cycles 10 ./my-project
+kodo --goal 'Build a REST API for user management' --project ./my-project
+kodo --goal-file requirements.md --project ./my-project
+kodo --goal 'Build X' --team full --exchanges 50 --cycles 10 --project ./my-project
 
 # Test — find bugs through realistic interaction (not unit tests)
 kodo test                            # test current project
@@ -187,7 +189,7 @@ Passing `--goal` or `--goal-file` enables non-interactive mode — no prompts, n
 ### All flags
 
 ```
-kodo [project_dir] [options]
+kodo [options]
 
 Goal (mutually exclusive):
   --goal TEXT               Goal text (inline)
@@ -201,11 +203,12 @@ Test/Improve options:
   --target PATH             Scope --test to specific files/dirs (repeatable)
 
 Configuration:
+  --project PATH            Project directory (default: current directory)
   --team TEAM               full (default) | quick | test
   --exchanges N             Max exchanges per cycle
   --cycles N                Max cycles
-  --orchestrator BACKEND    api (default) | claude-code | gemini-cli | codex | cursor
-  --orchestrator-model M    opus | sonnet | gemini-pro | gemini-flash
+  --orchestrator MODEL      API alias or provider:model, e.g. opus, gemini-flash
+                           CLI backend:model, e.g. claude-code:opus
 
 Behavior:
   --effort LEVEL            low | standard (default) | high | max
@@ -213,6 +216,8 @@ Behavior:
   --auto-refine             Auto-refine goal (no human input, for overnight runs)
   --yes, -y                 Skip confirmation prompts
   --no-auto-commit          Disable auto-commit after stages
+  --coach                   Enable optional orchestration advice
+  --debug                   Run with deterministic mocked backends
 
 Output:
   --json                    Structured JSON to stdout (implies --yes)
@@ -259,10 +264,13 @@ kodo --improve --focus 'CLI interface'   # focus on area
 
 ```bash
 kodo test                     # find bugs through realistic testing
+kodo improve                  # review simplification, usability, architecture
 kodo runs                     # list all past runs
 kodo runs ./my-project        # list runs for a specific project
 kodo issue [RUN_ID]           # report a bug (opens GitHub with run context pre-filled)
 kodo backends                 # show available backends, models, API key status
+kodo logs                     # open a past run in the log viewer
+kodo dashboard                # monitor runs in the live web dashboard
 kodo teams                    # list available teams
 kodo teams add my-team        # interactively create a custom team
 kodo teams edit my-team       # edit an existing team
@@ -281,7 +289,7 @@ kodo teams delete             # pick user team files to remove (same listing sty
 
 ### Effort levels
 
-Control how hard agents work and how strict verification is:
+Control agent effort and the instructions given for verification. These settings do not add an enforced completion gate:
 
 | Level | Orchestrator behavior | Verification | Claude workers |
 |-------|----------------------|-------------|----------------|
@@ -363,6 +371,8 @@ Kodo tracks costs in two buckets:
 | **✨ Virtual** | **Not charged.** Claude Code SDK reports what API usage *would* cost — but on a Max/Pro subscription you pay nothing extra. | Claude Max workers: shows ~$1.69, actual spend $0 |
 
 The progress table labels subscription-covered costs as **Virtual** to make this clear. Only the **API** bucket represents real spend.
+
+Totals include only usage reported by each backend. Native Kimi does not currently report token usage or cost through this adapter, so a zero total does not establish that a run was free. Its billing follows the native CLI's account/provider configuration.
 
 ## 🔎 Analyzing past runs
 

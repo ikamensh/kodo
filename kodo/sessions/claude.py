@@ -36,7 +36,10 @@ class ClaudeSession:
         resume_session_id: str | None = None,
         session_timeout_s: int | None = None,
         effort: str | None = None,
+        max_buffer_size: int = 16 * 1024 * 1024,
     ):
+        if max_buffer_size <= 0:
+            raise ValueError("max_buffer_size must be positive")
         self.model = model
         self.system_prompt = system_prompt
         self.chrome = chrome
@@ -45,6 +48,8 @@ class ClaudeSession:
         self.resume_session_id = resume_session_id
         self._session_timeout_s = session_timeout_s
         self.effort = effort  # "low" | "standard" | "high" | "max" | None
+        # Image-bearing Read results exceed the SDK's 1 MiB stdout-message cap.
+        self.max_buffer_size = max_buffer_size
         self._client = None
         self._project_dir: Path | None = None
         self._session_id: str | None = None
@@ -182,6 +187,7 @@ class ClaudeSession:
                 disallowed_tools=["AskUserQuestion"],
                 model=self.model,
                 fallback_model=self.fallback_model,
+                max_buffer_size=self.max_buffer_size,
                 extra_args=extra_args,
                 debug_stderr=None,
                 stderr=lambda msg: log.emit("claude_stderr", message=msg),
@@ -229,6 +235,7 @@ class ClaudeSession:
             use_api_key=self.use_api_key,
             session_timeout_s=self._session_timeout_s,
             effort=self.effort,
+            max_buffer_size=self.max_buffer_size,
         )
 
     def _get_subprocess_pid(self) -> int | None:

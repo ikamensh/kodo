@@ -91,6 +91,7 @@ class McpServerContext:
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._exc: Exception | None = None
+        self._force_stop = False
         self.port: int = 0
         self.sse_url: str = ""
 
@@ -131,34 +132,39 @@ class McpServerContext:
                 self._loop = asyncio.new_event_loop()
                 self._loop.run_until_complete(server.serve())
             except RuntimeError as e:
-                # "Event loop is closed" / "Event loop stopped" are expected
-                # when __exit__ asks the loop to stop; suppress them silently.
-                if "event loop" not in str(e).lower():
+                if not (
+                    self._force_stop
+                    and str(e) == "Event loop stopped before Future completed."
+                ):
                     self._exc = e
                     ready.set()
             except Exception as e:
                 self._exc = e
                 ready.set()  # unblock main thread so it can raise
+            finally:
+                if self._loop:
+                    # The server normally completes its own shutdown. After a
+                    # forced stop, unwind remaining tasks before closing its loop.
+                    pending = asyncio.all_tasks(self._loop)
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        self._loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                    self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                    self._loop.close()
 
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
 
         # Wait for the server to be ready (up to 10s)
         if not ready.wait(timeout=10):
-            if self._server is not None:
-                self._server.should_exit = True
-            if self._thread:
-                self._thread.join(timeout=5)
-            if self._exc:
-                raise self._exc
+            self.__exit__()
             raise RuntimeError("MCP server failed to start within 10s")
 
         if self._exc:
-            if self._server is not None:
-                self._server.should_exit = True
-            if self._thread:
-                self._thread.join(timeout=5)
-            raise self._exc
+            self.__exit__()
 
         return self
 
@@ -184,20 +190,15 @@ class McpServerContext:
     def __exit__(self, *exc) -> None:
         if self._server is not None:
             self._server.should_exit = True
-        # Ask the event loop to stop so run_until_complete() returns
-        # and the thread can exit naturally.
-        if self._loop:
-            try:
-                self._loop.call_soon_threadsafe(self._loop.stop)
-            except RuntimeError:
-                pass  # loop already closed/stopped
         if self._thread:
+            # Keep the loop running so Uvicorn can drain connections and await
+            # the application's lifespan shutdown.
             self._thread.join(timeout=5)
             if self._thread.is_alive():
                 from kodo import log
 
-                log.tprint("[mcp] server thread did not stop within 5s, retrying...")
-                # Escalation: retry loop.stop and give 2s more
+                log.tprint("[mcp] server thread did not stop within 5s, forcing stop...")
+                self._force_stop = True
                 if self._loop:
                     try:
                         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -209,13 +210,6 @@ class McpServerContext:
                         "mcp_server_thread_stuck",
                         message="Thread still alive after 7s",
                     )
-        # Close loop even if thread is stuck — the daemon thread will be
-        # cleaned up at process exit.
-        if self._loop:
-            try:
-                self._loop.close()
-            except (OSError, RuntimeError):
-                pass  # best-effort cleanup
         # Propagate any exception captured in the server thread.
         if self._exc:
             from kodo import log

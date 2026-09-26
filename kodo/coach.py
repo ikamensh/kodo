@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from kodo import log
 from kodo.advisory import AdvisoryQueue
+from kodo.models import GEMINI_API_PRO
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +75,7 @@ Your role is STRATEGIC, not tactical:
 {tenets}
 """
 
-_COACH_DEFAULT_MODEL = "google-gla:gemini-3.1-pro-preview"
+_COACH_DEFAULT_MODEL = f"google-gla:{GEMINI_API_PRO}"
 
 
 # ---------------------------------------------------------------------------
@@ -147,9 +148,7 @@ class Coach:
 
         # Set up human feedback file
         if self._log_file:
-            self._human_feedback_file = (
-                self._log_file.parent / "human_feedback.txt"
-            )
+            self._human_feedback_file = self._log_file.parent / "human_feedback.txt"
 
         self._thread = threading.Thread(
             target=self._run_loop,
@@ -175,7 +174,12 @@ class Coach:
         self._maybe_assess()
 
     def record_result(
-        self, agent_name: str, task: str, is_error: bool, *, report: str = "",
+        self,
+        agent_name: str,
+        task: str,
+        is_error: bool,
+        *,
+        report: str = "",
     ) -> None:
         """Called by handle_agent_call to record a result with the agent's report."""
         entry = {
@@ -266,7 +270,9 @@ class Coach:
 
             from kodo.models import make_fresh_model, resolve_model
 
-            model_str = resolve_model(self._model) if self._model else _COACH_DEFAULT_MODEL
+            model_str = (
+                resolve_model(self._model) if self._model else _COACH_DEFAULT_MODEL
+            )
             queue = self._queue
 
             def send_feedback(message: str, priority: str = "warning") -> str:
@@ -425,7 +431,9 @@ class FilteredCoach(Coach):
 
             from kodo.models import make_fresh_model, resolve_model
 
-            model_str = resolve_model(self._model) if self._model else _COACH_DEFAULT_MODEL
+            model_str = (
+                resolve_model(self._model) if self._model else _COACH_DEFAULT_MODEL
+            )
             queue = self._queue
             coach_self = self
 

@@ -1,289 +1,93 @@
-"""Tests for KimiCodeOrchestrator.cycle() — streaming, nudge loop, done signal."""
+"""Exercise Kimi orchestration through a fake ACP executable and real MCP server."""
 
 from __future__ import annotations
 
-import contextlib
-import sys
-import types
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from kodo.orchestrators.kimi_code import KimiCodeOrchestrator
 
 
-# ── Fake kimi_agent_sdk module ──────────────────────────────────────────
-# The real SDK is an optional dependency; build a minimal fake module
-# so the deferred import inside cycle() resolves.
+@pytest.fixture
+def kimi_cycle(fake_kimi):
+    """Replace the external CLI while retaining process, protocol and MCP wiring."""
+    orch = KimiCodeOrchestrator(
+        model="configured-kimi", system_prompt="Coordinate tasks."
+    )
+    yield orch, fake_kimi
+    orch._summarizer.shutdown()
 
 
-def _install_fake_kimi_sdk():
-    """Install a fake kimi_agent_sdk module and return its namespace."""
-    mod = types.ModuleType("kimi_agent_sdk")
-
-    class TextPart:
-        def __init__(self, text: str = ""):
-            self.text = text
-
-    class TokenUsage:
-        pass
-
-    class TurnEnd:
-        pass
-
-    class ApprovalRequest:
-        def __init__(self):
-            self.resolved = False
-
-        def resolve(self, action: str):
-            self.resolved = True
-
-    class Session:
-        @classmethod
-        async def create(cls, **kwargs):
-            return cls()
-
-        def prompt(self, text: str):
-            """Return an async iterator; override in tests."""
-            raise NotImplementedError
-
-        async def close(self):
-            pass
-
-    mod.TextPart = TextPart
-    mod.TokenUsage = TokenUsage
-    mod.TurnEnd = TurnEnd
-    mod.ApprovalRequest = ApprovalRequest
-    mod.Session = Session
-
-    sys.modules["kimi_agent_sdk"] = mod
-    return mod
+def test_kimi_cycle_completes_through_mcp(kimi_cycle, tmp_path, monkeypatch):
+    """The CLI receives the local MCP server and its done call completes the cycle."""
+    orch, requests = kimi_cycle
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "mcp")
+    result = orch.cycle("Build the feature", tmp_path, {}, max_exchanges=5)
+    assert result.finished and result.success
+    assert result.summary == "Completed through Kimi MCP"
+    messages = requests()
+    created = next(m for m in messages if m.get("method") == "session/new")
+    assert created["params"]["cwd"] == str(tmp_path)
+    assert created["params"]["mcpServers"][0]["type"] == "sse"
+    prompts = [m for m in messages if m.get("method") == "session/prompt"]
+    assert len(prompts) == 1
+    prompt = prompts[0]["params"]["prompt"][0]["text"]
+    assert "Coordinate tasks." in prompt
+    assert "Build the feature" in prompt
 
 
-_sdk = _install_fake_kimi_sdk()
+def test_kimi_nudge_resumes_session_and_completes(kimi_cycle, tmp_path, monkeypatch):
+    """A missing done call triggers one nudge in the same session, then stops."""
+    orch, requests = kimi_cycle
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "nudge")
+    result = orch.cycle("Build the feature", tmp_path, {}, max_exchanges=5)
+    assert result.finished and result.success
+    assert result.exchanges == 2
+    messages = requests()
+    methods = [m.get("method") for m in messages]
+    assert methods.count("session/new") == 1
+    assert methods.count("session/load") == 1
+    prompts = [m for m in messages if m.get("method") == "session/prompt"]
+    assert prompts[0]["params"]["sessionId"] == prompts[1]["params"]["sessionId"]
 
 
-# ── Helpers ─────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("exchanges", [1, 2, 20])
+def test_kimi_missing_done_respects_exchange_and_nudge_limits(
+    kimi_cycle, tmp_path, exchanges
+):
+    """Unfinished work preserves its summary and stops at the first applicable limit."""
+    orch, requests = kimi_cycle
+    result = orch.cycle("Build the feature", tmp_path, {}, max_exchanges=exchanges)
+    assert not result.finished
+    assert result.summary == "Hello world"
+    assert result.exchanges == min(exchanges, 4)
+    messages = requests()
+    prompts = [m for m in messages if m.get("method") == "session/prompt"]
+    assert len(prompts) == min(exchanges, 4)
 
 
-@contextlib.contextmanager
-def _base_patches(done_signal, session_instance):
-    """Stub out MCP server, logging, and the Kimi SDK session."""
-    mock_mcp = MagicMock()
-    mock_mcp._mcp_server = MagicMock()
-
-    # McpServerContext needs to be a context manager yielding an object with sse_url
-    mock_ctx = MagicMock()
-    mock_ctx.sse_url = "http://127.0.0.1:9999/sse"
-    mock_ctx.__enter__ = MagicMock(return_value=mock_ctx)
-    mock_ctx.__exit__ = MagicMock(return_value=False)
-
-    with (
-        patch(
-            "kodo.orchestrators.kimi_code.build_mcp_server",
-            autospec=True,
-            return_value=mock_mcp,
-        ),
-        patch(
-            "kodo.orchestrators.kimi_code.McpServerContext",
-            autospec=True,
-            return_value=mock_ctx,
-        ),
-        patch(
-            "kodo.orchestrators.kimi_code.build_cycle_prompt",
-            autospec=True,
-            return_value="go",
-        ),
-        patch(
-            "kodo.orchestrators.kimi_code.DoneSignal",
-            autospec=True,
-            return_value=done_signal,
-        ),
-        patch("kodo.orchestrators.kimi_code.VerificationState", autospec=True),
-        patch("kodo.orchestrators.kimi_code.log", autospec=True),
-        patch.object(
-            _sdk.Session, "create", new=AsyncMock(return_value=session_instance)
-        ),
-    ):
-        yield
+def test_kimi_provider_error_does_not_trigger_nudges(kimi_cycle, tmp_path, monkeypatch):
+    """A provider error is reported once rather than spending the remaining budget."""
+    orch, requests = kimi_cycle
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "error")
+    result = orch.cycle("Build the feature", tmp_path, {}, max_exchanges=5)
+    assert not result.finished
+    assert "Provider unavailable" in result.summary
+    messages = requests()
+    assert sum(m.get("method") == "session/prompt" for m in messages) == 1
 
 
-def _make_orch():
-    from kodo.orchestrators.kimi_code import KimiCodeOrchestrator
-
-    return KimiCodeOrchestrator(model="kimi-k2-test")
-
-
-def _make_session(messages_per_prompt=None):
-    """Build a fake Session whose prompt() yields given messages.
-
-    messages_per_prompt: list of message lists. Each call to prompt() pops
-    the next list. If None, yields a single TurnEnd per prompt.
-    """
-    queues = list(messages_per_prompt or [[_sdk.TurnEnd()]])
-
-    class FakeSession(_sdk.Session):
-        def __init__(self):
-            self._prompt_idx = 0
-
-        @classmethod
-        async def create(cls, **kwargs):
-            return cls()
-
-        async def prompt(self, text: str):
-            idx = self._prompt_idx
-            self._prompt_idx += 1
-            msgs = queues[idx] if idx < len(queues) else [_sdk.TurnEnd()]
-            for m in msgs:
-                yield m
-
-        async def close(self):
-            pass
-
-    return FakeSession()
-
-
-# ── Exchange tracking ───────────────────────────────────────────────────
-
-
-class TestKimiCycleTracking:
-    def test_turn_end_increments_exchanges(self, tmp_path: Path):
-        """Each TurnEnd in the stream increments result.exchanges."""
-        done = MagicMock(called=True, success=True, summary="done")
-        session = _make_session(
-            [
-                [_sdk.TurnEnd(), _sdk.TurnEnd(), _sdk.TurnEnd()],
-            ]
-        )
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        assert result.exchanges >= 3
-
-    def test_text_parts_collected_into_summary(self, tmp_path: Path):
-        """TextPart messages are concatenated when done_signal is not called."""
-        done = MagicMock(called=False)
-        # done_signal.called stays False through all nudges too
-        session = _make_session(
-            [
-                [_sdk.TextPart("Hello "), _sdk.TextPart("world"), _sdk.TurnEnd()],
-                [_sdk.TurnEnd()],  # nudge 1
-                [_sdk.TurnEnd()],  # nudge 2
-                [_sdk.TurnEnd()],  # nudge 3
-            ]
-        )
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        # After max nudges, summary should be set (from last response)
-        assert result is not None
-
-    def test_done_signal_applies_summary(self, tmp_path: Path):
-        """When done_signal.called is True after initial prompt, result is set."""
-        done = MagicMock(called=True, success=True, summary="task completed")
-        session = _make_session([[_sdk.TurnEnd()]])
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        assert result.finished is True
-        assert "task completed" in result.summary
-
-
-# ── Nudge loop ──────────────────────────────────────────────────────────
-
-
-class TestKimiNudgeLoop:
-    def test_nudge_limit_ends_cycle(self, tmp_path: Path):
-        """After _MAX_NUDGES without done, cycle ends gracefully."""
-        done = MagicMock(called=False)  # never becomes True
-        session = _make_session(
-            [
-                [_sdk.TurnEnd()],  # initial prompt
-                [_sdk.TurnEnd()],  # nudge 1
-                [_sdk.TurnEnd()],  # nudge 2
-                [_sdk.TurnEnd()],  # nudge 3
-            ]
-        )
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        assert result.finished is False
-
-    def test_done_during_nudge_stops_loop(self, tmp_path: Path):
-        """If done_signal.called becomes True during a nudge, loop stops."""
-        call_count = 0
-
-        # done_signal.called returns False first, then True on 2nd check
-        class FakeDone:
-            success = True
-            summary = "finished during nudge"
-            terminal = "goal_done"
-
-            @property
-            def called(self):
-                nonlocal call_count
-                call_count += 1
-                # False for first check (after initial prompt),
-                # True on subsequent checks (during nudge loop)
-                return call_count > 2
-
-        done = FakeDone()
-        session = _make_session(
-            [
-                [_sdk.TurnEnd()],  # initial prompt
-                [_sdk.TurnEnd()],  # nudge 1 — done becomes True here
-            ]
-        )
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        assert result.finished is True
-
-
-# ── Approval request handling ───────────────────────────────────────────
-
-
-class TestKimiApprovalRequest:
-    def test_approval_request_auto_approved(self, tmp_path: Path):
-        """ApprovalRequest in stream is auto-resolved with 'approve'."""
-        done = MagicMock(called=True, success=True, summary="done")
-        approval = _sdk.ApprovalRequest()
-        session = _make_session([[approval, _sdk.TurnEnd()]])
-
-        with _base_patches(done, session):
-            result = _make_orch().cycle(
-                goal="test",
-                project_dir=tmp_path,
-                team=MagicMock(spec=dict),
-                max_exchanges=5,
-            )
-
-        assert approval.resolved is True
-        assert result is not None
+@pytest.mark.parametrize(("exchanges", "tool_calls"), [(1, 1), (3, 3), (3, 4)])
+def test_kimi_tool_limit_uses_the_remaining_cycle_budget(
+    kimi_cycle, tmp_path, monkeypatch, exchanges, tool_calls
+):
+    """Cancel at the budget and count actual work, including starts already queued."""
+    orch, requests = kimi_cycle
+    monkeypatch.setenv("KODO_FAKE_KIMI_MODE", "limit")
+    monkeypatch.setenv("KODO_FAKE_KIMI_TOOLS", str(tool_calls))
+    result = orch.cycle("Build the feature", tmp_path, {}, max_exchanges=exchanges)
+    assert not result.finished
+    assert result.exchanges == tool_calls
+    methods = [message.get("method") for message in requests()]
+    assert methods.count("session/prompt") == 1
+    assert methods.count("session/cancel") == 1

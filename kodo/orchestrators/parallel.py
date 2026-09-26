@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import signal
 import subprocess
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -86,26 +86,30 @@ def create_stage_worktrees(
     worktrees: dict[int, tuple[Path, str]] = {}
     failed = False
 
-    for stage in group:
-        try:
-            wt_dir, branch = create_worktree(
-                project_dir,
-                f"stage-{stage.index}",
-            )
-            worktrees[stage.index] = (wt_dir, branch)
-            log.tprint(
-                f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
-            )
-        except (
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-            OSError,
-        ) as exc:
-            log.tprint(
-                f"⚠️  [orchestrator] Worktree creation failed for "
-                f"stage {stage.index}: {exc}",
-            )
-            failed = True
+    with ExitStack() as rollback:
+        for stage in group:
+            try:
+                wt_dir, branch = create_worktree(
+                    project_dir,
+                    f"stage-{stage.index}",
+                )
+                rollback.callback(remove_worktree, project_dir, wt_dir, branch)
+                worktrees[stage.index] = (wt_dir, branch)
+                log.tprint(
+                    f"[orchestrator] Worktree for stage {stage.index}: {wt_dir}",
+                )
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as exc:
+                log.tprint(
+                    f"⚠️  [orchestrator] Worktree creation failed for "
+                    f"stage {stage.index}: {exc}",
+                )
+                failed = True
+        # The caller owns cleanup only after all creation attempts return.
+        rollback.pop_all()
 
     return worktrees, failed
 

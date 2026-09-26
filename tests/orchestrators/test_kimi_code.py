@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kodo.models import KIMI_K2_5
+from kodo.models import KIMI_DEFAULT
 
 
 def test_kimi_code_orchestrator_construction():
@@ -10,7 +10,7 @@ def test_kimi_code_orchestrator_construction():
     from kodo.orchestrators.kimi_code import KimiCodeOrchestrator
 
     orch = KimiCodeOrchestrator()
-    assert orch.model == KIMI_K2_5
+    assert orch.model == KIMI_DEFAULT
     assert orch._orchestrator_name == "kimi-code"
     assert orch._summarizer is not None
 
@@ -31,7 +31,7 @@ def test_build_orchestrator_kimi_code():
 
     orch = build_orchestrator("kimi-code")
     assert isinstance(orch, KimiCodeOrchestrator)
-    assert orch.model == KIMI_K2_5
+    assert orch.model == KIMI_DEFAULT
 
 
 def test_build_orchestrator_kimi_code_custom_model():

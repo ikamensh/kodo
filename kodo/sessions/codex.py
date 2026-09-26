@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from kodo import log
-from kodo.models import CODEX_DEFAULT, CODEX_WORKER
+from kodo.models import CODEX_WORKER
 from kodo.sessions.base import QueryResult, SubprocessSession, classify_session_error
 
 
@@ -80,8 +80,10 @@ class CodexSession(SubprocessSession):
 
         raw_messages: list[dict] = []
         error_messages: list[str] = []
+        turn_failed = False
 
         def _parse_stdout(proc):
+            nonlocal turn_failed
             result_text = ""
             input_tokens = 0
             output_tokens = 0
@@ -152,6 +154,13 @@ class CodexSession(SubprocessSession):
                     if error_msg:
                         error_messages.append(error_msg)
 
+                elif event_type == "turn.failed":
+                    turn_failed = True
+                    error = (inner or msg).get("error", {})
+                    error_msg = error.get("message", "") if isinstance(error, dict) else str(error)
+                    if error_msg:
+                        error_messages.append(error_msg)
+
                 # Capture background_event errors (retries, API failures)
                 elif event_type == "background_event":
                     src = inner if inner else msg
@@ -174,24 +183,15 @@ class CodexSession(SubprocessSession):
             return r
 
         # Session-specific post-processing
-        is_error = r.returncode != 0
+        is_error = r.returncode != 0 or turn_failed
         result_text = r.result_text
 
-        # Codex may exit 0 even when all API calls failed — detect this
-        if not is_error and not result_text and error_messages:
+        # Structured provider errors are authoritative on both zero and
+        # nonzero exits. Generic stderr classification can otherwise replace
+        # a quota reset/model error with an unrelated MCP login warning.
+        if error_messages and (is_error or not result_text):
             is_error = True
-            # Surface an actionable message for model/auth issues
-            last_err = error_messages[-1]
-            if "not supported" in last_err or "does not exist" in last_err:
-                result_text = (
-                    f"Codex error: {last_err}\n"
-                    f"Check your Codex login ('codex login status') and model "
-                    f"('{self.model}'). ChatGPT accounts support {CODEX_WORKER} "
-                    f"and {CODEX_DEFAULT}. API accounts may use {CODEX_DEFAULT}. "
-                    f"Run 'codex login' to switch auth method."
-                )
-            else:
-                result_text = last_err
+            result_text = error_messages[-1]
 
         # Classify the error for better diagnostics
         if is_error and not result_text:

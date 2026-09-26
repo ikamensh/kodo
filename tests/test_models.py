@@ -14,10 +14,13 @@ from kodo.models import (
     available_model_choices,
     check_api_key_for_model,
     ensure_ollama_base_url,
+    get_model_info,
+    get_pricing,
     implied_orchestrator_from_model,
     is_ollama_model,
     list_ollama_models,
     make_fresh_model,
+    model_display_name,
     normalize_ollama_model,
     probe_keys_async,
     resolve_model,
@@ -33,6 +36,19 @@ def _provider(name: str):
 
 
 class TestModelPricing:
+    @pytest.mark.parametrize(
+        "info",
+        [model for provider in PROVIDER_REGISTRY for model in provider.models],
+        ids=lambda model: model.alias,
+    )
+    def test_resolution_preserves_metadata(self, info):
+        """Resolving a selected model must not erase its display name or cost."""
+        for name in (info.alias, info.full_model_id, resolve_model(info.alias)):
+            assert resolve_model(name) == info.pydantic_id
+            assert get_model_info(name) == info
+            assert get_pricing(name) == info.pricing
+            assert model_display_name(name) == info.display_name
+
     def test_pricing_has_entries(self):
         """MODEL_PRICING is not empty."""
         assert len(MODEL_PRICING) > 0
@@ -236,6 +252,20 @@ class TestVerifyApiKey:
         for provider in PROVIDER_REGISTRY:
             assert _probe_request(provider, "key") is not None, provider.name
 
+    @pytest.mark.parametrize("prefix", ["openai-chat", "openai-responses"])
+    def test_explicit_openai_endpoint_uses_openai_key(self, prefix, monkeypatch):
+        """Custom model IDs retain the selected endpoint and provider auth."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        checked = []
+        monkeypatch.setattr(
+            "kodo.models.verify_api_key", lambda provider: checked.append(provider.name)
+        )
+        model = f"{prefix}:custom-model"
+        assert resolve_model(model) == model
+        assert check_api_key_for_model(model) is None
+        assert checked == ["OpenAI"]
+
     def test_rejected_key_returns_message(self):
         import httpx
         from unittest.mock import patch
@@ -393,9 +423,7 @@ class TestProbeKeysAsync:
                 autospec=True,
                 return_value=[google, openai],
             ),
-            patch(
-                "kodo.models.verify_api_key", autospec=True, side_effect=fake_verify
-            ),
+            patch("kodo.models.verify_api_key", autospec=True, side_effect=fake_verify),
         ):
             results = probe_keys_async()()
         assert results == {"Google": "GOOGLE_API_KEY was rejected"}

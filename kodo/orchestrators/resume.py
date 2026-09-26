@@ -24,6 +24,7 @@ def inject_resume_sessions(
     from kodo.sessions.codex import CodexSession
     from kodo.sessions.cursor import CursorSession
     from kodo.sessions.gemini_cli import GeminiCliSession
+    from kodo.sessions.kimi import KimiSession
 
     for agent_name, sid in resume.agent_session_ids.items():
         agent = team.get(agent_name)
@@ -34,7 +35,7 @@ def inject_resume_sessions(
             sess.resume_session_id = sid
         elif isinstance(sess, CursorSession):
             sess._chat_id = sid
-        elif isinstance(sess, CodexSession):
+        elif isinstance(sess, (CodexSession, KimiSession)):
             sess._session_id = sid
         elif isinstance(sess, GeminiCliSession):
             sess._resume_next = True

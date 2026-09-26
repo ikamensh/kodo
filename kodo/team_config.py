@@ -8,21 +8,12 @@ from pathlib import Path
 
 from kodo import make_session
 from kodo.agent import Agent
+from kodo.backends import BACKENDS, backend_for_session
 from kodo.factory import available_backends, smart_model_for_backend
 from kodo.orchestrators.base import TeamConfig
 from kodo.prompts.roles import ARCHITECT_PROMPT, TESTER_BROWSER_PROMPT, TESTER_PROMPT
 
 logger = logging.getLogger(__name__)
-
-# Backend name → key in available_backends()
-_BACKEND_MAP = {
-    "claude": "claude",
-    "cursor": "cursor",
-    "codex": "codex",
-    "opencode": "opencode",
-    "kiro": "kiro",
-    "gemini-cli": "gemini-cli",
-}
 
 # Defaults for optional agent fields
 _AGENT_DEFAULTS = {
@@ -139,15 +130,14 @@ def build_team_from_json(config: dict) -> TeamConfig:
             )
 
         # Check backend availability
-        backend_key = _BACKEND_MAP.get(backend)
-        if backend_key is None:
+        if backend not in BACKENDS:
             raise ValueError(
                 f"Agent {agent_key!r} has unknown backend {backend!r}. "
-                f"Valid backends: {', '.join(_BACKEND_MAP.keys())}",
+                f"Valid backends: {', '.join(BACKENDS)}",
             )
 
-        model = agent_cfg.get("model") or smart_model_for_backend(backend_key)
-        if not backends.get(backend_key, False):
+        model = agent_cfg.get("model") or smart_model_for_backend(backend)
+        if not backends.get(backend, False):
             logger.warning(
                 "Skipping agent %r: backend %r not available",
                 agent_key,
@@ -198,7 +188,7 @@ def build_team_from_json(config: dict) -> TeamConfig:
     if not team:
         raise RuntimeError(
             "No agents available after checking backends. "
-            "Install at least one of: claude, cursor, codex, or gemini-cli.",
+            f"Install at least one of: {', '.join(BACKENDS)}.",
         )
 
     return team
@@ -241,12 +231,10 @@ def team_to_json(
     verifiers: dict[str, list[str]] | None = None,
 ) -> dict:
     """Serialize a built TeamConfig to a JSON-compatible dict for snapshotting."""
-    from kodo.factory import _SESSION_BACKEND_MAP
-
     agents: dict[str, dict] = {}
     for role, agent in team.items():
         session = agent.session
-        backend = _SESSION_BACKEND_MAP.get(type(session).__name__, "claude")
+        backend = backend_for_session(session) or "claude"
 
         entry: dict = {
             "backend": backend,

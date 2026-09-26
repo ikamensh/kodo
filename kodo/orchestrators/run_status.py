@@ -2,9 +2,37 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from kodo import log
+
+
+def _ignore_generated_status(project_dir: Path) -> None:
+    """Keep runtime status out of Git without ignoring user configuration."""
+    if not any(
+        (parent / ".git").exists() for parent in (project_dir, *project_dir.parents)
+    ):
+        return
+    git_paths = subprocess.run(
+        ["git", "rev-parse", "--show-prefix", "--git-path", "info/exclude"],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    ).stdout.splitlines()
+    prefix, exclude_path = git_paths
+    exclude = project_dir / exclude_path
+    rules = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
+    escaped_prefix = "".join(f"\\{c}" if c in "\\*?[]" else c for c in prefix)
+    rule = f"/{escaped_prefix}.kodo/run-status.md"
+    if rule not in rules.splitlines():
+        exclude.parent.mkdir(parents=True, exist_ok=True)
+        with exclude.open("a", encoding="utf-8") as stream:
+            stream.write(
+                ("\n" if rules and not rules.endswith("\n") else "") + rule + "\n"
+            )
 
 
 def _fmt_time(s: float) -> str:
@@ -78,6 +106,7 @@ def write_run_status(
     content = "\n".join(lines)
 
     status_file = project_dir / ".kodo" / "run-status.md"
+    _ignore_generated_status(project_dir)
     status_file.parent.mkdir(parents=True, exist_ok=True)
     status_file.write_text(content, encoding="utf-8")
 

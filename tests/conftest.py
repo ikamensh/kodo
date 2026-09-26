@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +17,34 @@ from kodo.agent import Agent
 from kodo.factory import clear_backend_cache
 from kodo.sessions.base import QueryResult, SessionStats
 from kodo.user_config import clear_user_config_cache
+
+
+@pytest.fixture
+def fake_kimi(tmp_path: Path, monkeypatch):
+    """Run a real ACP child process portably, without invoking an installed provider."""
+    script = Path(__file__).parent / "mocks" / "kimi_cli.py"
+    real_popen = subprocess.Popen
+    processes = []
+
+    class FakeKimiProcess(real_popen):
+        def __init__(self, command, *args, **kwargs):
+            is_kimi = command[:2] == ["kimi", "acp"]
+            if is_kimi:
+                command = [sys.executable, str(script), *command[1:]]
+            super().__init__(command, *args, **kwargs)
+            if is_kimi:
+                processes.append(self)
+
+    monkeypatch.setattr(subprocess, "Popen", FakeKimiProcess)
+    trace = tmp_path / "kimi-requests.jsonl"
+    trace.touch()
+    monkeypatch.setenv("KODO_FAKE_KIMI_REQUESTS", str(trace))
+
+    def requests():
+        return [json.loads(line) for line in trace.read_text().splitlines()]
+
+    requests.processes = processes
+    return requests
 
 
 _GIT_ENV = {

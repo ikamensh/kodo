@@ -14,25 +14,20 @@ from typing import Callable
 
 from kodo import make_session
 from kodo.agent import Agent
+from kodo.backends import BACKENDS, backend_for_session
 from kodo.models import (
     CLAUDE_OPUS,
     CLAUDE_OPUS_FULL,
     CLAUDE_SONNET,
-    CLAUDE_SONNET_FULL,
     CODEX_DEFAULT,
     CODEX_WORKER,
     CURSOR_COMPOSER,
-    GEMINI_ALIAS_FLASH,
-    GEMINI_ALIAS_PRO,
     GEMINI_API_FLASH,
-    GEMINI_API_PRO,
     GEMINI_CLI_FLASH,
-    GEMINI_CLI_FLASH_V3,
     GEMINI_CLI_PRO,
-    KIMI_K2_5,
+    KIMI_DEFAULT,
     KIRO_DEFAULT,
     OPENCODE_DEFAULT,
-    all_aliases,
     check_api_key_for_model,
     is_ollama_model,
     normalize_ollama_model,
@@ -52,67 +47,6 @@ from kodo.prompts.roles import (
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class BackendDefinition:
-    """CLI metadata shared by backend discovery and preflight checks."""
-
-    key: str
-    binary: str
-    version_cmd: tuple[str, ...]
-    install_hint: str
-
-
-BACKEND_DEFINITIONS: dict[str, BackendDefinition] = {
-    "claude": BackendDefinition(
-        key="claude",
-        binary="claude",
-        version_cmd=("claude", "--version"),
-        install_hint="install Claude Code: https://code.claude.com/docs/en/setup",
-    ),
-    "codex": BackendDefinition(
-        key="codex",
-        binary="codex",
-        version_cmd=("codex", "--version"),
-        install_hint="install Codex: https://github.com/openai/codex/blob/main/docs/install.md",
-    ),
-    "cursor": BackendDefinition(
-        key="cursor",
-        binary="cursor-agent",
-        version_cmd=("cursor-agent", "--version"),
-        install_hint="install Cursor CLI: https://cursor.com/docs/cli/installation",
-    ),
-    "gemini-cli": BackendDefinition(
-        key="gemini-cli",
-        binary="gemini",
-        version_cmd=("gemini", "--version"),
-        install_hint="install Gemini CLI: https://geminicli.com/docs/get-started/installation/",
-    ),
-    "kimi": BackendDefinition(
-        key="kimi",
-        binary="kimi",
-        version_cmd=("kimi", "--version"),
-        install_hint="install Kimi CLI: https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html#installation",
-    ),
-    "kiro": BackendDefinition(
-        key="kiro",
-        binary="kiro-cli",
-        version_cmd=("kiro-cli", "--version"),
-        install_hint="install Kiro CLI: https://kiro.dev/docs/cli/installation/",
-    ),
-    "opencode": BackendDefinition(
-        key="opencode",
-        binary="opencode",
-        version_cmd=("opencode", "--version"),
-        install_hint="install opencode and ensure `opencode` is on PATH",
-    ),
-}
-
-
-def backend_definitions() -> tuple[BackendDefinition, ...]:
-    """Return supported backend definitions in display order."""
-    return tuple(BACKEND_DEFINITIONS.values())
-
-
 @lru_cache(maxsize=1)
 def available_backends() -> dict[str, bool]:
     """Detect which worker backends are installed and on PATH.
@@ -121,8 +55,8 @@ def available_backends() -> dict[str, bool]:
     env changes or in tests).
     """
     return {
-        definition.key: shutil.which(definition.binary) is not None
-        for definition in backend_definitions()
+        name: shutil.which(backend.command) is not None
+        for name, backend in BACKENDS.items()
     }
 
 
@@ -163,19 +97,6 @@ def has_opencode() -> bool:
     return available_backends()["opencode"]
 
 
-def _gemini_only() -> bool:
-    """True when gemini-cli is the only available backend."""
-    return (
-        has_gemini_cli()
-        and not has_claude()
-        and not has_cursor()
-        and not has_codex()
-        and not has_kimi()
-        and not has_kiro()
-        and not has_opencode()
-    )
-
-
 # Central backend preference order for "pick the best available".
 # Used for intake, auto-refine, and any other "give me a backend" logic.
 # Ordering rationale: claude (strongest reasoning) > cursor > kimi > codex > gemini-cli.
@@ -192,64 +113,29 @@ def preferred_backend() -> str | None:
 
 def available_backend_names() -> list[str]:
     """Return display names of all available backends, in preference order."""
-    _DISPLAY_NAMES = {
-        "claude": "Claude",
-        "cursor": "Cursor",
-        "kimi": "Kimi",
-        "codex": "Codex",
-        "opencode": "OpenCode",
-        "kiro": "Kiro",
-        "gemini-cli": "Gemini CLI",
-    }
-    return [_DISPLAY_NAMES[b] for b in _BACKEND_PREFERENCE if _is_available(b)]
-
-
-# Default "smart" model per backend — used for intake, refine, plan generation.
-_BACKEND_SMART_MODEL: dict[str, str] = {
-    "claude": CLAUDE_OPUS,
-    "cursor": CURSOR_COMPOSER,
-    "kimi": KIMI_K2_5,
-    "codex": CODEX_WORKER,
-    "kiro": KIRO_DEFAULT,
-    "opencode": OPENCODE_DEFAULT,
-    "gemini-cli": GEMINI_CLI_FLASH_V3,
-}
+    return [BACKENDS[b].display_name for b in _BACKEND_PREFERENCE if _is_available(b)]
 
 
 def smart_model_for_backend(backend: str) -> str:
     """Return the best model for a backend (for intake/analysis tasks)."""
-    return _BACKEND_SMART_MODEL[backend]
-
-
-# Maps backend key → orchestrator name for CLI-based orchestrators.
-_BACKEND_TO_ORCHESTRATOR: dict[str, str] = {
-    "claude": "claude-code",
-    "cursor": "cursor",
-    "kimi": "kimi-code",
-    "codex": "codex",
-    "kiro": "kiro-cli",
-    "gemini-cli": "gemini-cli",
-}
+    return BACKENDS[backend].smart_model
 
 
 def preferred_orchestrator() -> str:
     """Return the best CLI orchestrator for the current environment.
 
-    Falls back to 'api' if no CLI backends are installed.
+    Falls back to 'api' if no supported CLI orchestrator is installed.
     """
-    backend = preferred_backend()
-    if backend:
-        return _BACKEND_TO_ORCHESTRATOR[backend]
+    for name in _BACKEND_PREFERENCE:
+        orchestrator = BACKENDS[name].orchestrator
+        if orchestrator is not None and _is_available(name):
+            return orchestrator
     return "api"
-
-
-# CLI-based orchestrators that don't need API keys
-_CLI_ORCHESTRATORS = {"claude-code", "gemini-cli", "codex", "cursor", "kimi-code", "kiro-cli"}
 
 
 def check_api_key(orchestrator: str, model: str) -> str | None:
     """Return an error message if the required API key is missing, else None."""
-    if orchestrator in _CLI_ORCHESTRATORS:
+    if any(backend.orchestrator == orchestrator for backend in BACKENDS.values()):
         return None
 
     return check_api_key_for_model(model)
@@ -259,30 +145,6 @@ def check_api_key(orchestrator: str, model: str) -> str | None:
 # Backend preflight checks
 # ---------------------------------------------------------------------------
 
-# Binary → version/help command to test viability
-_PREFLIGHT_CMDS: dict[str, list[str]] = {
-    definition.key: list(definition.version_cmd)
-    for definition in backend_definitions()
-}
-
-# Session class → backend key for preflight
-_SESSION_BACKEND_MAP: dict[str, str] = {
-    "ClaudeSession": "claude",
-    "CursorSession": "cursor",
-    "CodexSession": "codex",
-    "GeminiCliSession": "gemini-cli",
-    "KimiSession": "kimi",
-    "KiroSession": "kiro",
-    "OpenCodeSession": "opencode",
-}
-
-
-def _detect_backend(agent: "Agent") -> str | None:
-    """Infer the backend key from an agent's session type."""
-    cls_name = type(agent.session).__name__
-    return _SESSION_BACKEND_MAP.get(cls_name)
-
-
 def check_backend_status(name: str) -> tuple[str, str | None]:
     """Run the preflight command and classify output for health issues.
 
@@ -290,13 +152,13 @@ def check_backend_status(name: str) -> tuple[str, str | None]:
     means the backend is *installed* but may have auth / quota / billing
     problems (detected from stderr patterns).
     """
-    cmd = _PREFLIGHT_CMDS.get(name)
-    if cmd is None:
+    backend = BACKENDS.get(name)
+    if backend is None:
         return ("?", None)
 
     try:
         proc = subprocess.run(
-            cmd,
+            [backend.command, "--version"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -358,18 +220,14 @@ def preflight_check_backends(team: "TeamConfig") -> list[str]:
     checked: set[str] = set()
 
     for _, agent in team.items():
-        backend = _detect_backend(agent)
+        backend = backend_for_session(agent.session)
         if backend is None or backend in checked:
             continue
         checked.add(backend)
 
-        cmd = _PREFLIGHT_CMDS.get(backend)
-        if cmd is None:
-            continue
-
         try:
             result = subprocess.run(
-                cmd,
+                [BACKENDS[backend].command, "--version"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -472,7 +330,7 @@ class _BackendOption:
 _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     "worker_fast": [
         _BackendOption("cursor", CURSOR_COMPOSER),
-        _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kimi", KIMI_DEFAULT),
         _BackendOption("codex", CODEX_WORKER),
         _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
@@ -481,7 +339,7 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     ],
     "worker_smart": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
-        _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kimi", KIMI_DEFAULT),
         _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
@@ -490,14 +348,14 @@ _ROLE_PRIORITIES: dict[str, list[_BackendOption]] = {
     ],
     "architect": [
         _BackendOption("claude", CLAUDE_OPUS, {"fallback_model": CLAUDE_SONNET}),
-        _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kimi", KIMI_DEFAULT),
         _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_PRO),
     ],
     "tester": [
         _BackendOption("cursor", CURSOR_COMPOSER),
-        _BackendOption("kimi", KIMI_K2_5),
+        _BackendOption("kimi", KIMI_DEFAULT),
         _BackendOption("opencode", OPENCODE_DEFAULT),
         _BackendOption("kiro", KIRO_DEFAULT),
         _BackendOption("gemini-cli", GEMINI_CLI_FLASH),
@@ -556,12 +414,10 @@ def _build_team_core(
     For each role, the first available backend in its priority list is chosen.
     Roles without a description (architect, tester, tester_browser) are skipped.
     """
-    if not any(
-        _is_available(b) for b in ("claude", "codex", "cursor", "gemini-cli", "kimi", "opencode")
-    ):
+    if not any(_is_available(backend) for backend in BACKENDS):
         raise RuntimeError(
             "No worker backends available. Install at least one of: "
-            "claude, cursor, kimi, codex, opencode, or gemini-cli.",
+            f"{', '.join(BACKENDS)}.",
         )
 
     # Map role name → (description, timeout)
@@ -779,34 +635,17 @@ def get_team(name: str) -> TeamPreset:
 # Orchestrator construction
 # ---------------------------------------------------------------------------
 
-# Maps short names ("opus", "sonnet") to full API model IDs.
-# Generated from the provider registry; kept as a module-level dict for
-# backward compatibility (imported by _subcommands.py and tests).
-_MODEL_ALIASES: dict[str, str] = {
-    alias: pydantic_id for alias, pydantic_id in all_aliases().items()
-}
-# Ensure legacy aliases that map to bare model IDs still work
-_MODEL_ALIASES.update(
-    {
-        CLAUDE_OPUS: CLAUDE_OPUS_FULL,
-        CLAUDE_SONNET: CLAUDE_SONNET_FULL,
-        GEMINI_ALIAS_PRO: GEMINI_API_PRO,
-        GEMINI_ALIAS_FLASH: GEMINI_API_FLASH,
-    }
-)
-
-
 def _best_available_api_model() -> str:
     """Pick the best API orchestrator model based on available API keys.
 
-    Preference: OpenAI gpt-5.5 > Gemini Flash > Claude Opus.
+    Preference: OpenAI's default coding model > Gemini Flash > Claude Opus.
     Claude Code subscription should be used via 'claude-code' orchestrator,
     not the API orchestrator — so Claude is the last resort here.
     """
     import os
 
     if os.environ.get("OPENAI_API_KEY"):
-        return CODEX_DEFAULT  # gpt-5.5
+        return CODEX_DEFAULT
     if os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"):
         return GEMINI_API_FLASH
     return CLAUDE_OPUS_FULL
@@ -861,8 +700,11 @@ def build_orchestrator(
     if name == "kimi-code":
         from kodo.orchestrators.kimi_code import KimiCodeOrchestrator
 
-        orch_model = model or KIMI_K2_5
+        orch_model = model or KIMI_DEFAULT
         return KimiCodeOrchestrator(model=orch_model, system_prompt=system_prompt)
+
+    if name != "claude-code":
+        raise ValueError(f"Unknown orchestrator: {name!r}")
 
     from kodo.orchestrators.claude_code import ClaudeCodeOrchestrator
 

@@ -18,7 +18,13 @@ from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai import Tool
 from pydantic_ai.exceptions import ModelHTTPError
 
-from kodo.models import make_fresh_model
+from kodo.models import (
+    CLAUDE_OPUS_FULL,
+    GEMINI_API_PRO,
+    GEMINI_API_FLASH,
+    make_fresh_model,
+    resolve_model,
+)
 from kodo.sessions.base import QueryResult, SessionStats
 from kodo.utils import run_in_thread
 
@@ -26,11 +32,10 @@ if TYPE_CHECKING:
     from kodo.knowledge.models import AgentRole, Workspace
 
 # Map model_preference to actual pydantic-ai model strings.
-# Falls back gracefully: prefers Anthropic when available, Gemini otherwise.
 _PREFERENCE_MAP: dict[str, str] = {
-    "best": "google-gla:gemini-3.1-pro-preview",
-    "fast": "google-gla:gemini-3.5-flash",
-    "reasoning": "google-gla:gemini-3.1-pro-preview",
+    "best": f"google-gla:{GEMINI_API_PRO}",
+    "fast": f"google-gla:{GEMINI_API_FLASH}",
+    "reasoning": f"google-gla:{GEMINI_API_PRO}",
     # "search" and "compute" use "best" model but get extra tools
 }
 
@@ -157,7 +162,7 @@ class ApiSession:
 
 def make_knowledge_session(
     role: "AgentRole",
-    default_model: str = "claude-opus-4-7",
+    default_model: str = CLAUDE_OPUS_FULL,
     workspace: "Workspace | None" = None,
 ) -> ApiSession:
     """Create an API session for a knowledge agent role.
@@ -167,12 +172,10 @@ def make_knowledge_session(
         default_model: Fallback model if preference can't be resolved.
         workspace: Shared workspace for read/write artifact tools.
     """
-    from kodo.models import PYDANTIC_MODEL_MAP
-
     # Resolve model from preference
     pydantic_model = _PREFERENCE_MAP.get(
         role.model_preference,
-        PYDANTIC_MODEL_MAP.get(default_model, f"anthropic:{default_model}"),
+        resolve_model(default_model),
     )
 
     # Build agent-level tools based on role.tools

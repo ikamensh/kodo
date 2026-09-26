@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from kodo.backends import BACKENDS
 from kodo.cli._params import (
     _build_params_from_flags,
     _labeled_choices,
@@ -295,6 +296,18 @@ class TestLoadOrSelectParams:
 
 class TestBuildParamsFromFlags:
     """Tier 1 tests for _build_params_from_flags() function."""
+
+    @pytest.mark.parametrize(
+        "backend", [b.orchestrator for b in BACKENDS.values() if b.orchestrator]
+    )
+    def test_cli_backend_prefix_preserves_model(self, backend):
+        """Every supported CLI orchestrator accepts an explicit model override."""
+        from kodo.cli._params import _parse_orchestrator_flag
+
+        assert _parse_orchestrator_flag(f"{backend}:custom-model") == (
+            backend,
+            "custom-model",
+        )
 
     def test_debug_mode_defaults(self, tmp_path):
         """Debug mode should use sensible defaults without real backend checks."""
@@ -798,11 +811,11 @@ class TestSelectParams:
 
     def test_preferred_orchestrator_default(self, _no_live_key_probes):
         """Best price/perf model floats to the top (= default): gemini-flash
-        first; when its key is rejected, the next preferred one (gpt-5.5)."""
+        first; when its key is rejected, the balanced OpenAI default."""
         choices = [
             ("opus", "Claude Opus 4.7", "Anthropic"),
             ("gemini-flash", "Gemini 3.5 Flash", "Google"),
-            ("gpt-5.5", "GPT-5.5", "OpenAI"),
+            (CODEX_DEFAULT, "Balanced OpenAI model", "OpenAI"),
         ]
 
         def run_wizard():
@@ -820,9 +833,7 @@ class TestSelectParams:
             ):
                 self._select_one_calls.clear()
                 select_params()
-            model_call = [
-                c for c in self._select_one_calls if "model" in c[0].lower()
-            ]
+            model_call = [c for c in self._select_one_calls if "model" in c[0].lower()]
             return model_call[0][1]
 
         options = run_wizard()
@@ -830,7 +841,7 @@ class TestSelectParams:
 
         _no_live_key_probes.return_value = lambda timeout=6.0: {"Google": "rejected"}
         options = run_wizard()
-        assert options[0].startswith("gpt-5.5 — ")
+        assert options[0].startswith(f"{CODEX_DEFAULT} — ")
 
     def test_claude_code_orchestrator(self):
         """claude-code orchestrator should offer Claude model choices."""

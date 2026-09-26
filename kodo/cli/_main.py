@@ -227,9 +227,9 @@ def _main_inner() -> None:
         type=str,
         default=None,
         help=(
-            "Orchestrator model. Examples: opus, gpt-5.5, openai:gpt-5.4-mini, "
+            "Orchestrator model. Examples: opus, gpt-5.6-terra, openai:gpt-5.6-luna, "
             "deepseek, ollama:qwen2.5-coder:14b. "
-            "For CLI backends: claude-code:opus, cursor:composer-2.5, gemini-cli:gemini-3.5-flash."
+            "For CLI backends: claude-code:opus, cursor:composer-2.5, gemini-cli:gemini-3.8-flash."
         ),
     )
     parser.add_argument(
