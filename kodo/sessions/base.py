@@ -155,6 +155,9 @@ class SubprocessSession:
         env.pop("ANTHROPIC_API_KEY", None)
         proc = subprocess.Popen(
             cmd,
+            # Agent CLIs read piped stdin to EOF (e.g. `opencode run`); a
+            # caller's never-closed stdin pipe would hang them forever.
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
